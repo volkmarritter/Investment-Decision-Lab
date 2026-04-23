@@ -25,6 +25,7 @@ import { buildPortfolio } from "@/lib/portfolio";
 import { StressTest } from "./StressTest";
 import { FeeEstimator } from "./FeeEstimator";
 import { SavedScenariosUI } from "./SavedScenariosUI";
+import { DisclaimerPdfBlock } from "./Disclaimer";
 import { useT } from "@/lib/i18n";
 
 const COLORS = [
@@ -667,6 +668,7 @@ export function BuildPortfolio() {
                 />
               </>
             )}
+            <DisclaimerPdfBlock />
             </div>
           </motion.div>
         )}

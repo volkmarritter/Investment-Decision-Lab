@@ -6,6 +6,7 @@ import { ComparePortfolios } from "@/components/investment/ComparePortfolios";
 import { Layers, PieChart, Scale } from "lucide-react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useT } from "@/lib/i18n";
+import { DisclaimerFooter } from "@/components/investment/Disclaimer";
 
 export default function InvestmentLab() {
   const { t, lang, setLang } = useT();
@@ -63,6 +64,8 @@ export default function InvestmentLab() {
           </TabsContent>
         </Tabs>
       </main>
+
+      <DisclaimerFooter />
     </div>
   );
 }
