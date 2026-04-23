@@ -32,6 +32,19 @@ const E = (r: ETFRecord) => r;
 
 const CATALOG: Record<string, ETFRecord> = {
   // ---------- Equity (unhedged) ----------
+  "Equity-Global": E({
+    name: "SPDR MSCI ACWI IMI UCITS",
+    isin: "IE00B3YLTY66",
+    terBps: 17,
+    domicile: "Ireland",
+    replication: "Physical (sampled)",
+    distribution: "Accumulating",
+    currency: "USD",
+    comment:
+      "Single-fund global equity (developed + emerging) tracking MSCI ACWI IMI; used when the ETF budget is too small for region-by-region splits.",
+    listings: { LSE: { ticker: "SPYI" }, XETRA: { ticker: "SPYI" }, SIX: { ticker: "SPYI" } },
+    defaultExchange: "LSE",
+  }),
   "Equity-USA": E({
     name: "iShares Core S&P 500 UCITS",
     isin: "IE00B5BMR087",
@@ -340,6 +353,19 @@ function lookupKey(assetClass: string, region: string, input: PortfolioInput): s
   if (assetClass === "Digital Assets") return "DigitalAssets-BroadCrypto";
 
   if (assetClass === "Equity") {
+    if (region === "Global") return "Equity-Global";
+    if (region === "Home") {
+      if (base === "USD") {
+        if (hedged) {
+          const hk = `Equity-USA-${base}`;
+          if (CATALOG[hk]) return hk;
+        }
+        if (input.includeSyntheticETFs) return "Equity-USA-Synthetic";
+        return "Equity-USA";
+      }
+      if (base === "CHF") return "Equity-Switzerland";
+      return "Equity-Europe";
+    }
     if (region.includes("USA")) {
       if (hedged) {
         const hk = `Equity-USA-${base}`;

@@ -92,6 +92,8 @@ function getShock(assetClass: string, region: string, shocks: Record<string, num
     if (region === "Switzerland") return shocks["Equity_Switzerland"] ?? shocks["Equity_Global"];
     if (region === "Japan") return shocks["Equity_Japan"] ?? shocks["Equity_Global"];
     if (region === "EM" || region === "EM_Japan" || region === "Emerging Markets") return shocks["Equity_EM"] ?? shocks["Equity_Global"];
+    if (region === "Global") return shocks["Equity_Global"] ?? -30;
+    if (region === "Home") return shocks["Equity_USA"] ?? shocks["Equity_Global"] ?? -30;
     return shocks["Equity_Global"] ?? -30;
   }
   

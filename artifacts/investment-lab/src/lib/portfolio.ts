@@ -106,6 +106,37 @@ export function buildPortfolio(input: PortfolioInput, lang: Lang = "en"): Portfo
   // Japan and EM are kept as separate buckets so the allocation always
   // distinguishes Developed-Market Japan from Emerging Markets exposure.
 
+  // If the ETF budget (numETFs) is too small to give every equity region its
+  // own slot, collapse equity into a global core + a home tilt. This preserves
+  // total equity exposure and the home-currency bias while honouring the cap.
+  const equityRegionKeys = ["Equity_USA", "Equity_Europe", "Equity_Switzerland", "Equity_Japan", "Equity_EM"];
+  const presentEquity = equityRegionKeys.filter(k => (weights[k] || 0) > 0);
+  if (Object.keys(weights).filter(k => (weights[k] || 0) > 0).length > input.numETFs && presentEquity.length >= 3) {
+    const homeMap: Record<string, string> = {
+      USD: "Equity_USA",
+      EUR: "Equity_Europe",
+      GBP: "Equity_Europe",
+      CHF: "Equity_Switzerland",
+    };
+    const homeKey = homeMap[input.baseCurrency];
+    let homeSum = 0;
+    let globalSum = 0;
+    for (const k of presentEquity) {
+      if (k === homeKey) homeSum += weights[k];
+      else globalSum += weights[k];
+      delete weights[k];
+    }
+    // For CHF/EUR/GBP without an existing home bucket, carve a small home tilt
+    // from the global pool so the home bias survives consolidation.
+    if (homeSum === 0 && (input.baseCurrency === "CHF" || input.baseCurrency === "EUR" || input.baseCurrency === "GBP")) {
+      const tilt = Math.min(globalSum, input.baseCurrency === "CHF" ? 8 : 12);
+      homeSum = tilt;
+      globalSum -= tilt;
+    }
+    if (homeSum > 0) weights["Equity_Home"] = homeSum;
+    if (globalSum > 0) weights["Equity_Global"] = globalSum;
+  }
+
   let total = 0;
   for (const k in weights) {
     weights[k] = Math.round(weights[k] * 10) / 10;
