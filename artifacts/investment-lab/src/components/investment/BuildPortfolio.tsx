@@ -22,6 +22,7 @@ import { Separator } from "@/components/ui/separator";
 import { PortfolioInput, PortfolioOutput, ValidationResult } from "@/lib/types";
 import { runValidation } from "@/lib/validation";
 import { buildPortfolio } from "@/lib/portfolio";
+import { StressTest } from "./StressTest";
 
 const COLORS = [
   "hsl(var(--chart-1))",
@@ -630,6 +631,9 @@ export function BuildPortfolio() {
                     ))}
                   </div>
                 </div>
+
+                {/* Section 8: Scenario Stress Test */}
+                <StressTest allocation={output.allocation} />
               </>
             )}
             </div>
