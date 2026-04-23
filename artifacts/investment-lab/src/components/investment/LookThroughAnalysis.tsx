@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Telescope, Info } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Telescope, Info, ChevronDown, ChevronUp } from "lucide-react";
 import { ETFImplementation, BaseCurrency } from "@/lib/types";
 import { buildLookthrough } from "@/lib/lookthrough";
 import { useT } from "@/lib/i18n";
@@ -13,6 +15,7 @@ interface Props {
 export function LookThroughAnalysis({ etfs, baseCurrency }: Props) {
   const { t, lang } = useT();
   const result = buildLookthrough(etfs, lang, baseCurrency);
+  const [open, setOpen] = useState(false);
 
   const renderRows = (rows: Array<[string, number]>, max = 10) =>
     rows.slice(0, max).map(([k, v]) => (
@@ -25,11 +28,23 @@ export function LookThroughAnalysis({ etfs, baseCurrency }: Props) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Telescope className="h-5 w-5" /> {t("build.lookthrough.title")}
-        </CardTitle>
-        <CardDescription>{t("build.lookthrough.desc")}</CardDescription>
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div className="flex-1">
+            <CardTitle className="flex items-center gap-2 flex-wrap">
+              <Telescope className="h-5 w-5" />
+              <span>{t("build.lookthrough.title")}</span>
+              <span className="text-xs text-muted-foreground font-normal">
+                {result.equityWeightTotal.toFixed(0)}% {t("build.lookthrough.ofPortfolio")}
+              </span>
+            </CardTitle>
+            <CardDescription className="mt-2">{t("build.lookthrough.desc")}</CardDescription>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={() => setOpen((o) => !o)} className="shrink-0">
+            {open ? <><ChevronUp className="h-4 w-4 mr-1" /> {t("build.homeBias.collapse")}</> : <><ChevronDown className="h-4 w-4 mr-1" /> {t("build.homeBias.expand")}</>}
+          </Button>
+        </div>
       </CardHeader>
+      {open && (
       <CardContent className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {result.geoEquity.length > 0 && (
@@ -109,6 +124,7 @@ export function LookThroughAnalysis({ etfs, baseCurrency }: Props) {
           {t("build.lookthrough.disclaimer")}
         </p>
       </CardContent>
+      )}
     </Card>
   );
 }

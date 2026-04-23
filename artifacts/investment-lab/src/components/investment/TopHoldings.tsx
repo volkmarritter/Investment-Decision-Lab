@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Trophy, Info } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Trophy, Info, ChevronDown, ChevronUp } from "lucide-react";
 import { ETFImplementation, BaseCurrency } from "@/lib/types";
 import { buildLookthrough, LOOKTHROUGH_REFERENCE_DATE } from "@/lib/lookthrough";
 import { useT } from "@/lib/i18n";
@@ -13,15 +15,32 @@ interface Props {
 export function TopHoldings({ etfs, baseCurrency }: Props) {
   const { t, lang } = useT();
   const r = buildLookthrough(etfs, lang, baseCurrency);
+  const [open, setOpen] = useState(false);
+  const topName = r.topConcentrations[0]?.name;
+  const topPct = r.topConcentrations[0]?.pctOfPortfolio.toFixed(2);
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Trophy className="h-5 w-5" /> {t("build.top10.title")}
-        </CardTitle>
-        <CardDescription>{t("build.top10.desc")}</CardDescription>
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div className="flex-1">
+            <CardTitle className="flex items-center gap-2 flex-wrap">
+              <Trophy className="h-5 w-5" />
+              <span>{t("build.top10.title")}</span>
+              {topName && (
+                <span className="text-xs text-muted-foreground font-normal">
+                  #1 {topName} · {topPct}%
+                </span>
+              )}
+            </CardTitle>
+            <CardDescription className="mt-2">{t("build.top10.desc")}</CardDescription>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={() => setOpen((o) => !o)} className="shrink-0">
+            {open ? <><ChevronUp className="h-4 w-4 mr-1" /> {t("build.homeBias.collapse")}</> : <><ChevronDown className="h-4 w-4 mr-1" /> {t("build.homeBias.expand")}</>}
+          </Button>
+        </div>
       </CardHeader>
+      {open && (
       <CardContent className="space-y-4">
         {r.topConcentrations.length === 0 ? (
           <p className="text-sm text-muted-foreground italic">{t("build.top10.empty")}</p>
@@ -74,6 +93,7 @@ export function TopHoldings({ etfs, baseCurrency }: Props) {
           <p>{t("build.top10.transparency.action")}</p>
         </div>
       </CardContent>
+      )}
     </Card>
   );
 }
