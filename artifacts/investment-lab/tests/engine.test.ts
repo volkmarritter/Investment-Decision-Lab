@@ -916,7 +916,7 @@ describe("AI Prompt builder (buildAiPrompt)", () => {
     );
     expect(p).toContain("Base currency: CHF");
     expect(p).toContain("Risk appetite: High");
-    expect(p).toContain("Investment horizon: >=10 years");
+    expect(p).toContain("Investment horizon: 12 years");
     expect(p).toContain("Equity allocation between 60% and 80%");
     expect(p).toContain("Address Swiss home bias");
   });
@@ -953,7 +953,7 @@ describe("AI Prompt builder (buildAiPrompt)", () => {
     expect(de).toContain("Rolle:");
     expect(de).toContain("Basiswaehrung: CHF");
     expect(de).toContain("Risikoneigung: Sehr hoch");
-    expect(de).toContain(">=10 Jahre");
+    expect(de).toContain("Anlagehorizont: 12 Jahre");
     expect(de).toContain("Aktienallokation zwischen 70% und 90%");
     expect(de).toContain("SIX Swiss Exchange");
     expect(de).toContain("Schweizer");

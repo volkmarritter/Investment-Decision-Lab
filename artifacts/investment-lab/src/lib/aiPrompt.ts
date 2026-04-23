@@ -45,16 +45,9 @@ const RISK_DE: Record<PortfolioInput["riskAppetite"], string> = {
 };
 
 function horizonLabel(years: number, lang: PromptLang): string {
-  if (lang === "de") {
-    if (years >= 10) return ">=10 Jahre";
-    if (years >= 7) return "7-9 Jahre";
-    if (years >= 4) return "4-6 Jahre";
-    return `${years} Jahre`;
-  }
-  if (years >= 10) return ">=10 years";
-  if (years >= 7) return "7-9 years";
-  if (years >= 4) return "4-6 years";
-  return `${years} years`;
+  const y = Math.max(1, Math.round(years));
+  if (lang === "de") return y === 1 ? "1 Jahr" : `${y} Jahre`;
+  return y === 1 ? "1 year" : `${y} years`;
 }
 
 function equityRange(targetEquityPct: number): { lo: number; hi: number } {
