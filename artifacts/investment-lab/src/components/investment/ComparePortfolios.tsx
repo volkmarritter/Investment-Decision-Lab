@@ -16,11 +16,16 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { PortfolioInput, PortfolioOutput, ValidationResult } from "@/lib/types";
 import { runValidation } from "@/lib/validation";
 import { buildPortfolio } from "@/lib/portfolio";
 import { diffPortfolios } from "@/lib/compare";
+import { PortfolioMetrics } from "./PortfolioMetrics";
+import { StressTest } from "./StressTest";
+import { MonteCarloSimulation } from "./MonteCarloSimulation";
+import { useT } from "@/lib/i18n";
 
 const COLORS = [
   "hsl(var(--chart-1))",
@@ -70,6 +75,7 @@ const defaultValues: CompareFormValues = {
 };
 
 export function ComparePortfolios() {
+  const { lang } = useT();
   const form = useForm<CompareFormValues>({
     defaultValues,
   });
@@ -98,6 +104,8 @@ export function ComparePortfolios() {
 
   const [outputA, setOutputA] = useState<PortfolioOutput | null>(null);
   const [outputB, setOutputB] = useState<PortfolioOutput | null>(null);
+  const [inputA, setInputA] = useState<PortfolioInput | null>(null);
+  const [inputB, setInputB] = useState<PortfolioInput | null>(null);
   const [validationA, setValidationA] = useState<ValidationResult | null>(null);
   const [validationB, setValidationB] = useState<ValidationResult | null>(null);
   const [hasGenerated, setHasGenerated] = useState(false);
@@ -119,11 +127,11 @@ export function ComparePortfolios() {
     setValidationA(valA);
     setValidationB(valB);
 
-    if (valA.isValid) setOutputA(buildPortfolio(parsedA));
-    else setOutputA(null);
+    if (valA.isValid) { setOutputA(buildPortfolio(parsedA)); setInputA(parsedA); }
+    else { setOutputA(null); setInputA(null); }
 
-    if (valB.isValid) setOutputB(buildPortfolio(parsedB));
-    else setOutputB(null);
+    if (valB.isValid) { setOutputB(buildPortfolio(parsedB)); setInputB(parsedB); }
+    else { setOutputB(null); setInputB(null); }
 
     setHasGenerated(true);
 
@@ -533,6 +541,48 @@ export function ComparePortfolios() {
                     </CardContent>
                   </Card>
                 </div>
+
+                {/* Per-portfolio deep dives: Risk Metrics, Stress Test, Monte Carlo */}
+                {inputA && inputB && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>{lang === "de" ? "Detailanalyse je Portfolio" : "Per-Portfolio Deep Dive"}</CardTitle>
+                      <CardDescription>
+                        {lang === "de"
+                          ? "Risiko-Kennzahlen, Szenario-Stresstests und Monte-Carlo-Simulation für jedes Portfolio."
+                          : "Risk metrics, scenario stress tests and Monte Carlo simulation for each portfolio."}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <Tabs defaultValue="A" className="w-full">
+                        <TabsList className="grid w-full max-w-xs grid-cols-2">
+                          <TabsTrigger value="A">Portfolio A</TabsTrigger>
+                          <TabsTrigger value="B">Portfolio B</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="A" className="space-y-0 mt-4">
+                          <PortfolioMetrics allocation={outputA!.allocation} />
+                          <StressTest allocation={outputA!.allocation} />
+                          <MonteCarloSimulation
+                            allocation={outputA!.allocation}
+                            horizonYears={inputA.horizon}
+                            baseCurrency={inputA.baseCurrency}
+                            hedged={inputA.includeCurrencyHedging}
+                          />
+                        </TabsContent>
+                        <TabsContent value="B" className="space-y-0 mt-4">
+                          <PortfolioMetrics allocation={outputB!.allocation} />
+                          <StressTest allocation={outputB!.allocation} />
+                          <MonteCarloSimulation
+                            allocation={outputB!.allocation}
+                            horizonYears={inputB.horizon}
+                            baseCurrency={inputB.baseCurrency}
+                            hedged={inputB.includeCurrencyHedging}
+                          />
+                        </TabsContent>
+                      </Tabs>
+                    </CardContent>
+                  </Card>
+                )}
               </motion.div>
             )}
           </div>
