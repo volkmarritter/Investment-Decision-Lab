@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
-import { AlertCircle, CheckCircle2, Info, Target, ShieldAlert, BookOpen, ArrowRight, Download, Loader2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info, Target, ShieldAlert, BookOpen, ArrowRight, Download, Loader2, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -155,19 +155,48 @@ export function BuildPortfolio() {
       <div className="lg:col-span-5 lg:sticky lg:top-24 lg:self-start lg:max-h-[calc(100vh-8rem)] overflow-y-auto pr-2 pb-8 custom-scrollbar">
         <Card>
           <CardHeader>
-            <div className="flex flex-col space-y-4 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
+            <div className="flex flex-col space-y-3 lg:flex-row lg:items-start lg:justify-between lg:space-y-0 lg:gap-3">
               <div>
                 <CardTitle>{t("build.params.title")}</CardTitle>
                 <CardDescription>{t("build.params.desc")}</CardDescription>
               </div>
-              <SavedScenariosUI
-                hasGenerated={hasGenerated}
-                getCurrentInput={() => form.getValues()}
-                onLoadScenario={(input) => {
-                  form.reset(input);
-                  onSubmit(input);
-                }}
-              />
+              <div className="flex items-center gap-2 flex-wrap">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="h-8 w-8 shrink-0"
+                      onClick={() => {
+                        const current = form.getValues();
+                        form.reset({
+                          ...defaultValues,
+                          baseCurrency: current.baseCurrency,
+                          horizon: current.horizon,
+                          riskAppetite: current.riskAppetite,
+                        });
+                      }}
+                      aria-label={lang === "de" ? "Auf Standardwerte zurücksetzen" : "Reset to defaults"}
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    {lang === "de"
+                      ? "Auf Standard zurücksetzen (Währung, Horizont, Risikoprofil bleiben)"
+                      : "Reset to defaults (Currency, Horizon, Risk preserved)"}
+                  </TooltipContent>
+                </Tooltip>
+                <SavedScenariosUI
+                  hasGenerated={hasGenerated}
+                  getCurrentInput={() => form.getValues()}
+                  onLoadScenario={(input) => {
+                    form.reset(input);
+                    onSubmit(input);
+                  }}
+                />
+              </div>
             </div>
           </CardHeader>
           <CardContent>
