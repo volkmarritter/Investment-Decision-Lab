@@ -164,13 +164,19 @@ export function buildPortfolio(input: PortfolioInput, lang: Lang = "en"): Portfo
         `Das Portfolio strebt eine Aufteilung von ${equityPct}% Aktien zu ${defensivePct}% defensiv an, abgestimmt auf ein Risikoprofil "${input.riskAppetite}" und einen Anlagehorizont von ${input.horizon} Jahren.`,
         `Aktien sind global diversifiziert mit einer strukturellen Allokation in US-Märkten, ausgeglichen durch ${input.baseCurrency !== "USD" ? "regionale Exposures" : "internationale Märkte"}.`,
         ...(input.includeCrypto ? [`Eine kleine Satelliten-Allokation von ${weights["Crypto"]}% in digitalen Vermögenswerten bietet asymmetrisches Aufwärtspotenzial.`] : []),
-        ...(weights["Commodities"] > 0 ? [`Gold wird als Diversifikator gegen Geldentwertung und systemische Schocks beigemischt.`] : [])
+        ...(weights["Commodities"] > 0 ? [`Gold wird als Diversifikator gegen Geldentwertung und systemische Schocks beigemischt.`] : []),
+        ...(input.includeSyntheticETFs && !(input.includeCurrencyHedging && input.baseCurrency !== "USD")
+          ? [`Synthetische Replikation für US-Aktien: Das US-Aktien-Sleeve verwendet einen swap-basierten UCITS-ETF (Invesco S&P 500, IE00B3YCGJ38), um die 15%-Quellensteuer auf US-Dividenden zu eliminieren, der physisch replizierende, in Irland domizilierte Fonds unterliegen — strukturell ca. 20–30 Bp/Jahr Mehrertrag bei niedrigerer TER (5 Bp). Im Gegenzug wird ein kontrolliertes Kontrahentenrisiko gegenüber den Swap-Kontrahenten eingegangen, das durch tägliches Collateral-Management und die UCITS-10%-Grenze pro Kontrahent begrenzt ist. Synthetische Replikation wird bewusst nur dort eingesetzt, wo der Steuervorteil materiell ist; physisch replizierende ETFs werden für Europa, Japan, EM, Anleihen und Sachwerte beibehalten, um Transparenz und Robustheit zu wahren.`]
+          : [])
       ]
     : [
         `The portfolio targets a ${equityPct}% / ${defensivePct}% equity-to-defensive split, aligned with a ${input.riskAppetite} risk profile and ${input.horizon}-year horizon.`,
         `Equities are globally diversified with a structural allocation to US markets, balanced by ${input.baseCurrency !== "USD" ? 'regional exposures' : 'international markets'}.`,
         ...(input.includeCrypto ? [`A small ${weights["Crypto"]}% satellite allocation to digital assets provides asymmetric upside potential.`] : []),
-        ...(weights["Commodities"] > 0 ? [`Gold is included as a diversifier against fiat currency debasement and systemic shocks.`] : [])
+        ...(weights["Commodities"] > 0 ? [`Gold is included as a diversifier against fiat currency debasement and systemic shocks.`] : []),
+        ...(input.includeSyntheticETFs && !(input.includeCurrencyHedging && input.baseCurrency !== "USD")
+          ? [`Synthetic replication for US equity: the US equity sleeve uses a swap-based UCITS ETF (Invesco S&P 500, IE00B3YCGJ38) to eliminate the 15% withholding tax on US dividends that physical, Irish-domiciled funds incur — a structural pickup of roughly 20–30 bps per year on top of a lower TER (5 bps). In exchange, the portfolio takes controlled counterparty risk to the swap counterparties, mitigated by daily collateral and the UCITS 10%-per-counterparty cap. Synthetic replication is applied only where the tax advantage is material; physical replication is retained for Europe, Japan, EM, fixed income and real assets to preserve transparency and robustness.`]
+          : [])
       ];
 
   const risks = de

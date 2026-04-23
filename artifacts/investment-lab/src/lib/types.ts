@@ -12,6 +12,7 @@ export interface PortfolioInput {
   preferredExchange: PreferredExchange;
   thematicPreference: ThematicPreference;
   includeCurrencyHedging: boolean;
+  includeSyntheticETFs: boolean;
   lookThroughView: boolean;
   includeCrypto: boolean;
   includeListedRealEstate: boolean;

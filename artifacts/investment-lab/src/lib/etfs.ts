@@ -45,6 +45,19 @@ const CATALOG: Record<string, ETFRecord> = {
     listings: { LSE: { ticker: "CSPX" }, XETRA: { ticker: "SXR8" }, SIX: { ticker: "CSSPX" } },
     defaultExchange: "LSE",
   }),
+  "Equity-USA-Synthetic": E({
+    name: "Invesco S&P 500 UCITS (Synthetic)",
+    isin: "IE00B3YCGJ38",
+    terBps: 5,
+    domicile: "Ireland",
+    replication: "Synthetic",
+    distribution: "Accumulating",
+    currency: "USD",
+    comment:
+      "Swap-based replication eliminates the 15% US dividend withholding-tax leakage that physical Irish-domiciled ETFs incur, structurally adding ~20–30 bps/yr; introduces counterparty risk to the swap counterparties.",
+    listings: { LSE: { ticker: "SPXS" }, XETRA: { ticker: "SC0J" }, SIX: { ticker: "SPXS" } },
+    defaultExchange: "LSE",
+  }),
   "Equity-Europe": E({
     name: "iShares Core MSCI Europe UCITS",
     isin: "IE00B4K48X80",
@@ -332,6 +345,7 @@ function lookupKey(assetClass: string, region: string, input: PortfolioInput): s
         const hk = `Equity-USA-${base}`;
         if (CATALOG[hk]) return hk;
       }
+      if (input.includeSyntheticETFs) return "Equity-USA-Synthetic";
       return "Equity-USA";
     }
     if (region.includes("Europe")) return "Equity-Europe";

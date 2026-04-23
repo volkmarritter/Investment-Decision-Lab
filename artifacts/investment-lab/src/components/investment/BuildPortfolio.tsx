@@ -47,6 +47,7 @@ const defaultValues: PortfolioInput = {
   preferredExchange: "None",
   thematicPreference: "None",
   includeCurrencyHedging: false,
+  includeSyntheticETFs: false,
   lookThroughView: false,
   includeCrypto: false,
   includeListedRealEstate: false,
@@ -368,6 +369,21 @@ export function BuildPortfolio() {
                         <div className="space-y-0.5">
                           <FormLabel>{t("build.currencyHedging.label")}</FormLabel>
                           <FormDescription className="text-xs">{t("build.currencyHedging.desc")}</FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch checked={field.value} onCheckedChange={field.onChange} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="includeSyntheticETFs"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                        <div className="space-y-0.5">
+                          <FormLabel>{t("build.syntheticETFs.label")}</FormLabel>
+                          <FormDescription className="text-xs">{t("build.syntheticETFs.desc")}</FormDescription>
                         </div>
                         <FormControl>
                           <Switch checked={field.value} onCheckedChange={field.onChange} />
