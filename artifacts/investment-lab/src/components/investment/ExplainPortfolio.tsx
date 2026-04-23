@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
@@ -150,7 +151,7 @@ export function ExplainPortfolio() {
 
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <FormLabel className="text-base">{t("explain.positions.label")}</FormLabel>
+                    <Label className="text-base">{t("explain.positions.label")}</Label>
                     <div className="flex gap-2">
                       <Button 
                         type="button" 
