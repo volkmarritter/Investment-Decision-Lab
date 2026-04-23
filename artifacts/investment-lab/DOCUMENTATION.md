@@ -201,6 +201,35 @@ All under `src/lib/`. Each is pure and deterministic.
 
 ---
 
+### 5.1 Validation Rules (`validation.ts`)
+
+`runValidation(input, lang)` returns `{ errors, warnings, isValid }`. Errors block portfolio construction; warnings are advisory and do not block.
+
+**Errors (block build)**
+
+| Condition | Message |
+|-----------|---------|
+| `targetEquityPct > cap + 15` (cap = Low 40 / Moderate 70 / High 90 / Very High 100) | Target equity significantly exceeds the typical maximum for the chosen risk profile. |
+| `numETFsMin < 3`, `> 15`, or `> numETFs` | Invalid ETF range. |
+| `numETFs < 3` or `> 15` | Invalid number of ETFs. |
+| `horizon < 1` | Investment horizon too short. |
+
+**Warnings (advisory)**
+
+| Condition | Message |
+|-----------|---------|
+| `riskAppetite = Low` AND `targetEquityPct > 30` | Equity allocation slightly high for "Low" risk. |
+| `riskAppetite = Very High` AND `horizon < 10` | Short horizon combined with "Very High" risk. |
+| `riskAppetite = High` AND `horizon < 5` | Short horizon combined with "High" risk. |
+| `horizon < 3` AND `targetEquityPct > 50` | High equity allocation for a short horizon (Horizon Risk). |
+| `includeCrypto` AND `riskAppetite = Low` | Cryptocurrency inclusion contradicts "Low" risk profile. |
+| `effectiveCount > 10` (where `effectiveCount = min(naturalBuckets, numETFs)`) | High complexity (Complexity Risk). **Suppressed in the Compare tab** because the ETF cap is not user-adjustable there. |
+| `numETFs ≤ 4` AND any of (`includeCrypto`, `thematicPreference ≠ None`, `includeListedRealEstate`) | Not enough sleeves to express your selections. |
+
+All messages and suggestions are localised (EN/DE). The `lang` parameter defaults to `"en"`; `BuildPortfolio` and `ComparePortfolios` pass the active UI language.
+
+---
+
 ## 6. UI Components (`src/components/investment/`)
 
 | Component | Responsibility |
