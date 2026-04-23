@@ -283,9 +283,38 @@ describe("runValidation", () => {
     expect(v.warnings.some((w) => /crypto|krypto/i.test(w.message))).toBe(true);
   });
 
-  it("warns about complexity when numETFs > 10", () => {
-    const v = runValidation(baseInput({ numETFs: 12, numETFsMin: 8 }));
-    expect(v.warnings.some((w) => /complex/i.test(w.message))).toBe(true);
+  it("warns about complexity only when the engine actually produces > 10 ETFs", () => {
+    // Natural buckets are large enough (CHF eq regions + bond + cash + gold + REIT + crypto + thematic ~ 11)
+    const high = runValidation(
+      baseInput({
+        numETFs: 12,
+        numETFsMin: 8,
+        riskAppetite: "Very High",
+        targetEquityPct: 80,
+        includeCrypto: true,
+        includeListedRealEstate: true,
+        includeCommodities: true,
+        thematicPreference: "Sustainability",
+      })
+    );
+    expect(high.warnings.some((w) => /complex/i.test(w.message))).toBe(true);
+  });
+
+  it("does NOT warn about complexity when Max is high but the engine produces fewer ETFs", () => {
+    // Screenshot scenario: Min 8, Max 11, but natural buckets ~ 9, so engine builds 9 ETFs.
+    const v = runValidation(
+      baseInput({
+        numETFs: 11,
+        numETFsMin: 8,
+        riskAppetite: "Very High",
+        targetEquityPct: 80,
+        baseCurrency: "CHF",
+        includeCrypto: false,
+        includeListedRealEstate: false,
+        thematicPreference: "None",
+      })
+    );
+    expect(v.warnings.some((w) => /complex/i.test(w.message))).toBe(false);
   });
 
   it("warns when satellites are requested with too few ETFs", () => {

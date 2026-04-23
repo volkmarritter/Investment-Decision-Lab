@@ -1,5 +1,6 @@
 import { PortfolioInput, ValidationResult, ValidationSuggestion } from "./types";
 import { Lang } from "./i18n";
+import { computeNaturalBucketCount } from "./portfolio";
 
 export function runValidation(input: PortfolioInput, lang: Lang = "en"): ValidationResult {
   const errors: ValidationSuggestion[] = [];
@@ -103,14 +104,20 @@ export function runValidation(input: PortfolioInput, lang: Lang = "en"): Validat
     });
   }
 
-  if (input.numETFs > 10) {
+  // Complexity warning is based on the actual number of ETFs the engine will
+  // produce (= natural buckets, capped by Max), NOT on the Max cap alone.
+  // Otherwise the user gets "too many ETFs" while the engine in fact builds
+  // fewer (e.g. Max=11 but only 9 buckets => 9 ETFs, no complexity issue).
+  const natural = computeNaturalBucketCount(input);
+  const effectiveCount = Math.min(natural, input.numETFs);
+  if (effectiveCount > 10) {
     warnings.push({
       message: de
         ? "Hohe Komplexität (Komplexitätsrisiko)."
         : "High complexity (Complexity Risk).",
       suggestion: de
-        ? "Sofern nicht aus steuerlichen oder Faktorgründen erforderlich, reduzieren Sie die ETF-Anzahl für eine einfachere Verwaltung."
-        : "Unless needed for specific tax or factor reasons, consider reducing the ETF count for easier management."
+        ? `Ihre Auswahl erzeugt ${effectiveCount} ETFs. Sofern nicht aus steuerlichen oder Faktorgründen erforderlich, reduzieren Sie Satelliten (Krypto, REITs, Thematik) für eine einfachere Verwaltung.`
+        : `Your selections produce ${effectiveCount} ETFs. Unless needed for specific tax or factor reasons, reduce satellites (Crypto, REITs, Thematic) for easier management.`
     });
   }
 
