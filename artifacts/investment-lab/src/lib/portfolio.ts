@@ -228,8 +228,9 @@ export function buildPortfolio(input: PortfolioInput, lang: Lang = "en"): Portfo
     etfImplementation,
     rationale,
     risks,
-    learning: learning.length > 0
+    learning: (learning.length > 0
       ? learning
       : [de ? "Diversifikation: Der einzige Free Lunch in der Finanzwelt." : "Diversification: The only free lunch in finance."]
+    ).slice(0, 3)
   };
 }
