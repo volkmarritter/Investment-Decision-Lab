@@ -256,7 +256,7 @@ export function BuildPortfolio() {
                               <FormControl>
                                 <RadioGroupItem value={risk} />
                               </FormControl>
-                              <FormLabel className="font-normal cursor-pointer w-full">{risk}</FormLabel>
+                              <FormLabel className="font-normal cursor-pointer w-full">{t(`risk.${risk}`)}</FormLabel>
                             </FormItem>
                           ))}
                         </RadioGroup>
@@ -582,7 +582,7 @@ export function BuildPortfolio() {
                   <CardContent>
                     <div className="flex flex-wrap gap-2">
                       <Badge variant="secondary">{t("build.summary.currency")} {form.getValues().baseCurrency}</Badge>
-                      <Badge variant="secondary">{t("build.summary.risk")} {form.getValues().riskAppetite}</Badge>
+                      <Badge variant="secondary">{t("build.summary.risk")} {t(`risk.${form.getValues().riskAppetite}`)}</Badge>
                       <Badge variant="secondary">{t("build.summary.horizon")} {form.getValues().horizon}</Badge>
                       <Badge variant="secondary">{t("build.summary.targetEquity")} {form.getValues().targetEquityPct}%</Badge>
                       <Badge variant="outline" className="border-primary/20">{form.getValues().numETFs} {t("build.summary.etfs")}</Badge>
