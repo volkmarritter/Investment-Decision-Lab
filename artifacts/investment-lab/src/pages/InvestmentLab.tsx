@@ -37,18 +37,27 @@ export default function InvestmentLab() {
       <main className="container mx-auto px-4 py-8">
         <Tabs defaultValue="build" className="space-y-8">
           <div className="flex justify-center">
-            <TabsList className="grid w-full max-w-2xl grid-cols-3">
-              <TabsTrigger value="build" className="flex items-center gap-2">
-                <Layers className="h-4 w-4" />
-                {t("tab.build")}
+            <TabsList className="grid w-full max-w-3xl grid-cols-3 h-auto gap-1 p-1">
+              <TabsTrigger
+                value="build"
+                className="flex items-center justify-center gap-2 min-w-0 px-2 py-2 text-xs sm:text-sm whitespace-normal text-center leading-tight"
+              >
+                <Layers className="h-4 w-4 shrink-0" />
+                <span className="truncate sm:whitespace-normal">{t("tab.build")}</span>
               </TabsTrigger>
-              <TabsTrigger value="compare" className="flex items-center gap-2">
-                <Scale className="h-4 w-4" />
-                {t("tab.compare")}
+              <TabsTrigger
+                value="compare"
+                className="flex items-center justify-center gap-2 min-w-0 px-2 py-2 text-xs sm:text-sm whitespace-normal text-center leading-tight"
+              >
+                <Scale className="h-4 w-4 shrink-0" />
+                <span className="truncate sm:whitespace-normal">{t("tab.compare")}</span>
               </TabsTrigger>
-              <TabsTrigger value="explain" className="flex items-center gap-2">
-                <PieChart className="h-4 w-4" />
-                {t("tab.explain")}
+              <TabsTrigger
+                value="explain"
+                className="flex items-center justify-center gap-2 min-w-0 px-2 py-2 text-xs sm:text-sm whitespace-normal text-center leading-tight"
+              >
+                <PieChart className="h-4 w-4 shrink-0" />
+                <span className="truncate sm:whitespace-normal">{t("tab.explain")}</span>
               </TabsTrigger>
             </TabsList>
           </div>
