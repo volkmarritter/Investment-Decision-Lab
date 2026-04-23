@@ -295,7 +295,7 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 **Natural bucket count (2)** — at least 3 for a basic portfolio; grows when satellites are enabled.
 
-**`runValidation` (8)** — accepts a sane default input; rejects `numETFs<3`, `numETFs>15`, `horizon<1`, and target equity wildly above the risk cap; warns on Low+crypto, complexity (`numETFs>10`), and "not enough sleeves" when satellites are requested with too few ETFs.
+**`runValidation` (9)** — accepts a sane default input; rejects `numETFs<3`, `numETFs>15`, `horizon<1`, and target equity wildly above the risk cap; warns on Low+crypto, complexity (only when `min(naturalBuckets, numETFs) > 10` — so a high Max with a small bucket count does NOT trigger a false "too complex" warning), and "not enough sleeves" when satellites are requested with too few ETFs.
 
 **ETF selection / share-class logic (10)** — hedged + EUR / CHF / GBP base picks the correct hedged S&P 500 ISIN; synthetic + USD picks IE00B3YCGJ38 (Synthetic); hedged wins over synthetic for non-USD; USD + no-hedging + no-synthetic picks CSPX (IE00B5BMR087); Switzerland always selects SPI on SIX; Fixed Income picks the CHF-hedged or unhedged global aggregate as appropriate; `preferredExchange=XETRA` returns SXR8; `preferredExchange=None` falls back to default exchange; thematic Technology resolves to IUIT; Real Estate / Commodities / Digital Assets resolve to real ETFs.
 
