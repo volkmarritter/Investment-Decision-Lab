@@ -52,7 +52,16 @@ export function Methodology() {
             <Badge variant="outline">{de ? "Zuletzt geprüft" : "Last reviewed"}: {LAST_REVIEWED}</Badge>
           </div>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-3">
+          <Alert>
+            <Layers className="h-4 w-4" />
+            <AlertTitle>{de ? "Regelbasiert, keine KI" : "Rule-based, not AI"}</AlertTitle>
+            <AlertDescription className="text-xs leading-relaxed">
+              {de
+                ? "Der Portfolio-Vorschlag wird von einer vollständig deterministischen, regelbasierten Engine erzeugt — kein KI-/ML-Modell, kein LLM-Aufruf, kein probabilistischer Optimierer und keine Trainingsdaten. Bei identischen Eingaben liefert die App immer identische Ergebnisse, und jedes Gewicht lässt sich aus den Formeln und Konstanten unten von Hand nachvollziehen. Die einzige stochastische Komponente ist die optionale Monte-Carlo-Projektion in der Metrik-Ansicht — sie wird nicht zur Konstruktion verwendet."
+                : "The portfolio proposal is produced by a fully deterministic, rule-based engine — no AI/ML model, no LLM call, no probabilistic optimiser, no training data. Identical inputs always yield identical outputs, and every weight can be re-derived by hand from the formulas and constants below. The only stochastic component is the optional Monte Carlo projection in the metrics view — it is not used to construct the portfolio."}
+            </AlertDescription>
+          </Alert>
           <Alert>
             <AlertTriangle className="h-4 w-4" />
             <AlertTitle>{de ? "Keine Anlageberatung" : "Not investment advice"}</AlertTitle>
