@@ -5,6 +5,7 @@ import { AlertCircle, CheckCircle2, Info, Scale, ShieldAlert, Target } from "luc
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { SavedScenariosUI } from "./SavedScenariosUI";
+import { GeoExposureMap } from "./GeoExposureMap";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -595,6 +596,26 @@ export function ComparePortfolios() {
                     </Card>
                   ))}
                 </div>
+
+                {/* Effective geographic equity allocation per portfolio */}
+                {inputA && inputB && outputA && outputB && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio A</h3>
+                      <GeoExposureMap
+                        etfs={outputA.etfImplementation}
+                        baseCurrency={inputA.baseCurrency}
+                      />
+                    </div>
+                    <div className="min-w-0">
+                      <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio B</h3>
+                      <GeoExposureMap
+                        etfs={outputB.etfImplementation}
+                        baseCurrency={inputB.baseCurrency}
+                      />
+                    </div>
+                  </div>
+                )}
 
                 {/* Per-portfolio deep dives: Risk Metrics, Stress Test, Monte Carlo */}
                 {inputA && inputB && (
