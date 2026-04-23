@@ -746,6 +746,17 @@ export function BuildPortfolio() {
                   </>
                 )}
 
+                {/* Scenario Stress Test (moved up: directly after Look-Through Analysis) */}
+                <StressTest allocation={output.allocation} />
+
+                {/* Monte Carlo Simulation (moved up: directly after Stress Test) */}
+                <MonteCarloSimulation
+                  allocation={output.allocation}
+                  horizonYears={form.getValues().horizon}
+                  baseCurrency={form.getValues().baseCurrency}
+                  hedged={form.getValues().includeCurrencyHedging}
+                />
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Section 4: Portfolio Rationale */}
                   <Card>
@@ -804,21 +815,10 @@ export function BuildPortfolio() {
                   </div>
                 </div>
 
-                {/* Section 8: Scenario Stress Test */}
-                <StressTest allocation={output.allocation} />
-
-                {/* Section 9: Fee Estimator */}
+                {/* Fee Estimator */}
                 <FeeEstimator 
                   allocation={output.allocation} 
                   horizonYears={form.getValues().horizon} 
-                  baseCurrency={form.getValues().baseCurrency}
-                  hedged={form.getValues().includeCurrencyHedging}
-                />
-
-                {/* Section 10: Monte Carlo Simulation */}
-                <MonteCarloSimulation
-                  allocation={output.allocation}
-                  horizonYears={form.getValues().horizon}
                   baseCurrency={form.getValues().baseCurrency}
                   hedged={form.getValues().includeCurrencyHedging}
                 />
