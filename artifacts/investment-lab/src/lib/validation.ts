@@ -26,6 +26,17 @@ export function runValidation(input: PortfolioInput, lang: Lang = "en"): Validat
     });
   }
 
+  const minETFs = input.numETFsMin ?? input.numETFs;
+  if (minETFs < 3 || minETFs > 15 || minETFs > input.numETFs) {
+    errors.push({
+      message: de
+        ? `Ungültiger ETF-Bereich (${minETFs}–${input.numETFs}).`
+        : `Invalid ETF range (${minETFs}–${input.numETFs}).`,
+      suggestion: de
+        ? "Min. muss zwischen 3 und Max. liegen, Max. ≤ 15."
+        : "Min must be between 3 and Max, with Max ≤ 15.",
+    });
+  }
   if (input.numETFs < 3 || input.numETFs > 15) {
     errors.push({
       message: de

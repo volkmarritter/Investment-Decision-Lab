@@ -6,6 +6,16 @@ function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
+/**
+ * Returns the number of distinct allocation buckets the engine would produce
+ * for these inputs WITHOUT applying the numETFs consolidation step.
+ * Use this as the "natural" minimum number of ETFs needed to express the portfolio.
+ */
+export function computeNaturalBucketCount(input: PortfolioInput): number {
+  const tmp = buildPortfolio({ ...input, numETFs: 15 }, "en");
+  return tmp.allocation.length;
+}
+
 export function buildPortfolio(input: PortfolioInput, lang: Lang = "en"): PortfolioOutput {
   const de = lang === "de";
   const maxEquityMap: Record<string, number> = {

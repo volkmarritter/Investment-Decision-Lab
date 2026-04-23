@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
 import { AlertCircle, CheckCircle2, Info, Target, ShieldAlert, BookOpen, ArrowRight, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -21,7 +21,7 @@ import { Separator } from "@/components/ui/separator";
 
 import { PortfolioInput, PortfolioOutput, ValidationResult } from "@/lib/types";
 import { runValidation } from "@/lib/validation";
-import { buildPortfolio } from "@/lib/portfolio";
+import { buildPortfolio, computeNaturalBucketCount } from "@/lib/portfolio";
 import { StressTest } from "./StressTest";
 import { FeeEstimator } from "./FeeEstimator";
 import { MonteCarloSimulation } from "./MonteCarloSimulation";
@@ -49,7 +49,8 @@ const defaultValues: PortfolioInput = {
   riskAppetite: "High",
   horizon: 10,
   targetEquityPct: 60,
-  numETFs: 5,
+  numETFs: 8,
+  numETFsMin: 5,
   preferredExchange: "SIX",
   thematicPreference: "None",
   includeCurrencyHedging: false,
@@ -123,6 +124,7 @@ export function BuildPortfolio() {
       horizon: Number(data.horizon),
       targetEquityPct: Number(data.targetEquityPct),
       numETFs: Number(data.numETFs),
+      numETFsMin: Number(data.numETFsMin ?? data.numETFs),
     };
     
     const valResult = runValidation(parsedData, lang);
@@ -304,24 +306,33 @@ export function BuildPortfolio() {
                 />
 
                 <div className="grid grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="numETFs"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="flex items-center gap-2">
-                          {t("build.numEtfs.label")}
-                          <Tooltip>
-                            <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                            <TooltipContent>{t("build.numEtfs.tooltip")}</TooltipContent>
-                          </Tooltip>
-                        </FormLabel>
-                        <FormControl>
-                          <Input type="number" min={3} max={15} {...field} />
-                        </FormControl>
-                      </FormItem>
-                    )}
-                  />
+                  <div className="space-y-2">
+                    <label className="flex items-center gap-2 text-sm font-medium leading-none">
+                      {t("build.numEtfs.label")}
+                      <Tooltip>
+                        <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
+                        <TooltipContent>{t("build.numEtfs.tooltip")}</TooltipContent>
+                      </Tooltip>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <Controller
+                        control={form.control}
+                        name="numETFsMin"
+                        render={({ field }) => (
+                          <Input type="number" min={3} max={15} placeholder="Min" className="w-20" {...field} value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))} />
+                        )}
+                      />
+                      <span className="text-muted-foreground text-sm">–</span>
+                      <Controller
+                        control={form.control}
+                        name="numETFs"
+                        render={({ field }) => (
+                          <Input type="number" min={3} max={15} placeholder="Max" className="w-20" {...field} />
+                        )}
+                      />
+                    </div>
+                    <NumEtfsRangeWarning form={form} />
+                  </div>
                   <FormField
                     control={form.control}
                     name="preferredExchange"
@@ -834,5 +845,47 @@ export function BuildPortfolio() {
         )}
       </div>
     </div>
+  );
+}
+
+function NumEtfsRangeWarning({ form }: { form: any }) {
+  const values = form.watch();
+  const min = Number(values.numETFsMin ?? values.numETFs);
+  const max = Number(values.numETFs);
+  let natural = 0;
+  try {
+    natural = computeNaturalBucketCount({
+      ...values,
+      horizon: Number(values.horizon),
+      targetEquityPct: Number(values.targetEquityPct),
+      numETFs: 15,
+    });
+  } catch {
+    return null;
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+  const lang = (typeof document !== "undefined" && document.documentElement.lang === "de") ? "de" : "en";
+  if (max < min) {
+    return (
+      <p className="text-xs text-destructive mt-1">
+        {lang === "de" ? "Max. muss ≥ Min. sein." : "Max must be ≥ Min."}
+      </p>
+    );
+  }
+  if (min < natural) {
+    return (
+      <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">
+        {lang === "de"
+          ? `Hinweis: Ihre Auswahl erzeugt ${natural} Anlageklassen-Buckets. Bei Min. < ${natural} werden kleinere Satelliten zusammengefasst.`
+          : `Heads up: your selections produce ${natural} asset-class buckets. Setting Min < ${natural} will consolidate smaller satellites.`}
+      </p>
+    );
+  }
+  return (
+    <p className="text-xs text-muted-foreground mt-1">
+      {lang === "de"
+        ? `Bereich passt zu ${natural} natürlichen Buckets.`
+        : `Range fits ${natural} natural buckets.`}
+    </p>
   );
 }

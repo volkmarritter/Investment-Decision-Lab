@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, Controller } from "react-hook-form";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
 import { AlertCircle, CheckCircle2, Info, Scale, ShieldAlert, Target } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -20,7 +20,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { PortfolioInput, PortfolioOutput, ValidationResult } from "@/lib/types";
 import { runValidation } from "@/lib/validation";
-import { buildPortfolio } from "@/lib/portfolio";
+import { buildPortfolio, computeNaturalBucketCount } from "@/lib/portfolio";
 import { diffPortfolios } from "@/lib/compare";
 import { PortfolioMetrics } from "./PortfolioMetrics";
 import { StressTest } from "./StressTest";
@@ -47,7 +47,8 @@ const defaultValues: CompareFormValues = {
     riskAppetite: "High",
     horizon: 10,
     targetEquityPct: 50,
-    numETFs: 5,
+    numETFs: 8,
+    numETFsMin: 5,
     preferredExchange: "SIX",
     thematicPreference: "None",
     includeCurrencyHedging: false,
@@ -62,7 +63,8 @@ const defaultValues: CompareFormValues = {
     riskAppetite: "Very High",
     horizon: 20,
     targetEquityPct: 90,
-    numETFs: 8,
+    numETFs: 10,
+    numETFsMin: 6,
     preferredExchange: "SIX",
     thematicPreference: "Technology",
     includeCurrencyHedging: true,
@@ -117,6 +119,7 @@ export function ComparePortfolios() {
       horizon: Number(p.horizon),
       targetEquityPct: Number(p.targetEquityPct),
       numETFs: Number(p.numETFs),
+      numETFsMin: Number(p.numETFsMin ?? p.numETFs),
     });
 
     const parsedA = parse(data.portA);
@@ -224,16 +227,27 @@ export function ComparePortfolios() {
         />
 
         <div className="grid grid-cols-2 gap-4">
-          <FormField
-            control={form.control}
-            name={`${prefix}.numETFs`}
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Number of ETFs</FormLabel>
-                <FormControl><Input type="number" min={3} max={15} {...field} /></FormControl>
-              </FormItem>
-            )}
-          />
+          <div className="space-y-2">
+            <label className="text-sm font-medium leading-none">Number of ETFs (min – max)</label>
+            <div className="flex items-center gap-2">
+              <Controller
+                control={form.control}
+                name={`${prefix}.numETFsMin`}
+                render={({ field }) => (
+                  <Input type="number" min={3} max={15} placeholder="Min" className="w-20" {...field} value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))} />
+                )}
+              />
+              <span className="text-muted-foreground text-sm">–</span>
+              <Controller
+                control={form.control}
+                name={`${prefix}.numETFs`}
+                render={({ field }) => (
+                  <Input type="number" min={3} max={15} placeholder="Max" className="w-20" {...field} />
+                )}
+              />
+            </div>
+            <CompareNumEtfsRangeWarning form={form} prefix={prefix} />
+          </div>
           <FormField
             control={form.control}
             name={`${prefix}.preferredExchange`}
@@ -590,4 +604,33 @@ export function ComparePortfolios() {
       </div>
     </div>
   );
+}
+function CompareNumEtfsRangeWarning({ form, prefix }: { form: any; prefix: "portA" | "portB" }) {
+  const values = form.watch(prefix);
+  if (!values) return null;
+  const min = Number(values.numETFsMin ?? values.numETFs);
+  const max = Number(values.numETFs);
+  let natural = 0;
+  try {
+    natural = computeNaturalBucketCount({
+      ...values,
+      horizon: Number(values.horizon),
+      targetEquityPct: Number(values.targetEquityPct),
+      numETFs: 15,
+    });
+  } catch {
+    return null;
+  }
+  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+  if (max < min) {
+    return <p className="text-xs text-destructive mt-1">Max must be ≥ Min.</p>;
+  }
+  if (min < natural) {
+    return (
+      <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">
+        Selections produce {natural} buckets. Min &lt; {natural} consolidates smaller satellites.
+      </p>
+    );
+  }
+  return <p className="text-xs text-muted-foreground mt-1">Range fits {natural} natural buckets.</p>;
 }

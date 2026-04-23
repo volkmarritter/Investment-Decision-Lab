@@ -9,6 +9,7 @@ export interface PortfolioInput {
   horizon: number;
   targetEquityPct: number;
   numETFs: number;
+  numETFsMin?: number;
   preferredExchange: PreferredExchange;
   thematicPreference: ThematicPreference;
   includeCurrencyHedging: boolean;
