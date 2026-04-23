@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
 import { AlertCircle, CheckCircle2, Info, Scale, ShieldAlert, Target } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -23,7 +23,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 import { PortfolioInput, PortfolioOutput, ValidationResult } from "@/lib/types";
 import { runValidation } from "@/lib/validation";
-import { buildPortfolio, computeNaturalBucketCount } from "@/lib/portfolio";
+import { buildPortfolio } from "@/lib/portfolio";
 import { defaultExchangeFor } from "@/lib/exchange";
 import { diffPortfolios } from "@/lib/compare";
 import { PortfolioMetrics } from "./PortfolioMetrics";
@@ -223,62 +223,6 @@ export function ComparePortfolios() {
             </FormItem>
           )}
         />
-
-        <div className="grid grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <label className="text-sm font-medium leading-none">Number of ETFs (min – max)</label>
-            <div className="flex items-center gap-2">
-              <Controller
-                control={form.control}
-                name={`${prefix}.numETFsMin`}
-                render={({ field }) => (
-                  <Input type="number" min={3} max={15} placeholder="Min" className="w-20" {...field} value={field.value ?? ""} onChange={(e) => {
-                    if (e.target.value === "") { field.onChange(undefined); return; }
-                    const v = Math.max(3, Math.min(15, Number(e.target.value)));
-                    field.onChange(v);
-                    const currentMax = Number(form.getValues(`${prefix}.numETFs`));
-                    if (Number.isFinite(currentMax) && currentMax < v) form.setValue(`${prefix}.numETFs`, v);
-                  }} />
-                )}
-              />
-              <span className="text-muted-foreground text-sm">–</span>
-              <Controller
-                control={form.control}
-                name={`${prefix}.numETFs`}
-                render={({ field }) => (
-                  <Input type="number" min={3} max={15} placeholder="Max" className="w-20" {...field} onChange={(e) => {
-                    if (e.target.value === "") { field.onChange(""); return; }
-                    const raw = Math.max(3, Math.min(15, Number(e.target.value)));
-                    const currentMin = Number(form.getValues(`${prefix}.numETFsMin`));
-                    const clamped = Number.isFinite(currentMin) ? Math.max(raw, currentMin) : raw;
-                    field.onChange(clamped);
-                  }} />
-                )}
-              />
-            </div>
-            <CompareNumEtfsRangeWarning form={form} prefix={prefix} />
-          </div>
-          <FormField
-            control={form.control}
-            name={`${prefix}.preferredExchange`}
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Preferred Exchange</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl>
-                    <SelectTrigger><SelectValue placeholder="Exchange" /></SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    <SelectItem value="None">None</SelectItem>
-                    <SelectItem value="LSE">LSE</SelectItem>
-                    <SelectItem value="XETRA">XETRA</SelectItem>
-                    <SelectItem value="SIX">SIX</SelectItem>
-                  </SelectContent>
-                </Select>
-              </FormItem>
-            )}
-          />
-        </div>
 
         <FormField
           control={form.control}
@@ -664,40 +608,4 @@ export function ComparePortfolios() {
       </div>
     </div>
   );
-}
-function CompareNumEtfsRangeWarning({ form, prefix }: { form: any; prefix: "portA" | "portB" }) {
-  const values = form.watch(prefix);
-  if (!values) return null;
-  const min = Number(values.numETFsMin ?? values.numETFs);
-  const max = Number(values.numETFs);
-  let natural = 0;
-  try {
-    natural = computeNaturalBucketCount({
-      ...values,
-      horizon: Number(values.horizon),
-      targetEquityPct: Number(values.targetEquityPct),
-      numETFs: 15,
-    });
-  } catch {
-    return null;
-  }
-  if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
-  if (max < min) {
-    return <p className="text-xs text-destructive mt-1">Max must be ≥ Min.</p>;
-  }
-  if (max < natural) {
-    return (
-      <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">
-        Selections need {natural} buckets. Set Max to {natural} or higher.
-      </p>
-    );
-  }
-  if (min < natural) {
-    return (
-      <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">
-        Optimal Min is {natural}. Lower values consolidate smaller satellites.
-      </p>
-    );
-  }
-  return null;
 }
