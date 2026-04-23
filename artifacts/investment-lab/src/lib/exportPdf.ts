@@ -11,6 +11,16 @@ export async function exportToPdf(
     document.documentElement.classList.remove("dark");
   }
 
+  // Temporarily reveal PDF-only blocks (e.g. full disclaimer) so they appear in the export
+  const pdfOnlyEls = Array.from(
+    element.querySelectorAll<HTMLElement>(".pdf-only")
+  );
+  pdfOnlyEls.forEach((el) => {
+    el.dataset.prevDisplay = el.style.display;
+    el.style.display = "block";
+    el.classList.remove("hidden");
+  });
+
   try {
     // Give DOM a moment to reflow if theme changed
     await new Promise((resolve) => setTimeout(resolve, 100));
@@ -57,6 +67,11 @@ export async function exportToPdf(
 
     pdf.save(filename);
   } finally {
+    pdfOnlyEls.forEach((el) => {
+      el.classList.add("hidden");
+      el.style.display = el.dataset.prevDisplay ?? "";
+      delete el.dataset.prevDisplay;
+    });
     if (isDark) {
       document.documentElement.classList.add("dark");
     }

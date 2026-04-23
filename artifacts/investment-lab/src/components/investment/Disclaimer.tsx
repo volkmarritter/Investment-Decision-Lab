@@ -84,7 +84,7 @@ export function DisclaimerBody() {
 export function DisclaimerPdfBlock() {
   const { t } = useT();
   return (
-    <div className="border-t border-border pt-4 mt-6 space-y-3 text-[10px] leading-snug text-muted-foreground">
+    <div className="pdf-only hidden border-t border-border pt-4 mt-6 space-y-3 text-[10px] leading-snug text-muted-foreground">
       <h3 className="text-xs font-semibold text-foreground uppercase tracking-wide">
         {t("disclaimer.full.title")}
       </h3>
