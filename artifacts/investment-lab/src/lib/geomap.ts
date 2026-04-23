@@ -1,97 +1,47 @@
-// Maps lookthrough geoEquity buckets to country-level effective exposure weights
-// keyed by the country names used in the world-atlas TopoJSON (countries-110m).
+// Aggregate the lookthrough equity geography into the 6 display regions:
+// NA, Europe, UK (only if base=GBP), Switzerland (only if base=CHF), Japan, EM.
+// Country names match the TopoJSON `properties.name` values from world-atlas.
 
-const REGION_SPLITS: Record<string, Record<string, number>> = {
-  Europe: {
-    "United Kingdom": 22,
-    France: 17,
-    Germany: 15,
-    Switzerland: 14,
-    Netherlands: 9,
-    Italy: 7,
-    Spain: 6,
-    Sweden: 5,
-    Denmark: 3,
-    Belgium: 2,
-  },
-  "Europe ex-UK": {
-    France: 22,
-    Germany: 19,
-    Switzerland: 18,
-    Netherlands: 11,
-    Italy: 9,
-    Spain: 8,
-    Sweden: 6,
-    Denmark: 4,
-    Belgium: 3,
-  },
-  Eurozone: {
-    France: 25,
-    Germany: 28,
-    Netherlands: 12,
-    Italy: 12,
-    Spain: 10,
-    Belgium: 5,
-    Ireland: 4,
-    Finland: 4,
-  },
-  EM: {
-    China: 28,
-    India: 20,
-    Taiwan: 18,
-    "South Korea": 11,
-    Brazil: 5,
-    "Saudi Arabia": 4,
-    "South Africa": 3,
-    Mexico: 3,
-    Thailand: 2,
-    Indonesia: 2,
-    "United Arab Emirates": 2,
-    Malaysia: 2,
-  },
-  "EM (IG)": {
-    China: 30,
-    "South Korea": 15,
-    Mexico: 10,
-    Indonesia: 8,
-    Brazil: 8,
-    "Saudi Arabia": 7,
-    Malaysia: 6,
-    Thailand: 6,
-    "United Arab Emirates": 5,
-    Poland: 5,
-  },
-  "Other DM": {
-    Australia: 30,
-    Canada: 28,
-    "Hong Kong S.A.R.": 14,
-    Singapore: 10,
-    Israel: 8,
-    Norway: 5,
-    "New Zealand": 3,
-    Ireland: 2,
-  },
-  Other: {
-    Australia: 18,
-    Canada: 18,
-    China: 14,
-    India: 8,
-    "Hong Kong S.A.R.": 8,
-    Singapore: 6,
-    Israel: 6,
-    Brazil: 4,
-    Taiwan: 6,
-    "South Korea": 6,
-    Mexico: 3,
-    "South Africa": 3,
-  },
+import { BaseCurrency } from "./types";
+
+export type RegionKey = "NA" | "Europe" | "UK" | "Switzerland" | "Japan" | "EM";
+
+const NA_COUNTRIES = new Set(["United States of America", "Canada"]);
+
+const EUROPE_COUNTRIES = new Set([
+  "United Kingdom", "France", "Germany", "Switzerland", "Netherlands", "Italy",
+  "Spain", "Sweden", "Denmark", "Belgium", "Norway", "Finland", "Ireland",
+  "Austria", "Portugal", "Poland", "Greece", "Czechia", "Czech Republic",
+  "Hungary", "Luxembourg", "Iceland", "Slovakia", "Slovenia", "Romania",
+  "Bulgaria", "Croatia", "Lithuania", "Latvia", "Estonia",
+]);
+
+const EM_COUNTRIES = new Set([
+  "China", "India", "Taiwan", "South Korea", "Brazil", "Saudi Arabia",
+  "South Africa", "Mexico", "Thailand", "Indonesia", "United Arab Emirates",
+  "Malaysia", "Turkey", "Philippines", "Chile", "Colombia", "Peru", "Egypt",
+  "Qatar", "Kuwait", "Vietnam", "Pakistan", "Argentina", "Hungary",
+  "Poland", "Greece",
+]);
+
+const JAPAN_COUNTRIES = new Set(["Japan"]);
+
+// Distribution of aggregate buckets by REGION (not country).
+// Values are %; they sum to ~100 for the bucket.
+const REGION_BUCKETS: Record<string, Partial<Record<RegionKey | "Other", number>>> = {
+  Europe:        { Europe: 100 },
+  "Europe ex-UK": { Europe: 100 },
+  Eurozone:      { Europe: 100 },
+  EM:            { EM: 100 },
+  "EM (IG)":     { EM: 100 },
+  // Other DM ~ Australia 30, Canada 28, HK 14, Singapore 10, Israel 8, Norway 5, NZ 3, Ireland 2
+  "Other DM":    { NA: 28, Europe: 7, Other: 65 },
+  Other:         { NA: 14, Europe: 4, EM: 35, Other: 47 },
 };
 
-// Map our internal country names to TopoJSON `properties.name` values.
+// Map raw country names from profile data to TopoJSON canonical names.
 const COUNTRY_ALIAS: Record<string, string> = {
   "United States": "United States of America",
-  "South Korea": "South Korea",
-  "Hong Kong": "Hong Kong S.A.R.",
 };
 
 const SKIP_KEYS = new Set([
@@ -99,52 +49,140 @@ const SKIP_KEYS = new Set([
   "Gold Bullion",
 ]);
 
-export interface CountryWeight {
-  name: string; // matches TopoJSON properties.name
-  pct: number; // share of equity sleeve (0-100)
+function classifyCountry(
+  topoName: string,
+  baseCurrency: BaseCurrency,
+): RegionKey | "Other" {
+  if (NA_COUNTRIES.has(topoName)) return "NA";
+  if (JAPAN_COUNTRIES.has(topoName)) return "Japan";
+  if (topoName === "United Kingdom" && baseCurrency === "GBP") return "UK";
+  if (topoName === "Switzerland" && baseCurrency === "CHF") return "Switzerland";
+  if (EUROPE_COUNTRIES.has(topoName)) return "Europe";
+  if (EM_COUNTRIES.has(topoName)) return "EM";
+  return "Other";
 }
 
-export function buildCountryWeights(
+export interface RegionWeights {
+  weights: Record<RegionKey, number>;
+  otherPct: number;
+  // Country → region used for choropleth fill. Only the 6 active regions.
+  countryToRegion: Map<string, RegionKey>;
+}
+
+export function buildRegionWeights(
   geoEquity: Array<[string, number]>,
-): { countries: CountryWeight[]; unallocatedPct: number } {
-  const acc = new Map<string, number>();
-  let unallocated = 0;
+  baseCurrency: BaseCurrency,
+): RegionWeights {
+  const weights: Record<RegionKey, number> = {
+    NA: 0, Europe: 0, UK: 0, Switzerland: 0, Japan: 0, EM: 0,
+  };
+  let otherPct = 0;
+
+  const addToRegion = (region: RegionKey | "Other", pct: number) => {
+    if (region === "Other") {
+      otherPct += pct;
+    } else if (region === "UK" && baseCurrency !== "GBP") {
+      weights.Europe += pct;
+    } else if (region === "Switzerland" && baseCurrency !== "CHF") {
+      weights.Europe += pct;
+    } else {
+      weights[region] += pct;
+    }
+  };
 
   for (const [rawName, pct] of geoEquity) {
     if (!pct || SKIP_KEYS.has(rawName)) continue;
-    const split = REGION_SPLITS[rawName];
-    if (split) {
-      const total = Object.values(split).reduce((a, b) => a + b, 0);
-      for (const [country, weight] of Object.entries(split)) {
-        const allocated = (pct * weight) / total;
-        acc.set(country, (acc.get(country) ?? 0) + allocated);
+
+    const bucket = REGION_BUCKETS[rawName];
+    if (bucket) {
+      const total = Object.values(bucket).reduce((a, b) => a + (b ?? 0), 0);
+      for (const [region, weight] of Object.entries(bucket)) {
+        if (!weight) continue;
+        addToRegion(region as RegionKey | "Other", (pct * weight) / total);
+      }
+      // For aggregate Europe buckets, when base=GBP we want a piece in UK.
+      // Approximate UK share of MSCI Europe ≈ 22%; Europe ex-UK has 0.
+      if (baseCurrency === "GBP" && (rawName === "Europe")) {
+        const ukShare = pct * 0.22;
+        weights.Europe -= ukShare;
+        weights.UK += ukShare;
+      }
+      // For aggregate Europe buckets, when base=CHF we want a piece in Switzerland.
+      // Approximate Switzerland share of MSCI Europe ≈ 14%, Europe ex-UK ≈ 18%.
+      if (baseCurrency === "CHF") {
+        const chShare = rawName === "Europe" ? pct * 0.14
+                      : rawName === "Europe ex-UK" ? pct * 0.18 : 0;
+        if (chShare > 0) {
+          weights.Europe -= chShare;
+          weights.Switzerland += chShare;
+        }
       }
     } else {
-      const mapped = COUNTRY_ALIAS[rawName] ?? rawName;
-      acc.set(mapped, (acc.get(mapped) ?? 0) + pct);
+      const topoName = COUNTRY_ALIAS[rawName] ?? rawName;
+      const region = classifyCountry(topoName, baseCurrency);
+      addToRegion(region, pct);
     }
   }
 
-  const countries: CountryWeight[] = Array.from(acc.entries())
-    .map(([name, pct]) => ({ name, pct }))
-    .sort((a, b) => b.pct - a.pct);
+  // Build the country-to-region lookup for the choropleth.
+  const countryToRegion = new Map<string, RegionKey>();
+  for (const c of NA_COUNTRIES) countryToRegion.set(c, "NA");
+  for (const c of JAPAN_COUNTRIES) countryToRegion.set(c, "Japan");
+  for (const c of EUROPE_COUNTRIES) countryToRegion.set(c, "Europe");
+  for (const c of EM_COUNTRIES) countryToRegion.set(c, "EM");
+  if (baseCurrency === "GBP") countryToRegion.set("United Kingdom", "UK");
+  if (baseCurrency === "CHF") countryToRegion.set("Switzerland", "Switzerland");
 
-  return { countries, unallocatedPct: unallocated };
+  return { weights, otherPct, countryToRegion };
 }
 
-// Color thresholds for the choropleth (% of equity sleeve).
-export const COLOR_STOPS: Array<{ max: number; fill: string; label: string }> = [
-  { max: 0.5, fill: "hsl(var(--muted))", label: "< 0.5%" },
-  { max: 2, fill: "#dbeafe", label: "0.5–2%" },
-  { max: 5, fill: "#93c5fd", label: "2–5%" },
-  { max: 10, fill: "#3b82f6", label: "5–10%" },
-  { max: 25, fill: "#1d4ed8", label: "10–25%" },
-  { max: 100, fill: "#172554", label: "> 25%" },
-];
+// One distinct base color per region; opacity is scaled by the region's weight
+// so heavier regions look darker.
+export const REGION_COLORS: Record<RegionKey, string> = {
+  NA: "#1d4ed8",
+  Europe: "#0891b2",
+  UK: "#7c3aed",
+  Switzerland: "#dc2626",
+  Japan: "#db2777",
+  EM: "#16a34a",
+};
 
-export function colorFor(pct: number): string {
-  for (const stop of COLOR_STOPS) {
-    if (pct < stop.max) return stop.fill;
-  }
-  return COLOR_STOPS[COLOR_STOPS.length - 1].fill;
+export function regionFill(
+  region: RegionKey,
+  pct: number,
+  maxPct: number,
+): string {
+  const base = REGION_COLORS[region];
+  // Scale opacity from 0.25 (low weight) to 1.0 (top region).
+  const norm = maxPct > 0 ? Math.min(1, pct / maxPct) : 0;
+  const opacity = 0.25 + 0.75 * norm;
+  return hexWithOpacity(base, opacity);
+}
+
+function hexWithOpacity(hex: string, opacity: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${opacity.toFixed(2)})`;
+}
+
+export function regionLabel(region: RegionKey, lang: "en" | "de"): string {
+  const en: Record<RegionKey, string> = {
+    NA: "North America",
+    Europe: "Europe",
+    UK: "United Kingdom",
+    Switzerland: "Switzerland",
+    Japan: "Japan",
+    EM: "Emerging Markets",
+  };
+  const de: Record<RegionKey, string> = {
+    NA: "Nordamerika",
+    Europe: "Europa",
+    UK: "Vereinigtes Königreich",
+    Switzerland: "Schweiz",
+    Japan: "Japan",
+    EM: "Schwellenländer",
+  };
+  return (lang === "de" ? de : en)[region];
 }
