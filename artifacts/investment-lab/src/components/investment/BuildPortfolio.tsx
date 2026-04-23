@@ -742,14 +742,15 @@ export function BuildPortfolio() {
                     </CardContent>
                   </Card>
 
-                  {/* Section 6b: Home Bias Analysis (non-USD bases only) */}
-                  {form.getValues().baseCurrency !== "USD" && (
-                    <HomeBiasAnalysis
-                      etfs={output.etfImplementation}
-                      baseCurrency={form.getValues().baseCurrency}
-                    />
-                  )}
                 </div>
+
+                {/* Section 6b: Home Bias Analysis (non-USD bases only, full width, collapsed by default) */}
+                {form.getValues().baseCurrency !== "USD" && (
+                  <HomeBiasAnalysis
+                    etfs={output.etfImplementation}
+                    baseCurrency={form.getValues().baseCurrency}
+                  />
+                )}
 
                 {/* Section 7: Learning Insights */}
                 <div className="space-y-3">
