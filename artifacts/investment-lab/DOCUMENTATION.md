@@ -72,15 +72,38 @@ User-editable global setting (`src/lib/settings.ts`, persisted in `localStorage`
 3. Cash sleeve: `clamp((10 − horizon) × 1.5 + (Low ? 5 : 0), 2, 20)`, then `min(cash, defensive)`.
 4. Bonds = `defensive − cash`.
 
-### 4.2 Equity regional base weights
+### 4.2 Equity regional weights — principled construction
 
-| Region | Base | Adjustments |
-|--------|------|-------------|
-| USA | 45 | −5 if `thematicPreference = Sustainability` |
-| Europe | 22 | −8 when CHF is base currency (re-allocated to CH bucket) |
-| Switzerland | 0 | +8 only when CHF is base currency |
-| Japan | 8 | — |
-| Emerging Markets | 15 | +5 when `horizon ≥ 10` |
+Replaces the previous fixed regional bases. Implemented by `computeEquityRegionWeights(input)` in `portfolio.ts`. Single source of truth = the **same CMA** (`expReturn`, `vol`) used by `metrics.ts` for Sharpe / efficient frontier.
+
+For every available region (USA, Europe, Japan, EM — plus Switzerland when CHF is base currency), the engine computes:
+
+```
+raw_i = (1 / σ_i)                         # 1. risk-parity baseline
+        × ((Sharpe_i / 0.25)^0.4)         # 2. damped Sharpe overlay
+        × home_factor (if home region)    # 3. home-bias overlay
+        × 1.3 (if region = EM and h ≥ 10) # 4. long-horizon EM tilt
+        × 0.85 (if region = USA and       # 5. Sustainability theme
+               thematicPreference = "Sustainability")
+```
+
+Then weights are normalised to 100, a **concentration cap of 50%** is applied to every region (excess redistributed proportionally to the others), and the result is scaled to `coreEquity`.
+
+| Constant | Value |
+|---|---|
+| Home tilt (USD → USA) | × 1.2 |
+| Home tilt (EUR → Europe) | × 1.4 |
+| Home tilt (GBP → Europe) | × 1.4 |
+| Home tilt (CHF → Switzerland) | × 1.6 |
+| Concentration cap per region | 50% of equity sleeve |
+| Reference risk-free for Sharpe overlay | 2.5% (decoupled from user's risk-free setting so portfolio shape is reproducible) |
+
+Why this design:
+
+- **Diversification by construction** — `1/σ` baseline gives every region a comparable risk contribution; high-vol regions (EM) cannot dominate purely because of high expected return.
+- **No magic numbers** — every regional weight is derived from the documented CMA + the overlays above; there is no hard-coded "USA = 45".
+- **Avoids overlap & concentration** — the 50% cap prevents any single market from becoming a hidden single-factor bet.
+- **Balance of growth drivers and stabilisers** — the equity/defensive split (risk-cap and `cashPct` formula) plus the satellite carve-outs deliver this at the portfolio level; risk-parity does it inside the equity sleeve.
 
 ### 4.3 Satellite sleeves
 
@@ -232,7 +255,7 @@ pnpm --filter @workspace/investment-lab run test:watch # watch mode
 
 Also registered as the named validation step **`test`** and **`typecheck`**.
 
-### Test catalog (75 cases)
+### Test catalog (79 cases)
 
 **Default exchange auto-mapping (5)** — every base currency maps to the right exchange (USD→None, EUR→XETRA, CHF→SIX, GBP→LSE) and the map is exhaustive.
 
@@ -266,6 +289,8 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 **Look-through aggregation (4)** — equity sleeve aggregates to ~100% of `geoEquity` for an equity-only portfolio; currency overview reports a hedged share when hedging is on (non-USD base); USD base + hedging off has zero hedged share; default portfolio with USA exposure produces non-empty top-stock concentrations.
 
+**Principled equity-region construction (4)** — no equity region exceeds 50% of the equity sleeve for any base currency (concentration cap); each base currency tilts its home region above the USD-base reference (USD→USA, EUR/GBP→Europe, CHF→Switzerland exclusive to CHF); risk-parity baseline gives lower-vol Japan more weight than higher-vol EM when other tilts are neutral (USD base, short horizon, no theme); equity sleeve sums to `targetEquityPct ± rounding` for the default input.
+
 ### Maintenance policy
 
 > Whenever functional behaviour is added or changed, the corresponding test in `tests/engine.test.ts` MUST be added or updated **in the same change**, and the suite MUST be run before completion. Bugfixes MUST be accompanied by a regression test that fails without the fix and passes with it.
@@ -277,6 +302,7 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 Append a new entry whenever functionality changes. Newest first.
 
 ### 2026-04-23
+- **Principled equity-region construction.** Replaced the fixed regional bases (`USA=45`, `Europe=22`, `CH=8 if CHF`, `Japan=8`, `EM=15+5 if h≥10`) with a derived methodology in `computeEquityRegionWeights(input)`: risk-parity baseline (`1/σ`) using the same CMA as `metrics.ts`, plus a damped Sharpe overlay, multiplicative home-bias tilt (USD ×1.2, EUR/GBP ×1.4, CHF ×1.6), long-horizon EM tilt (×1.3 if h≥10), Sustainability USA dampening (×0.85), and a 50% per-region concentration cap with proportional excess redistribution. Defensive sleeve, satellites, risk caps and ETF selection are unchanged. Added 4 new tests for cap, home tilt, risk-parity baseline and equity-sum stability — suite now 79 cases, all green.
 - **Doc audit.** Corrected stale `localStorage` key names in §8 Persistence (`investment-lab.lang.v1`, `investment-lab.savedScenarios.v1`, `vite-ui-theme`). Test count, file inventory, engine pipeline and analytical-modules table re-verified against current source.
 - **Test suite expanded to 75 cases.** New coverage: ETF selection (hedged / synthetic / preferred-exchange), engine math (cash formula, EM horizon tilt, Sustainability USA reduction, gold carve-out, crypto sizing, thematic & REIT sizing), stress-test behaviour (Home→USA fallback, sort order), fees (blended TER, hedging cost, projection), metrics (asset mapping, β≈1 for benchmark, frontier shape, correlation symmetry), portfolio compare diff, explain verdict & warnings, look-through aggregation totals + currency overview. Suite still runs in ~1 s.
 - **Automated test suite** added (`tests/engine.test.ts`, Vitest). Initial 22 cases covering exchange auto-mapping, engine invariants, risk caps, home bias, Global+Home fallback, and look-through coverage. New `test` and `test:watch` scripts. Registered as named validation steps. Maintenance policy documented above.

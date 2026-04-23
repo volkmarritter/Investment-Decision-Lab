@@ -1,9 +1,86 @@
-import { PortfolioInput, AssetAllocation, PortfolioOutput, ETFImplementation } from "./types";
+import { PortfolioInput, AssetAllocation, PortfolioOutput, ETFImplementation, BaseCurrency } from "./types";
 import { getETFDetails } from "./etfs";
 import { Lang } from "./i18n";
+import { CMA, AssetKey } from "./metrics";
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
+}
+
+// ---------------------------------------------------------------------------
+// Equity region weighting — principled, not fixed.
+//
+// Methodology (single source of truth = the same CMA used by metrics.ts):
+//   1. Risk-parity baseline:   raw ∝ 1 / σ          → equal risk per region.
+//   2. Sharpe overlay:         × (Sharpe / 0.25)^0.4 (damped tilt to better
+//                              risk-adjusted-return, never dominates).
+//   3. Home-bias overlay:      × home_factor on home region.
+//   4. Long-horizon EM tilt:   × 1.3 on EM if horizon ≥ 10 years.
+//   5. Sustainability theme:   × 0.85 on USA (theme reduces home-market tilt).
+//   6. Concentration cap:      no region > 50% of equity sleeve; excess
+//                              redistributed proportionally.
+// ---------------------------------------------------------------------------
+const RISK_FREE_FOR_CONSTRUCTION = 0.025;
+const EQUITY_REGION_CAP = 50;
+
+const HOME_TILT: Record<BaseCurrency, { region: string; factor: number }> = {
+  USD: { region: "USA", factor: 1.2 },
+  EUR: { region: "Europe", factor: 1.4 },
+  GBP: { region: "Europe", factor: 1.4 },
+  CHF: { region: "Switzerland", factor: 1.6 },
+};
+
+const REGION_TO_CMA: Record<string, AssetKey> = {
+  USA: "equity_us",
+  Europe: "equity_eu",
+  Switzerland: "equity_ch",
+  Japan: "equity_jp",
+  EM: "equity_em",
+};
+
+export function computeEquityRegionWeights(input: PortfolioInput): Record<string, number> {
+  const regions: string[] = ["USA", "Europe", "Japan", "EM"];
+  if (input.baseCurrency === "CHF") regions.push("Switzerland");
+
+  const raw: Record<string, number> = {};
+  for (const r of regions) {
+    const c = CMA[REGION_TO_CMA[r]];
+    const invVol = 1 / c.vol;
+    const sharpe = (c.expReturn - RISK_FREE_FOR_CONSTRUCTION) / c.vol;
+    const sharpeMultiplier = Math.pow(Math.max(sharpe, 0.05) / 0.25, 0.4);
+    raw[r] = invVol * sharpeMultiplier;
+  }
+
+  const ht = HOME_TILT[input.baseCurrency];
+  if (raw[ht.region] !== undefined) raw[ht.region] *= ht.factor;
+
+  if (input.horizon >= 10) raw["EM"] *= 1.3;
+  if (input.thematicPreference === "Sustainability") raw["USA"] *= 0.85;
+
+  let total = 0;
+  for (const r of regions) total += raw[r];
+  const w: Record<string, number> = {};
+  for (const r of regions) w[r] = (raw[r] / total) * 100;
+
+  for (let iter = 0; iter < 6; iter++) {
+    let excess = 0;
+    for (const r of regions) {
+      if (w[r] > EQUITY_REGION_CAP) {
+        excess += w[r] - EQUITY_REGION_CAP;
+        w[r] = EQUITY_REGION_CAP;
+      }
+    }
+    if (excess <= 0.01) break;
+    const belowSum = regions
+      .filter((r) => w[r] < EQUITY_REGION_CAP)
+      .reduce((s, r) => s + w[r], 0);
+    if (belowSum <= 0) break;
+    for (const r of regions) {
+      if (w[r] < EQUITY_REGION_CAP) w[r] += (w[r] / belowSum) * excess;
+    }
+  }
+
+  return w;
 }
 
 /**
@@ -34,18 +111,6 @@ export function buildPortfolio(input: PortfolioInput, lang: Lang = "en"): Portfo
 
   const weights: Record<string, number> = {};
 
-  let usaBase = 45;
-  if (input.thematicPreference === "Sustainability") usaBase -= 5;
-  let europeBase = 22;
-  let chBase = 0;
-  if (input.baseCurrency === "CHF") {
-    chBase = 8;
-    europeBase -= 8;
-  }
-  let japanBase = 8;
-  let emBase = 15;
-  if (input.horizon >= 10) emBase += 5;
-
   let reitPct = 0;
   if (input.includeListedRealEstate) {
     reitPct = 6;
@@ -67,12 +132,10 @@ export function buildPortfolio(input: PortfolioInput, lang: Lang = "en"): Portfo
   const coreEquity = equityPct - satellitesTotal;
 
   if (coreEquity > 0) {
-    const totalBase = usaBase + europeBase + chBase + japanBase + emBase;
-    weights["Equity_USA"] = (usaBase / totalBase) * coreEquity;
-    weights["Equity_Europe"] = (europeBase / totalBase) * coreEquity;
-    if (chBase > 0) weights["Equity_Switzerland"] = (chBase / totalBase) * coreEquity;
-    weights["Equity_Japan"] = (japanBase / totalBase) * coreEquity;
-    weights["Equity_EM"] = (emBase / totalBase) * coreEquity;
+    const regionWeights = computeEquityRegionWeights(input);
+    for (const [region, w] of Object.entries(regionWeights)) {
+      if (w > 0) weights[`Equity_${region}`] = (w / 100) * coreEquity;
+    }
   }
 
   if (reitPct > 0) weights["RealEstate"] = reitPct;

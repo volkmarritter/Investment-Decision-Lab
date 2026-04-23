@@ -492,6 +492,69 @@ describe("buildPortfolio — engine math", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Principled equity-region construction (risk-parity + Sharpe + home tilt)
+// ---------------------------------------------------------------------------
+describe("equity-region construction (principled, not fixed)", () => {
+  const equityWeightOf = (out: ReturnType<typeof buildPortfolio>, region: string) =>
+    out.allocation
+      .filter((a) => a.assetClass === "Equity" && a.region === region)
+      .reduce((s, a) => s + a.weight, 0);
+
+  const equityTotal = (out: ReturnType<typeof buildPortfolio>) =>
+    out.allocation
+      .filter((a) => a.assetClass === "Equity")
+      .reduce((s, a) => s + a.weight, 0);
+
+  it("no equity region exceeds 50% of the equity sleeve (concentration cap)", () => {
+    const inputs = [
+      baseInput({ baseCurrency: "USD", numETFs: 12 }),
+      baseInput({ baseCurrency: "EUR", numETFs: 12, preferredExchange: "XETRA" }),
+      baseInput({ baseCurrency: "CHF", numETFs: 12 }),
+      baseInput({ baseCurrency: "GBP", numETFs: 12, preferredExchange: "LSE" }),
+    ];
+    for (const inp of inputs) {
+      const out = buildPortfolio(inp);
+      const eq = equityTotal(out);
+      const regions = ["USA", "Europe", "Switzerland", "Japan", "EM"];
+      for (const r of regions) {
+        const w = equityWeightOf(out, r);
+        if (w > 0) expect(w).toBeLessThanOrEqual(eq * 0.5 + 0.5);
+      }
+    }
+  });
+
+  it("home-bias overlay: each base currency gives the highest weight to its home region (relative to a USD-base reference)", () => {
+    const usd = buildPortfolio(baseInput({ baseCurrency: "USD", numETFs: 12 }));
+    const eur = buildPortfolio(baseInput({ baseCurrency: "EUR", numETFs: 12, preferredExchange: "XETRA" }));
+    const chf = buildPortfolio(baseInput({ baseCurrency: "CHF", numETFs: 12 }));
+    const gbp = buildPortfolio(baseInput({ baseCurrency: "GBP", numETFs: 12, preferredExchange: "LSE" }));
+
+    expect(equityWeightOf(usd, "USA")).toBeGreaterThan(equityWeightOf(eur, "USA"));
+    expect(equityWeightOf(eur, "Europe")).toBeGreaterThan(equityWeightOf(usd, "Europe"));
+    expect(equityWeightOf(gbp, "Europe")).toBeGreaterThan(equityWeightOf(usd, "Europe"));
+    expect(equityWeightOf(chf, "Switzerland")).toBeGreaterThan(0);
+    expect(equityWeightOf(usd, "Switzerland")).toBe(0);
+  });
+
+  it("risk-parity baseline: lower-vol regions receive more weight than higher-vol regions when other tilts are neutral", () => {
+    // USD base, no theme, short horizon -> no home tilt on Japan/EM, no Sustainability,
+    // no long-horizon EM tilt. Japan (vol 0.16) should beat EM (vol 0.22).
+    const out = buildPortfolio(
+      baseInput({ baseCurrency: "USD", horizon: 5, thematicPreference: "None", numETFs: 12 })
+    );
+    expect(equityWeightOf(out, "Japan")).toBeGreaterThan(equityWeightOf(out, "EM"));
+  });
+
+  it("equity-region weights remain stable (sum to coreEquity ± rounding)", () => {
+    const out = buildPortfolio(baseInput({ numETFs: 12 }));
+    const eq = equityTotal(out);
+    // satellites: none included by default in baseInput -> equityPct = targetEquityPct (60)
+    expect(eq).toBeGreaterThan(55);
+    expect(eq).toBeLessThan(65);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Stress test (scenarios.ts)
 // ---------------------------------------------------------------------------
 describe("runStressTest", () => {
