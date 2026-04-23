@@ -81,7 +81,7 @@ const defaultValues: CompareFormValues = {
 };
 
 export function ComparePortfolios() {
-  const { lang } = useT();
+  const { lang, t } = useT();
   const form = useForm<CompareFormValues>({
     defaultValues,
   });
@@ -158,7 +158,13 @@ export function ComparePortfolios() {
             name={`${prefix}.baseCurrency`}
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Base Currency</FormLabel>
+                <FormLabel className="flex items-center gap-1.5">
+                  <span>Base Currency</span>
+                  <Tooltip>
+                    <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
+                    <TooltipContent>{t("build.baseCurrency.tooltip")}</TooltipContent>
+                  </Tooltip>
+                </FormLabel>
                 <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger><SelectValue placeholder="Currency" /></SelectTrigger>
@@ -178,7 +184,13 @@ export function ComparePortfolios() {
             name={`${prefix}.horizon`}
             render={({ field }) => (
               <FormItem>
-                <FormLabel>Horizon (Years)</FormLabel>
+                <FormLabel className="flex items-center gap-1.5">
+                  <span>Horizon (Years)</span>
+                  <Tooltip>
+                    <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
+                    <TooltipContent>{t("build.horizon.tooltip")}</TooltipContent>
+                  </Tooltip>
+                </FormLabel>
                 <FormControl><Input type="number" min={1} max={40} {...field} /></FormControl>
               </FormItem>
             )}
@@ -190,7 +202,13 @@ export function ComparePortfolios() {
           name={`${prefix}.riskAppetite`}
           render={({ field }) => (
             <FormItem className="space-y-3">
-              <FormLabel>Risk Appetite</FormLabel>
+              <FormLabel className="flex items-center gap-1.5">
+                <span>Risk Appetite</span>
+                <Tooltip>
+                  <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
+                  <TooltipContent>{t("build.riskAppetite.tooltip")}</TooltipContent>
+                </Tooltip>
+              </FormLabel>
               <FormControl>
                 <RadioGroup onValueChange={field.onChange} value={field.value} className="grid grid-cols-2 gap-2">
                   {["Low", "Moderate", "High", "Very High"].map((risk) => (
@@ -211,7 +229,13 @@ export function ComparePortfolios() {
           render={({ field }) => (
             <FormItem>
               <FormLabel className="flex justify-between items-center">
-                <span>Target Equity Allocation</span>
+                <span className="flex items-center gap-1.5">
+                  <span>Target Equity Allocation</span>
+                  <Tooltip>
+                    <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
+                    <TooltipContent>{t("build.targetEquity.tooltip")}</TooltipContent>
+                  </Tooltip>
+                </span>
                 <span className="text-sm font-mono">{field.value}%</span>
               </FormLabel>
               <FormControl>
@@ -229,7 +253,13 @@ export function ComparePortfolios() {
           name={`${prefix}.thematicPreference`}
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Thematic Tilt</FormLabel>
+              <FormLabel className="flex items-center gap-1.5">
+                <span>Thematic Tilt</span>
+                <Tooltip>
+                  <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
+                  <TooltipContent>{t("build.thematicTilt.tooltip")}</TooltipContent>
+                </Tooltip>
+              </FormLabel>
               <Select onValueChange={field.onChange} value={field.value}>
                 <FormControl>
                   <SelectTrigger><SelectValue placeholder="Theme" /></SelectTrigger>
