@@ -82,6 +82,7 @@ const defaultValues: CompareFormValues = {
 
 export function ComparePortfolios() {
   const { lang, t } = useT();
+  const tr = (en: string, de: string) => (lang === "de" ? de : en);
   const form = useForm<CompareFormValues>({
     defaultValues,
   });
@@ -159,7 +160,7 @@ export function ComparePortfolios() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel className="flex items-center gap-1.5">
-                  <span>Base Currency</span>
+                  <span>{tr("Base Currency", "Basiswährung")}</span>
                   <Tooltip>
                     <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
                     <TooltipContent>{t("build.baseCurrency.tooltip")}</TooltipContent>
@@ -167,7 +168,7 @@ export function ComparePortfolios() {
                 </FormLabel>
                 <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
-                    <SelectTrigger><SelectValue placeholder="Currency" /></SelectTrigger>
+                    <SelectTrigger><SelectValue placeholder={tr("Currency", "Währung")} /></SelectTrigger>
                   </FormControl>
                   <SelectContent>
                     <SelectItem value="USD">USD</SelectItem>
@@ -185,7 +186,7 @@ export function ComparePortfolios() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel className="flex items-center gap-1.5">
-                  <span>Horizon (Years)</span>
+                  <span>{tr("Horizon (Years)", "Horizont (Jahre)")}</span>
                   <Tooltip>
                     <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
                     <TooltipContent>{t("build.horizon.tooltip")}</TooltipContent>
@@ -203,7 +204,7 @@ export function ComparePortfolios() {
           render={({ field }) => (
             <FormItem className="space-y-3">
               <FormLabel className="flex items-center gap-1.5">
-                <span>Risk Appetite</span>
+                <span>{tr("Risk Appetite", "Risikobereitschaft")}</span>
                 <Tooltip>
                   <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
                   <TooltipContent>{t("build.riskAppetite.tooltip")}</TooltipContent>
@@ -211,12 +212,17 @@ export function ComparePortfolios() {
               </FormLabel>
               <FormControl>
                 <RadioGroup onValueChange={field.onChange} value={field.value} className="grid grid-cols-2 gap-2">
-                  {["Low", "Moderate", "High", "Very High"].map((risk) => (
-                    <FormItem key={risk} className="flex items-center space-x-2 space-y-0 rounded-md border p-2">
-                      <FormControl><RadioGroupItem value={risk} /></FormControl>
-                      <FormLabel className="font-normal cursor-pointer w-full text-xs">{risk}</FormLabel>
-                    </FormItem>
-                  ))}
+                  {(["Low", "Moderate", "High", "Very High"] as const).map((risk) => {
+                    const label = lang === "de"
+                      ? ({ Low: "Niedrig", Moderate: "Moderat", High: "Hoch", "Very High": "Sehr hoch" } as const)[risk]
+                      : risk;
+                    return (
+                      <FormItem key={risk} className="flex items-center space-x-2 space-y-0 rounded-md border p-2">
+                        <FormControl><RadioGroupItem value={risk} /></FormControl>
+                        <FormLabel className="font-normal cursor-pointer w-full text-xs">{label}</FormLabel>
+                      </FormItem>
+                    );
+                  })}
                 </RadioGroup>
               </FormControl>
             </FormItem>
@@ -230,7 +236,7 @@ export function ComparePortfolios() {
             <FormItem>
               <FormLabel className="flex justify-between items-center">
                 <span className="flex items-center gap-1.5">
-                  <span>Target Equity Allocation</span>
+                  <span>{tr("Target Equity Allocation", "Aktien-Zielallokation")}</span>
                   <Tooltip>
                     <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
                     <TooltipContent>{t("build.targetEquity.tooltip")}</TooltipContent>
@@ -254,7 +260,7 @@ export function ComparePortfolios() {
           render={({ field }) => (
             <FormItem>
               <FormLabel className="flex items-center gap-1.5">
-                <span>Thematic Tilt</span>
+                <span>{tr("Thematic Tilt", "Thematischer Tilt")}</span>
                 <Tooltip>
                   <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
                   <TooltipContent>{t("build.thematicTilt.tooltip")}</TooltipContent>
@@ -262,14 +268,14 @@ export function ComparePortfolios() {
               </FormLabel>
               <Select onValueChange={field.onChange} value={field.value}>
                 <FormControl>
-                  <SelectTrigger><SelectValue placeholder="Theme" /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder={tr("Theme", "Thema")} /></SelectTrigger>
                 </FormControl>
                 <SelectContent>
-                  <SelectItem value="None">None</SelectItem>
-                  <SelectItem value="Technology">Technology</SelectItem>
-                  <SelectItem value="Healthcare">Healthcare</SelectItem>
-                  <SelectItem value="Sustainability">Sustainability</SelectItem>
-                  <SelectItem value="Cybersecurity">Cybersecurity</SelectItem>
+                  <SelectItem value="None">{tr("None", "Keine")}</SelectItem>
+                  <SelectItem value="Technology">{tr("Technology", "Technologie")}</SelectItem>
+                  <SelectItem value="Healthcare">{tr("Healthcare", "Gesundheit")}</SelectItem>
+                  <SelectItem value="Sustainability">{tr("Sustainability", "Nachhaltigkeit")}</SelectItem>
+                  <SelectItem value="Cybersecurity">{tr("Cybersecurity", "Cybersicherheit")}</SelectItem>
                 </SelectContent>
               </Select>
             </FormItem>
@@ -283,8 +289,8 @@ export function ComparePortfolios() {
             render={({ field }) => (
               <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
                 <div className="space-y-0.5">
-                  <FormLabel>Currency Hedging</FormLabel>
-                  <FormDescription className="text-xs">Hedge foreign exposure</FormDescription>
+                  <FormLabel>{tr("Currency Hedging", "Währungsabsicherung")}</FormLabel>
+                  <FormDescription className="text-xs">{tr("Hedge foreign exposure", "Fremdwährungsengagement absichern")}</FormDescription>
                 </div>
                 <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
               </FormItem>
@@ -294,7 +300,7 @@ export function ComparePortfolios() {
 
         <div className="space-y-3 pt-2 border-t">
           <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground pt-2">
-            Satellite Asset Classes
+            {tr("Satellite Asset Classes", "Satelliten-Anlageklassen")}
           </h4>
           <FormField
             control={form.control}
@@ -302,8 +308,8 @@ export function ComparePortfolios() {
             render={({ field }) => (
               <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
                 <div className="space-y-0.5">
-                  <FormLabel>Commodities (Gold)</FormLabel>
-                  <FormDescription className="text-xs">Add a gold sleeve as inflation/crisis diversifier</FormDescription>
+                  <FormLabel>{tr("Commodities (Gold)", "Rohstoffe (Gold)")}</FormLabel>
+                  <FormDescription className="text-xs">{tr("Add a gold sleeve as inflation/crisis diversifier", "Gold als Inflations- und Krisendiversifikator")}</FormDescription>
                 </div>
                 <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
               </FormItem>
@@ -315,8 +321,8 @@ export function ComparePortfolios() {
             render={({ field }) => (
               <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
                 <div className="space-y-0.5">
-                  <FormLabel>Listed Real Estate</FormLabel>
-                  <FormDescription className="text-xs">Add a REIT allocation</FormDescription>
+                  <FormLabel>{tr("Listed Real Estate", "Börsennotierte Immobilien")}</FormLabel>
+                  <FormDescription className="text-xs">{tr("Add a REIT allocation", "REIT-Allokation hinzufügen")}</FormDescription>
                 </div>
                 <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
               </FormItem>
@@ -328,8 +334,8 @@ export function ComparePortfolios() {
             render={({ field }) => (
               <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
                 <div className="space-y-0.5">
-                  <FormLabel>Include Crypto</FormLabel>
-                  <FormDescription className="text-xs">Add a small digital asset allocation</FormDescription>
+                  <FormLabel>{tr("Include Crypto", "Krypto einbeziehen")}</FormLabel>
+                  <FormDescription className="text-xs">{tr("Add a small digital asset allocation", "Kleine Allokation in digitale Vermögenswerte")}</FormDescription>
                 </div>
                 <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
               </FormItem>
@@ -351,7 +357,7 @@ export function ComparePortfolios() {
 
           <div className="flex flex-col items-center gap-3">
             <Button type="submit" size="lg" className="w-full max-w-md gap-2">
-              <Scale className="h-5 w-5" /> Compare Portfolios
+              <Scale className="h-5 w-5" /> {tr("Compare Portfolios", "Portfolios vergleichen")}
             </Button>
             <SavedScenariosUI
               compareSlots={{
@@ -410,18 +416,18 @@ export function ComparePortfolios() {
                 {validationA?.errors.length ? (
                   <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>Portfolio A Errors</AlertTitle>
+                    <AlertTitle>{tr("Portfolio A Errors", "Portfolio A – Fehler")}</AlertTitle>
                     <AlertDescription>{validationA.errors[0].message}</AlertDescription>
                   </Alert>
                 ) : validationA?.warnings.length ? (
                   <Alert className="border-warning text-warning-foreground bg-warning/10">
                     <ShieldAlert className="h-4 w-4" />
-                    <AlertTitle>Portfolio A Warnings ({validationA.warnings.length})</AlertTitle>
+                    <AlertTitle>{tr("Portfolio A Warnings", "Portfolio A – Warnungen")} ({validationA.warnings.length})</AlertTitle>
                   </Alert>
                 ) : validationA?.isValid && (
                   <Alert className="border-primary/20 bg-primary/5 text-primary">
                     <CheckCircle2 className="h-4 w-4" />
-                    <AlertTitle>Portfolio A Valid</AlertTitle>
+                    <AlertTitle>{tr("Portfolio A Valid", "Portfolio A – gültig")}</AlertTitle>
                   </Alert>
                 )}
               </div>
@@ -429,18 +435,18 @@ export function ComparePortfolios() {
                 {validationB?.errors.length ? (
                   <Alert variant="destructive">
                     <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>Portfolio B Errors</AlertTitle>
+                    <AlertTitle>{tr("Portfolio B Errors", "Portfolio B – Fehler")}</AlertTitle>
                     <AlertDescription>{validationB.errors[0].message}</AlertDescription>
                   </Alert>
                 ) : validationB?.warnings.length ? (
                   <Alert className="border-warning text-warning-foreground bg-warning/10">
                     <ShieldAlert className="h-4 w-4" />
-                    <AlertTitle>Portfolio B Warnings ({validationB.warnings.length})</AlertTitle>
+                    <AlertTitle>{tr("Portfolio B Warnings", "Portfolio B – Warnungen")} ({validationB.warnings.length})</AlertTitle>
                   </Alert>
                 ) : validationB?.isValid && (
                   <Alert className="border-primary/20 bg-primary/5 text-primary">
                     <CheckCircle2 className="h-4 w-4" />
-                    <AlertTitle>Portfolio B Valid</AlertTitle>
+                    <AlertTitle>{tr("Portfolio B Valid", "Portfolio B – gültig")}</AlertTitle>
                   </Alert>
                 )}
               </div>
@@ -451,8 +457,8 @@ export function ComparePortfolios() {
                 {/* Structural Differences */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Structural Differences</CardTitle>
-                    <CardDescription>Direct allocation delta between A and B</CardDescription>
+                    <CardTitle>{tr("Structural Differences", "Strukturelle Unterschiede")}</CardTitle>
+                    <CardDescription>{tr("Direct allocation delta between A and B", "Direkte Allokationsdifferenz zwischen A und B")}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-8">
                     {diff.observations.length > 0 && (
@@ -467,10 +473,10 @@ export function ComparePortfolios() {
                       <Table>
                         <TableHeader>
                           <TableRow className="bg-muted/50">
-                            <TableHead>Asset Class / Region</TableHead>
+                            <TableHead>{tr("Asset Class / Region", "Anlageklasse / Region")}</TableHead>
                             <TableHead className="text-right">Portfolio A %</TableHead>
                             <TableHead className="text-right">Portfolio B %</TableHead>
-                            <TableHead className="text-right">Δ (B - A)</TableHead>
+                            <TableHead className="text-right">Δ (B − A)</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -496,9 +502,9 @@ export function ComparePortfolios() {
                 {/* Side by side charts */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   {([
-                    { title: "Portfolio A Allocation", data: chartDataA },
-                    { title: "Portfolio B Allocation", data: chartDataB },
-                  ] as const).map(({ title, data }) => (
+                    { title: tr("Portfolio A Allocation", "Allokation Portfolio A"), data: chartDataA, slot: "A" as const },
+                    { title: tr("Portfolio B Allocation", "Allokation Portfolio B"), data: chartDataB, slot: "B" as const },
+                  ] as const).map(({ title, data, slot }) => (
                     <Card key={title}>
                       <CardHeader>
                         <CardTitle>{title}</CardTitle>
@@ -512,7 +518,7 @@ export function ComparePortfolios() {
                                   <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                 ))}
                               </Pie>
-                              <RechartsTooltip formatter={(value: number) => [`${value}%`, 'Weight']} contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }} />
+                              <RechartsTooltip formatter={(value: number) => [`${value}%`, tr("Weight", "Gewicht")]} contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }} />
                             </PieChart>
                           </ResponsiveContainer>
                         </div>
@@ -524,7 +530,7 @@ export function ComparePortfolios() {
                         <ul
                           className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs"
                           aria-label={lang === "de" ? "Legende" : "Legend"}
-                          data-testid={`legend-${title.includes("A") ? "A" : "B"}`}
+                          data-testid={`legend-${slot}`}
                         >
                           {data.map((d, i) => (
                             <li key={i} className="flex items-center gap-2 min-w-0">
