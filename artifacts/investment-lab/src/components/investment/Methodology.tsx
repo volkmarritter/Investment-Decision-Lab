@@ -115,27 +115,45 @@ export function Methodology() {
         <Section value="construction" icon={<Layers className="h-4 w-4" />} title={de ? "Portfolio-Konstruktion (regelbasiert, nicht starr)" : "Portfolio Construction (rule-based, not fixed)"}>
           <p className="text-sm text-muted-foreground">
             {de
-              ? "Die regionalen Aktiengewichte sind nicht hartkodiert. Sie werden aus denselben Kapitalmarktannahmen abgeleitet, die auch Sharpe-Ratio und Effizienzgrenze verwenden — kombiniert mit dokumentierten Aufschlägen für Heimatmarkt-Bias, langen Anlagehorizont und Nachhaltigkeits-Thema, sowie einer Konzentrationsobergrenze."
-              : "Regional equity weights are not hard-coded. They are derived from the same Capital Market Assumptions that drive Sharpe Ratio and the efficient frontier, combined with documented overlays for home bias, long horizon and the Sustainability theme, and a concentration cap."}
+              ? "Die regionalen Aktiengewichte sind nicht hartkodiert. Basis ist das globale Marktportfolio (annähernd MSCI-ACWI-Anteile) — die kanonische 'neutrale' Allokation der modernen Portfoliotheorie. Darauf werden dokumentierte Aktiv-Tilts angewandt: Sharpe-Aufschlag, Heimatmarkt-Bias, Horizont- und Themen-Tilt, sowie eine Konzentrationsobergrenze."
+              : "Regional equity weights are not hard-coded. The baseline is the global market portfolio (approximate MSCI ACWI shares) — the canonical 'neutral' allocation in modern portfolio theory. Documented active tilts are then applied: Sharpe overlay, home-bias, horizon and theme tilts, and a concentration cap."}
           </p>
+          <div className="rounded-md border overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{de ? "Region" : "Region"}</TableHead>
+                  <TableHead className="text-right">{de ? "Anker (USD/EUR/GBP)" : "Anchor (USD/EUR/GBP)"}</TableHead>
+                  <TableHead className="text-right">{de ? "Anker (CHF)" : "Anchor (CHF)"}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow><TableCell className="text-xs">USA</TableCell><TableCell className="text-right font-mono text-xs">60%</TableCell><TableCell className="text-right font-mono text-xs">60%</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">{de ? "Europa" : "Europe"}</TableCell><TableCell className="text-right font-mono text-xs">13%</TableCell><TableCell className="text-right font-mono text-xs">10%</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">{de ? "Schweiz" : "Switzerland"}</TableCell><TableCell className="text-right font-mono text-xs">—</TableCell><TableCell className="text-right font-mono text-xs">4%</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">Japan</TableCell><TableCell className="text-right font-mono text-xs">5%</TableCell><TableCell className="text-right font-mono text-xs">5%</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">{de ? "Schwellenländer" : "Emerging Markets"}</TableCell><TableCell className="text-right font-mono text-xs">11%</TableCell><TableCell className="text-right font-mono text-xs">11%</TableCell></TableRow>
+              </TableBody>
+            </Table>
+          </div>
           <ol className="text-sm space-y-2 list-decimal pl-5">
             <li>
-              <span className="font-semibold">{de ? "Risk-Parity-Basis" : "Risk-parity baseline"}</span>{" — "}
+              <span className="font-semibold">{de ? "Marktkapitalisierungs-Anker" : "Market-cap anchor"}</span>{" — "}
               {de
-                ? "Roh-Gewicht je Region ∝ 1 / σ. Jede Region trägt damit grob den gleichen Risiko-Anteil zum Aktien-Sleeve bei. Hoch-volatile Märkte (EM) können nicht allein wegen hoher Renditeerwartung dominieren."
-                : "Raw weight per region ∝ 1 / σ, so each region contributes roughly the same risk to the equity sleeve. High-vol markets (EM) cannot dominate just because of high expected return."}
+                ? "Ausgangsgewichte folgen dem globalen Marktportfolio (MSCI-ACWI-Proxy oben). In CHF-Portfolios wird der Schweiz-Anteil aus Europa herausgelöst."
+                : "Starting weights follow the global market portfolio (MSCI ACWI proxy above). For CHF portfolios, the Switzerland share is carved out of Europe."}
             </li>
             <li>
               <span className="font-semibold">{de ? "Sharpe-Tilt (gedämpft)" : "Sharpe tilt (damped)"}</span>{" — "}
               {de
-                ? "Multiplikator (Sharpe / 0,25)^0,4 begünstigt Märkte mit besserer risikoadjustierter Renditeerwartung, ohne die Diversifikation auszuhebeln."
-                : "Multiplier (Sharpe / 0.25)^0.4 favours markets with better risk-adjusted expected return without overriding diversification."}
+                ? "Multiplikator (Sharpe / 0,25)^0,4 begünstigt Märkte mit besserer risikoadjustierter Renditeerwartung, ohne die Anker-Allokation auszuhebeln."
+                : "Multiplier (Sharpe / 0.25)^0.4 favours markets with better risk-adjusted expected return without overriding the anchor allocation."}
             </li>
             <li>
               <span className="font-semibold">{de ? "Heimatmarkt-Bias" : "Home-bias overlay"}</span>{" — "}
               {de
-                ? "USD ×1,2 auf USA, EUR/GBP ×1,4 auf Europa, CHF ×1,6 auf die Schweiz. Schweiz ist nur in CHF-Portfolios als eigene Region vertreten."
-                : "USD ×1.2 on USA, EUR/GBP ×1.4 on Europe, CHF ×1.6 on Switzerland. Switzerland appears as its own region only in CHF portfolios."}
+                ? "EUR/GBP ×1,5 auf Europa, CHF ×2,5 auf die Schweiz. USD braucht keinen Aufschlag, da der USA-Anker bereits dominant ist."
+                : "EUR/GBP ×1.5 on Europe, CHF ×2.5 on Switzerland. USD needs no extra tilt as the USA anchor is already dominant."}
             </li>
             <li>
               <span className="font-semibold">{de ? "Horizont- & Themen-Tilts" : "Horizon & theme tilts"}</span>{" — "}
@@ -146,30 +164,30 @@ export function Methodology() {
             <li>
               <span className="font-semibold">{de ? "Konzentrationsgrenze" : "Concentration cap"}</span>{" — "}
               {de
-                ? "Keine Aktien-Region darf 50 % des Aktien-Sleeves überschreiten. Überschuss wird proportional auf die übrigen Regionen verteilt."
-                : "No equity region may exceed 50% of the equity sleeve. Excess is redistributed proportionally to the other regions."}
+                ? "Keine Aktien-Region darf 65 % des Aktien-Sleeves überschreiten. Überschuss wird proportional auf die übrigen Regionen verteilt."
+                : "No equity region may exceed 65% of the equity sleeve. Excess is redistributed proportionally to the other regions."}
             </li>
           </ol>
           <Formula
             label={de ? "Roh-Gewicht je Region" : "Raw weight per region"}
-            expr="rawᵢ = (1/σᵢ) · ((Sharpeᵢ/0.25)^0.4) · home · horizon · theme  →  normalize  →  cap at 50%"
+            expr="rawᵢ = anchorᵢ · ((Sharpeᵢ/0.25)^0.4) · home · horizon · theme  →  normalize  →  cap at 65%"
           />
           <div className="rounded-md border overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{de ? "Konstante" : "Constant"}</TableHead>
+                  <TableHead>{de ? "Overlay-Konstante" : "Overlay constant"}</TableHead>
                   <TableHead className="text-right">{de ? "Wert" : "Value"}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow><TableCell className="text-xs">Home tilt USD → USA</TableCell><TableCell className="text-right font-mono text-xs">× 1.2</TableCell></TableRow>
-                <TableRow><TableCell className="text-xs">Home tilt EUR → Europe</TableCell><TableCell className="text-right font-mono text-xs">× 1.4</TableCell></TableRow>
-                <TableRow><TableCell className="text-xs">Home tilt GBP → Europe</TableCell><TableCell className="text-right font-mono text-xs">× 1.4</TableCell></TableRow>
-                <TableRow><TableCell className="text-xs">Home tilt CHF → Switzerland</TableCell><TableCell className="text-right font-mono text-xs">× 1.6</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">Home tilt USD → USA</TableCell><TableCell className="text-right font-mono text-xs">× 1.0</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">Home tilt EUR → Europe</TableCell><TableCell className="text-right font-mono text-xs">× 1.5</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">Home tilt GBP → Europe</TableCell><TableCell className="text-right font-mono text-xs">× 1.5</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">Home tilt CHF → Switzerland</TableCell><TableCell className="text-right font-mono text-xs">× 2.5</TableCell></TableRow>
                 <TableRow><TableCell className="text-xs">Long-horizon EM tilt (h ≥ 10)</TableCell><TableCell className="text-right font-mono text-xs">× 1.3</TableCell></TableRow>
                 <TableRow><TableCell className="text-xs">Sustainability theme on USA</TableCell><TableCell className="text-right font-mono text-xs">× 0.85</TableCell></TableRow>
-                <TableRow><TableCell className="text-xs">{de ? "Konzentrationsgrenze pro Region" : "Concentration cap per region"}</TableCell><TableCell className="text-right font-mono text-xs">≤ 50%</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">{de ? "Konzentrationsgrenze pro Region" : "Concentration cap per region"}</TableCell><TableCell className="text-right font-mono text-xs">≤ 65%</TableCell></TableRow>
                 <TableRow><TableCell className="text-xs">{de ? "Referenz-Risikofreier Zins (nur Konstruktion)" : "Reference risk-free rate (construction only)"}</TableCell><TableCell className="text-right font-mono text-xs">2.50%</TableCell></TableRow>
               </TableBody>
             </Table>

@@ -11,23 +11,43 @@ function clamp(value: number, min: number, max: number) {
 // Equity region weighting — principled, not fixed.
 //
 // Methodology (single source of truth = the same CMA used by metrics.ts):
-//   1. Risk-parity baseline:   raw ∝ 1 / σ          → equal risk per region.
+//   1. Market-cap anchor:      raw_i = MCAP_i  (global market portfolio,
+//                              MSCI-ACWI-style approximation).
 //   2. Sharpe overlay:         × (Sharpe / 0.25)^0.4 (damped tilt to better
 //                              risk-adjusted-return, never dominates).
 //   3. Home-bias overlay:      × home_factor on home region.
 //   4. Long-horizon EM tilt:   × 1.3 on EM if horizon ≥ 10 years.
 //   5. Sustainability theme:   × 0.85 on USA (theme reduces home-market tilt).
-//   6. Concentration cap:      no region > 50% of equity sleeve; excess
+//   6. Concentration cap:      no region > 65% of equity sleeve; excess
 //                              redistributed proportionally.
+//
+// The market-cap anchor is the canonical "neutral" portfolio in modern
+// portfolio theory (Sharpe 1964); overlays are documented active tilts.
 // ---------------------------------------------------------------------------
 const RISK_FREE_FOR_CONSTRUCTION = 0.025;
-const EQUITY_REGION_CAP = 50;
+const EQUITY_REGION_CAP = 65;
+
+// Approximate MSCI ACWI regional weights, USD base.
+// CHF-base variant carves Switzerland out of Europe so total exposure is preserved.
+const MCAP_ANCHOR_DEFAULT: Record<string, number> = {
+  USA: 0.60,
+  Europe: 0.13,
+  Japan: 0.05,
+  EM: 0.11,
+};
+const MCAP_ANCHOR_CHF: Record<string, number> = {
+  USA: 0.60,
+  Europe: 0.10,
+  Switzerland: 0.04,
+  Japan: 0.05,
+  EM: 0.11,
+};
 
 const HOME_TILT: Record<BaseCurrency, { region: string; factor: number }> = {
-  USD: { region: "USA", factor: 1.2 },
-  EUR: { region: "Europe", factor: 1.4 },
-  GBP: { region: "Europe", factor: 1.4 },
-  CHF: { region: "Switzerland", factor: 1.6 },
+  USD: { region: "USA", factor: 1.0 },          // already dominant via anchor
+  EUR: { region: "Europe", factor: 1.5 },
+  GBP: { region: "Europe", factor: 1.5 },
+  CHF: { region: "Switzerland", factor: 2.5 },  // Swiss anchor is small, needs more tilt
 };
 
 const REGION_TO_CMA: Record<string, AssetKey> = {
@@ -39,16 +59,15 @@ const REGION_TO_CMA: Record<string, AssetKey> = {
 };
 
 export function computeEquityRegionWeights(input: PortfolioInput): Record<string, number> {
-  const regions: string[] = ["USA", "Europe", "Japan", "EM"];
-  if (input.baseCurrency === "CHF") regions.push("Switzerland");
+  const anchor = input.baseCurrency === "CHF" ? MCAP_ANCHOR_CHF : MCAP_ANCHOR_DEFAULT;
+  const regions: string[] = Object.keys(anchor);
 
   const raw: Record<string, number> = {};
   for (const r of regions) {
     const c = CMA[REGION_TO_CMA[r]];
-    const invVol = 1 / c.vol;
     const sharpe = (c.expReturn - RISK_FREE_FOR_CONSTRUCTION) / c.vol;
     const sharpeMultiplier = Math.pow(Math.max(sharpe, 0.05) / 0.25, 0.4);
-    raw[r] = invVol * sharpeMultiplier;
+    raw[r] = anchor[r] * sharpeMultiplier;
   }
 
   const ht = HOME_TILT[input.baseCurrency];

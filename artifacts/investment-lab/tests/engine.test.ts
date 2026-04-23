@@ -505,7 +505,7 @@ describe("equity-region construction (principled, not fixed)", () => {
       .filter((a) => a.assetClass === "Equity")
       .reduce((s, a) => s + a.weight, 0);
 
-  it("no equity region exceeds 50% of the equity sleeve (concentration cap)", () => {
+  it("no equity region exceeds 65% of the equity sleeve (concentration cap)", () => {
     const inputs = [
       baseInput({ baseCurrency: "USD", numETFs: 12 }),
       baseInput({ baseCurrency: "EUR", numETFs: 12, preferredExchange: "XETRA" }),
@@ -518,7 +518,7 @@ describe("equity-region construction (principled, not fixed)", () => {
       const regions = ["USA", "Europe", "Switzerland", "Japan", "EM"];
       for (const r of regions) {
         const w = equityWeightOf(out, r);
-        if (w > 0) expect(w).toBeLessThanOrEqual(eq * 0.5 + 0.5);
+        if (w > 0) expect(w).toBeLessThanOrEqual(eq * 0.65 + 0.5);
       }
     }
   });
@@ -536,13 +536,13 @@ describe("equity-region construction (principled, not fixed)", () => {
     expect(equityWeightOf(usd, "Switzerland")).toBe(0);
   });
 
-  it("risk-parity baseline: lower-vol regions receive more weight than higher-vol regions when other tilts are neutral", () => {
-    // USD base, no theme, short horizon -> no home tilt on Japan/EM, no Sustainability,
-    // no long-horizon EM tilt. Japan (vol 0.16) should beat EM (vol 0.22).
+  it("market-cap anchor: USA is the largest equity region for a USD-base investor (no theme, neutral horizon)", () => {
     const out = buildPortfolio(
       baseInput({ baseCurrency: "USD", horizon: 5, thematicPreference: "None", numETFs: 12 })
     );
-    expect(equityWeightOf(out, "Japan")).toBeGreaterThan(equityWeightOf(out, "EM"));
+    const usa = equityWeightOf(out, "USA");
+    const others = ["Europe", "Japan", "EM"].map((r) => equityWeightOf(out, r));
+    for (const w of others) expect(usa).toBeGreaterThan(w);
   });
 
   it("equity-region weights remain stable (sum to coreEquity ± rounding)", () => {

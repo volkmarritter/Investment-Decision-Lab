@@ -74,36 +74,50 @@ User-editable global setting (`src/lib/settings.ts`, persisted in `localStorage`
 
 ### 4.2 Equity regional weights — principled construction
 
-Replaces the previous fixed regional bases. Implemented by `computeEquityRegionWeights(input)` in `portfolio.ts`. Single source of truth = the **same CMA** (`expReturn`, `vol`) used by `metrics.ts` for Sharpe / efficient frontier.
+Replaces the previous fixed regional bases. Implemented by `computeEquityRegionWeights(input)` in `portfolio.ts`.
 
-For every available region (USA, Europe, Japan, EM — plus Switzerland when CHF is base currency), the engine computes:
+**Step 1 — Market-cap anchor** (the canonical "neutral" portfolio in modern portfolio theory; approximate MSCI ACWI regional shares):
+
+| Region | Anchor (USD/EUR/GBP base) | Anchor (CHF base) |
+|---|---:|---:|
+| USA | 0.60 | 0.60 |
+| Europe | 0.13 | 0.10 |
+| Switzerland | — | 0.04 |
+| Japan | 0.05 | 0.05 |
+| Emerging Markets | 0.11 | 0.11 |
+
+For CHF base, the Switzerland anchor is carved out of Europe so total developed-Europe exposure is preserved.
+
+**Step 2 — Apply documented overlays** to each anchor:
 
 ```
-raw_i = (1 / σ_i)                         # 1. risk-parity baseline
-        × ((Sharpe_i / 0.25)^0.4)         # 2. damped Sharpe overlay
-        × home_factor (if home region)    # 3. home-bias overlay
-        × 1.3 (if region = EM and h ≥ 10) # 4. long-horizon EM tilt
-        × 0.85 (if region = USA and       # 5. Sustainability theme
+raw_i = anchor_i
+        × ((Sharpe_i / 0.25)^0.4)         # damped Sharpe overlay (uses CMA from metrics.ts)
+        × home_factor (if home region)    # home-bias overlay
+        × 1.3 (if region = EM and h ≥ 10) # long-horizon EM tilt
+        × 0.85 (if region = USA and       # Sustainability theme
                thematicPreference = "Sustainability")
 ```
 
-Then weights are normalised to 100, a **concentration cap of 50%** is applied to every region (excess redistributed proportionally to the others), and the result is scaled to `coreEquity`.
+**Step 3 — Normalise to 100, then apply a 65% concentration cap** per region (excess redistributed proportionally to others). Final weights are scaled to `coreEquity`.
 
 | Constant | Value |
 |---|---|
-| Home tilt (USD → USA) | × 1.2 |
-| Home tilt (EUR → Europe) | × 1.4 |
-| Home tilt (GBP → Europe) | × 1.4 |
-| Home tilt (CHF → Switzerland) | × 1.6 |
-| Concentration cap per region | 50% of equity sleeve |
+| Home tilt (USD → USA) | × 1.0 (anchor already dominant) |
+| Home tilt (EUR → Europe) | × 1.5 |
+| Home tilt (GBP → Europe) | × 1.5 |
+| Home tilt (CHF → Switzerland) | × 2.5 |
+| Long-horizon EM tilt (h ≥ 10) | × 1.3 |
+| Sustainability theme on USA | × 0.85 |
+| Concentration cap per region | 65% of equity sleeve |
 | Reference risk-free for Sharpe overlay | 2.5% (decoupled from user's risk-free setting so portfolio shape is reproducible) |
 
 Why this design:
 
-- **Diversification by construction** — `1/σ` baseline gives every region a comparable risk contribution; high-vol regions (EM) cannot dominate purely because of high expected return.
-- **No magic numbers** — every regional weight is derived from the documented CMA + the overlays above; there is no hard-coded "USA = 45".
-- **Avoids overlap & concentration** — the 50% cap prevents any single market from becoming a hidden single-factor bet.
-- **Balance of growth drivers and stabilisers** — the equity/defensive split (risk-cap and `cashPct` formula) plus the satellite carve-outs deliver this at the portfolio level; risk-parity does it inside the equity sleeve.
+- **Anchored on the market portfolio** — the global market-cap weights are the "no-view" benchmark of CAPM/Sharpe; deviations from it are explicit, documented active tilts.
+- **Single source of truth for risk/return** — Sharpe overlay uses the same CMA that `metrics.ts` exposes for Sharpe ratio and the efficient frontier; no separate magic numbers.
+- **Avoids extreme concentration** — the 65% cap prevents any single market from running away (USA hits the cap roughly when all tilts align in its favour).
+- **Balance of growth drivers and stabilisers** — the equity/defensive split (risk-cap and `cashPct` formula) plus the satellite carve-outs deliver this at the portfolio level; market-cap anchoring does it inside the equity sleeve.
 
 ### 4.3 Satellite sleeves
 
@@ -302,6 +316,7 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 Append a new entry whenever functionality changes. Newest first.
 
 ### 2026-04-23
+- **Construction baseline switched from `1/σ` (risk parity) to MSCI-ACWI-style market-cap anchors.** The pure risk-parity baseline produced ~30% USA for a USD investor, which felt too far from the market portfolio. New baseline uses anchor weights (USA 60, Europe 13, Japan 5, EM 11; CHF base carves Switzerland 4 out of Europe). Sharpe / horizon / theme overlays unchanged; home tilts retuned (USD ×1.0, EUR/GBP ×1.5, CHF ×2.5); concentration cap raised from 50% to 65%. DOCUMENTATION.md §4.2 and the Methodology UI panel updated accordingly. All 79 tests still green (cap test bumped to 65%, principle test reframed as "USA dominates for USD-base").
 - **Methodology UI.** New "Portfolio Construction" accordion section in `Methodology.tsx` (EN/DE) — exposes the risk-parity baseline, Sharpe overlay, home-bias factors, horizon/theme tilts and concentration cap directly to end users, with a constants table and the formula. Defaults to opened on first view.
 - **Principled equity-region construction.** Replaced the fixed regional bases (`USA=45`, `Europe=22`, `CH=8 if CHF`, `Japan=8`, `EM=15+5 if h≥10`) with a derived methodology in `computeEquityRegionWeights(input)`: risk-parity baseline (`1/σ`) using the same CMA as `metrics.ts`, plus a damped Sharpe overlay, multiplicative home-bias tilt (USD ×1.2, EUR/GBP ×1.4, CHF ×1.6), long-horizon EM tilt (×1.3 if h≥10), Sustainability USA dampening (×0.85), and a 50% per-region concentration cap with proportional excess redistribution. Defensive sleeve, satellites, risk caps and ETF selection are unchanged. Added 4 new tests for cap, home tilt, risk-parity baseline and equity-sum stability — suite now 79 cases, all green.
 - **Doc audit.** Corrected stale `localStorage` key names in §8 Persistence (`investment-lab.lang.v1`, `investment-lab.savedScenarios.v1`, `vite-ui-theme`). Test count, file inventory, engine pipeline and analytical-modules table re-verified against current source.
