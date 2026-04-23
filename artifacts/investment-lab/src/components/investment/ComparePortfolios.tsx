@@ -512,55 +512,52 @@ export function ComparePortfolios() {
 
                 {/* Side by side charts */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Portfolio A Allocation</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-[250px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie data={chartDataA} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={2} dataKey="value" stroke="none">
-                              {chartDataA.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                              ))}
-                            </Pie>
-                            <RechartsTooltip formatter={(value: number) => [`${value}%`, 'Weight']} contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }} />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                      <div className="h-4 w-full flex rounded-full overflow-hidden mt-4">
-                        {chartDataA.map((d, i) => (
-                          <div key={i} style={{ width: `${d.value}%`, backgroundColor: COLORS[i % COLORS.length] }} title={`${d.name}: ${d.value}%`} className="h-full" />
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
-                  
-                  <Card>
-                    <CardHeader>
-                      <CardTitle>Portfolio B Allocation</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="h-[250px] w-full">
-                        <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
-                            <Pie data={chartDataB} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={2} dataKey="value" stroke="none">
-                              {chartDataB.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                              ))}
-                            </Pie>
-                            <RechartsTooltip formatter={(value: number) => [`${value}%`, 'Weight']} contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }} />
-                          </PieChart>
-                        </ResponsiveContainer>
-                      </div>
-                      <div className="h-4 w-full flex rounded-full overflow-hidden mt-4">
-                        {chartDataB.map((d, i) => (
-                          <div key={i} style={{ width: `${d.value}%`, backgroundColor: COLORS[i % COLORS.length] }} title={`${d.name}: ${d.value}%`} className="h-full" />
-                        ))}
-                      </div>
-                    </CardContent>
-                  </Card>
+                  {([
+                    { title: "Portfolio A Allocation", data: chartDataA },
+                    { title: "Portfolio B Allocation", data: chartDataB },
+                  ] as const).map(({ title, data }) => (
+                    <Card key={title}>
+                      <CardHeader>
+                        <CardTitle>{title}</CardTitle>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="h-[250px] w-full">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie data={data} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={2} dataKey="value" stroke="none">
+                                {data.map((_entry, index) => (
+                                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                ))}
+                              </Pie>
+                              <RechartsTooltip formatter={(value: number) => [`${value}%`, 'Weight']} contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div className="h-4 w-full flex rounded-full overflow-hidden mt-4">
+                          {data.map((d, i) => (
+                            <div key={i} style={{ width: `${d.value}%`, backgroundColor: COLORS[i % COLORS.length] }} title={`${d.name}: ${d.value}%`} className="h-full" />
+                          ))}
+                        </div>
+                        <ul
+                          className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs"
+                          aria-label={lang === "de" ? "Legende" : "Legend"}
+                          data-testid={`legend-${title.includes("A") ? "A" : "B"}`}
+                        >
+                          {data.map((d, i) => (
+                            <li key={i} className="flex items-center gap-2 min-w-0">
+                              <span
+                                className="inline-block h-2.5 w-2.5 rounded-sm shrink-0"
+                                style={{ backgroundColor: COLORS[i % COLORS.length] }}
+                                aria-hidden
+                              />
+                              <span className="truncate text-muted-foreground" title={d.name}>{d.name}</span>
+                              <span className="ml-auto tabular-nums font-medium">{d.value.toFixed(1)}%</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </CardContent>
+                    </Card>
+                  ))}
                 </div>
 
                 {/* Per-portfolio deep dives: Risk Metrics, Stress Test, Monte Carlo */}
@@ -575,12 +572,40 @@ export function ComparePortfolios() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <Tabs defaultValue="A" className="w-full">
-                        <TabsList className="grid w-full max-w-xs grid-cols-2">
-                          <TabsTrigger value="A">Portfolio A</TabsTrigger>
-                          <TabsTrigger value="B">Portfolio B</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="A" className="space-y-0 mt-4">
+                      {/* Mobile: tabs (one portfolio at a time) */}
+                      <div className="md:hidden">
+                        <Tabs defaultValue="A" className="w-full">
+                          <TabsList className="grid w-full max-w-xs grid-cols-2">
+                            <TabsTrigger value="A">Portfolio A</TabsTrigger>
+                            <TabsTrigger value="B">Portfolio B</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="A" className="space-y-0 mt-4">
+                            <PortfolioMetrics allocation={outputA!.allocation} />
+                            <StressTest allocation={outputA!.allocation} />
+                            <MonteCarloSimulation
+                              allocation={outputA!.allocation}
+                              horizonYears={inputA.horizon}
+                              baseCurrency={inputA.baseCurrency}
+                              hedged={inputA.includeCurrencyHedging}
+                            />
+                          </TabsContent>
+                          <TabsContent value="B" className="space-y-0 mt-4">
+                            <PortfolioMetrics allocation={outputB!.allocation} />
+                            <StressTest allocation={outputB!.allocation} />
+                            <MonteCarloSimulation
+                              allocation={outputB!.allocation}
+                              horizonYears={inputB.horizon}
+                              baseCurrency={inputB.baseCurrency}
+                              hedged={inputB.includeCurrencyHedging}
+                            />
+                          </TabsContent>
+                        </Tabs>
+                      </div>
+
+                      {/* Desktop: side-by-side */}
+                      <div className="hidden md:grid md:grid-cols-2 md:gap-6">
+                        <div className="space-y-0 min-w-0">
+                          <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio A</h3>
                           <PortfolioMetrics allocation={outputA!.allocation} />
                           <StressTest allocation={outputA!.allocation} />
                           <MonteCarloSimulation
@@ -589,8 +614,9 @@ export function ComparePortfolios() {
                             baseCurrency={inputA.baseCurrency}
                             hedged={inputA.includeCurrencyHedging}
                           />
-                        </TabsContent>
-                        <TabsContent value="B" className="space-y-0 mt-4">
+                        </div>
+                        <div className="space-y-0 min-w-0">
+                          <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio B</h3>
                           <PortfolioMetrics allocation={outputB!.allocation} />
                           <StressTest allocation={outputB!.allocation} />
                           <MonteCarloSimulation
@@ -599,8 +625,8 @@ export function ComparePortfolios() {
                             baseCurrency={inputB.baseCurrency}
                             hedged={inputB.includeCurrencyHedging}
                           />
-                        </TabsContent>
-                      </Tabs>
+                        </div>
+                      </div>
                     </CardContent>
                   </Card>
                 )}
