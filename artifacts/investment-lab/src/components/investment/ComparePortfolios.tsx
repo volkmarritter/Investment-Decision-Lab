@@ -3,6 +3,8 @@ import { useForm, Controller } from "react-hook-form";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
 import { AlertCircle, CheckCircle2, Info, Scale, ShieldAlert, Target } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
+import { SavedScenariosUI } from "./SavedScenariosUI";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -402,10 +404,44 @@ export function ComparePortfolios() {
             {renderFormColumn("portB", "Portfolio B")}
           </div>
 
-          <div className="flex justify-center">
+          <div className="flex flex-col items-center gap-3">
             <Button type="submit" size="lg" className="w-full max-w-md gap-2">
               <Scale className="h-5 w-5" /> Compare Portfolios
             </Button>
+            <SavedScenariosUI
+              compareSlots={{
+                getInputA: () => {
+                  const v = form.getValues().portA;
+                  return {
+                    ...v,
+                    horizon: Number(v.horizon),
+                    targetEquityPct: Number(v.targetEquityPct),
+                    numETFs: Number(v.numETFs),
+                    numETFsMin: Number(v.numETFsMin ?? v.numETFs),
+                  };
+                },
+                getInputB: () => {
+                  const v = form.getValues().portB;
+                  return {
+                    ...v,
+                    horizon: Number(v.horizon),
+                    targetEquityPct: Number(v.targetEquityPct),
+                    numETFs: Number(v.numETFs),
+                    numETFsMin: Number(v.numETFsMin ?? v.numETFs),
+                  };
+                },
+                onLoadA: (input) => {
+                  form.setValue("portA", { ...input }, { shouldDirty: true, shouldValidate: false });
+                  toast.success(lang === "de" ? "In Portfolio A geladen" : "Loaded into Portfolio A");
+                },
+                onLoadB: (input) => {
+                  form.setValue("portB", { ...input }, { shouldDirty: true, shouldValidate: false });
+                  toast.success(lang === "de" ? "In Portfolio B geladen" : "Loaded into Portfolio B");
+                },
+                hasGeneratedA: !!outputA,
+                hasGeneratedB: !!outputB,
+              }}
+            />
           </div>
         </form>
       </Form>
