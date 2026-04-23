@@ -70,7 +70,7 @@ export function buildPortfolio(input: PortfolioInput, lang: Lang = "en"): Portfo
   if (thematicPct > 0) weights["Thematic"] = thematicPct;
 
   let goldPct = 0;
-  if (input.riskAppetite !== "Low" && bondsPct > 0) {
+  if (input.includeCommodities && input.riskAppetite !== "Low" && bondsPct > 0) {
     goldPct = Math.min(5, bondsPct * 0.15);
     bondsPct -= goldPct;
   }

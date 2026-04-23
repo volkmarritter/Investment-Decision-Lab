@@ -50,6 +50,7 @@ const defaultValues: CompareFormValues = {
     lookThroughView: false,
     includeCrypto: false,
     includeListedRealEstate: false,
+    includeCommodities: true,
   },
   portB: {
     baseCurrency: "CHF",
@@ -64,6 +65,7 @@ const defaultValues: CompareFormValues = {
     lookThroughView: false,
     includeCrypto: true,
     includeListedRealEstate: true,
+    includeCommodities: true,
   }
 };
 
@@ -279,12 +281,18 @@ export function ComparePortfolios() {
               </FormItem>
             )}
           />
+        </div>
+
+        <div className="space-y-3 pt-3 border-t">
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            Satellite Asset Classes
+          </h4>
           <FormField
             control={form.control}
-            name={`${prefix}.includeCrypto`}
+            name={`${prefix}.includeCommodities`}
             render={({ field }) => (
               <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                <FormLabel className="text-sm font-medium">Include Crypto</FormLabel>
+                <FormLabel className="text-sm font-medium">Commodities (Gold)</FormLabel>
                 <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
               </FormItem>
             )}
@@ -295,6 +303,16 @@ export function ComparePortfolios() {
             render={({ field }) => (
               <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
                 <FormLabel className="text-sm font-medium">Listed Real Estate</FormLabel>
+                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name={`${prefix}.includeCrypto`}
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                <FormLabel className="text-sm font-medium">Include Crypto</FormLabel>
                 <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
               </FormItem>
             )}

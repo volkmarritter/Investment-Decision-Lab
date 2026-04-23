@@ -56,6 +56,7 @@ const defaultValues: PortfolioInput = {
   lookThroughView: false,
   includeCrypto: false,
   includeListedRealEstate: false,
+  includeCommodities: true,
 };
 
 export function BuildPortfolio() {
@@ -426,14 +427,20 @@ export function BuildPortfolio() {
                       </FormItem>
                     )}
                   />
+                </div>
+
+                <div className="space-y-3 pt-2 border-t">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground pt-2">
+                    {t("build.satellites.section")}
+                  </h4>
                   <FormField
                     control={form.control}
-                    name="includeCrypto"
+                    name="includeCommodities"
                     render={({ field }) => (
                       <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
                         <div className="space-y-0.5">
-                          <FormLabel>{t("build.crypto.label")}</FormLabel>
-                          <FormDescription className="text-xs">{t("build.crypto.desc")}</FormDescription>
+                          <FormLabel>{t("build.commodities.label")}</FormLabel>
+                          <FormDescription className="text-xs">{t("build.commodities.desc")}</FormDescription>
                         </div>
                         <FormControl>
                           <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -449,6 +456,21 @@ export function BuildPortfolio() {
                         <div className="space-y-0.5">
                           <FormLabel>{t("build.realEstate.label")}</FormLabel>
                           <FormDescription className="text-xs">{t("build.realEstate.desc")}</FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch checked={field.value} onCheckedChange={field.onChange} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="includeCrypto"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                        <div className="space-y-0.5">
+                          <FormLabel>{t("build.crypto.label")}</FormLabel>
+                          <FormDescription className="text-xs">{t("build.crypto.desc")}</FormDescription>
                         </div>
                         <FormControl>
                           <Switch checked={field.value} onCheckedChange={field.onChange} />

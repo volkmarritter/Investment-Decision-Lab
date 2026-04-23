@@ -16,6 +16,7 @@ export interface PortfolioInput {
   lookThroughView: boolean;
   includeCrypto: boolean;
   includeListedRealEstate: boolean;
+  includeCommodities: boolean;
 }
 
 export interface ValidationSuggestion {
