@@ -316,21 +316,6 @@ export function ComparePortfolios() {
               </FormItem>
             )}
           />
-          <FormField
-            control={form.control}
-            name={`${prefix}.includeSyntheticETFs`}
-            render={({ field }) => (
-              <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                <div className="space-y-0.5">
-                  <FormLabel>Include Synthetic ETFs</FormLabel>
-                  <FormDescription className="text-xs">
-                    Use swap-based replication for US equity to eliminate 15% dividend withholding-tax leakage (~20-30 bps/yr); accepts controlled counterparty risk.
-                  </FormDescription>
-                </div>
-                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-              </FormItem>
-            )}
-          />
         </div>
 
         <div className="space-y-3 pt-2 border-t">
