@@ -10,6 +10,16 @@ Last updated: 2026-04-23
 
 The Investment Decision Lab is a **frontend-only** React + Vite web application aimed at private investors and finance professionals. It constructs reference portfolios with a **fully deterministic, rule-based engine** — there is no backend, no database, no AI/LLM call, and no remote pricing. All computations happen in the browser.
 
+> ### Not AI — rule-based by design
+>
+> The portfolio proposal is produced by an **explicit, rule-based engine**, not by any AI/ML model. Every weight is the output of:
+>
+> 1. A static table of **Capital Market Assumptions** (expected return, volatility, correlations) — see §4.1 and `src/lib/metrics.ts`.
+> 2. **Closed-form formulas and constants** — equity/defensive split from the risk cap, `cashPct` clamp, market-cap regional anchors, Sharpe overlay `(Sharpe / 0.25)^0.4`, home-bias multipliers, the 65% concentration cap.
+> 3. **Hard rules** for satellite sleeves (REIT 6%, Crypto 1–3%, Thematic 3–5%, Gold ≤ 5%) and ETF selection (currency hedging, preferred exchange, synthetic vs physical).
+>
+> **Identical inputs always produce identical outputs.** No machine learning, no LLM call, no probabilistic optimiser, no training data. Every percentage in a generated portfolio can be re-derived by hand from the Methodology tab. The only stochastic component anywhere in the app is the optional **Monte Carlo projection** on the metrics view, which simulates outcomes for the already-deterministic portfolio — it is not used to construct it.
+
 Design principles:
 
 - **Transparency** — every number can be traced to an explicit rule.
