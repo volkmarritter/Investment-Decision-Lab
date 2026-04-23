@@ -26,6 +26,7 @@ import { StressTest } from "./StressTest";
 import { FeeEstimator } from "./FeeEstimator";
 import { MonteCarloSimulation } from "./MonteCarloSimulation";
 import { LookThroughAnalysis } from "./LookThroughAnalysis";
+import { HomeBiasAnalysis } from "./HomeBiasAnalysis";
 import { SavedScenariosUI } from "./SavedScenariosUI";
 import { DisclaimerPdfBlock } from "./Disclaimer";
 import { useT } from "@/lib/i18n";
@@ -711,6 +712,14 @@ export function BuildPortfolio() {
                       </ul>
                     </CardContent>
                   </Card>
+
+                  {/* Section 6b: Home Bias Analysis (non-USD bases only) */}
+                  {form.getValues().baseCurrency !== "USD" && (
+                    <HomeBiasAnalysis
+                      etfs={output.etfImplementation}
+                      baseCurrency={form.getValues().baseCurrency}
+                    />
+                  )}
                 </div>
 
                 {/* Section 7: Learning Insights */}
