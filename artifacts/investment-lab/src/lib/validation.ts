@@ -82,6 +82,17 @@ export function runValidation(input: PortfolioInput, lang: Lang = "en"): Validat
     });
   }
 
+  if (input.riskAppetite === "High" && input.horizon < 5) {
+    warnings.push({
+      message: de
+        ? "Kurzer Horizont kombiniert mit Risikoprofil 'High'."
+        : "Short horizon combined with 'High' risk.",
+      suggestion: de
+        ? "Wählen Sie einen längeren Horizont oder reduzieren Sie das Risiko auf Moderate."
+        : "Consider a longer horizon or reducing risk to Moderate."
+    });
+  }
+
   if (input.horizon < 3 && input.targetEquityPct > 50) {
     warnings.push({
       message: de
