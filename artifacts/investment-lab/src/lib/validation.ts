@@ -71,7 +71,7 @@ export function runValidation(input: PortfolioInput, lang: Lang = "en"): Validat
     });
   }
 
-  if (input.riskAppetite === "Very High" && input.horizon < 5) {
+  if (input.riskAppetite === "Very High" && input.horizon < 10) {
     warnings.push({
       message: de
         ? "Kurzer Horizont kombiniert mit Risikoprofil 'Very High'."
