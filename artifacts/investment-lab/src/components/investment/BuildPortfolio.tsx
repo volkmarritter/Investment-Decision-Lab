@@ -705,11 +705,13 @@ export function BuildPortfolio() {
                   baseCurrency={form.getValues().baseCurrency}
                 />
 
-                {/* Always-visible: Top 10 Equity Holdings (look-through) */}
-                <TopHoldings
-                  etfs={output.etfImplementation}
-                  baseCurrency={form.getValues().baseCurrency}
-                />
+                {/* Top 10 Equity Holdings (only when look-through view is active) */}
+                {form.getValues().lookThroughView && (
+                  <TopHoldings
+                    etfs={output.etfImplementation}
+                    baseCurrency={form.getValues().baseCurrency}
+                  />
+                )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Section 4: Portfolio Rationale */}
