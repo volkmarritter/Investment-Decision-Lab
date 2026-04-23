@@ -234,7 +234,13 @@ export function ComparePortfolios() {
                 control={form.control}
                 name={`${prefix}.numETFsMin`}
                 render={({ field }) => (
-                  <Input type="number" min={3} max={15} placeholder="Min" className="w-20" {...field} value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))} />
+                  <Input type="number" min={3} max={15} placeholder="Min" className="w-20" {...field} value={field.value ?? ""} onChange={(e) => {
+                    if (e.target.value === "") { field.onChange(undefined); return; }
+                    const v = Math.max(3, Math.min(15, Number(e.target.value)));
+                    field.onChange(v);
+                    const currentMax = Number(form.getValues(`${prefix}.numETFs`));
+                    if (Number.isFinite(currentMax) && currentMax < v) form.setValue(`${prefix}.numETFs`, v);
+                  }} />
                 )}
               />
               <span className="text-muted-foreground text-sm">–</span>
@@ -242,7 +248,13 @@ export function ComparePortfolios() {
                 control={form.control}
                 name={`${prefix}.numETFs`}
                 render={({ field }) => (
-                  <Input type="number" min={3} max={15} placeholder="Max" className="w-20" {...field} />
+                  <Input type="number" min={3} max={15} placeholder="Max" className="w-20" {...field} onChange={(e) => {
+                    if (e.target.value === "") { field.onChange(""); return; }
+                    const raw = Math.max(3, Math.min(15, Number(e.target.value)));
+                    const currentMin = Number(form.getValues(`${prefix}.numETFsMin`));
+                    const clamped = Number.isFinite(currentMin) ? Math.max(raw, currentMin) : raw;
+                    field.onChange(clamped);
+                  }} />
                 )}
               />
             </div>
