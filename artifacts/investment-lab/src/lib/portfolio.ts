@@ -93,13 +93,8 @@ export function buildPortfolio(input: PortfolioInput, lang: Lang = "en"): Portfo
     }
   }
 
-  if (input.numETFs < 10) {
-    if (weights["Equity_Japan"] && weights["Equity_EM"]) {
-      weights["Equity_EM_Japan"] = weights["Equity_Japan"] + weights["Equity_EM"];
-      delete weights["Equity_Japan"];
-      delete weights["Equity_EM"];
-    }
-  }
+  // Japan and EM are kept as separate buckets so the allocation always
+  // distinguishes Developed-Market Japan from Emerging Markets exposure.
 
   let total = 0;
   for (const k in weights) {
