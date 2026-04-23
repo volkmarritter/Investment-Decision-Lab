@@ -195,10 +195,10 @@ All persistence is `localStorage`-only:
 
 | Key | Owner | Purpose |
 |-----|-------|---------|
-| `idl.lang` | `i18n.tsx` | Language preference. |
+| `investment-lab.lang.v1` | `i18n.tsx` | Language preference. |
 | `idl.riskFreeRate` | `settings.ts` | User-editable risk-free rate. |
-| `idl.savedScenarios` | `savedScenarios.ts` | List of named scenarios. |
-| `idl.theme` | shadcn theme provider | Light/dark mode. |
+| `investment-lab.savedScenarios.v1` | `savedScenarios.ts` | List of named scenarios. |
+| `vite-ui-theme` | `components/theme-provider.tsx` (next-themes) | Light/dark mode. |
 
 There is no server, no cookie, and no telemetry.
 
@@ -277,6 +277,7 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 Append a new entry whenever functionality changes. Newest first.
 
 ### 2026-04-23
+- **Doc audit.** Corrected stale `localStorage` key names in §8 Persistence (`investment-lab.lang.v1`, `investment-lab.savedScenarios.v1`, `vite-ui-theme`). Test count, file inventory, engine pipeline and analytical-modules table re-verified against current source.
 - **Test suite expanded to 75 cases.** New coverage: ETF selection (hedged / synthetic / preferred-exchange), engine math (cash formula, EM horizon tilt, Sustainability USA reduction, gold carve-out, crypto sizing, thematic & REIT sizing), stress-test behaviour (Home→USA fallback, sort order), fees (blended TER, hedging cost, projection), metrics (asset mapping, β≈1 for benchmark, frontier shape, correlation symmetry), portfolio compare diff, explain verdict & warnings, look-through aggregation totals + currency overview. Suite still runs in ~1 s.
 - **Automated test suite** added (`tests/engine.test.ts`, Vitest). Initial 22 cases covering exchange auto-mapping, engine invariants, risk caps, home bias, Global+Home fallback, and look-through coverage. New `test` and `test:watch` scripts. Registered as named validation steps. Maintenance policy documented above.
 - Extracted **`defaultExchangeFor` / `DEFAULT_EXCHANGE_FOR_CURRENCY`** to `src/lib/exchange.ts`; consumed by Build & Compare auto-sync, fully unit-tested. **`profileFor`** in `lookthrough.ts` is now exported so tests can verify that every ETF the engine picks is mapped (no "unmapped" regressions).
