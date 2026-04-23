@@ -705,12 +705,18 @@ export function BuildPortfolio() {
                   baseCurrency={form.getValues().baseCurrency}
                 />
 
-                {/* Top 10 Equity Holdings (only when look-through view is active) */}
+                {/* Look-Through Analysis + Top 10 Holdings (only when look-through view is active) */}
                 {form.getValues().lookThroughView && (
-                  <TopHoldings
-                    etfs={output.etfImplementation}
-                    baseCurrency={form.getValues().baseCurrency}
-                  />
+                  <>
+                    <LookThroughAnalysis
+                      etfs={output.etfImplementation}
+                      baseCurrency={form.getValues().baseCurrency}
+                    />
+                    <TopHoldings
+                      etfs={output.etfImplementation}
+                      baseCurrency={form.getValues().baseCurrency}
+                    />
+                  </>
                 )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -770,14 +776,6 @@ export function BuildPortfolio() {
                     ))}
                   </div>
                 </div>
-
-                {/* Section 7b: Look-Through Analysis (optional) */}
-                {form.getValues().lookThroughView && (
-                  <LookThroughAnalysis
-                    etfs={output.etfImplementation}
-                    baseCurrency={form.getValues().baseCurrency}
-                  />
-                )}
 
                 {/* Section 8: Scenario Stress Test */}
                 <StressTest allocation={output.allocation} />
