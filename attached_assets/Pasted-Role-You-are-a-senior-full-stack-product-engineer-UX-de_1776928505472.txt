@@ -1,0 +1,259 @@
+Role:
+You are a senior full-stack product engineer, UX designer, and software architect.
+
+Objective:
+Build a working web application called **Investment Decision Lab**.
+
+The app must not behave like a black-box portfolio generator.  
+It must function as a **transparent investment decision engine** that helps users understand how a reference portfolio is constructed, why the allocation looks the way it does, which trade-offs are involved, and where inconsistencies in the user profile exist.
+
+The final result must be a real, runnable application in Replit – not a mockup, not pseudo-code, and not a partially implemented prototype.
+
+Core Product Concept:
+The app should translate structured investor inputs into:
+- a reference portfolio
+- a transparent allocation rationale
+- an ETF implementation view
+- consistency checks and warnings
+- contextual educational explanations
+
+The app should feel like a professional, modern decision-support tool for serious investing, not a playful retail gimmick.
+
+Primary Users:
+- private investors who want structured guidance
+- educated users who want to understand portfolio construction
+- professionals who want to demonstrate transparent portfolio logic
+
+Execution Mode:
+- Focus on simplicity, clarity, and working end-to-end functionality
+- Prefer pragmatic implementation over unnecessary technical complexity
+- Keep architecture clean and modular
+- Use a modern but lightweight UI
+- Avoid unnecessary dependencies
+- Ensure the app is fully runnable in Replit
+
+Recommended Default Stack:
+- Frontend: React
+- Backend: Node.js with Express
+- Styling: Tailwind CSS or simple modern CSS
+- Storage: in-memory or JSON-based for now
+- Architecture: clear separation between frontend, backend, and business logic
+
+Core Functional Modules:
+
+1. Investor Input Module
+Create a structured input form with the following fields:
+- Base currency: USD, EUR, CHF, GBP
+- Risk appetite: Low, Moderate, High, Very High
+- Investment horizon: integer in years
+- Target equity allocation: slider or numeric input
+- Number of ETFs: integer range
+- Preferred exchange: optional dropdown
+- Optional thematic preference: none, technology, healthcare, sustainability, cybersecurity
+- Optional toggle fields:
+  - currency hedging
+  - look-through view
+  - include crypto
+  - include listed real estate
+
+The UI must guide the user clearly through these inputs.
+
+2. Validation and Consistency Engine
+Implement a rule-based validation engine that checks whether the investor inputs are logically consistent.
+
+Examples of required checks:
+- Low risk should not pair with extremely high equity allocation
+- Very high risk should normally require a long investment horizon
+- Short horizon with high equity concentration should trigger a warning
+- Number of ETFs must remain within a sensible range
+- Inputs must be complete and valid before portfolio generation
+
+Behavior:
+- Show warnings clearly
+- Distinguish between hard errors and soft warnings
+- If inputs are inconsistent, explain why
+- Suggest a more coherent alternative where appropriate
+
+This validation layer is a core differentiator and must be implemented properly.
+
+3. Portfolio Construction Engine
+Build a deterministic, rule-based portfolio construction engine.
+
+The engine should:
+- produce a target asset allocation based on the user inputs
+- use long-term strategic allocation logic, not tactical market timing
+- prioritize diversification, simplicity, implementability, and internal consistency
+- allocate across asset classes and regions in a structured way
+
+Eligible building blocks:
+Core:
+- Cash / Money Market
+- Bonds
+- Equities:
+  - USA
+  - Europe
+  - Switzerland as separate region when base currency is CHF
+  - Europe including Switzerland for non-CHF cases if needed
+  - Japan
+  - Emerging Markets
+- Commodities / Precious Metals
+
+Satellites:
+- Listed Real Estate
+- Crypto Assets
+- Themes as small satellite overlays where selected
+
+Required portfolio construction logic:
+- total allocation must equal exactly 100%
+- higher risk generally implies higher equity exposure
+- longer horizon supports higher growth allocation
+- diversification should be meaningful, not cosmetic
+- avoid unnecessary overlap and excessive fragmentation
+- keep the number of ETFs aligned with the user’s selected implementation simplicity
+- the output must be deterministic for the same inputs
+
+Do not use random generation.
+
+4. Decision Transparency Layer
+This is a central feature.
+
+The app must not only show the result, but also explain the decision logic behind it.
+
+Create a structured “Why this portfolio?” section that explains:
+- why the equity allocation fits the risk profile and horizon
+- the role of each asset class
+- how diversification is achieved
+- why certain regions are included
+- why certain stabilizers or diversifiers are present
+- what trade-offs were made between return orientation, risk control, and simplicity
+
+This explanation must be concise, structured, and professional.
+
+5. ETF Implementation Layer
+Create a section that translates the target allocation into an implementation concept.
+
+This layer does not need live market data, but it should be structured as if it were real-world ready.
+
+For each target allocation bucket, provide:
+- asset class / region
+- implementation intent
+- example ETF placeholder or realistic sample ETF label
+- rationale for using it
+
+If real ETF examples are used, keep them clearly illustrative unless fully implemented.
+
+6. Explain My Portfolio Mode
+Add a second mode where the user can either:
+- paste a simple portfolio allocation manually
+or
+- enter positions by category
+
+The app should then analyze the portfolio and show:
+- concentration risks
+- possible regional overweights
+- missing diversification elements
+- overlapping exposures
+- whether the portfolio appears coherent relative to a stated risk profile
+
+This mode can be rule-based and does not need deep analytics, but it must be genuinely useful.
+
+7. Contextual Learning Layer
+Add short educational explanations triggered by the user’s own configuration.
+
+Examples:
+- if equity is high and horizon is short, explain horizon risk
+- if diversification is weak, explain concentration risk
+- if many ETFs are chosen, explain complexity vs simplicity
+- if crypto is included, explain satellite allocation logic
+- if bonds are low, explain the trade-off in stabilisation capacity
+
+This educational layer should be concise, relevant, and context-triggered – not generic textbook content.
+
+8. Output Structure
+The generated portfolio result should be shown in clearly separated sections:
+
+Section 1 – Investor Profile Summary
+- concise summary of the selected inputs
+
+Section 2 – Validation Results
+- warnings, consistency notes, suggested adjustments if needed
+
+Section 3 – Target Asset Allocation
+- table with weights
+- total must equal 100%
+
+Section 4 – Portfolio Rationale
+- clear explanation of the portfolio logic
+
+Section 5 – ETF Implementation View
+- implementation-oriented table or list
+
+Section 6 – Key Risks and Trade-Offs
+- what the user should understand about this allocation
+
+Section 7 – Learning Insights
+- context-specific educational explanations
+
+9. User Experience Requirements
+The app should:
+- feel modern, serious, and professional
+- have a clean and structured layout
+- be easy to use without long instructions
+- clearly separate inputs from outputs
+- support a strong “Generate Portfolio” experience
+- support toggling between “Build Portfolio” and “Explain My Portfolio”
+
+10. Error Handling
+- No silent failures
+- Clear messages for invalid inputs
+- Graceful handling of incomplete entries
+- Fallback behavior where reasonable
+
+11. Code Quality Requirements
+- Separate business logic from UI
+- Keep logic modular and readable
+- Use services or helper modules for allocation and validation rules
+- Add concise comments where helpful
+- Avoid spaghetti code
+
+12. Documentation
+Provide:
+- clear project structure
+- setup instructions for Replit
+- brief README
+- explanation of the main business logic modules
+- suggestions for future extensions
+
+Future Extension Ideas to keep in mind:
+- persistence of user sessions
+- export to PDF
+- prompt export for AI investment proposal generation
+- multilingual support
+- configurable rule files
+- advisor mode vs retail mode
+- real ETF database integration
+- portfolio comparison mode
+- scenario stress testing
+- fee estimation
+
+Output Format – Mandatory:
+1. Show the full project structure first
+2. Then provide setup instructions
+3. Then provide full code for every file
+4. Then explain the architecture briefly
+5. Then list extension ideas
+
+Constraints:
+- Do not output pseudo-code
+- Do not skip backend or frontend
+- Do not leave placeholders like “implement logic here”
+- The app must be runnable as delivered
+- The portfolio engine must be deterministic and rule-based
+- Validation and transparency are mandatory, not optional
+- The result must feel like a real application, not a concept demo
+
+Behavioral Rule:
+If any detail is not fully specified, make sensible professional assumptions and state them clearly before implementation.
+
+App Name:
+Investment Decision Lab
