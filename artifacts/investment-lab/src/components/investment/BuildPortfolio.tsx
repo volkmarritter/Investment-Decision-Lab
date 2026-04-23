@@ -311,7 +311,7 @@ export function BuildPortfolio() {
                       {t("build.numEtfs.label")}
                       <Tooltip>
                         <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                        <TooltipContent>{t("build.numEtfs.tooltip")}</TooltipContent>
+                        <TooltipContent className="max-w-xs whitespace-pre-line">{t("build.numEtfs.tooltip")}</TooltipContent>
                       </Tooltip>
                     </label>
                     <div className="flex items-center gap-2">
