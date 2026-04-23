@@ -25,6 +25,7 @@ import { buildPortfolio } from "@/lib/portfolio";
 import { StressTest } from "./StressTest";
 import { FeeEstimator } from "./FeeEstimator";
 import { MonteCarloSimulation } from "./MonteCarloSimulation";
+import { PortfolioMetrics } from "./PortfolioMetrics";
 import { LookThroughAnalysis } from "./LookThroughAnalysis";
 import { GeoExposureMap } from "./GeoExposureMap";
 import { HomeBiasAnalysis } from "./HomeBiasAnalysis";
@@ -745,6 +746,9 @@ export function BuildPortfolio() {
                     />
                   </>
                 )}
+
+                {/* Risk & Performance Metrics (Sharpe, Beta, Alpha, TE, Max DD, Frontier, Correlation) */}
+                <PortfolioMetrics allocation={output.allocation} />
 
                 {/* Scenario Stress Test (moved up: directly after Look-Through Analysis) */}
                 <StressTest allocation={output.allocation} />
