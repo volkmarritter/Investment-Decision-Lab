@@ -18,6 +18,7 @@ import { ExplainAnalysis, ExplainPosition, RiskAppetite, BaseCurrency } from "@/
 import { analyzePortfolio } from "@/lib/explain";
 import { ImportCsvDialog } from "./ImportCsvDialog";
 import { ParsedPositionRow } from "@/lib/csvImport";
+import { useT } from "@/lib/i18n";
 
 interface ExplainFormValues {
   baseCurrency: BaseCurrency;
@@ -37,6 +38,7 @@ const defaultValues: ExplainFormValues = {
 };
 
 export function ExplainPortfolio() {
+  const { t, lang } = useT();
   const [analysis, setAnalysis] = useState<ExplainAnalysis | null>(null);
   const [importDialogOpen, setImportDialogOpen] = useState(false);
 
@@ -74,7 +76,7 @@ export function ExplainPortfolio() {
     } else {
       replace(newPositions);
     }
-    toast.success(`Imported ${rows.length} positions`);
+    toast.success(t("explain.toast.imported", { count: rows.length }));
   };
 
   const onSubmit = (data: ExplainFormValues) => {
@@ -84,7 +86,7 @@ export function ExplainPortfolio() {
       weight: Number(p.weight)
     }));
     
-    const result = analyzePortfolio(parsedPositions, data.riskAppetite, data.baseCurrency);
+    const result = analyzePortfolio(parsedPositions, data.riskAppetite, data.baseCurrency, lang);
     setAnalysis(result);
   };
 
@@ -93,8 +95,8 @@ export function ExplainPortfolio() {
       <div>
         <Card>
           <CardHeader>
-            <CardTitle>Current Portfolio</CardTitle>
-            <CardDescription>Input your existing holdings to test for coherence.</CardDescription>
+            <CardTitle>{t("explain.current.title")}</CardTitle>
+            <CardDescription>{t("explain.current.desc")}</CardDescription>
           </CardHeader>
           <CardContent>
             <Form {...form}>
@@ -105,7 +107,7 @@ export function ExplainPortfolio() {
                     name="baseCurrency"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Base Currency</FormLabel>
+                        <FormLabel>{t("build.baseCurrency.label")}</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
                             <SelectTrigger>
@@ -127,7 +129,7 @@ export function ExplainPortfolio() {
                     name="riskAppetite"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Stated Risk Profile</FormLabel>
+                        <FormLabel>{t("explain.riskProfile.label")}</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
                             <SelectTrigger>
@@ -148,7 +150,7 @@ export function ExplainPortfolio() {
 
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
-                    <FormLabel className="text-base">Positions</FormLabel>
+                    <FormLabel className="text-base">{t("explain.positions.label")}</FormLabel>
                     <div className="flex gap-2">
                       <Button 
                         type="button" 
@@ -157,7 +159,7 @@ export function ExplainPortfolio() {
                         onClick={handleDownloadTemplate}
                         className="h-8 text-xs"
                       >
-                        <Download className="mr-2 h-3 w-3" /> Template
+                        <Download className="mr-2 h-3 w-3" /> {t("explain.btn.template")}
                       </Button>
                       <Button 
                         type="button" 
@@ -166,7 +168,7 @@ export function ExplainPortfolio() {
                         onClick={() => setImportDialogOpen(true)}
                         className="h-8 text-xs"
                       >
-                        <Upload className="mr-2 h-3 w-3" /> Import CSV
+                        <Upload className="mr-2 h-3 w-3" /> {t("explain.btn.importCsv")}
                       </Button>
                       <Button 
                         type="button" 
@@ -175,7 +177,7 @@ export function ExplainPortfolio() {
                         onClick={() => append({ assetClass: "Equity", region: "USA", weight: 0 })}
                         className="h-8 text-xs"
                       >
-                        <Plus className="mr-2 h-3 w-3" /> Add Row
+                        <Plus className="mr-2 h-3 w-3" /> {t("explain.btn.addRow")}
                       </Button>
                     </div>
                   </div>
@@ -184,9 +186,9 @@ export function ExplainPortfolio() {
                     <Table>
                       <TableHeader className="bg-muted/50">
                         <TableRow>
-                          <TableHead>Asset Class</TableHead>
-                          <TableHead>Region/Detail</TableHead>
-                          <TableHead className="w-24">Weight %</TableHead>
+                          <TableHead>{t("explain.table.assetClass")}</TableHead>
+                          <TableHead>{t("explain.table.region")}</TableHead>
+                          <TableHead className="w-24">{t("explain.table.weight")}</TableHead>
                           <TableHead className="w-12"></TableHead>
                         </TableRow>
                       </TableHeader>
@@ -248,7 +250,7 @@ export function ExplainPortfolio() {
                 </div>
 
                 <Button type="submit" className="w-full">
-                  Analyze Portfolio
+                  {t("explain.btn.analyze")}
                 </Button>
               </form>
             </Form>
@@ -279,8 +281,8 @@ export function ExplainPortfolio() {
                 <CardHeader>
                   <div className="flex justify-between items-start">
                     <div>
-                      <CardTitle>Diagnosis: {analysis.verdict}</CardTitle>
-                      <CardDescription>Portfolio structural check</CardDescription>
+                      <CardTitle>{t("explain.diagnosis.title")}: {analysis.verdict}</CardTitle>
+                      <CardDescription>{t("explain.diagnosis.desc")}</CardDescription>
                     </div>
                     {analysis.verdict === "Coherent" && <CheckCircle className="h-8 w-8 text-primary" />}
                     {analysis.verdict === "Needs Attention" && <AlertTriangle className="h-8 w-8 text-warning" />}
@@ -290,19 +292,19 @@ export function ExplainPortfolio() {
                 <CardContent className="space-y-6">
                   
                   <div className="flex items-center justify-between p-4 bg-muted/30 rounded-lg">
-                    <span className="font-medium">Total Allocation</span>
+                    <span className="font-medium">{t("explain.totalAllocation")}</span>
                     <div className="flex items-center gap-3">
                       <span className={`font-mono text-lg ${Math.abs(analysis.sum - 100) > 0.5 ? 'text-destructive font-bold' : ''}`}>
                         {analysis.sum.toFixed(1)}%
                       </span>
-                      {Math.abs(analysis.sum - 100) <= 0.5 && <Badge variant="outline" className="text-primary border-primary/20">Valid</Badge>}
+                      {Math.abs(analysis.sum - 100) <= 0.5 && <Badge variant="outline" className="text-primary border-primary/20">{t("explain.badge.valid")}</Badge>}
                     </div>
                   </div>
 
                   {analysis.errors.length > 0 && (
                     <div className="space-y-3">
                       <h4 className="text-sm font-semibold flex items-center gap-2 text-destructive">
-                        <XCircle className="h-4 w-4" /> Critical Issues
+                        <XCircle className="h-4 w-4" /> {t("explain.issues.critical")}
                       </h4>
                       <ul className="space-y-2">
                         {analysis.errors.map((err, i) => (
@@ -317,7 +319,7 @@ export function ExplainPortfolio() {
                   {analysis.warnings.length > 0 && (
                     <div className="space-y-3">
                       <h4 className="text-sm font-semibold flex items-center gap-2 text-warning">
-                        <AlertTriangle className="h-4 w-4" /> Findings
+                        <AlertTriangle className="h-4 w-4" /> {t("explain.issues.findings")}
                       </h4>
                       <ul className="space-y-2">
                         {analysis.warnings.map((warn, i) => (
@@ -331,7 +333,7 @@ export function ExplainPortfolio() {
 
                   {analysis.errors.length === 0 && analysis.warnings.length === 0 && (
                     <div className="p-4 bg-primary/5 rounded-lg border border-primary/10 text-sm text-muted-foreground">
-                      This portfolio appears structurally sound. It adds up to 100%, avoids excessive single-region concentration, maintains defensive assets, and matches your stated risk profile.
+                      {t("explain.sound")}
                     </div>
                   )}
                   
@@ -341,9 +343,9 @@ export function ExplainPortfolio() {
           ) : (
             <div className="h-full flex flex-col items-center justify-center p-12 text-center border-2 border-dashed rounded-lg bg-muted/20 min-h-[400px]">
               <AlertTriangle className="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
-              <h3 className="text-lg font-medium">Awaiting Input</h3>
+              <h3 className="text-lg font-medium">{t("explain.empty.title")}</h3>
               <p className="text-sm text-muted-foreground mt-2 max-w-sm">
-                Enter your positions on the left to scan for concentration risks, missing diversifiers, and alignment with your risk profile.
+                {t("explain.empty.desc")}
               </p>
             </div>
           )}

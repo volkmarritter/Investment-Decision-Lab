@@ -1,12 +1,13 @@
 import { PortfolioInput, AssetAllocation, PortfolioOutput, ETFImplementation } from "./types";
-import { runValidation } from "./validation";
 import { getExampleETF } from "./etfs";
+import { Lang } from "./i18n";
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
 }
 
-export function buildPortfolio(input: PortfolioInput): PortfolioOutput {
+export function buildPortfolio(input: PortfolioInput, lang: Lang = "en"): PortfolioOutput {
+  const de = lang === "de";
   const maxEquityMap: Record<string, number> = {
     "Low": 40,
     "Moderate": 70,
@@ -136,37 +137,63 @@ export function buildPortfolio(input: PortfolioInput): PortfolioOutput {
     if (alloc.assetClass === "Cash") continue;
     etfImplementation.push({
       bucket: `${alloc.assetClass} - ${alloc.region}`,
-      intent: `Provide ${alloc.region} exposure within ${alloc.assetClass}.`,
+      intent: de
+        ? `Bietet Exposure zu ${alloc.region} innerhalb von ${alloc.assetClass}.`
+        : `Provide ${alloc.region} exposure within ${alloc.assetClass}.`,
       exampleETF: getExampleETF(alloc.assetClass, alloc.region, input),
-      rationale: `Selected to efficiently track the ${alloc.region} market.`
+      rationale: de
+        ? `Ausgewählt, um den Markt ${alloc.region} effizient abzubilden.`
+        : `Selected to efficiently track the ${alloc.region} market.`
     });
   }
 
-  const rationale = [
-    `The portfolio targets a ${equityPct}% / ${defensivePct}% equity-to-defensive split, aligned with a ${input.riskAppetite} risk profile and ${input.horizon}-year horizon.`,
-    `Equities are globally diversified with a structural allocation to US markets, balanced by ${input.baseCurrency !== "USD" ? 'regional exposures' : 'international markets'}.`,
-    ...(input.includeCrypto ? [`A small ${weights["Crypto"]}% satellite allocation to digital assets provides asymmetric upside potential.`] : []),
-    ...(weights["Commodities"] > 0 ? [`Gold is included as a diversifier against fiat currency debasement and systemic shocks.`] : [])
-  ];
+  const rationale = de
+    ? [
+        `Das Portfolio strebt eine Aufteilung von ${equityPct}% Aktien zu ${defensivePct}% defensiv an, abgestimmt auf ein Risikoprofil "${input.riskAppetite}" und einen Anlagehorizont von ${input.horizon} Jahren.`,
+        `Aktien sind global diversifiziert mit einer strukturellen Allokation in US-Märkten, ausgeglichen durch ${input.baseCurrency !== "USD" ? "regionale Exposures" : "internationale Märkte"}.`,
+        ...(input.includeCrypto ? [`Eine kleine Satelliten-Allokation von ${weights["Crypto"]}% in digitalen Vermögenswerten bietet asymmetrisches Aufwärtspotenzial.`] : []),
+        ...(weights["Commodities"] > 0 ? [`Gold wird als Diversifikator gegen Geldentwertung und systemische Schocks beigemischt.`] : [])
+      ]
+    : [
+        `The portfolio targets a ${equityPct}% / ${defensivePct}% equity-to-defensive split, aligned with a ${input.riskAppetite} risk profile and ${input.horizon}-year horizon.`,
+        `Equities are globally diversified with a structural allocation to US markets, balanced by ${input.baseCurrency !== "USD" ? 'regional exposures' : 'international markets'}.`,
+        ...(input.includeCrypto ? [`A small ${weights["Crypto"]}% satellite allocation to digital assets provides asymmetric upside potential.`] : []),
+        ...(weights["Commodities"] > 0 ? [`Gold is included as a diversifier against fiat currency debasement and systemic shocks.`] : [])
+      ];
 
-  const risks = [
-    "Drawdown Risk: Equities can experience 30-50% drawdowns in severe bear markets.",
-    input.baseCurrency !== "USD" && !input.includeCurrencyHedging ? "Currency Risk: Unhedged foreign equity exposure means returns will fluctuate with FX rates." : "",
-    input.includeCrypto ? "Volatility Risk: Digital assets can experience 80%+ drawdowns and high regulatory uncertainty." : "",
-    "Inflation Risk: Cash and nominal bonds may lose purchasing power in high inflation environments."
-  ].filter(Boolean);
+  const risks = de
+    ? [
+        "Drawdown-Risiko: Aktien können in schweren Baissen 30-50% Verlust erleiden.",
+        input.baseCurrency !== "USD" && !input.includeCurrencyHedging ? "Währungsrisiko: Ungesicherte Fremdwährungs-Aktienexposure schwankt mit Wechselkursen." : "",
+        input.includeCrypto ? "Volatilitätsrisiko: Digitale Vermögenswerte können 80%+ Drawdowns und hohe regulatorische Unsicherheit erleiden." : "",
+        "Inflationsrisiko: Liquidität und nominale Anleihen können in Hochinflationsphasen Kaufkraft verlieren."
+      ].filter(Boolean)
+    : [
+        "Drawdown Risk: Equities can experience 30-50% drawdowns in severe bear markets.",
+        input.baseCurrency !== "USD" && !input.includeCurrencyHedging ? "Currency Risk: Unhedged foreign equity exposure means returns will fluctuate with FX rates." : "",
+        input.includeCrypto ? "Volatility Risk: Digital assets can experience 80%+ drawdowns and high regulatory uncertainty." : "",
+        "Inflation Risk: Cash and nominal bonds may lose purchasing power in high inflation environments."
+      ].filter(Boolean);
 
-  const learning = [
-    input.horizon < 5 && equityPct > 50 ? "Horizon Risk: High equity allocations with short horizons increase the chance of realizing losses if funds are needed during a downturn." : "",
-    !input.includeCurrencyHedging && input.baseCurrency !== "USD" ? "Currency Role: Unhedged foreign equities can act as a diversifier, as local currencies often weaken during global market panics." : "",
-    weights["Bonds"] < 10 ? "Stabilization Role: Low bond allocations mean the portfolio relies heavily on equity risk premiums and has fewer natural shock absorbers." : "",
-  ].filter(Boolean);
+  const learning = de
+    ? [
+        input.horizon < 5 && equityPct > 50 ? "Horizontrisiko: Hohe Aktienquoten mit kurzem Horizont erhöhen das Risiko, Verluste zu realisieren, wenn Mittel während eines Abschwungs benötigt werden." : "",
+        !input.includeCurrencyHedging && input.baseCurrency !== "USD" ? "Rolle der Währung: Ungesicherte Fremdwährungsaktien können als Diversifikator wirken, da lokale Währungen in globalen Marktpaniken oft schwächer werden." : "",
+        weights["Bonds"] < 10 ? "Stabilisierungsfunktion: Niedrige Anleihenquoten bedeuten, dass das Portfolio stark auf Aktienrisikoprämien angewiesen ist und weniger natürliche Stoßdämpfer hat." : ""
+      ].filter(Boolean)
+    : [
+        input.horizon < 5 && equityPct > 50 ? "Horizon Risk: High equity allocations with short horizons increase the chance of realizing losses if funds are needed during a downturn." : "",
+        !input.includeCurrencyHedging && input.baseCurrency !== "USD" ? "Currency Role: Unhedged foreign equities can act as a diversifier, as local currencies often weaken during global market panics." : "",
+        weights["Bonds"] < 10 ? "Stabilization Role: Low bond allocations mean the portfolio relies heavily on equity risk premiums and has fewer natural shock absorbers." : ""
+      ].filter(Boolean);
 
   return {
     allocation,
     etfImplementation,
     rationale,
     risks,
-    learning: learning.length > 0 ? learning : ["Diversification: The only free lunch in finance."]
+    learning: learning.length > 0
+      ? learning
+      : [de ? "Diversifikation: Der einzige Free Lunch in der Finanzwelt." : "Diversification: The only free lunch in finance."]
   };
 }

@@ -25,6 +25,7 @@ import { buildPortfolio } from "@/lib/portfolio";
 import { StressTest } from "./StressTest";
 import { FeeEstimator } from "./FeeEstimator";
 import { SavedScenariosUI } from "./SavedScenariosUI";
+import { useT } from "@/lib/i18n";
 
 const COLORS = [
   "hsl(var(--chart-1))",
@@ -50,6 +51,7 @@ const defaultValues: PortfolioInput = {
 };
 
 export function BuildPortfolio() {
+  const { t, lang } = useT();
   const form = useForm<PortfolioInput>({
     defaultValues,
   });
@@ -60,6 +62,14 @@ export function BuildPortfolio() {
   const [isExporting, setIsExporting] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
   const pdfRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (hasGenerated && output) {
+      const parsedData = form.getValues();
+      setValidation(runValidation(parsedData, lang));
+      setOutput(buildPortfolio(parsedData, lang));
+    }
+  }, [lang]);
 
   const handleExportPDF = async () => {
     if (!pdfRef.current || !output) return;
@@ -72,10 +82,10 @@ export function BuildPortfolio() {
       
       const { exportToPdf } = await import("@/lib/exportPdf");
       await exportToPdf(pdfRef.current, filename);
-      toast.success("PDF exported successfully");
+      toast.success(t("build.pdf.success"));
     } catch (error) {
       console.error(error);
-      toast.error("Failed to export PDF");
+      toast.error(t("build.pdf.error"));
     } finally {
       setIsExporting(false);
     }
@@ -90,11 +100,11 @@ export function BuildPortfolio() {
       numETFs: Number(data.numETFs),
     };
     
-    const valResult = runValidation(parsedData);
+    const valResult = runValidation(parsedData, lang);
     setValidation(valResult);
 
     if (valResult.isValid) {
-      const portOutput = buildPortfolio(parsedData);
+      const portOutput = buildPortfolio(parsedData, lang);
       setOutput(portOutput);
     } else {
       setOutput(null);
@@ -120,8 +130,8 @@ export function BuildPortfolio() {
           <CardHeader>
             <div className="flex flex-col space-y-4 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
               <div>
-                <CardTitle>Portfolio Parameters</CardTitle>
-                <CardDescription>Define your constraints and preferences.</CardDescription>
+                <CardTitle>{t("build.params.title")}</CardTitle>
+                <CardDescription>{t("build.params.desc")}</CardDescription>
               </div>
               <SavedScenariosUI
                 hasGenerated={hasGenerated}
@@ -143,10 +153,10 @@ export function BuildPortfolio() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className="flex items-center gap-2">
-                          Base Currency
+                          {t("build.baseCurrency.label")}
                           <Tooltip>
                             <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                            <TooltipContent>Your primary currency for measuring returns.</TooltipContent>
+                            <TooltipContent>{t("build.baseCurrency.tooltip")}</TooltipContent>
                           </Tooltip>
                         </FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
@@ -171,10 +181,10 @@ export function BuildPortfolio() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className="flex items-center gap-2">
-                          Horizon (Years)
+                          {t("build.horizon.label")}
                           <Tooltip>
                             <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                            <TooltipContent>How long before you need to withdraw funds.</TooltipContent>
+                            <TooltipContent>{t("build.horizon.tooltip")}</TooltipContent>
                           </Tooltip>
                         </FormLabel>
                         <FormControl>
@@ -191,10 +201,10 @@ export function BuildPortfolio() {
                   render={({ field }) => (
                     <FormItem className="space-y-3">
                       <FormLabel className="flex items-center gap-2">
-                        Risk Appetite
+                        {t("build.riskAppetite.label")}
                         <Tooltip>
                           <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                          <TooltipContent>Your tolerance for portfolio drawdowns.</TooltipContent>
+                          <TooltipContent>{t("build.riskAppetite.tooltip")}</TooltipContent>
                         </Tooltip>
                       </FormLabel>
                       <FormControl>
@@ -224,10 +234,10 @@ export function BuildPortfolio() {
                     <FormItem>
                       <FormLabel className="flex justify-between items-center">
                         <span className="flex items-center gap-2">
-                          Target Equity Allocation
+                          {t("build.targetEquity.label")}
                           <Tooltip>
                             <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                            <TooltipContent>Percentage of portfolio allocated to stocks.</TooltipContent>
+                            <TooltipContent>{t("build.targetEquity.tooltip")}</TooltipContent>
                           </Tooltip>
                         </span>
                         <span className="text-sm font-mono">{field.value}%</span>
@@ -261,10 +271,10 @@ export function BuildPortfolio() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className="flex items-center gap-2">
-                          Number of ETFs
+                          {t("build.numEtfs.label")}
                           <Tooltip>
                             <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                            <TooltipContent>Target number of ETFs to use (3-15).</TooltipContent>
+                            <TooltipContent>{t("build.numEtfs.tooltip")}</TooltipContent>
                           </Tooltip>
                         </FormLabel>
                         <FormControl>
@@ -279,10 +289,10 @@ export function BuildPortfolio() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel className="flex items-center gap-2">
-                          Preferred Exchange
+                          {t("build.preferredExchange.label")}
                           <Tooltip>
                             <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                            <TooltipContent>Filter ETFs by exchange listings where possible.</TooltipContent>
+                            <TooltipContent>{t("build.preferredExchange.tooltip")}</TooltipContent>
                           </Tooltip>
                         </FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
@@ -310,10 +320,10 @@ export function BuildPortfolio() {
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel className="flex items-center gap-2">
-                        Thematic Tilt (Optional)
+                        {t("build.thematicTilt.label")}
                         <Tooltip>
                           <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                          <TooltipContent>Add a small satellite allocation to a specific theme.</TooltipContent>
+                          <TooltipContent>{t("build.thematicTilt.tooltip")}</TooltipContent>
                         </Tooltip>
                       </FormLabel>
                       <Select onValueChange={field.onChange} defaultValue={field.value}>
@@ -341,8 +351,8 @@ export function BuildPortfolio() {
                     render={({ field }) => (
                       <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
                         <div className="space-y-0.5">
-                          <FormLabel>Currency Hedging</FormLabel>
-                          <FormDescription className="text-xs">Hedge foreign exposure</FormDescription>
+                          <FormLabel>{t("build.currencyHedging.label")}</FormLabel>
+                          <FormDescription className="text-xs">{t("build.currencyHedging.desc")}</FormDescription>
                         </div>
                         <FormControl>
                           <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -356,8 +366,8 @@ export function BuildPortfolio() {
                     render={({ field }) => (
                       <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
                         <div className="space-y-0.5">
-                          <FormLabel>Include Crypto</FormLabel>
-                          <FormDescription className="text-xs">Add a small digital asset allocation</FormDescription>
+                          <FormLabel>{t("build.crypto.label")}</FormLabel>
+                          <FormDescription className="text-xs">{t("build.crypto.desc")}</FormDescription>
                         </div>
                         <FormControl>
                           <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -371,8 +381,8 @@ export function BuildPortfolio() {
                     render={({ field }) => (
                       <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
                         <div className="space-y-0.5">
-                          <FormLabel>Listed Real Estate</FormLabel>
-                          <FormDescription className="text-xs">Add a REIT allocation</FormDescription>
+                          <FormLabel>{t("build.realEstate.label")}</FormLabel>
+                          <FormDescription className="text-xs">{t("build.realEstate.desc")}</FormDescription>
                         </div>
                         <FormControl>
                           <Switch checked={field.value} onCheckedChange={field.onChange} />
@@ -383,7 +393,7 @@ export function BuildPortfolio() {
                 </div>
 
                 <Button type="submit" className="w-full" size="lg">
-                  Generate Portfolio
+                  {t("build.btn.generate")}
                 </Button>
               </form>
             </Form>
@@ -479,15 +489,15 @@ export function BuildPortfolio() {
                 {/* Section 1: Profile Summary */}
                 <Card>
                   <CardHeader className="pb-3">
-                    <CardTitle className="text-base">Investor Profile Summary</CardTitle>
+                    <CardTitle className="text-base">{t("build.summary.title")}</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="flex flex-wrap gap-2">
-                      <Badge variant="secondary">Currency: {form.getValues().baseCurrency}</Badge>
-                      <Badge variant="secondary">Risk: {form.getValues().riskAppetite}</Badge>
-                      <Badge variant="secondary">Horizon: {form.getValues().horizon} yrs</Badge>
-                      <Badge variant="secondary">Target Equity: {form.getValues().targetEquityPct}%</Badge>
-                      <Badge variant="outline" className="border-primary/20">{form.getValues().numETFs} ETFs</Badge>
+                      <Badge variant="secondary">{t("build.summary.currency")} {form.getValues().baseCurrency}</Badge>
+                      <Badge variant="secondary">{t("build.summary.risk")} {form.getValues().riskAppetite}</Badge>
+                      <Badge variant="secondary">{t("build.summary.horizon")} {form.getValues().horizon}</Badge>
+                      <Badge variant="secondary">{t("build.summary.targetEquity")} {form.getValues().targetEquityPct}%</Badge>
+                      <Badge variant="outline" className="border-primary/20">{form.getValues().numETFs} {t("build.summary.etfs")}</Badge>
                     </div>
                   </CardContent>
                 </Card>
@@ -495,8 +505,8 @@ export function BuildPortfolio() {
                 {/* Section 3: Target Asset Allocation */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>Target Asset Allocation</CardTitle>
-                    <CardDescription>Optimized exposure mapping</CardDescription>
+                    <CardTitle>{t("build.targetAllocation.title")}</CardTitle>
+                    <CardDescription>{t("build.targetAllocation.desc")}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
                     <div className="h-[200px] w-full">
@@ -566,8 +576,8 @@ export function BuildPortfolio() {
                 {/* Section 5: ETF Implementation */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>ETF Implementation</CardTitle>
-                    <CardDescription>Translating targets to specific funds</CardDescription>
+                    <CardTitle>{t("build.implementation.title")}</CardTitle>
+                    <CardDescription>{t("build.implementation.desc")}</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="rounded-md border">
@@ -602,7 +612,7 @@ export function BuildPortfolio() {
                   <Card>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base flex items-center gap-2">
-                        <Info className="h-4 w-4" /> Rationale
+                        <Info className="h-4 w-4" /> {t("build.rationale.title")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-3 text-sm">
@@ -616,7 +626,7 @@ export function BuildPortfolio() {
                   <Card>
                     <CardHeader className="pb-3">
                       <CardTitle className="text-base flex items-center gap-2">
-                        <ShieldAlert className="h-4 w-4" /> Key Risks
+                        <ShieldAlert className="h-4 w-4" /> {t("build.risks.title")}
                       </CardTitle>
                     </CardHeader>
                     <CardContent>
@@ -632,7 +642,7 @@ export function BuildPortfolio() {
                 {/* Section 7: Learning Insights */}
                 <div className="space-y-3">
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
-                    <BookOpen className="h-4 w-4" /> Insights
+                    <BookOpen className="h-4 w-4" /> {t("build.learning.title")}
                   </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     {output.learning.map((l, i) => (

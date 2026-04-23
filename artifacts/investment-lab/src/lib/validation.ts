@@ -1,8 +1,10 @@
 import { PortfolioInput, ValidationResult, ValidationSuggestion } from "./types";
+import { Lang } from "./i18n";
 
-export function runValidation(input: PortfolioInput): ValidationResult {
+export function runValidation(input: PortfolioInput, lang: Lang = "en"): ValidationResult {
   const errors: ValidationSuggestion[] = [];
   const warnings: ValidationSuggestion[] = [];
+  const de = lang === "de";
 
   const maxEquityMap: Record<string, number> = {
     "Low": 40,
@@ -12,67 +14,103 @@ export function runValidation(input: PortfolioInput): ValidationResult {
   };
 
   const cap = maxEquityMap[input.riskAppetite];
-  
+
   if (input.targetEquityPct > cap + 15) {
     errors.push({
-      message: `Target equity (${input.targetEquityPct}%) significantly exceeds the typical maximum for a ${input.riskAppetite} risk profile.`,
-      suggestion: `Reduce target equity to ${cap}% or below, or change your risk profile to a higher setting.`
+      message: de
+        ? `Ziel-Aktienquote (${input.targetEquityPct}%) übersteigt das typische Maximum für ein Risikoprofil "${input.riskAppetite}" deutlich.`
+        : `Target equity (${input.targetEquityPct}%) significantly exceeds the typical maximum for a ${input.riskAppetite} risk profile.`,
+      suggestion: de
+        ? `Reduzieren Sie die Ziel-Aktienquote auf ${cap}% oder weniger, oder erhöhen Sie Ihr Risikoprofil.`
+        : `Reduce target equity to ${cap}% or below, or change your risk profile to a higher setting.`
     });
   }
 
   if (input.numETFs < 3 || input.numETFs > 15) {
     errors.push({
-      message: `Invalid number of ETFs requested (${input.numETFs}).`,
-      suggestion: "Set the number of ETFs between 3 and 15."
+      message: de
+        ? `Ungültige Anzahl an ETFs (${input.numETFs}).`
+        : `Invalid number of ETFs requested (${input.numETFs}).`,
+      suggestion: de
+        ? "Wählen Sie eine ETF-Anzahl zwischen 3 und 15."
+        : "Set the number of ETFs between 3 and 15."
     });
   }
 
   if (input.horizon < 1) {
     errors.push({
-      message: `Investment horizon is too short (${input.horizon} years).`,
-      suggestion: "Set a horizon of at least 1 year."
+      message: de
+        ? `Anlagehorizont ist zu kurz (${input.horizon} Jahre).`
+        : `Investment horizon is too short (${input.horizon} years).`,
+      suggestion: de
+        ? "Wählen Sie einen Anlagehorizont von mindestens 1 Jahr."
+        : "Set a horizon of at least 1 year."
     });
   }
 
   if (input.riskAppetite === "Low" && input.targetEquityPct > 30) {
     warnings.push({
-      message: "Equity allocation is slightly high for a 'Low' risk appetite.",
-      suggestion: "Consider reducing equity to 30% or below."
+      message: de
+        ? "Die Aktienquote ist für ein 'Low'-Risikoprofil etwas hoch."
+        : "Equity allocation is slightly high for a 'Low' risk appetite.",
+      suggestion: de
+        ? "Reduzieren Sie die Aktienquote auf 30% oder weniger."
+        : "Consider reducing equity to 30% or below."
     });
   }
 
   if (input.riskAppetite === "Very High" && input.horizon < 5) {
     warnings.push({
-      message: "Short horizon combined with 'Very High' risk.",
-      suggestion: "Consider a longer horizon or reducing risk to Moderate/High."
+      message: de
+        ? "Kurzer Horizont kombiniert mit Risikoprofil 'Very High'."
+        : "Short horizon combined with 'Very High' risk.",
+      suggestion: de
+        ? "Wählen Sie einen längeren Horizont oder reduzieren Sie das Risiko auf Moderate/High."
+        : "Consider a longer horizon or reducing risk to Moderate/High."
     });
   }
 
   if (input.horizon < 3 && input.targetEquityPct > 50) {
     warnings.push({
-      message: "High equity allocation for a short horizon (Horizon Risk).",
-      suggestion: "Increase defensive allocation (Bonds/Cash) if you need these funds within 3 years."
+      message: de
+        ? "Hohe Aktienquote bei kurzem Anlagehorizont (Horizontrisiko)."
+        : "High equity allocation for a short horizon (Horizon Risk).",
+      suggestion: de
+        ? "Erhöhen Sie die defensive Allokation (Anleihen/Liquidität), wenn Sie diese Mittel innerhalb von 3 Jahren benötigen."
+        : "Increase defensive allocation (Bonds/Cash) if you need these funds within 3 years."
     });
   }
 
   if (input.includeCrypto && input.riskAppetite === "Low") {
     warnings.push({
-      message: "Cryptocurrency inclusion contradicts 'Low' risk profile.",
-      suggestion: "Disable the crypto toggle or increase your stated risk profile."
+      message: de
+        ? "Krypto-Beimischung widerspricht dem Risikoprofil 'Low'."
+        : "Cryptocurrency inclusion contradicts 'Low' risk profile.",
+      suggestion: de
+        ? "Deaktivieren Sie die Krypto-Option oder erhöhen Sie Ihr angegebenes Risikoprofil."
+        : "Disable the crypto toggle or increase your stated risk profile."
     });
   }
 
   if (input.numETFs > 10) {
     warnings.push({
-      message: "High complexity (Complexity Risk).",
-      suggestion: "Unless needed for specific tax or factor reasons, consider reducing the ETF count for easier management."
+      message: de
+        ? "Hohe Komplexität (Komplexitätsrisiko)."
+        : "High complexity (Complexity Risk).",
+      suggestion: de
+        ? "Sofern nicht aus steuerlichen oder Faktorgründen erforderlich, reduzieren Sie die ETF-Anzahl für eine einfachere Verwaltung."
+        : "Unless needed for specific tax or factor reasons, consider reducing the ETF count for easier management."
     });
   }
 
   if (input.numETFs <= 4 && (input.includeCrypto || input.thematicPreference !== "None" || input.includeListedRealEstate)) {
     warnings.push({
-      message: "Not enough sleeves to express your selections.",
-      suggestion: "Increase the number of ETFs to 5+ or remove satellite/thematic toggles."
+      message: de
+        ? "Zu wenige Bausteine, um Ihre Auswahl umzusetzen."
+        : "Not enough sleeves to express your selections.",
+      suggestion: de
+        ? "Erhöhen Sie die ETF-Anzahl auf 5+ oder entfernen Sie Satelliten-/Thematik-Optionen."
+        : "Increase the number of ETFs to 5+ or remove satellite/thematic toggles."
     });
   }
 
