@@ -4,7 +4,7 @@ import { Sigma, Activity, BarChart3, GitCompare, ChevronDown, ChevronUp, Info, T
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AssetAllocation } from "@/lib/types";
 import { computeMetrics, computeFrontier, buildCorrelationMatrix, mapAllocationToAssets, CMA } from "@/lib/metrics";
 import { getRiskFreeRate, subscribeRiskFreeRate } from "@/lib/settings";
@@ -279,8 +279,8 @@ function MetricTile({ label, value, sub, accent, info }: { label: string; value:
       <div className="flex items-start justify-between gap-1">
         <div className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</div>
         {info && (
-          <Popover>
-            <PopoverTrigger asChild>
+          <Tooltip>
+            <TooltipTrigger asChild>
               <button
                 type="button"
                 className="text-muted-foreground hover:text-foreground transition-colors -mt-0.5 -mr-0.5 shrink-0"
@@ -288,12 +288,12 @@ function MetricTile({ label, value, sub, accent, info }: { label: string; value:
               >
                 <Info className="h-3.5 w-3.5" />
               </button>
-            </PopoverTrigger>
-            <PopoverContent side="top" className="w-72 text-xs">
+            </TooltipTrigger>
+            <TooltipContent side="top" className="max-w-xs">
               <div className="font-semibold mb-1">{info.title}</div>
-              <p className="text-muted-foreground leading-relaxed">{info.body}</p>
-            </PopoverContent>
-          </Popover>
+              <p className="leading-relaxed">{info.body}</p>
+            </TooltipContent>
+          </Tooltip>
         )}
       </div>
       <div className={`text-xl font-mono font-semibold mt-1 ${accentClass}`}>{value}</div>
