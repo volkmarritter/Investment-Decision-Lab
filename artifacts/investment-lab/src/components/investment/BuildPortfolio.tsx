@@ -27,6 +27,8 @@ import { FeeEstimator } from "./FeeEstimator";
 import { MonteCarloSimulation } from "./MonteCarloSimulation";
 import { LookThroughAnalysis } from "./LookThroughAnalysis";
 import { HomeBiasAnalysis } from "./HomeBiasAnalysis";
+import { CurrencyOverview } from "./CurrencyOverview";
+import { TopHoldings } from "./TopHoldings";
 import { SavedScenariosUI } from "./SavedScenariosUI";
 import { DisclaimerPdfBlock } from "./Disclaimer";
 import { useT } from "@/lib/i18n";
@@ -681,6 +683,18 @@ export function BuildPortfolio() {
                     </p>
                   </CardContent>
                 </Card>
+
+                {/* Always-visible: Consolidated Currency Overview (post-hedge) */}
+                <CurrencyOverview
+                  etfs={output.etfImplementation}
+                  baseCurrency={form.getValues().baseCurrency}
+                />
+
+                {/* Always-visible: Top 10 Equity Holdings (look-through) */}
+                <TopHoldings
+                  etfs={output.etfImplementation}
+                  baseCurrency={form.getValues().baseCurrency}
+                />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Section 4: Portfolio Rationale */}
