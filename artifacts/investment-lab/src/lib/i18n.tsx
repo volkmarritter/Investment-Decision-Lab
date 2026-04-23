@@ -9,6 +9,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "tab.build": "Build Portfolio",
     "tab.compare": "Compare Portfolios",
     "tab.explain": "Explain My Portfolio",
+    "tab.methodology": "Methodology",
     
     // BuildPortfolio
     "build.params.title": "Portfolio Parameters",
@@ -336,6 +337,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "tab.build": "Portfolio Erstellen",
     "tab.compare": "Portfolios Vergleichen",
     "tab.explain": "Portfolio Erklären",
+    "tab.methodology": "Methodik",
     
     // BuildPortfolio
     "build.params.title": "Parameter",

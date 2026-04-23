@@ -1,4 +1,5 @@
 import { AssetAllocation } from "./types";
+import { getRiskFreeRate } from "./settings";
 
 export type AssetKey =
   | "equity_us"
@@ -34,7 +35,8 @@ export const CMA: Record<AssetKey, AssetCMA> = {
   crypto:           { key: "crypto",           label: "Crypto",            expReturn: 0.120, vol: 0.70 },
 };
 
-export const RISK_FREE_RATE = 0.025;
+export const RISK_FREE_RATE_DEFAULT = 0.025;
+export const RISK_FREE_RATE = RISK_FREE_RATE_DEFAULT;
 
 const C: Partial<Record<AssetKey, Partial<Record<AssetKey, number>>>> = {
   equity_us: { equity_eu: 0.82, equity_ch: 0.70, equity_jp: 0.70, equity_em: 0.72, equity_thematic: 0.85, bonds: 0.10, cash: 0.00, gold: 0.05, reits: 0.70, crypto: 0.30 },
@@ -141,6 +143,7 @@ export interface PortfolioMetricsResult {
 }
 
 export function computeMetrics(allocation: AssetAllocation[]): PortfolioMetricsResult {
+  const rf = getRiskFreeRate();
   const exp = mapAllocationToAssets(allocation);
   const r = portfolioReturn(exp);
   const v = portfolioVol(exp);
@@ -149,7 +152,7 @@ export function computeMetrics(allocation: AssetAllocation[]): PortfolioMetricsR
 
   const cov_pb = covariance(exp, BENCHMARK);
   const beta = vB > 0 ? cov_pb / (vB * vB) : 0;
-  const alpha = r - (RISK_FREE_RATE + beta * (rB - RISK_FREE_RATE));
+  const alpha = r - (rf + beta * (rB - rf));
 
   // Tracking error = stdev of (R_p - R_b) = sqrt(Var_p + Var_b - 2*Cov_pb)
   const teVar = v * v + vB * vB - 2 * cov_pb;
@@ -161,7 +164,7 @@ export function computeMetrics(allocation: AssetAllocation[]): PortfolioMetricsR
     .reduce((s, e) => s + e.weight, 0);
   const maxDrawdown = -Math.min(0.85, (1.8 + 1.4 * equityShare) * v);
 
-  const sharpe = v > 0 ? (r - RISK_FREE_RATE) / v : 0;
+  const sharpe = v > 0 ? (r - rf) / v : 0;
 
   return {
     expReturn: r,
@@ -213,22 +216,24 @@ export function computeFrontier(allocation: AssetAllocation[]): { points: Fronti
     ];
     const r = portfolioReturn(blended);
     const v = portfolioVol(blended);
+    const rf = getRiskFreeRate();
     points.push({
       equityPct: pct,
       vol: v,
       ret: r,
-      sharpe: v > 0 ? (r - RISK_FREE_RATE) / v : 0,
+      sharpe: v > 0 ? (r - rf) / v : 0,
     });
   }
 
   const currentEqPct = Math.round(eqWeightSum * 100);
   const r = portfolioReturn(exp);
   const v = portfolioVol(exp);
+  const rf2 = getRiskFreeRate();
   const current: FrontierPoint = {
     equityPct: currentEqPct,
     vol: v,
     ret: r,
-    sharpe: v > 0 ? (r - RISK_FREE_RATE) / v : 0,
+    sharpe: v > 0 ? (r - rf2) / v : 0,
     isCurrent: true,
   };
   return { points, current };

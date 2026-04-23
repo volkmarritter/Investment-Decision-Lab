@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceDot } from "recharts";
 import { Sigma, Activity, BarChart3, GitCompare, ChevronDown, ChevronUp, Info, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,16 +6,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AssetAllocation } from "@/lib/types";
-import { computeMetrics, computeFrontier, buildCorrelationMatrix, mapAllocationToAssets, CMA, RISK_FREE_RATE } from "@/lib/metrics";
+import { computeMetrics, computeFrontier, buildCorrelationMatrix, mapAllocationToAssets, CMA } from "@/lib/metrics";
+import { getRiskFreeRate, subscribeRiskFreeRate } from "@/lib/settings";
 import { useT } from "@/lib/i18n";
 
 export function PortfolioMetrics({ allocation }: { allocation: AssetAllocation[] }) {
   const { t, lang } = useT();
   const de = lang === "de";
   const [expanded, setExpanded] = useState(false);
+  const [rf, setRf] = useState<number>(() => getRiskFreeRate());
+  useEffect(() => subscribeRiskFreeRate(setRf), []);
 
-  const m = useMemo(() => computeMetrics(allocation), [allocation]);
-  const frontier = useMemo(() => computeFrontier(allocation), [allocation]);
+  const m = useMemo(() => computeMetrics(allocation), [allocation, rf]);
+  const frontier = useMemo(() => computeFrontier(allocation), [allocation, rf]);
   const correlation = useMemo(() => buildCorrelationMatrix(allocation), [allocation]);
   const exposures = useMemo(() => mapAllocationToAssets(allocation), [allocation]);
 
@@ -117,7 +120,7 @@ export function PortfolioMetrics({ allocation }: { allocation: AssetAllocation[]
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <MetricTile label={t("metrics.expReturn")} value={pct(m.expReturn)} sub={de ? "p.a." : "p.a."} info={explain.expReturn} />
           <MetricTile label={t("metrics.vol")} value={pct(m.vol)} sub={de ? "Standardabw." : "stdev"} info={explain.vol} />
-          <MetricTile label={t("metrics.sharpe")} value={num(m.sharpe)} sub={`Rf ${pct(RISK_FREE_RATE, 1)}`} accent={m.sharpe >= 0.4 ? "good" : m.sharpe >= 0.2 ? "neutral" : "warn"} info={explain.sharpe} />
+          <MetricTile label={t("metrics.sharpe")} value={num(m.sharpe)} sub={`Rf ${pct(rf, 1)}`} accent={m.sharpe >= 0.4 ? "good" : m.sharpe >= 0.2 ? "neutral" : "warn"} info={explain.sharpe} />
           <MetricTile label={t("metrics.maxDD")} value={pct(m.maxDrawdown, 1)} sub={de ? "geschätzt" : "estimated"} accent="warn" info={explain.maxDD} />
           <MetricTile label={t("metrics.beta")} value={num(m.beta)} sub={de ? "vs. ACWI" : "vs ACWI"} info={explain.beta} />
           <MetricTile label={t("metrics.alpha")} value={pct(m.alpha)} sub={de ? "p.a. vs. ACWI" : "p.a. vs ACWI"} accent={m.alpha >= 0 ? "good" : "warn"} info={explain.alpha} />

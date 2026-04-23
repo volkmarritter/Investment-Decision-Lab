@@ -3,7 +3,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BuildPortfolio } from "@/components/investment/BuildPortfolio";
 import { ExplainPortfolio } from "@/components/investment/ExplainPortfolio";
 import { ComparePortfolios } from "@/components/investment/ComparePortfolios";
-import { Layers, PieChart, Scale } from "lucide-react";
+import { Methodology } from "@/components/investment/Methodology";
+import { BookOpen, Layers, PieChart, Scale } from "lucide-react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useT } from "@/lib/i18n";
 import { DisclaimerFooter } from "@/components/investment/Disclaimer";
@@ -37,7 +38,7 @@ export default function InvestmentLab() {
       <main className="container mx-auto px-4 py-8">
         <Tabs defaultValue="build" className="space-y-8">
           <div className="flex justify-center">
-            <TabsList className="grid w-full max-w-3xl grid-cols-3 h-auto gap-1 p-1">
+            <TabsList className="grid w-full max-w-3xl grid-cols-4 h-auto gap-1 p-1">
               <TabsTrigger
                 value="build"
                 className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 min-w-0 px-1 sm:px-3 py-2 text-[11px] sm:text-sm whitespace-normal text-center leading-tight break-words"
@@ -59,6 +60,13 @@ export default function InvestmentLab() {
                 <PieChart className="h-4 w-4 shrink-0" />
                 <span>{t("tab.explain")}</span>
               </TabsTrigger>
+              <TabsTrigger
+                value="methodology"
+                className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 min-w-0 px-1 sm:px-3 py-2 text-[11px] sm:text-sm whitespace-normal text-center leading-tight break-words"
+              >
+                <BookOpen className="h-4 w-4 shrink-0" />
+                <span>{t("tab.methodology")}</span>
+              </TabsTrigger>
             </TabsList>
           </div>
 
@@ -70,6 +78,9 @@ export default function InvestmentLab() {
           </TabsContent>
           <TabsContent value="explain" className="m-0 focus-visible:outline-none">
             <ExplainPortfolio />
+          </TabsContent>
+          <TabsContent value="methodology" className="m-0 focus-visible:outline-none">
+            <Methodology />
           </TabsContent>
         </Tabs>
       </main>
