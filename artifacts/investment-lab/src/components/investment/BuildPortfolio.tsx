@@ -23,6 +23,7 @@ import { PortfolioInput, PortfolioOutput, ValidationResult } from "@/lib/types";
 import { runValidation } from "@/lib/validation";
 import { buildPortfolio } from "@/lib/portfolio";
 import { StressTest } from "./StressTest";
+import { FeeEstimator } from "./FeeEstimator";
 
 const COLORS = [
   "hsl(var(--chart-1))",
@@ -634,6 +635,13 @@ export function BuildPortfolio() {
 
                 {/* Section 8: Scenario Stress Test */}
                 <StressTest allocation={output.allocation} />
+
+                {/* Section 9: Fee Estimator */}
+                <FeeEstimator 
+                  allocation={output.allocation} 
+                  horizonYears={form.getValues().horizon} 
+                  baseCurrency={form.getValues().baseCurrency} 
+                />
               </>
             )}
             </div>
