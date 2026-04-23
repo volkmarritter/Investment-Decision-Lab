@@ -577,9 +577,9 @@ export function BuildPortfolio() {
         {!hasGenerated && (
           <div className="h-full flex flex-col items-center justify-center p-12 text-center border-2 border-dashed rounded-lg bg-muted/20">
             <Target className="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
-            <h3 className="text-lg font-medium">Ready to Build</h3>
+            <h3 className="text-lg font-medium">{t("build.empty.title")}</h3>
             <p className="text-sm text-muted-foreground mt-2 max-w-sm">
-              Configure your preferences on the left and generate a portfolio to see the detailed breakdown, rationales, and ETF implementation.
+              {t("build.empty.desc")}
             </p>
           </div>
         )}

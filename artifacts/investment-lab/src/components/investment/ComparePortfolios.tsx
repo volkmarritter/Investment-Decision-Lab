@@ -395,9 +395,11 @@ export function ComparePortfolios() {
         {!hasGenerated ? (
           <div className="flex flex-col items-center justify-center p-12 text-center border-2 border-dashed rounded-lg bg-muted/20">
             <Scale className="h-12 w-12 text-muted-foreground mb-4 opacity-50" />
-            <h3 className="text-lg font-medium">Configure and Compare</h3>
+            <h3 className="text-lg font-medium">{lang === "de" ? "Konfigurieren und Vergleichen" : "Configure and Compare"}</h3>
             <p className="text-sm text-muted-foreground mt-2 max-w-sm">
-              Setup both portfolios above and compare their structural allocation differences side by side.
+              {lang === "de"
+                ? "Konfigurieren Sie oben beide Portfolios und vergleichen Sie ihre strukturellen Allokationsunterschiede nebeneinander."
+                : "Setup both portfolios above and compare their structural allocation differences side by side."}
             </p>
           </div>
         ) : (
