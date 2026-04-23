@@ -43,12 +43,12 @@ const COLORS = [
 ];
 
 const defaultValues: PortfolioInput = {
-  baseCurrency: "USD",
+  baseCurrency: "CHF",
   riskAppetite: "Moderate",
   horizon: 10,
   targetEquityPct: 60,
   numETFs: 5,
-  preferredExchange: "None",
+  preferredExchange: "SIX",
   thematicPreference: "None",
   includeCurrencyHedging: false,
   includeSyntheticETFs: false,
@@ -77,6 +77,21 @@ export function BuildPortfolio() {
       setOutput(buildPortfolio(parsedData, lang));
     }
   }, [lang]);
+
+  // Auto-sync preferred exchange to base currency: CHF -> SIX, EUR -> XETRA, GBP -> LSE, USD -> All.
+  const watchedBaseCcy = form.watch("baseCurrency");
+  useEffect(() => {
+    const map: Record<string, "SIX" | "XETRA" | "LSE" | "None"> = {
+      CHF: "SIX",
+      EUR: "XETRA",
+      GBP: "LSE",
+      USD: "None",
+    };
+    const target = map[watchedBaseCcy];
+    if (target && form.getValues().preferredExchange !== target) {
+      form.setValue("preferredExchange", target, { shouldDirty: false });
+    }
+  }, [watchedBaseCcy]);
 
   const handleExportPDF = async () => {
     if (!pdfRef.current || !output) return;

@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
 import { AlertCircle, CheckCircle2, Info, Scale, ShieldAlert, Target } from "lucide-react";
@@ -38,12 +38,12 @@ interface CompareFormValues {
 
 const defaultValues: CompareFormValues = {
   portA: {
-    baseCurrency: "USD",
+    baseCurrency: "CHF",
     riskAppetite: "Moderate",
     horizon: 10,
     targetEquityPct: 50,
     numETFs: 5,
-    preferredExchange: "None",
+    preferredExchange: "SIX",
     thematicPreference: "None",
     includeCurrencyHedging: false,
     includeSyntheticETFs: false,
@@ -52,12 +52,12 @@ const defaultValues: CompareFormValues = {
     includeListedRealEstate: false,
   },
   portB: {
-    baseCurrency: "USD",
+    baseCurrency: "CHF",
     riskAppetite: "Very High",
     horizon: 20,
     targetEquityPct: 90,
     numETFs: 8,
-    preferredExchange: "None",
+    preferredExchange: "SIX",
     thematicPreference: "Technology",
     includeCurrencyHedging: true,
     includeSyntheticETFs: false,
@@ -71,6 +71,28 @@ export function ComparePortfolios() {
   const form = useForm<CompareFormValues>({
     defaultValues,
   });
+
+  // Auto-sync preferred exchange to base currency for both portfolios.
+  const watchedA = form.watch("portA.baseCurrency");
+  const watchedB = form.watch("portB.baseCurrency");
+  useEffect(() => {
+    const map: Record<string, "SIX" | "XETRA" | "LSE" | "None"> = {
+      CHF: "SIX", EUR: "XETRA", GBP: "LSE", USD: "None",
+    };
+    const t = map[watchedA];
+    if (t && form.getValues().portA.preferredExchange !== t) {
+      form.setValue("portA.preferredExchange", t, { shouldDirty: false });
+    }
+  }, [watchedA]);
+  useEffect(() => {
+    const map: Record<string, "SIX" | "XETRA" | "LSE" | "None"> = {
+      CHF: "SIX", EUR: "XETRA", GBP: "LSE", USD: "None",
+    };
+    const t = map[watchedB];
+    if (t && form.getValues().portB.preferredExchange !== t) {
+      form.setValue("portB.preferredExchange", t, { shouldDirty: false });
+    }
+  }, [watchedB]);
 
   const [outputA, setOutputA] = useState<PortfolioOutput | null>(null);
   const [outputB, setOutputB] = useState<PortfolioOutput | null>(null);
