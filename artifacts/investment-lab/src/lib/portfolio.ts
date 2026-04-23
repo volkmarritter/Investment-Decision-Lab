@@ -1,5 +1,5 @@
 import { PortfolioInput, AssetAllocation, PortfolioOutput, ETFImplementation } from "./types";
-import { getExampleETF } from "./etfs";
+import { getETFDetails } from "./etfs";
 import { Lang } from "./i18n";
 
 function clamp(value: number, min: number, max: number) {
@@ -135,15 +135,27 @@ export function buildPortfolio(input: PortfolioInput, lang: Lang = "en"): Portfo
   const etfImplementation: ETFImplementation[] = [];
   for (const alloc of allocation) {
     if (alloc.assetClass === "Cash") continue;
+    const d = getETFDetails(alloc.assetClass, alloc.region, input);
     etfImplementation.push({
       bucket: `${alloc.assetClass} - ${alloc.region}`,
+      assetClass: alloc.assetClass,
+      weight: alloc.weight,
       intent: de
         ? `Bietet Exposure zu ${alloc.region} innerhalb von ${alloc.assetClass}.`
         : `Provide ${alloc.region} exposure within ${alloc.assetClass}.`,
-      exampleETF: getExampleETF(alloc.assetClass, alloc.region, input),
+      exampleETF: d.name,
       rationale: de
         ? `Ausgewählt, um den Markt ${alloc.region} effizient abzubilden.`
-        : `Selected to efficiently track the ${alloc.region} market.`
+        : `Selected to efficiently track the ${alloc.region} market.`,
+      isin: d.isin,
+      ticker: d.ticker,
+      exchange: d.exchange,
+      terBps: d.terBps,
+      domicile: d.domicile,
+      replication: d.replication,
+      distribution: d.distribution,
+      currency: d.currency,
+      comment: d.comment,
     });
   }
 

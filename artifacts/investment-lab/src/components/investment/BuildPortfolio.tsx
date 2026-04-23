@@ -319,7 +319,6 @@ export function BuildPortfolio() {
                           </FormControl>
                           <SelectContent>
                             <SelectItem value="None">None (Global)</SelectItem>
-                            <SelectItem value="NYSE">NYSE</SelectItem>
                             <SelectItem value="LSE">LSE</SelectItem>
                             <SelectItem value="XETRA">XETRA</SelectItem>
                             <SelectItem value="SIX">SIX</SelectItem>
@@ -596,30 +595,57 @@ export function BuildPortfolio() {
                     <CardDescription>{t("build.implementation.desc")}</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="rounded-md border">
-                      <Table>
+                    <div className="rounded-md border overflow-x-auto">
+                      <Table className="text-xs">
                         <TableHeader>
                           <TableRow>
-                            <TableHead>Bucket</TableHead>
-                            <TableHead>Example ETF</TableHead>
+                            <TableHead className="whitespace-nowrap">{t("build.impl.col.assetClass")}</TableHead>
+                            <TableHead className="whitespace-nowrap text-right">{t("build.impl.col.weight")}</TableHead>
+                            <TableHead className="whitespace-nowrap">{t("build.impl.col.name")}</TableHead>
+                            <TableHead className="whitespace-nowrap font-mono">{t("build.impl.col.isin")}</TableHead>
+                            <TableHead className="whitespace-nowrap">{t("build.impl.col.ticker")}</TableHead>
+                            <TableHead className="whitespace-nowrap text-right">{t("build.impl.col.ter")}</TableHead>
+                            <TableHead className="whitespace-nowrap">{t("build.impl.col.domicile")}</TableHead>
+                            <TableHead className="whitespace-nowrap">{t("build.impl.col.replication")}</TableHead>
+                            <TableHead className="whitespace-nowrap">{t("build.impl.col.distribution")}</TableHead>
+                            <TableHead className="whitespace-nowrap">{t("build.impl.col.currency")}</TableHead>
+                            <TableHead className="min-w-[220px]">{t("build.impl.col.comment")}</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
                           {output.etfImplementation.map((etf, i) => (
                             <TableRow key={i}>
                               <TableCell>
-                                <div className="font-medium">{etf.bucket}</div>
-                                <div className="text-xs text-muted-foreground mt-1 max-w-[200px] line-clamp-2" title={etf.intent}>{etf.intent}</div>
+                                <div className="font-medium">{etf.assetClass}</div>
+                                <div className="text-[10px] text-muted-foreground mt-0.5">{etf.bucket.split(" - ")[1] ?? ""}</div>
                               </TableCell>
-                              <TableCell>
-                                <Badge variant="outline" className="mb-1">{etf.exampleETF}</Badge>
-                                <div className="text-xs text-muted-foreground max-w-[200px] line-clamp-2" title={etf.rationale}>{etf.rationale}</div>
+                              <TableCell className="text-right font-mono">{etf.weight.toFixed(1)}%</TableCell>
+                              <TableCell className="font-medium">{etf.exampleETF}</TableCell>
+                              <TableCell className="font-mono whitespace-nowrap">{etf.isin}</TableCell>
+                              <TableCell className="font-mono whitespace-nowrap">
+                                {etf.ticker}
+                                {etf.exchange && etf.exchange !== "—" && (
+                                  <span className="text-muted-foreground"> ({etf.exchange})</span>
+                                )}
                               </TableCell>
+                              <TableCell className="text-right font-mono">{(etf.terBps / 100).toFixed(2)}%</TableCell>
+                              <TableCell className="whitespace-nowrap">{etf.domicile}</TableCell>
+                              <TableCell className="whitespace-nowrap">{etf.replication}</TableCell>
+                              <TableCell className="whitespace-nowrap">
+                                {etf.distribution === "Accumulating"
+                                  ? t("build.impl.dist.acc")
+                                  : t("build.impl.dist.dist")}
+                              </TableCell>
+                              <TableCell className="font-mono">{etf.currency}</TableCell>
+                              <TableCell className="text-muted-foreground min-w-[220px] max-w-[320px]">{etf.comment}</TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
                       </Table>
                     </div>
+                    <p className="text-[10px] text-muted-foreground mt-2 italic">
+                      {t("build.impl.disclaimer")}
+                    </p>
                   </CardContent>
                 </Card>
 

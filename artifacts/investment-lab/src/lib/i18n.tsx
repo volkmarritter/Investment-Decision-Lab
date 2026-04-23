@@ -169,6 +169,22 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "theme.dark": "Dark",
     "theme.system": "System",
 
+    // ETF Implementation table
+    "build.impl.col.assetClass": "Asset Class",
+    "build.impl.col.weight": "Weight",
+    "build.impl.col.name": "ETF Name",
+    "build.impl.col.isin": "ISIN",
+    "build.impl.col.ticker": "Ticker (Exchange)",
+    "build.impl.col.ter": "TER",
+    "build.impl.col.domicile": "Domicile",
+    "build.impl.col.replication": "Replication",
+    "build.impl.col.distribution": "Dist / Acc",
+    "build.impl.col.currency": "Ccy",
+    "build.impl.col.comment": "Comment",
+    "build.impl.dist.acc": "Accumulating",
+    "build.impl.dist.dist": "Distributing",
+    "build.impl.disclaimer": "ETF names, ISINs and tickers are illustrative examples of widely-used UCITS instruments and may differ from actual current listings. Verify before any investment decision.",
+
     // Monte Carlo
     "mc.title": "Monte Carlo Simulation",
     "mc.desc": "2,000 simulated paths using illustrative per-bucket return and volatility assumptions. Geometric Brownian motion, log-normal returns. Not a forecast.",
@@ -374,6 +390,22 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "theme.light": "Hell",
     "theme.dark": "Dunkel",
     "theme.system": "System",
+
+    // ETF Implementation table
+    "build.impl.col.assetClass": "Anlageklasse",
+    "build.impl.col.weight": "Gewicht",
+    "build.impl.col.name": "ETF-Name",
+    "build.impl.col.isin": "ISIN",
+    "build.impl.col.ticker": "Ticker (Börse)",
+    "build.impl.col.ter": "TER",
+    "build.impl.col.domicile": "Domizil",
+    "build.impl.col.replication": "Replikation",
+    "build.impl.col.distribution": "Aussch / Thes",
+    "build.impl.col.currency": "Wkz",
+    "build.impl.col.comment": "Kommentar",
+    "build.impl.dist.acc": "Thesaurierend",
+    "build.impl.dist.dist": "Ausschüttend",
+    "build.impl.disclaimer": "ETF-Namen, ISINs und Ticker sind illustrative Beispiele weit verbreiteter UCITS-Instrumente und können von aktuellen Listings abweichen. Vor jeder Anlageentscheidung verifizieren.",
 
     // Monte Carlo
     "mc.title": "Monte-Carlo-Simulation",

@@ -212,7 +212,6 @@ export function ComparePortfolios() {
                   </FormControl>
                   <SelectContent>
                     <SelectItem value="None">None</SelectItem>
-                    <SelectItem value="NYSE">NYSE</SelectItem>
                     <SelectItem value="LSE">LSE</SelectItem>
                     <SelectItem value="XETRA">XETRA</SelectItem>
                     <SelectItem value="SIX">SIX</SelectItem>
