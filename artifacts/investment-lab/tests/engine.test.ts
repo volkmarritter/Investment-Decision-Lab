@@ -933,6 +933,51 @@ describe("AI Prompt builder (buildAiPrompt)", () => {
     }
   });
 
+  it("produces a German prompt when lang='de' is passed", () => {
+    const de = buildAiPrompt(
+      baseInput({
+        baseCurrency: "CHF",
+        riskAppetite: "Very High",
+        targetEquityPct: 80,
+        horizon: 12,
+        preferredExchange: "SIX",
+        includeCurrencyHedging: false,
+        includeSyntheticETFs: false,
+        includeCommodities: true,
+        includeListedRealEstate: true,
+        includeCrypto: true,
+        thematicPreference: "Sustainability",
+      }),
+      "de"
+    );
+    expect(de).toContain("Rolle:");
+    expect(de).toContain("Basiswaehrung: CHF");
+    expect(de).toContain("Risikoneigung: Sehr hoch");
+    expect(de).toContain(">=10 Jahre");
+    expect(de).toContain("Aktienallokation zwischen 70% und 90%");
+    expect(de).toContain("SIX Swiss Exchange");
+    expect(de).toContain("Schweizer");
+    expect(de).toContain("Schweiz (CH)");
+    expect(de).toContain("Satelliten:");
+    expect(de).toContain("Rohstoffe / Edelmetalle");
+    expect(de).toContain("Boersennotierte Immobilien");
+    expect(de).toContain("Krypto-Assets");
+    expect(de).toContain("Thematische Aktien (Sustainability");
+    expect(de).toContain("KEINE breite Waehrungsabsicherung");
+    expect(de).toContain("ausschliesslich physische Replikation");
+    expect(de).toContain("Verfasse die gesamte Antwort in klarem Deutsch.");
+    // Ensure no English boilerplate leaked through.
+    expect(de).not.toContain("Role:\nYou act as");
+    expect(de).not.toContain("Eligible asset classes:");
+  });
+
+  it("defaults to English when lang is omitted", () => {
+    const p = buildAiPrompt(baseInput({ baseCurrency: "USD" }));
+    expect(p).toContain("Role:");
+    expect(p).toContain("Base currency: USD");
+    expect(p).not.toContain("Basiswaehrung");
+  });
+
   it("changes the home-bias label per base currency", () => {
     expect(buildAiPrompt(baseInput({ baseCurrency: "EUR", preferredExchange: "XETRA" }))).toContain("Address Eurozone home bias");
     expect(buildAiPrompt(baseInput({ baseCurrency: "GBP", preferredExchange: "LSE" }))).toContain("Address UK home bias");

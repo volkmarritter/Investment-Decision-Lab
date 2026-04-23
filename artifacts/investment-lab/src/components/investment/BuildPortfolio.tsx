@@ -549,7 +549,7 @@ export function BuildPortfolio() {
                           numETFs: Number(current.numETFs),
                           numETFsMin: Number(current.numETFsMin ?? current.numETFs),
                         };
-                        const prompt = buildAiPrompt(parsed);
+                        const prompt = buildAiPrompt(parsed, lang);
                         try {
                           await navigator.clipboard.writeText(prompt);
                           toast.success(t("build.toast.aiPromptCopied"));
