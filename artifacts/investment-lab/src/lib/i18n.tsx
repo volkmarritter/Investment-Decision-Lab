@@ -307,7 +307,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "tab.explain": "Portfolio Erklären",
     
     // BuildPortfolio
-    "build.params.title": "Portfolio-Parameter",
+    "build.params.title": "Parameter",
     "build.params.desc": "Definieren Sie Ihre Einschränkungen und Präferenzen.",
     "build.baseCurrency.label": "Basiswährung",
     "build.baseCurrency.tooltip": "Ihre Hauptwährung zur Messung der Rendite.",
