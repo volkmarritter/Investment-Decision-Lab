@@ -126,8 +126,18 @@ export function ComparePortfolios() {
 
     const valA = runValidation(parsedA);
     const valB = runValidation(parsedB);
-    setValidationA(valA);
-    setValidationB(valB);
+    // In Compare the user cannot adjust the ETF max-cap (control was removed),
+    // so the "High complexity" warning is not actionable here. Suppress it; the
+    // Build tab still surfaces it where the user can react to it.
+    const stripComplexity = (v: ValidationResult): ValidationResult => ({
+      ...v,
+      warnings: v.warnings.filter(
+        (w) => w.message !== "High complexity (Complexity Risk)." &&
+               w.message !== "Hohe Komplexität (Komplexitätsrisiko).",
+      ),
+    });
+    setValidationA(stripComplexity(valA));
+    setValidationB(stripComplexity(valB));
 
     if (valA.isValid) { setOutputA(buildPortfolio(parsedA)); setInputA(parsedA); }
     else { setOutputA(null); setInputA(null); }
