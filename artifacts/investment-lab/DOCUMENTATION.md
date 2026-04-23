@@ -232,32 +232,39 @@ pnpm --filter @workspace/investment-lab run test:watch # watch mode
 
 Also registered as the named validation step **`test`** and **`typecheck`**.
 
-### Test catalog
+### Test catalog (75 cases)
 
-| # | Group | Case |
-|---|-------|------|
-| 1 | `defaultExchangeFor` | USD → None |
-| 2 | `defaultExchangeFor` | EUR → XETRA |
-| 3 | `defaultExchangeFor` | CHF → SIX |
-| 4 | `defaultExchangeFor` | GBP → LSE |
-| 5 | `defaultExchangeFor` | covers every supported base currency |
-| 6 | invariants | default inputs produce non-empty allocation summing to ~100% |
-| 7 | invariants | every non-cash bucket has an ETF implementation with ISIN + ticker |
-| 8 | invariants | no negative weights for conservative inputs |
-| 9 | risk caps | Low caps equity ≤ 40% |
-| 10 | risk caps | Moderate caps equity ≤ 70% |
-| 11 | risk caps | High caps equity ≤ 90% |
-| 12 | risk caps | Very High allows 100% equity |
-| 13 | risk caps | Low disables crypto sleeve |
-| 14 | risk caps | Low disables commodities (gold) sleeve |
-| 15 | home bias | CHF base creates Switzerland equity bucket |
-| 16 | home bias | USD base does not create Switzerland equity bucket |
-| 17 | Global+Home fallback | collapses to Global+Home when numETFs is too small (preserves total equity) |
-| 18 | Global+Home fallback | does NOT collapse when numETFs is large enough |
-| 19 | look-through coverage | every Equity / Fixed-Income ETF the engine can pick has a profile (192-input matrix: 4 ccy × 4 risk × 4 numETFs × 2 synthetic) |
-| 20 | helpers | `computeNaturalBucketCount` ≥ 3 for a basic portfolio |
-| 21 | helpers | `computeNaturalBucketCount` grows when satellites are enabled |
-| 22 | validation | `runValidation` accepts a sane default input |
+**Default exchange auto-mapping (5)** — every base currency maps to the right exchange (USD→None, EUR→XETRA, CHF→SIX, GBP→LSE) and the map is exhaustive.
+
+**Engine invariants (3)** — default inputs produce a non-empty allocation summing to ~100%; every non-cash bucket has an ETF with ISIN + ticker; no negative weights even for conservative inputs.
+
+**Risk caps (6)** — Low ≤ 40%, Moderate ≤ 70%, High ≤ 90%, Very High allows 100%; Low disables both crypto and gold (commodities) sleeves.
+
+**Home bias (2)** — CHF base creates a Switzerland equity bucket; USD base does not.
+
+**Global+Home equity fallback (2)** — collapses regional equity into Global+Home when `numETFs` is too small (total equity preserved); does NOT collapse when budget is large enough.
+
+**Look-through coverage (1)** — runs a 192-input matrix (4 currencies × 4 risk levels × 4 ETF counts × synthetic on/off, with all satellites + Technology theme) and asserts that every Equity / Fixed-Income ETF the engine can pick has a look-through profile (catches "unmapped ETF" regressions).
+
+**Natural bucket count (2)** — at least 3 for a basic portfolio; grows when satellites are enabled.
+
+**`runValidation` (8)** — accepts a sane default input; rejects `numETFs<3`, `numETFs>15`, `horizon<1`, and target equity wildly above the risk cap; warns on Low+crypto, complexity (`numETFs>10`), and "not enough sleeves" when satellites are requested with too few ETFs.
+
+**ETF selection / share-class logic (10)** — hedged + EUR / CHF / GBP base picks the correct hedged S&P 500 ISIN; synthetic + USD picks IE00B3YCGJ38 (Synthetic); hedged wins over synthetic for non-USD; USD + no-hedging + no-synthetic picks CSPX (IE00B5BMR087); Switzerland always selects SPI on SIX; Fixed Income picks the CHF-hedged or unhedged global aggregate as appropriate; `preferredExchange=XETRA` returns SXR8; `preferredExchange=None` falls back to default exchange; thematic Technology resolves to IUIT; Real Estate / Commodities / Digital Assets resolve to real ETFs.
+
+**Engine math (7)** — cash% follows `(10−h)·1.5 + (Low?5:0)`, clamped to `[2, 20]`; long horizon (≥10) increases EM weight; Sustainability theme reduces USA equity vs. no theme; gold sleeve is carved from bonds (≤ 5% and ≤ 15% of bonds); crypto sizing scales with risk (Moderate=1, High=2, Very High=3); thematic sleeve is 3% if `numETFs ≤ 5` else 5%; REIT sleeve is 6% when included.
+
+**Stress test / scenarios (5)** — every defined scenario returns a result; equity-heavy portfolio loses materially in GFC; `Equity_Home` falls back to USA shocks; Cash receives the cash shock; contributions are sorted by absolute size descending.
+
+**Fees (4)** — blended TER is the weighted average of per-bucket TERs; hedging adds extra bps to hedge-able sleeves only (Equity/FI/Real Estate); projection has `horizon+1` entries and final-after-fees < final-zero-fee; `annualFee = investmentAmount × blendedTer`.
+
+**Metrics (5)** — `mapAllocationToAssets` routes regions to the correct asset key (USA→equity_us, EM→equity_em, …); `computeMetrics` returns sane numbers (positive return/vol, Sharpe > 0, drawdown bounded); the benchmark portfolio has β ≈ 1 and tracking error ≈ 0; the efficient frontier returns 21 points (0..100 step 5) with finite return/vol; the correlation matrix is square, symmetric, with diagonal = 1.
+
+**Compare (4)** — identical portfolios produce zero deltas; `equityDelta = equityB − equityA`; an observation flags when only one portfolio has a crypto sleeve; rows are sorted by absolute delta descending.
+
+**Explain (5)** — flags `Inconsistent` when weights don't sum to 100; warns about concentration when a single position is > 25%; warns when stated risk is Low but equity > 50%; warns when there are no bonds or cash; returns `Coherent` for a balanced portfolio.
+
+**Look-through aggregation (4)** — equity sleeve aggregates to ~100% of `geoEquity` for an equity-only portfolio; currency overview reports a hedged share when hedging is on (non-USD base); USD base + hedging off has zero hedged share; default portfolio with USA exposure produces non-empty top-stock concentrations.
 
 ### Maintenance policy
 
@@ -270,7 +277,8 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 Append a new entry whenever functionality changes. Newest first.
 
 ### 2026-04-23
-- **Automated test suite** added (`tests/engine.test.ts`, Vitest). 22 cases covering exchange auto-mapping, engine invariants, risk caps, home bias, Global+Home fallback, and look-through coverage. Runs in ~1 s. New `test` and `test:watch` scripts. Registered as named validation steps. Maintenance policy documented above.
+- **Test suite expanded to 75 cases.** New coverage: ETF selection (hedged / synthetic / preferred-exchange), engine math (cash formula, EM horizon tilt, Sustainability USA reduction, gold carve-out, crypto sizing, thematic & REIT sizing), stress-test behaviour (Home→USA fallback, sort order), fees (blended TER, hedging cost, projection), metrics (asset mapping, β≈1 for benchmark, frontier shape, correlation symmetry), portfolio compare diff, explain verdict & warnings, look-through aggregation totals + currency overview. Suite still runs in ~1 s.
+- **Automated test suite** added (`tests/engine.test.ts`, Vitest). Initial 22 cases covering exchange auto-mapping, engine invariants, risk caps, home bias, Global+Home fallback, and look-through coverage. New `test` and `test:watch` scripts. Registered as named validation steps. Maintenance policy documented above.
 - Extracted **`defaultExchangeFor` / `DEFAULT_EXCHANGE_FOR_CURRENCY`** to `src/lib/exchange.ts`; consumed by Build & Compare auto-sync, fully unit-tested. **`profileFor`** in `lookthrough.ts` is now exported so tests can verify that every ETF the engine picks is mapped (no "unmapped" regressions).
 - **Bugfix — Preferred Exchange not switching with Base Currency.** All form `<Select>`/`<RadioGroup>` controls in Build, Compare and Explain were using `defaultValue={field.value}` (uncontrolled), so when Base Currency changed and the auto-sync set `preferredExchange` via `form.setValue`, the form state updated but the visible dropdown did not. Same issue would have affected the new Reset button and Load Scenario. Fixed by switching every form Select/RadioGroup to controlled `value={field.value}`.
 - **Reset button** added to Build Portfolio header. Restores all defaults while preserving Base Currency, Horizon and Risk Appetite. Icon-only (`RotateCcw`) with bilingual tooltip.
