@@ -23,12 +23,24 @@ export function getETFTer(assetClass: string, region: string): number {
   return 15; // fallback
 }
 
-export function estimateFees(allocation: AssetAllocation[], horizonYears: number, investmentAmount: number) {
+export function estimateFees(
+  allocation: AssetAllocation[],
+  horizonYears: number,
+  investmentAmount: number,
+  options: { hedgingCostBps?: number; hedged?: boolean } = {}
+) {
   let totalWeight = 0;
   let blendedTerBpsWeighted = 0;
-  
+
+  const hedgingCostBps = options.hedged ? options.hedgingCostBps ?? 15 : 0;
+
   const breakdown = allocation.map(a => {
-    const terBps = getETFTer(a.assetClass, a.region);
+    const baseTer = getETFTer(a.assetClass, a.region);
+    // Hedging cost only applies to instruments that can be hedged (equity, FI, real estate)
+    const canHedge =
+      hedgingCostBps > 0 &&
+      (a.assetClass === "Equity" || a.assetClass === "Fixed Income" || a.assetClass === "Real Estate");
+    const terBps = baseTer + (canHedge ? hedgingCostBps : 0);
     const contributionBps = terBps * (a.weight / 100);
     totalWeight += a.weight;
     blendedTerBpsWeighted += contributionBps;

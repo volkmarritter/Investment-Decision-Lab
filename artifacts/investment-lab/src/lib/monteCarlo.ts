@@ -17,7 +17,12 @@ export interface MonteCarloResult {
   initial: number;
 }
 
-function bucketAssumption(assetClass: string, region: string): BucketAssumption {
+function bucketAssumption(
+  assetClass: string,
+  region: string,
+  hedged: boolean = false,
+  baseCurrency: string = "USD"
+): BucketAssumption {
   const ac = assetClass.toLowerCase();
   const rg = region.toLowerCase();
 
@@ -26,14 +31,38 @@ function bucketAssumption(assetClass: string, region: string): BucketAssumption 
   if (ac.includes("commod")) return { mu: 0.04, sigma: 0.16 };
   if (ac.includes("real estate")) return { mu: 0.06, sigma: 0.18 };
   if (ac.includes("digital") || ac.includes("crypto")) return { mu: 0.18, sigma: 0.7 };
+  let baseEq: BucketAssumption | null = null;
+  let isForeignEquity = false;
   if (ac.includes("equity")) {
-    if (rg.includes("usa")) return { mu: 0.07, sigma: 0.16 };
-    if (rg.includes("switzer")) return { mu: 0.055, sigma: 0.14 };
-    if (rg.includes("europ")) return { mu: 0.065, sigma: 0.17 };
-    if (rg.includes("japan") && rg.includes("em")) return { mu: 0.075, sigma: 0.19 };
-    if (rg.includes("japan")) return { mu: 0.06, sigma: 0.17 };
-    if (rg.includes("em")) return { mu: 0.085, sigma: 0.22 };
-    return { mu: 0.075, sigma: 0.2 };
+    if (rg.includes("usa")) {
+      baseEq = { mu: 0.07, sigma: 0.16 };
+      isForeignEquity = baseCurrency !== "USD";
+    } else if (rg.includes("switzer")) {
+      baseEq = { mu: 0.055, sigma: 0.14 };
+      isForeignEquity = baseCurrency !== "CHF";
+    } else if (rg.includes("europ")) {
+      baseEq = { mu: 0.065, sigma: 0.17 };
+      isForeignEquity = baseCurrency !== "EUR";
+    } else if (rg.includes("japan") && rg.includes("em")) {
+      baseEq = { mu: 0.075, sigma: 0.19 };
+      isForeignEquity = true;
+    } else if (rg.includes("japan")) {
+      baseEq = { mu: 0.06, sigma: 0.17 };
+      isForeignEquity = true;
+    } else if (rg.includes("em")) {
+      baseEq = { mu: 0.085, sigma: 0.22 };
+      isForeignEquity = true;
+    } else {
+      baseEq = { mu: 0.075, sigma: 0.2 };
+      isForeignEquity = true;
+    }
+    if (hedged && isForeignEquity) {
+      // Removing FX vol typically cuts ~3pp of total sigma for developed markets,
+      // ~2pp for EM (where local market vol dominates). Keep a floor.
+      const cut = rg.includes("em") ? 0.02 : 0.03;
+      baseEq = { mu: baseEq.mu, sigma: Math.max(0.05, baseEq.sigma - cut) };
+    }
+    return baseEq;
   }
   return { mu: 0.05, sigma: 0.12 };
 }
@@ -70,10 +99,17 @@ export function runMonteCarlo(
   allocation: AssetAllocation[],
   horizonYears: number,
   initial: number,
-  options: { paths?: number; seed?: number } = {}
+  options: {
+    paths?: number;
+    seed?: number;
+    hedged?: boolean;
+    baseCurrency?: string;
+  } = {}
 ): MonteCarloResult {
   const numPaths = options.paths ?? 2000;
   const seed = options.seed ?? 42;
+  const hedged = options.hedged ?? false;
+  const baseCurrency = options.baseCurrency ?? "USD";
 
   let portfolioMu = 0;
   let portfolioVar = 0;
@@ -81,7 +117,7 @@ export function runMonteCarlo(
   const buckets: { weight: number; mu: number; sigma: number }[] = [];
   for (const a of allocation) {
     const w = a.weight / 100;
-    const { mu, sigma } = bucketAssumption(a.assetClass, a.region);
+    const { mu, sigma } = bucketAssumption(a.assetClass, a.region, hedged, baseCurrency);
     buckets.push({ weight: w, mu, sigma });
     portfolioMu += w * mu;
     portfolioVar += w * w * sigma * sigma;

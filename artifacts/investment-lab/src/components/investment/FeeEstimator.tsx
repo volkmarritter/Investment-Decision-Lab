@@ -13,12 +13,15 @@ interface FeeEstimatorProps {
   allocation: AssetAllocation[];
   horizonYears: number;
   baseCurrency: string;
+  hedged?: boolean;
 }
 
-export function FeeEstimator({ allocation, horizonYears, baseCurrency }: FeeEstimatorProps) {
+export function FeeEstimator({ allocation, horizonYears, baseCurrency, hedged }: FeeEstimatorProps) {
   const [investmentAmount, setInvestmentAmount] = useState<number>(100000);
 
-  const results = estimateFees(allocation, horizonYears, investmentAmount || 0);
+  const results = estimateFees(allocation, horizonYears, investmentAmount || 0, {
+    hedged: hedged && baseCurrency !== "USD",
+  });
 
   const formatCurrency = (value: number) => {
     const compact = value > 1000000;

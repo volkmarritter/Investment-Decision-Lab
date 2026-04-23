@@ -679,7 +679,8 @@ export function BuildPortfolio() {
                 <FeeEstimator 
                   allocation={output.allocation} 
                   horizonYears={form.getValues().horizon} 
-                  baseCurrency={form.getValues().baseCurrency} 
+                  baseCurrency={form.getValues().baseCurrency}
+                  hedged={form.getValues().includeCurrencyHedging}
                 />
 
                 {/* Section 10: Monte Carlo Simulation */}
@@ -687,6 +688,7 @@ export function BuildPortfolio() {
                   allocation={output.allocation}
                   horizonYears={form.getValues().horizon}
                   baseCurrency={form.getValues().baseCurrency}
+                  hedged={form.getValues().includeCurrencyHedging}
                 />
               </>
             )}

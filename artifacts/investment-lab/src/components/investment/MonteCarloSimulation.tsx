@@ -23,19 +23,25 @@ interface MonteCarloSimulationProps {
   allocation: AssetAllocation[];
   horizonYears: number;
   baseCurrency: string;
+  hedged?: boolean;
 }
 
 export function MonteCarloSimulation({
   allocation,
   horizonYears,
   baseCurrency,
+  hedged,
 }: MonteCarloSimulationProps) {
   const { t, lang } = useT();
   const [investmentAmount, setInvestmentAmount] = useState<number>(100000);
 
   const result = useMemo(
-    () => runMonteCarlo(allocation, horizonYears, investmentAmount || 0),
-    [allocation, horizonYears, investmentAmount]
+    () =>
+      runMonteCarlo(allocation, horizonYears, investmentAmount || 0, {
+        hedged: !!hedged,
+        baseCurrency,
+      }),
+    [allocation, horizonYears, investmentAmount, hedged, baseCurrency]
   );
 
   const formatCurrency = (value: number) => {
