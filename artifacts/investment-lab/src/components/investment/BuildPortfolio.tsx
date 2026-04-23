@@ -24,6 +24,7 @@ import { runValidation } from "@/lib/validation";
 import { buildPortfolio } from "@/lib/portfolio";
 import { StressTest } from "./StressTest";
 import { FeeEstimator } from "./FeeEstimator";
+import { MonteCarloSimulation } from "./MonteCarloSimulation";
 import { SavedScenariosUI } from "./SavedScenariosUI";
 import { DisclaimerPdfBlock } from "./Disclaimer";
 import { useT } from "@/lib/i18n";
@@ -665,6 +666,13 @@ export function BuildPortfolio() {
                   allocation={output.allocation} 
                   horizonYears={form.getValues().horizon} 
                   baseCurrency={form.getValues().baseCurrency} 
+                />
+
+                {/* Section 10: Monte Carlo Simulation */}
+                <MonteCarloSimulation
+                  allocation={output.allocation}
+                  horizonYears={form.getValues().horizon}
+                  baseCurrency={form.getValues().baseCurrency}
                 />
               </>
             )}

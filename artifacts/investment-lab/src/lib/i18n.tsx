@@ -169,6 +169,25 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "theme.dark": "Dark",
     "theme.system": "System",
 
+    // Monte Carlo
+    "mc.title": "Monte Carlo Simulation",
+    "mc.desc": "2,000 simulated paths using illustrative per-bucket return and volatility assumptions. Geometric Brownian motion, log-normal returns. Not a forecast.",
+    "mc.investmentAmount": "Investment Amount",
+    "mc.stat.expReturn": "Expected Return",
+    "mc.stat.expVol": "Expected Volatility",
+    "mc.stat.probLoss": "Probability of Loss",
+    "mc.stat.probDoubled": "Probability of Doubling",
+    "mc.stat.perYear": "annualized",
+    "mc.stat.atHorizon": "at horizon",
+    "mc.final.p10": "Pessimistic (P10)",
+    "mc.final.p50": "Median (P50)",
+    "mc.final.p90": "Optimistic (P90)",
+    "mc.legend.band": "P10 – P90 band",
+    "mc.legend.p50": "Median path",
+    "mc.legend.p10": "10th percentile",
+    "mc.legend.p90": "90th percentile",
+    "mc.disclaimer": "Illustrative only. Assumptions are simplified, ignore correlations and fat tails, and exclude fees and taxes. Real-world outcomes can fall well outside the simulated band.",
+
     // Disclaimer
     "disclaimer.short.title": "Important notice.",
     "disclaimer.short.body": "This tool is provided for educational and illustrative purposes only and does not constitute investment, legal, or tax advice. All outputs are model results based on user inputs and simplified assumptions, not recommendations to buy, sell, or hold any security.",
@@ -355,6 +374,25 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "theme.light": "Hell",
     "theme.dark": "Dunkel",
     "theme.system": "System",
+
+    // Monte Carlo
+    "mc.title": "Monte-Carlo-Simulation",
+    "mc.desc": "2.000 simulierte Pfade auf Basis illustrativer Rendite- und Volatilitätsannahmen je Bucket. Geometrische Brownsche Bewegung, log-normale Renditen. Keine Prognose.",
+    "mc.investmentAmount": "Anlagebetrag",
+    "mc.stat.expReturn": "Erwartete Rendite",
+    "mc.stat.expVol": "Erwartete Volatilität",
+    "mc.stat.probLoss": "Verlustwahrscheinlichkeit",
+    "mc.stat.probDoubled": "Verdopplungswahrscheinlichkeit",
+    "mc.stat.perYear": "annualisiert",
+    "mc.stat.atHorizon": "am Horizontende",
+    "mc.final.p10": "Pessimistisch (P10)",
+    "mc.final.p50": "Median (P50)",
+    "mc.final.p90": "Optimistisch (P90)",
+    "mc.legend.band": "P10–P90-Band",
+    "mc.legend.p50": "Median-Pfad",
+    "mc.legend.p10": "10. Perzentil",
+    "mc.legend.p90": "90. Perzentil",
+    "mc.disclaimer": "Nur illustrativ. Annahmen sind vereinfacht, ignorieren Korrelationen und Fat Tails und schließen Gebühren und Steuern aus. Tatsächliche Ergebnisse können deutlich außerhalb des simulierten Bandes liegen.",
 
     // Disclaimer
     "disclaimer.short.title": "Wichtiger Hinweis.",
