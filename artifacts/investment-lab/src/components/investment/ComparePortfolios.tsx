@@ -423,6 +423,16 @@ export function ComparePortfolios() {
                   <Alert className="border-warning text-warning-foreground bg-warning/10">
                     <ShieldAlert className="h-4 w-4" />
                     <AlertTitle>{tr("Portfolio A Warnings", "Portfolio A – Warnungen")} ({validationA.warnings.length})</AlertTitle>
+                    <AlertDescription>
+                      <ul className="mt-2 space-y-2 text-sm">
+                        {validationA.warnings.map((warn, i) => (
+                          <li key={i}>
+                            <span className="font-medium text-foreground">{warn.message}</span>
+                            {warn.suggestion && (<><br /><span className="text-foreground/80">{warn.suggestion}</span></>)}
+                          </li>
+                        ))}
+                      </ul>
+                    </AlertDescription>
                   </Alert>
                 ) : validationA?.isValid && (
                   <Alert className="border-primary/20 bg-primary/5 text-primary">
@@ -442,6 +452,16 @@ export function ComparePortfolios() {
                   <Alert className="border-warning text-warning-foreground bg-warning/10">
                     <ShieldAlert className="h-4 w-4" />
                     <AlertTitle>{tr("Portfolio B Warnings", "Portfolio B – Warnungen")} ({validationB.warnings.length})</AlertTitle>
+                    <AlertDescription>
+                      <ul className="mt-2 space-y-2 text-sm">
+                        {validationB.warnings.map((warn, i) => (
+                          <li key={i}>
+                            <span className="font-medium text-foreground">{warn.message}</span>
+                            {warn.suggestion && (<><br /><span className="text-foreground/80">{warn.suggestion}</span></>)}
+                          </li>
+                        ))}
+                      </ul>
+                    </AlertDescription>
                   </Alert>
                 ) : validationB?.isValid && (
                   <Alert className="border-primary/20 bg-primary/5 text-primary">
