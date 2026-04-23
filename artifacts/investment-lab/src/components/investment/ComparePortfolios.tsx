@@ -47,8 +47,8 @@ const defaultValues: CompareFormValues = {
     riskAppetite: "High",
     horizon: 10,
     targetEquityPct: 50,
-    numETFs: 8,
-    numETFsMin: 5,
+    numETFs: 10,
+    numETFsMin: 8,
     preferredExchange: "SIX",
     thematicPreference: "None",
     includeCurrencyHedging: false,
@@ -63,8 +63,8 @@ const defaultValues: CompareFormValues = {
     riskAppetite: "Very High",
     horizon: 20,
     targetEquityPct: 90,
-    numETFs: 10,
-    numETFsMin: 6,
+    numETFs: 13,
+    numETFsMin: 11,
     preferredExchange: "SIX",
     thematicPreference: "Technology",
     includeCurrencyHedging: true,
@@ -625,12 +625,19 @@ function CompareNumEtfsRangeWarning({ form, prefix }: { form: any; prefix: "port
   if (max < min) {
     return <p className="text-xs text-destructive mt-1">Max must be ≥ Min.</p>;
   }
-  if (min < natural) {
+  if (max < natural) {
     return (
       <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">
-        Selections produce {natural} buckets. Min &lt; {natural} consolidates smaller satellites.
+        Selections need {natural} buckets. Set Max to {natural} or higher.
       </p>
     );
   }
-  return <p className="text-xs text-muted-foreground mt-1">Range fits {natural} natural buckets.</p>;
+  if (min < natural) {
+    return (
+      <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">
+        Optimal Min is {natural}. Lower values consolidate smaller satellites.
+      </p>
+    );
+  }
+  return null;
 }

@@ -49,8 +49,8 @@ const defaultValues: PortfolioInput = {
   riskAppetite: "High",
   horizon: 10,
   targetEquityPct: 60,
-  numETFs: 8,
-  numETFsMin: 5,
+  numETFs: 10,
+  numETFsMin: 8,
   preferredExchange: "SIX",
   thematicPreference: "None",
   includeCurrencyHedging: false,
@@ -872,20 +872,23 @@ function NumEtfsRangeWarning({ form }: { form: any }) {
       </p>
     );
   }
+  if (max < natural) {
+    return (
+      <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">
+        {lang === "de"
+          ? `Hinweis: Ihre Auswahl benötigt ${natural} Buckets. Setzen Sie Max. auf ${natural} (oder höher), um alle Anlageklassen einzeln abzubilden.`
+          : `Heads up: your selections need ${natural} buckets. Set Max to ${natural} (or higher) to keep every asset class as its own ETF.`}
+      </p>
+    );
+  }
   if (min < natural) {
     return (
       <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">
         {lang === "de"
-          ? `Hinweis: Ihre Auswahl erzeugt ${natural} Anlageklassen-Buckets. Bei Min. < ${natural} werden kleinere Satelliten zusammengefasst.`
-          : `Heads up: your selections produce ${natural} asset-class buckets. Setting Min < ${natural} will consolidate smaller satellites.`}
+          ? `Hinweis: Optimaler Min.-Wert ist ${natural} (Ihre Auswahl erzeugt ${natural} Buckets). Niedrigere Werte fassen kleinere Satelliten zusammen.`
+          : `Heads up: optimal Min is ${natural} (your selections produce ${natural} buckets). Lower values will consolidate smaller satellites.`}
       </p>
     );
   }
-  return (
-    <p className="text-xs text-muted-foreground mt-1">
-      {lang === "de"
-        ? `Bereich passt zu ${natural} natürlichen Buckets.`
-        : `Range fits ${natural} natural buckets.`}
-    </p>
-  );
+  return null;
 }
