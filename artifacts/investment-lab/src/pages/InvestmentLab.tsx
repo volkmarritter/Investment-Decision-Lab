@@ -40,24 +40,24 @@ export default function InvestmentLab() {
             <TabsList className="grid w-full max-w-3xl grid-cols-3 h-auto gap-1 p-1">
               <TabsTrigger
                 value="build"
-                className="flex items-center justify-center gap-2 min-w-0 px-2 py-2 text-xs sm:text-sm whitespace-normal text-center leading-tight"
+                className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 min-w-0 px-1 sm:px-3 py-2 text-[11px] sm:text-sm whitespace-normal text-center leading-tight break-words"
               >
                 <Layers className="h-4 w-4 shrink-0" />
-                <span className="truncate sm:whitespace-normal">{t("tab.build")}</span>
+                <span>{t("tab.build")}</span>
               </TabsTrigger>
               <TabsTrigger
                 value="compare"
-                className="flex items-center justify-center gap-2 min-w-0 px-2 py-2 text-xs sm:text-sm whitespace-normal text-center leading-tight"
+                className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 min-w-0 px-1 sm:px-3 py-2 text-[11px] sm:text-sm whitespace-normal text-center leading-tight break-words"
               >
                 <Scale className="h-4 w-4 shrink-0" />
-                <span className="truncate sm:whitespace-normal">{t("tab.compare")}</span>
+                <span>{t("tab.compare")}</span>
               </TabsTrigger>
               <TabsTrigger
                 value="explain"
-                className="flex items-center justify-center gap-2 min-w-0 px-2 py-2 text-xs sm:text-sm whitespace-normal text-center leading-tight"
+                className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 min-w-0 px-1 sm:px-3 py-2 text-[11px] sm:text-sm whitespace-normal text-center leading-tight break-words"
               >
                 <PieChart className="h-4 w-4 shrink-0" />
-                <span className="truncate sm:whitespace-normal">{t("tab.explain")}</span>
+                <span>{t("tab.explain")}</span>
               </TabsTrigger>
             </TabsList>
           </div>
