@@ -188,16 +188,39 @@ export function buildPortfolio(input: PortfolioInput, lang: Lang = "en"): Portfo
         "Inflation Risk: Cash and nominal bonds may lose purchasing power in high inflation environments."
       ].filter(Boolean);
 
+  const emPct = weights["Equity_EM"] || 0;
   const learning = de
     ? [
         input.horizon < 5 && equityPct > 50 ? "Horizontrisiko: Hohe Aktienquoten mit kurzem Horizont erhöhen das Risiko, Verluste zu realisieren, wenn Mittel während eines Abschwungs benötigt werden." : "",
+        input.horizon >= 15 && equityPct >= 70 ? "Zeitdiversifikation: Lange Horizonte lassen die Aktienrisikoprämie über kurzfristige Volatilität dominieren — investiert bleiben schlägt Markt-Timing." : "",
         !input.includeCurrencyHedging && input.baseCurrency !== "USD" ? "Rolle der Währung: Ungesicherte Fremdwährungsaktien können als Diversifikator wirken, da lokale Währungen in globalen Marktpaniken oft schwächer werden." : "",
-        weights["Bonds"] < 10 ? "Stabilisierungsfunktion: Niedrige Anleihenquoten bedeuten, dass das Portfolio stark auf Aktienrisikoprämien angewiesen ist und weniger natürliche Stoßdämpfer hat." : ""
+        input.includeCurrencyHedging ? "Hedging-Kosten: Währungsabsicherung beseitigt FX-Volatilität, kostet aber das Zinsdifferential — sinnvoll für Anleihen, umstritten für Aktien über lange Horizonte." : "",
+        bondsPct < 10 ? "Stabilisierungsfunktion: Niedrige Anleihenquoten bedeuten, dass das Portfolio stark auf Aktienrisikoprämien angewiesen ist und weniger natürliche Stoßdämpfer hat." : "",
+        cashPct > 8 ? "Opportunitätskosten: Cash schmälert reale Renditen über lange Horizonte; halten Sie nur, was für Liquidität und Rebalancing wirklich nötig ist." : "",
+        input.includeCrypto ? "Positionsgrößenbestimmung: Selbst kleine Allokationen in hochvolatile Anlagen können das Portfoliorisiko spürbar verschieben — die Begrenzung auf 1–3 % spiegelt diese Asymmetrie wider." : "",
+        input.includeCommodities && goldPct > 0 ? "Krisen-Hedge: Gold entkoppelt sich oft (nicht immer) in Liquiditätspaniken von Aktien — als Versicherung verstehen, nicht als Renditemotor." : "",
+        input.includeListedRealEstate ? "Börsennotierte Immobilien: REITs verhalten sich kurzfristig wie Aktien, liefern aber langfristig Mietrendite-Exposure — kein Ersatz für Direktinvestitionen." : "",
+        input.thematicPreference !== "None" ? "Konzentrations-Trade-off: Thematische ETFs opfern Diversifikation für Überzeugung; eine Begrenzung auf 5–10 % verhindert, dass sie die Rendite dominieren." : "",
+        input.includeSyntheticETFs ? "Steuer-Drag: US-Quellensteuer auf Dividenden kostet ~30 Bp/Jahr — synthetische Replikation eliminiert dieses Leck via Total-Return-Swap, akzeptiert aber kontrolliertes Kontrahentenrisiko." : "",
+        emPct >= 15 ? "Schwellenländer-Prämie: Höhere erwartete Renditen kommen mit Staats-, Währungs- und Governance-Risiken — lange Horizonte helfen, die Aktienrisikoprämie zu vereinnahmen." : "",
+        input.numETFs >= 10 ? "Abnehmender Grenznutzen: Jenseits von ~10 ETFs erhöhen weitere Positionen die Komplexität, ohne die Diversifikation spürbar zu verbessern." : "",
+        input.numETFs <= 4 ? "Operative Einfachheit: Ein 3–4-Fonds-Portfolio erfasst über 80 % des Diversifikationsvorteils und reduziert Rebalancing-Reibung." : ""
       ].filter(Boolean)
     : [
         input.horizon < 5 && equityPct > 50 ? "Horizon Risk: High equity allocations with short horizons increase the chance of realizing losses if funds are needed during a downturn." : "",
+        input.horizon >= 15 && equityPct >= 70 ? "Time Diversification: Longer horizons let the equity risk premium dominate short-term volatility — staying invested beats market timing." : "",
         !input.includeCurrencyHedging && input.baseCurrency !== "USD" ? "Currency Role: Unhedged foreign equities can act as a diversifier, as local currencies often weaken during global market panics." : "",
-        weights["Bonds"] < 10 ? "Stabilization Role: Low bond allocations mean the portfolio relies heavily on equity risk premiums and has fewer natural shock absorbers." : ""
+        input.includeCurrencyHedging ? "Hedging Cost: Currency hedging removes FX volatility but costs the interest-rate differential — useful for bonds, debatable for equities over long horizons." : "",
+        bondsPct < 10 ? "Stabilization Role: Low bond allocations mean the portfolio relies heavily on equity risk premiums and has fewer natural shock absorbers." : "",
+        cashPct > 8 ? "Opportunity Cost: Cash drags real returns over long horizons; hold only what you need for liquidity and rebalancing." : "",
+        input.includeCrypto ? "Position Sizing: Even small allocations to high-vol assets can meaningfully shift portfolio risk — capping at 1–3% reflects this asymmetry." : "",
+        input.includeCommodities && goldPct > 0 ? "Crisis Hedge: Gold often (not always) decouples from equities during liquidity panics; treat it as insurance, not a return engine." : "",
+        input.includeListedRealEstate ? "Listed Real Estate: REITs trade like equities short-term but provide rental-yield exposure long-term — they are not a substitute for direct property." : "",
+        input.thematicPreference !== "None" ? "Concentration Trade-off: Thematic ETFs sacrifice diversification for conviction; capping at 5–10% prevents them from dominating returns." : "",
+        input.includeSyntheticETFs ? "Tax Drag: US dividend withholding costs ~30 bps/yr — synthetic replication eliminates this leakage via total-return swap, accepting controlled counterparty risk." : "",
+        emPct >= 15 ? "Emerging Markets Premium: Higher expected returns come with sovereign, currency and governance risks — long horizons help capture the equity risk premium." : "",
+        input.numETFs >= 10 ? "Diminishing Returns: Beyond ~10 ETFs, additional positions add complexity without meaningfully improving diversification." : "",
+        input.numETFs <= 4 ? "Operational Simplicity: A 3–4 fund portfolio captures 80%+ of the diversification benefit and reduces rebalancing friction." : ""
       ].filter(Boolean);
 
   return {
