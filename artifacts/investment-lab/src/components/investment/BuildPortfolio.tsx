@@ -45,7 +45,7 @@ const COLORS = [
 
 const defaultValues: PortfolioInput = {
   baseCurrency: "CHF",
-  riskAppetite: "Moderate",
+  riskAppetite: "High",
   horizon: 10,
   targetEquityPct: 60,
   numETFs: 5,

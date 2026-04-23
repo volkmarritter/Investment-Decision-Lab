@@ -39,7 +39,7 @@ interface CompareFormValues {
 const defaultValues: CompareFormValues = {
   portA: {
     baseCurrency: "CHF",
-    riskAppetite: "Moderate",
+    riskAppetite: "High",
     horizon: 10,
     targetEquityPct: 50,
     numETFs: 5,
