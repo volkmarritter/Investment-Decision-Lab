@@ -732,7 +732,10 @@ export function BuildPortfolio() {
 
                 {/* Section 7b: Look-Through Analysis (optional) */}
                 {form.getValues().lookThroughView && (
-                  <LookThroughAnalysis etfs={output.etfImplementation} />
+                  <LookThroughAnalysis
+                    etfs={output.etfImplementation}
+                    baseCurrency={form.getValues().baseCurrency}
+                  />
                 )}
 
                 {/* Section 8: Scenario Stress Test */}

@@ -6,14 +6,16 @@ export interface LookthroughProfile {
   isEquity: boolean;
   geo: ExposureMap;
   sector: ExposureMap;
+  currency: ExposureMap;
   topHoldings?: Array<{ name: string; pct: number }>;
 }
 
-const EQUAL_EQUITY_FALLBACK_GEO: ExposureMap = { Global: 100 };
-const EQUAL_EQUITY_FALLBACK_SECTOR: ExposureMap = { Diversified: 100 };
+// Reference date for the look-through data set below. Surfaced in the UI so users
+// know exactly how stale the underlying weights may be relative to live factsheets.
+export const LOOKTHROUGH_REFERENCE_DATE = "Q4 2024";
 
 const PROFILES: Record<string, LookthroughProfile> = {
-  // S&P 500 (physical, synthetic and all hedged variants share the same underlying basket)
+  // S&P 500 — physical, synthetic and all hedged variants share the same underlying basket
   "IE00B5BMR087": {
     isEquity: true,
     geo: { "United States": 100 },
@@ -30,13 +32,20 @@ const PROFILES: Record<string, LookthroughProfile> = {
       "Real Estate": 2,
       "Materials": 3,
     },
+    currency: { USD: 100 },
     topHoldings: [
-      { name: "Apple", pct: 7 },
-      { name: "Microsoft", pct: 7 },
-      { name: "Nvidia", pct: 6 },
-      { name: "Amazon", pct: 4 },
-      { name: "Alphabet (A+C)", pct: 4 },
-      { name: "Meta", pct: 3 },
+      { name: "Apple (AAPL)", pct: 7.0 },
+      { name: "Microsoft (MSFT)", pct: 6.8 },
+      { name: "Nvidia (NVDA)", pct: 6.2 },
+      { name: "Amazon (AMZN)", pct: 4.0 },
+      { name: "Alphabet (GOOGL+GOOG)", pct: 4.0 },
+      { name: "Meta Platforms (META)", pct: 2.6 },
+      { name: "Tesla (TSLA)", pct: 1.9 },
+      { name: "Berkshire Hathaway (BRK.B)", pct: 1.7 },
+      { name: "Broadcom (AVGO)", pct: 1.7 },
+      { name: "Eli Lilly (LLY)", pct: 1.4 },
+      { name: "JPMorgan Chase (JPM)", pct: 1.3 },
+      { name: "UnitedHealth (UNH)", pct: 1.1 },
     ],
   },
   // MSCI Europe IMI
@@ -67,8 +76,29 @@ const PROFILES: Record<string, LookthroughProfile> = {
       "Utilities": 4,
       "Real Estate": 2,
     },
+    currency: {
+      EUR: 38,
+      GBP: 23,
+      CHF: 15,
+      SEK: 5,
+      DKK: 4,
+      NOK: 1,
+      "Other EU": 14,
+    },
+    topHoldings: [
+      { name: "Novo Nordisk", pct: 3.0 },
+      { name: "Nestlé", pct: 2.6 },
+      { name: "ASML", pct: 2.5 },
+      { name: "LVMH", pct: 2.0 },
+      { name: "Roche", pct: 2.0 },
+      { name: "Novartis", pct: 2.0 },
+      { name: "AstraZeneca", pct: 1.9 },
+      { name: "Shell", pct: 1.9 },
+      { name: "SAP", pct: 1.8 },
+      { name: "HSBC", pct: 1.5 },
+    ],
   },
-  // SPI (Swiss Performance Index) – very concentrated
+  // SPI (Swiss Performance Index) — very concentrated
   "CH0237935652": {
     isEquity: true,
     geo: { "Switzerland": 100 },
@@ -83,10 +113,16 @@ const PROFILES: Record<string, LookthroughProfile> = {
       "Real Estate": 3,
       "Communication Svcs": 2,
     },
+    currency: { CHF: 100 },
     topHoldings: [
       { name: "Nestlé", pct: 19 },
       { name: "Roche", pct: 16 },
       { name: "Novartis", pct: 14 },
+      { name: "UBS", pct: 4.5 },
+      { name: "Zurich Insurance", pct: 3.5 },
+      { name: "ABB", pct: 3.5 },
+      { name: "Richemont", pct: 3.0 },
+      { name: "Sika", pct: 2.5 },
     ],
   },
   // MSCI Japan IMI
@@ -106,6 +142,16 @@ const PROFILES: Record<string, LookthroughProfile> = {
       "Utilities": 2,
       "Energy": 1,
     },
+    currency: { JPY: 100 },
+    topHoldings: [
+      { name: "Toyota Motor", pct: 4.0 },
+      { name: "Sony Group", pct: 2.0 },
+      { name: "Mitsubishi UFJ Financial", pct: 1.7 },
+      { name: "Keyence", pct: 1.5 },
+      { name: "Hitachi", pct: 1.4 },
+      { name: "Tokyo Electron", pct: 1.3 },
+      { name: "SoftBank Group", pct: 1.2 },
+    ],
   },
   // MSCI EM IMI
   "IE00BKM4GZ66": {
@@ -134,10 +180,27 @@ const PROFILES: Record<string, LookthroughProfile> = {
       "Utilities": 3,
       "Real Estate": 2,
     },
+    currency: {
+      CNY: 18,
+      HKD: 9,
+      INR: 19,
+      TWD: 18,
+      KRW: 11,
+      BRL: 5,
+      SAR: 4,
+      ZAR: 3,
+      MXN: 3,
+      "Other EM": 10,
+    },
     topHoldings: [
-      { name: "TSMC", pct: 9 },
-      { name: "Tencent", pct: 4 },
-      { name: "Samsung Electronics", pct: 3 },
+      { name: "TSMC", pct: 9.0 },
+      { name: "Tencent", pct: 4.0 },
+      { name: "Samsung Electronics", pct: 3.0 },
+      { name: "Alibaba", pct: 2.0 },
+      { name: "Reliance Industries", pct: 1.5 },
+      { name: "HDFC Bank", pct: 1.3 },
+      { name: "Meituan", pct: 1.0 },
+      { name: "ICICI Bank", pct: 0.9 },
     ],
   },
   // S&P 500 Information Technology Sector
@@ -145,11 +208,18 @@ const PROFILES: Record<string, LookthroughProfile> = {
     isEquity: true,
     geo: { "United States": 100 },
     sector: { "Technology": 100 },
+    currency: { USD: 100 },
     topHoldings: [
-      { name: "Apple", pct: 17 },
-      { name: "Microsoft", pct: 17 },
-      { name: "Nvidia", pct: 15 },
-      { name: "Broadcom", pct: 5 },
+      { name: "Apple (AAPL)", pct: 17.0 },
+      { name: "Microsoft (MSFT)", pct: 16.5 },
+      { name: "Nvidia (NVDA)", pct: 15.0 },
+      { name: "Broadcom (AVGO)", pct: 5.0 },
+      { name: "Oracle (ORCL)", pct: 3.0 },
+      { name: "AMD (AMD)", pct: 2.5 },
+      { name: "Salesforce (CRM)", pct: 2.4 },
+      { name: "Adobe (ADBE)", pct: 2.0 },
+      { name: "Cisco (CSCO)", pct: 1.9 },
+      { name: "Accenture (ACN)", pct: 1.8 },
     ],
   },
   // Healthcare Innovation
@@ -157,20 +227,23 @@ const PROFILES: Record<string, LookthroughProfile> = {
     isEquity: true,
     geo: { "United States": 60, "Europe": 18, "Japan": 8, "Other DM": 10, "EM": 4 },
     sector: { "Health Care": 100 },
+    currency: { USD: 60, EUR: 12, GBP: 4, CHF: 2, JPY: 8, "Other": 14 },
   },
   // Clean Energy
   "IE00B1XNHC34": {
     isEquity: true,
     geo: { "United States": 40, "China": 14, "Europe": 28, "Other": 18 },
     sector: { "Utilities": 35, "Industrials": 30, "Technology": 25, "Materials": 10 },
+    currency: { USD: 40, CNY: 14, EUR: 22, "Other": 24 },
   },
   // Cybersecurity
   "IE00BG0J4C88": {
     isEquity: true,
     geo: { "United States": 75, "Israel": 10, "Europe": 8, "Other": 7 },
     sector: { "Technology": 90, "Industrials": 10 },
+    currency: { USD: 75, ILS: 10, EUR: 8, "Other": 7 },
   },
-  // Global Aggregate Bond
+  // Global Aggregate Bond — unhedged USD share class
   "IE00B3F81409": {
     isEquity: false,
     geo: {
@@ -188,12 +261,14 @@ const PROFILES: Record<string, LookthroughProfile> = {
       "Government-related": 10,
       "Other": 3,
     },
+    currency: { USD: 41, EUR: 23, JPY: 12, GBP: 5, "Other DM": 14, "EM IG": 5 },
   },
-  // Gold ETC
+  // Gold ETC — globally priced in USD
   "IE00B579F325": {
     isEquity: false,
     geo: { "Physical Gold (LBMA, London)": 100 },
     sector: { "Gold Bullion": 100 },
+    currency: { USD: 100 },
   },
   // Developed-market REITs
   "IE00B1FZS350": {
@@ -207,31 +282,56 @@ const PROFILES: Record<string, LookthroughProfile> = {
       "Other DM": 6,
     },
     sector: { "Real Estate": 100 },
+    currency: { USD: 60, JPY: 11, AUD: 7, GBP: 6, EUR: 7, "Other DM": 9 },
+    topHoldings: [
+      { name: "Prologis", pct: 4.5 },
+      { name: "Equinix", pct: 3.5 },
+      { name: "Welltower", pct: 2.5 },
+      { name: "Public Storage", pct: 2.0 },
+      { name: "Realty Income", pct: 1.8 },
+      { name: "Simon Property Group", pct: 1.6 },
+    ],
   },
-  // Bitcoin ETP
+  // Bitcoin ETP — priced in USD globally
   "GB00BLD4ZL17": {
     isEquity: false,
     geo: { "Global (Decentralised)": 100 },
     sector: { "Bitcoin": 100 },
+    currency: { USD: 100 },
   },
 };
 
-// Synonym ISINs that share the same underlying basket (e.g. hedged share classes, synthetic variants)
+// Synonym ISINs that share the same underlying basket
 const ALIAS: Record<string, string> = {
   "IE00B3YCGJ38": "IE00B5BMR087", // Invesco S&P 500 Synthetic
   "IE00BCRY6557": "IE00B5BMR087", // S&P 500 EUR Hedged
   "IE00BYX5MS15": "IE00B5BMR087", // S&P 500 GBP Hedged
+  "IE00B3ZW0K18": "IE00B5BMR087", // S&P 500 CHF Hedged variant slot
   "IE00BDBRDM35": "IE00B3F81409", // Global Agg EUR Hedged
   "IE00BDBRDN42": "IE00B3F81409", // Global Agg CHF Hedged
   "IE00BDBRDP65": "IE00B3F81409", // Global Agg GBP Hedged
 };
-// IE00B3ZW0K18 is reused as a placeholder for the USA hedged variants in the catalog;
-// route it to the S&P 500 underlying as well.
-ALIAS["IE00B3ZW0K18"] = "IE00B5BMR087";
+
+// ISINs that represent currency-hedged share classes — for these the FX exposure
+// after hedging is the share-class currency, not the underlying currency map.
+const HEDGED_ISINS = new Set<string>([
+  "IE00BCRY6557",
+  "IE00BYX5MS15",
+  "IE00B3ZW0K18",
+  "IE00BDBRDM35",
+  "IE00BDBRDN42",
+  "IE00BDBRDP65",
+]);
 
 function profileFor(isin: string): LookthroughProfile | null {
   const key = ALIAS[isin] ?? isin;
   return PROFILES[key] ?? null;
+}
+
+function isHedged(etf: ETFImplementation): boolean {
+  if (HEDGED_ISINS.has(etf.isin)) return true;
+  // Fallback heuristic for any catalog additions that don't get added to the set above.
+  return /Hedged/i.test(etf.exampleETF);
 }
 
 function addInto(target: ExposureMap, source: ExposureMap, weight: number) {
@@ -252,6 +352,20 @@ function sortDesc(map: ExposureMap): Array<[string, number]> {
   return Object.entries(map).sort((a, b) => b[1] - a[1]);
 }
 
+export interface CurrencyRow {
+  currency: string;
+  pctOfPortfolio: number;
+  hedgedPct: number;
+  unhedgedPct: number;
+}
+
+export interface CurrencyOverview {
+  rows: CurrencyRow[];
+  hedgedShareOfPortfolio: number;
+  unmappedWeight: number;
+  baseCurrency: string;
+}
+
 export interface LookthroughResult {
   equityWeightTotal: number;
   fixedIncomeWeightTotal: number;
@@ -262,11 +376,65 @@ export interface LookthroughResult {
   topConcentrations: Array<{ name: string; pctOfPortfolio: number; source: string }>;
   unmapped: string[];
   observations: string[];
+  currencyOverview: CurrencyOverview;
+}
+
+function buildCurrencyOverview(
+  etfs: ETFImplementation[],
+  baseCurrency: string
+): CurrencyOverview {
+  const hedgedMap: ExposureMap = {};
+  const unhedgedMap: ExposureMap = {};
+  let hedgedShare = 0;
+  let unmapped = 0;
+
+  for (const e of etfs) {
+    const p = profileFor(e.isin);
+    if (!p) {
+      unmapped += e.weight;
+      continue;
+    }
+    if (isHedged(e)) {
+      // After hedging, FX exposure is the share-class currency (typically the base ccy).
+      const target = e.currency || baseCurrency;
+      hedgedMap[target] = (hedgedMap[target] ?? 0) + e.weight;
+      hedgedShare += e.weight;
+    } else {
+      addInto(unhedgedMap, p.currency, e.weight);
+    }
+  }
+
+  const combined: Record<string, { hedged: number; unhedged: number }> = {};
+  for (const [k, v] of Object.entries(hedgedMap)) {
+    combined[k] = combined[k] || { hedged: 0, unhedged: 0 };
+    combined[k].hedged += v;
+  }
+  for (const [k, v] of Object.entries(unhedgedMap)) {
+    combined[k] = combined[k] || { hedged: 0, unhedged: 0 };
+    combined[k].unhedged += v;
+  }
+
+  const rows: CurrencyRow[] = Object.entries(combined)
+    .map(([currency, v]) => ({
+      currency,
+      hedgedPct: v.hedged,
+      unhedgedPct: v.unhedged,
+      pctOfPortfolio: v.hedged + v.unhedged,
+    }))
+    .sort((a, b) => b.pctOfPortfolio - a.pctOfPortfolio);
+
+  return {
+    rows,
+    hedgedShareOfPortfolio: hedgedShare,
+    unmappedWeight: unmapped,
+    baseCurrency,
+  };
 }
 
 export function buildLookthrough(
   etfs: ETFImplementation[],
-  lang: "en" | "de" = "en"
+  lang: "en" | "de" = "en",
+  baseCurrency: string = "USD"
 ): LookthroughResult {
   const de = lang === "de";
   let equityWeightTotal = 0;
@@ -276,7 +444,7 @@ export function buildLookthrough(
   const geoEq: ExposureMap = {};
   const sectorEq: ExposureMap = {};
   const geoFi: ExposureMap = {};
-  const stockMap: Record<string, { pct: number; source: string }> = {};
+  const stockMap: Record<string, { pct: number; sources: Set<string> }> = {};
   const unmapped: string[] = [];
 
   for (const e of etfs) {
@@ -295,14 +463,14 @@ export function buildLookthrough(
     } else {
       otherWeightTotal += e.weight;
     }
-    if (p.topHoldings) {
+    if (p.topHoldings && p.isEquity) {
       for (const h of p.topHoldings) {
         const portfolioPct = (h.pct * e.weight) / 100;
         if (stockMap[h.name]) {
           stockMap[h.name].pct += portfolioPct;
-          stockMap[h.name].source = `${stockMap[h.name].source}, ${e.exampleETF}`;
+          stockMap[h.name].sources.add(e.exampleETF);
         } else {
-          stockMap[h.name] = { pct: portfolioPct, source: e.exampleETF };
+          stockMap[h.name] = { pct: portfolioPct, sources: new Set([e.exampleETF]) };
         }
       }
     }
@@ -313,10 +481,13 @@ export function buildLookthrough(
   const geoFixedIncome = sortDesc(normaliseTo100(geoFi));
 
   const topConcentrations = Object.entries(stockMap)
-    .map(([name, v]) => ({ name, pctOfPortfolio: v.pct, source: v.source }))
-    .filter((x) => x.pctOfPortfolio >= 0.5)
+    .map(([name, v]) => ({
+      name,
+      pctOfPortfolio: v.pct,
+      source: Array.from(v.sources).join(", "),
+    }))
     .sort((a, b) => b.pctOfPortfolio - a.pctOfPortfolio)
-    .slice(0, 8);
+    .slice(0, 10);
 
   const observations: string[] = [];
   if (geoEquity.length > 0 && geoEquity[0][1] >= 60) {
@@ -346,7 +517,6 @@ export function buildLookthrough(
     sectorEquity.find(([k]) => k === "Technology") &&
     geoEquity.find(([k]) => k === "United States" && (geoEquity[0]?.[1] ?? 0) >= 50)
   ) {
-    // Combined US + Tech overlap
     const techWeight = sectorEquity.find(([k]) => k === "Technology")?.[1] ?? 0;
     if (techWeight >= 30) {
       observations.push(
@@ -371,9 +541,7 @@ export function buildLookthrough(
     );
   }
 
-  // Suppress unused-variable warning from fallback maps (kept for clarity / future use)
-  void EQUAL_EQUITY_FALLBACK_GEO;
-  void EQUAL_EQUITY_FALLBACK_SECTOR;
+  const currencyOverview = buildCurrencyOverview(etfs, baseCurrency);
 
   return {
     equityWeightTotal,
@@ -385,5 +553,6 @@ export function buildLookthrough(
     topConcentrations,
     unmapped,
     observations,
+    currencyOverview,
   };
 }
