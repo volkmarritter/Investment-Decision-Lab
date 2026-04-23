@@ -331,21 +331,6 @@ export function ComparePortfolios() {
               </FormItem>
             )}
           />
-          <FormField
-            control={form.control}
-            name={`${prefix}.lookThroughView`}
-            render={({ field }) => (
-              <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                <div className="space-y-0.5">
-                  <FormLabel>Look-Through Analysis</FormLabel>
-                  <FormDescription className="text-xs">
-                    Decompose selected ETFs into their underlying country, sector and top-holding exposures to reveal hidden concentration and overlap.
-                  </FormDescription>
-                </div>
-                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
-              </FormItem>
-            )}
-          />
         </div>
 
         <div className="space-y-3 pt-2 border-t">
