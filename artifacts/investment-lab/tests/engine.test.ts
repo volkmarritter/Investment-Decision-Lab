@@ -957,6 +957,11 @@ describe("AI Prompt builder (buildAiPrompt)", () => {
     );
     expect(all).toContain("Commodities / Precious Metals");
     expect(all).toContain("Listed Real Estate (REITs)");
+    // Commodities must appear inside the Satellites block (not in the Core list).
+    const satellitesIdx = all.indexOf("Satellites:");
+    const commoditiesIdx = all.indexOf("Commodities / Precious Metals");
+    expect(satellitesIdx).toBeGreaterThan(0);
+    expect(commoditiesIdx).toBeGreaterThan(satellitesIdx);
     expect(all).toContain("Crypto Assets");
     expect(all).toContain("Thematic Equity (Sustainability");
 

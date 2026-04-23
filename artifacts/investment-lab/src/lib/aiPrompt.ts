@@ -57,6 +57,7 @@ export function buildAiPrompt(input: PortfolioInput): string {
   const etfRange = etfCountRange(input);
 
   const eligibleSatellites: string[] = [];
+  if (input.includeCommodities) eligibleSatellites.push("- Commodities / Precious Metals");
   if (input.includeListedRealEstate) eligibleSatellites.push("- Listed Real Estate (REITs)");
   if (input.includeCrypto) eligibleSatellites.push("- Crypto Assets");
   if (input.thematicPreference !== "None") {
@@ -67,18 +68,13 @@ export function buildAiPrompt(input: PortfolioInput): string {
     ? `Satellites:\n${eligibleSatellites.join("\n")}`
     : "Satellites: none requested by the investor.";
 
-  const commoditiesLine = input.includeCommodities
-    ? "- Commodities / Precious Metals"
-    : null;
-
   const coreLines = [
     "- Cash / Money Market",
     "- Bonds",
     input.baseCurrency === "CHF"
       ? "- Equities by region: USA, Europe ex-CH, Switzerland (CH), Japan, and Emerging Markets"
       : "- Equities by region: USA, Europe, Japan, and Emerging Markets",
-    commoditiesLine,
-  ].filter(Boolean).join("\n");
+  ].join("\n");
 
   const hedgingLine = input.includeCurrencyHedging
     ? "11. State clearly whether currency hedging should be used, where it should be applied, and why."
@@ -140,8 +136,8 @@ ${syntheticLine}
 
 Output format:
 A) Table 1: Target allocation
-Columns: Group: Cash, Bonds, Equities, Commodities, Satellites | Asset class | Target weight | Purpose / role in the portfolio (1-2 sentences).
-After Table 1, add a short "Percentage allocation per group" overview that sums the target weights by group: Cash, Bonds, Equities, Commodities, and Satellites. Ensure the group totals reconcile with the target allocation and add up to 100%.
+Columns: Group: Cash, Bonds, Equities, Satellites | Asset class | Target weight | Purpose / role in the portfolio (1-2 sentences).
+After Table 1, add a short "Percentage allocation per group" overview that sums the target weights by group: Cash, Bonds, Equities, and Satellites (commodities, listed real estate, crypto, and thematic equity all belong to the Satellites group). Ensure the group totals reconcile with the target allocation and add up to 100%.
 
 B) Table 2: ETF implementation (for each position)
 Columns: Asset class | Target weight | ETF name | ISIN | Ticker (exchange) | TER | Domicile | Replication | Distribution / accumulation | Share class currency | Short comment (1 sentence on fit, liquidity, or tracking quality).
