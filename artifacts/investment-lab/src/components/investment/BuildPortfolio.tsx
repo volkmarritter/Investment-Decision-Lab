@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
-import { AlertCircle, CheckCircle2, Info, Target, ShieldAlert, BookOpen, ArrowRight, Download, Loader2, RotateCcw } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info, Target, ShieldAlert, BookOpen, ArrowRight, Download, Loader2, RotateCcw, ClipboardCopy } from "lucide-react";
+import { buildAiPrompt } from "@/lib/aiPrompt";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -531,6 +532,40 @@ export function BuildPortfolio() {
                 <Button type="submit" className="w-full" size="lg">
                   {t("build.btn.generate")}
                 </Button>
+
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full"
+                      size="sm"
+                      onClick={async () => {
+                        const current = form.getValues();
+                        const parsed: PortfolioInput = {
+                          ...current,
+                          horizon: Number(current.horizon),
+                          targetEquityPct: Number(current.targetEquityPct),
+                          numETFs: Number(current.numETFs),
+                          numETFsMin: Number(current.numETFsMin ?? current.numETFs),
+                        };
+                        const prompt = buildAiPrompt(parsed);
+                        try {
+                          await navigator.clipboard.writeText(prompt);
+                          toast.success(t("build.toast.aiPromptCopied"));
+                        } catch {
+                          toast.error(t("build.toast.aiPromptError"));
+                        }
+                      }}
+                    >
+                      <ClipboardCopy className="h-4 w-4 mr-2" />
+                      {t("build.btn.copyAiPrompt")}
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    {t("build.btn.copyAiPrompt.tooltip")}
+                  </TooltipContent>
+                </Tooltip>
               </form>
             </Form>
           </CardContent>

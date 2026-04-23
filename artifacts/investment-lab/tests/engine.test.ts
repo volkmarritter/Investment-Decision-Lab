@@ -7,6 +7,7 @@ import { profileFor, buildLookthrough } from "../src/lib/lookthrough";
 import { getETFDetails } from "../src/lib/etfs";
 import { runStressTest, SCENARIOS } from "../src/lib/scenarios";
 import { estimateFees, getETFTer } from "../src/lib/fees";
+import { buildAiPrompt } from "../src/lib/aiPrompt";
 import {
   mapAllocationToAssets,
   computeMetrics,
@@ -876,5 +877,92 @@ describe("buildLookthrough", () => {
     const out = buildPortfolio(baseInput({ baseCurrency: "USD", numETFs: 8 }));
     const lt = buildLookthrough(out.etfImplementation, "en", "USD");
     expect(lt.topConcentrations.length).toBeGreaterThan(0);
+  });
+});
+
+describe("AI Prompt builder (buildAiPrompt)", () => {
+  it("substitutes the core investor parameters (CHF, High, horizon 12, equity 70%)", () => {
+    const p = buildAiPrompt(
+      baseInput({ baseCurrency: "CHF", riskAppetite: "High", horizon: 12, targetEquityPct: 70 })
+    );
+    expect(p).toContain("Base currency: CHF");
+    expect(p).toContain("Risk appetite: High");
+    expect(p).toContain("Investment horizon: >=10 years");
+    expect(p).toContain("Equity allocation between 60% and 80%");
+    expect(p).toContain("Address Swiss home bias");
+  });
+
+  it("changes the home-bias label per base currency", () => {
+    expect(buildAiPrompt(baseInput({ baseCurrency: "EUR", preferredExchange: "XETRA" }))).toContain("Address Eurozone home bias");
+    expect(buildAiPrompt(baseInput({ baseCurrency: "GBP", preferredExchange: "LSE" }))).toContain("Address UK home bias");
+    expect(buildAiPrompt(baseInput({ baseCurrency: "USD" }))).toContain("Address US home bias");
+  });
+
+  it("renders the correct preferred-exchange line", () => {
+    expect(buildAiPrompt(baseInput({ preferredExchange: "SIX" }))).toContain("SIX Swiss Exchange");
+    expect(buildAiPrompt(baseInput({ preferredExchange: "XETRA" }))).toContain("Xetra");
+    expect(buildAiPrompt(baseInput({ preferredExchange: "LSE" }))).toContain("London Stock Exchange");
+    expect(buildAiPrompt(baseInput({ preferredExchange: "None" }))).toContain("No specific exchange preference");
+  });
+
+  it("includes / excludes satellite asset classes based on toggles", () => {
+    const all = buildAiPrompt(
+      baseInput({
+        includeCrypto: true,
+        includeListedRealEstate: true,
+        includeCommodities: true,
+        thematicPreference: "Sustainability",
+      })
+    );
+    expect(all).toContain("Commodities / Precious Metals");
+    expect(all).toContain("Listed Real Estate (REITs)");
+    expect(all).toContain("Crypto Assets");
+    expect(all).toContain("Thematic Equity (Sustainability");
+
+    const none = buildAiPrompt(
+      baseInput({
+        includeCrypto: false,
+        includeListedRealEstate: false,
+        includeCommodities: false,
+        thematicPreference: "None",
+      })
+    );
+    expect(none).not.toContain("Commodities / Precious Metals");
+    expect(none).not.toContain("Listed Real Estate (REITs)");
+    expect(none).not.toContain("Crypto Assets");
+    expect(none).not.toContain("Thematic Equity");
+    expect(none).toContain("Satellites: none requested");
+  });
+
+  it("toggles the synthetic-ETF and currency-hedging instructions correctly", () => {
+    const optedIn = buildAiPrompt(baseInput({ includeSyntheticETFs: true, includeCurrencyHedging: true }));
+    expect(optedIn).toContain("Include synthetic ETFs");
+    expect(optedIn).toContain("State clearly whether currency hedging");
+
+    const optedOut = buildAiPrompt(baseInput({ includeSyntheticETFs: false, includeCurrencyHedging: false }));
+    expect(optedOut).toContain("Use physical replication only");
+    expect(optedOut).toContain("does NOT want broad currency hedging");
+  });
+
+  it("encodes the requested ETF count range", () => {
+    const p = buildAiPrompt(baseInput({ numETFs: 10, numETFsMin: 7 }));
+    expect(p).toContain("target range of 7-10 positions");
+  });
+
+  it("always emits the full output-format scaffold (sections A-H + closing)", () => {
+    const p = buildAiPrompt(baseInput());
+    for (const marker of [
+      "A) Table 1: Target allocation",
+      "B) Table 2: ETF implementation",
+      "C) Brief summary",
+      "D) Consolidated currency overview",
+      "E) The ten largest equity holdings",
+      "F) Rebalancing concept",
+      "G) Rough cost estimate",
+      "H) Portfolio rationale",
+      "Closing instruction:",
+    ]) {
+      expect(p).toContain(marker);
+    }
   });
 });
