@@ -53,7 +53,7 @@ const defaultValues: PortfolioInput = {
   thematicPreference: "None",
   includeCurrencyHedging: false,
   includeSyntheticETFs: false,
-  lookThroughView: false,
+  lookThroughView: true,
   includeCrypto: false,
   includeListedRealEstate: false,
   includeCommodities: true,
