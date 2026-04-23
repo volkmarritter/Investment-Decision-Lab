@@ -892,6 +892,18 @@ describe("AI Prompt builder (buildAiPrompt)", () => {
     expect(p).toContain("Address Swiss home bias");
   });
 
+  it("lists Switzerland as a separate equity region only for CHF base currency", () => {
+    const chf = buildAiPrompt(baseInput({ baseCurrency: "CHF" }));
+    expect(chf).toContain("Switzerland (CH)");
+    expect(chf).toContain("Europe ex-CH");
+    for (const cur of ["USD", "EUR", "GBP"] as const) {
+      const p = buildAiPrompt(baseInput({ baseCurrency: cur, preferredExchange: cur === "EUR" ? "XETRA" : cur === "GBP" ? "LSE" : "None" }));
+      expect(p).not.toContain("Switzerland (CH)");
+      expect(p).not.toContain("Europe ex-CH");
+      expect(p).toContain("USA, Europe, Japan, and Emerging Markets");
+    }
+  });
+
   it("changes the home-bias label per base currency", () => {
     expect(buildAiPrompt(baseInput({ baseCurrency: "EUR", preferredExchange: "XETRA" }))).toContain("Address Eurozone home bias");
     expect(buildAiPrompt(baseInput({ baseCurrency: "GBP", preferredExchange: "LSE" }))).toContain("Address UK home bias");

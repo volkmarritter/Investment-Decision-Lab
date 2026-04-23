@@ -74,7 +74,9 @@ export function buildAiPrompt(input: PortfolioInput): string {
   const coreLines = [
     "- Cash / Money Market",
     "- Bonds",
-    "- Equities by region: USA, Europe ex-CH, Switzerland (CH), Japan, and Emerging Markets",
+    input.baseCurrency === "CHF"
+      ? "- Equities by region: USA, Europe ex-CH, Switzerland (CH), Japan, and Emerging Markets"
+      : "- Equities by region: USA, Europe, Japan, and Emerging Markets",
     commoditiesLine,
   ].filter(Boolean).join("\n");
 
