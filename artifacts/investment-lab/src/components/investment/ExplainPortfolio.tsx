@@ -92,7 +92,17 @@ export function ExplainPortfolio() {
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+    <div className="space-y-6">
+      <Alert className="border-amber-500/40 bg-amber-50/60 dark:bg-amber-950/20">
+        <AlertTriangle className="h-4 w-4 text-amber-600 dark:text-amber-500" />
+        <AlertTitle>{lang === "de" ? "Beta-Version" : "Beta version"}</AlertTitle>
+        <AlertDescription>
+          {lang === "de"
+            ? "Dieses Modul befindet sich in einer frühen Beta-Phase. Geplant sind unter anderem Look-Through auf Einzelpositionsebene, Faktor- und Stilanalysen, Steuer-Effizienz-Bewertung, Kostenvergleich vs. Benchmark, Überlappungsanalyse und Rebalancing-Vorschläge. Die heutigen Ergebnisse sind nur als erste Orientierung zu verstehen."
+            : "This module is an early beta. Planned additions include position-level look-through, factor & style analysis, tax-efficiency scoring, cost comparison vs. benchmark, overlap analysis, and rebalancing suggestions. Treat today's output as a first orientation only."}
+        </AlertDescription>
+      </Alert>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
       <div>
         <Card>
           <CardHeader>
@@ -351,6 +361,7 @@ export function ExplainPortfolio() {
             </div>
           )}
         </AnimatePresence>
+      </div>
       </div>
     </div>
   );
