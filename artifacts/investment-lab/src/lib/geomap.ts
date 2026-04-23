@@ -16,12 +16,10 @@ const EUROPE_COUNTRIES = new Set([
   "Bulgaria", "Croatia", "Lithuania", "Latvia", "Estonia",
 ]);
 
+// Only the largest MSCI EM index constituents — together ~90% of EM index weight.
 const EM_COUNTRIES = new Set([
   "China", "India", "Taiwan", "South Korea", "Brazil", "Saudi Arabia",
-  "South Africa", "Mexico", "Thailand", "Indonesia", "United Arab Emirates",
-  "Malaysia", "Turkey", "Philippines", "Chile", "Colombia", "Peru", "Egypt",
-  "Qatar", "Kuwait", "Vietnam", "Pakistan", "Argentina", "Hungary",
-  "Poland", "Greece",
+  "South Africa", "Mexico",
 ]);
 
 const JAPAN_COUNTRIES = new Set(["Japan"]);
