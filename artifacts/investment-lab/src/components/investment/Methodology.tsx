@@ -111,7 +111,76 @@ export function Methodology() {
         </CardContent>
       </Card>
 
-      <Accordion type="multiple" defaultValue={["cma"]} className="space-y-3">
+      <Accordion type="multiple" defaultValue={["construction"]} className="space-y-3">
+        <Section value="construction" icon={<Layers className="h-4 w-4" />} title={de ? "Portfolio-Konstruktion (regelbasiert, nicht starr)" : "Portfolio Construction (rule-based, not fixed)"}>
+          <p className="text-sm text-muted-foreground">
+            {de
+              ? "Die regionalen Aktiengewichte sind nicht hartkodiert. Sie werden aus denselben Kapitalmarktannahmen abgeleitet, die auch Sharpe-Ratio und Effizienzgrenze verwenden — kombiniert mit dokumentierten Aufschlägen für Heimatmarkt-Bias, langen Anlagehorizont und Nachhaltigkeits-Thema, sowie einer Konzentrationsobergrenze."
+              : "Regional equity weights are not hard-coded. They are derived from the same Capital Market Assumptions that drive Sharpe Ratio and the efficient frontier, combined with documented overlays for home bias, long horizon and the Sustainability theme, and a concentration cap."}
+          </p>
+          <ol className="text-sm space-y-2 list-decimal pl-5">
+            <li>
+              <span className="font-semibold">{de ? "Risk-Parity-Basis" : "Risk-parity baseline"}</span>{" — "}
+              {de
+                ? "Roh-Gewicht je Region ∝ 1 / σ. Jede Region trägt damit grob den gleichen Risiko-Anteil zum Aktien-Sleeve bei. Hoch-volatile Märkte (EM) können nicht allein wegen hoher Renditeerwartung dominieren."
+                : "Raw weight per region ∝ 1 / σ, so each region contributes roughly the same risk to the equity sleeve. High-vol markets (EM) cannot dominate just because of high expected return."}
+            </li>
+            <li>
+              <span className="font-semibold">{de ? "Sharpe-Tilt (gedämpft)" : "Sharpe tilt (damped)"}</span>{" — "}
+              {de
+                ? "Multiplikator (Sharpe / 0,25)^0,4 begünstigt Märkte mit besserer risikoadjustierter Renditeerwartung, ohne die Diversifikation auszuhebeln."
+                : "Multiplier (Sharpe / 0.25)^0.4 favours markets with better risk-adjusted expected return without overriding diversification."}
+            </li>
+            <li>
+              <span className="font-semibold">{de ? "Heimatmarkt-Bias" : "Home-bias overlay"}</span>{" — "}
+              {de
+                ? "USD ×1,2 auf USA, EUR/GBP ×1,4 auf Europa, CHF ×1,6 auf die Schweiz. Schweiz ist nur in CHF-Portfolios als eigene Region vertreten."
+                : "USD ×1.2 on USA, EUR/GBP ×1.4 on Europe, CHF ×1.6 on Switzerland. Switzerland appears as its own region only in CHF portfolios."}
+            </li>
+            <li>
+              <span className="font-semibold">{de ? "Horizont- & Themen-Tilts" : "Horizon & theme tilts"}</span>{" — "}
+              {de
+                ? "Anlagehorizont ≥ 10 Jahre erhöht EM um Faktor 1,3. Nachhaltigkeits-Thema dämpft USA um Faktor 0,85."
+                : "Horizon ≥ 10 years lifts EM by ×1.3. Sustainability theme dampens USA by ×0.85."}
+            </li>
+            <li>
+              <span className="font-semibold">{de ? "Konzentrationsgrenze" : "Concentration cap"}</span>{" — "}
+              {de
+                ? "Keine Aktien-Region darf 50 % des Aktien-Sleeves überschreiten. Überschuss wird proportional auf die übrigen Regionen verteilt."
+                : "No equity region may exceed 50% of the equity sleeve. Excess is redistributed proportionally to the other regions."}
+            </li>
+          </ol>
+          <Formula
+            label={de ? "Roh-Gewicht je Region" : "Raw weight per region"}
+            expr="rawᵢ = (1/σᵢ) · ((Sharpeᵢ/0.25)^0.4) · home · horizon · theme  →  normalize  →  cap at 50%"
+          />
+          <div className="rounded-md border overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{de ? "Konstante" : "Constant"}</TableHead>
+                  <TableHead className="text-right">{de ? "Wert" : "Value"}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow><TableCell className="text-xs">Home tilt USD → USA</TableCell><TableCell className="text-right font-mono text-xs">× 1.2</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">Home tilt EUR → Europe</TableCell><TableCell className="text-right font-mono text-xs">× 1.4</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">Home tilt GBP → Europe</TableCell><TableCell className="text-right font-mono text-xs">× 1.4</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">Home tilt CHF → Switzerland</TableCell><TableCell className="text-right font-mono text-xs">× 1.6</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">Long-horizon EM tilt (h ≥ 10)</TableCell><TableCell className="text-right font-mono text-xs">× 1.3</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">Sustainability theme on USA</TableCell><TableCell className="text-right font-mono text-xs">× 0.85</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">{de ? "Konzentrationsgrenze pro Region" : "Concentration cap per region"}</TableCell><TableCell className="text-right font-mono text-xs">≤ 50%</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">{de ? "Referenz-Risikofreier Zins (nur Konstruktion)" : "Reference risk-free rate (construction only)"}</TableCell><TableCell className="text-right font-mono text-xs">2.50%</TableCell></TableRow>
+              </TableBody>
+            </Table>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {de
+              ? "Defensiv-Sleeve (Cash & Anleihen), Satelliten-Sleeves (REIT 6 %, Krypto 1–3 %, Thematik 3–5 %, Gold ≤ 5 %) und Risikoobergrenzen sind weiterhin regelbasiert wie im übrigen Methodik-Dokument beschrieben."
+              : "The defensive sleeve (cash & bonds), satellite sleeves (REIT 6%, Crypto 1–3%, Thematic 3–5%, Gold ≤ 5%) and risk caps remain rule-based as documented in the rest of this methodology."}
+          </p>
+        </Section>
+
         <Section value="cma" icon={<Database className="h-4 w-4" />} title={de ? "Kapitalmarktannahmen (CMAs)" : "Capital Market Assumptions (CMAs)"}>
           <p className="text-sm text-muted-foreground">
             {de
