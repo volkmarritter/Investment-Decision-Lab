@@ -219,11 +219,59 @@ There is no server, no cookie, and no telemetry.
 
 ---
 
-## 10. Changelog
+## 10. Automated Test Suite
+
+Location: `artifacts/investment-lab/tests/engine.test.ts`. Runner: **Vitest** (Node environment, no browser, runs in ~1 s).
+
+Run locally:
+
+```bash
+pnpm --filter @workspace/investment-lab run test       # one-shot
+pnpm --filter @workspace/investment-lab run test:watch # watch mode
+```
+
+Also registered as the named validation step **`test`** and **`typecheck`**.
+
+### Test catalog
+
+| # | Group | Case |
+|---|-------|------|
+| 1 | `defaultExchangeFor` | USD → None |
+| 2 | `defaultExchangeFor` | EUR → XETRA |
+| 3 | `defaultExchangeFor` | CHF → SIX |
+| 4 | `defaultExchangeFor` | GBP → LSE |
+| 5 | `defaultExchangeFor` | covers every supported base currency |
+| 6 | invariants | default inputs produce non-empty allocation summing to ~100% |
+| 7 | invariants | every non-cash bucket has an ETF implementation with ISIN + ticker |
+| 8 | invariants | no negative weights for conservative inputs |
+| 9 | risk caps | Low caps equity ≤ 40% |
+| 10 | risk caps | Moderate caps equity ≤ 70% |
+| 11 | risk caps | High caps equity ≤ 90% |
+| 12 | risk caps | Very High allows 100% equity |
+| 13 | risk caps | Low disables crypto sleeve |
+| 14 | risk caps | Low disables commodities (gold) sleeve |
+| 15 | home bias | CHF base creates Switzerland equity bucket |
+| 16 | home bias | USD base does not create Switzerland equity bucket |
+| 17 | Global+Home fallback | collapses to Global+Home when numETFs is too small (preserves total equity) |
+| 18 | Global+Home fallback | does NOT collapse when numETFs is large enough |
+| 19 | look-through coverage | every Equity / Fixed-Income ETF the engine can pick has a profile (192-input matrix: 4 ccy × 4 risk × 4 numETFs × 2 synthetic) |
+| 20 | helpers | `computeNaturalBucketCount` ≥ 3 for a basic portfolio |
+| 21 | helpers | `computeNaturalBucketCount` grows when satellites are enabled |
+| 22 | validation | `runValidation` accepts a sane default input |
+
+### Maintenance policy
+
+> Whenever functional behaviour is added or changed, the corresponding test in `tests/engine.test.ts` MUST be added or updated **in the same change**, and the suite MUST be run before completion. Bugfixes MUST be accompanied by a regression test that fails without the fix and passes with it.
+
+---
+
+## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
 
 ### 2026-04-23
+- **Automated test suite** added (`tests/engine.test.ts`, Vitest). 22 cases covering exchange auto-mapping, engine invariants, risk caps, home bias, Global+Home fallback, and look-through coverage. Runs in ~1 s. New `test` and `test:watch` scripts. Registered as named validation steps. Maintenance policy documented above.
+- Extracted **`defaultExchangeFor` / `DEFAULT_EXCHANGE_FOR_CURRENCY`** to `src/lib/exchange.ts`; consumed by Build & Compare auto-sync, fully unit-tested. **`profileFor`** in `lookthrough.ts` is now exported so tests can verify that every ETF the engine picks is mapped (no "unmapped" regressions).
 - **Bugfix — Preferred Exchange not switching with Base Currency.** All form `<Select>`/`<RadioGroup>` controls in Build, Compare and Explain were using `defaultValue={field.value}` (uncontrolled), so when Base Currency changed and the auto-sync set `preferredExchange` via `form.setValue`, the form state updated but the visible dropdown did not. Same issue would have affected the new Reset button and Load Scenario. Fixed by switching every form Select/RadioGroup to controlled `value={field.value}`.
 - **Reset button** added to Build Portfolio header. Restores all defaults while preserving Base Currency, Horizon and Risk Appetite. Icon-only (`RotateCcw`) with bilingual tooltip.
 - **DOCUMENTATION.md** created (this file). Maintenance policy: every functional change updates this document and adds a changelog entry.

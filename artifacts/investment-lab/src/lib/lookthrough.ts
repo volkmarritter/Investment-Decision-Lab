@@ -385,7 +385,7 @@ const HEDGED_ISINS = new Set<string>([
   "IE00BDBRDP65",
 ]);
 
-function profileFor(isin: string): LookthroughProfile | null {
+export function profileFor(isin: string): LookthroughProfile | null {
   const key = ALIAS[isin] ?? isin;
   return PROFILES[key] ?? null;
 }

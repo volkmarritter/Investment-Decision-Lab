@@ -22,6 +22,7 @@ import { Separator } from "@/components/ui/separator";
 import { PortfolioInput, PortfolioOutput, ValidationResult } from "@/lib/types";
 import { runValidation } from "@/lib/validation";
 import { buildPortfolio, computeNaturalBucketCount } from "@/lib/portfolio";
+import { defaultExchangeFor } from "@/lib/exchange";
 import { StressTest } from "./StressTest";
 import { FeeEstimator } from "./FeeEstimator";
 import { MonteCarloSimulation } from "./MonteCarloSimulation";
@@ -82,16 +83,10 @@ export function BuildPortfolio() {
     }
   }, [lang]);
 
-  // Auto-sync preferred exchange to base currency: CHF -> SIX, EUR -> XETRA, GBP -> LSE, USD -> All.
+  // Auto-sync preferred exchange to base currency.
   const watchedBaseCcy = form.watch("baseCurrency");
   useEffect(() => {
-    const map: Record<string, "SIX" | "XETRA" | "LSE" | "None"> = {
-      CHF: "SIX",
-      EUR: "XETRA",
-      GBP: "LSE",
-      USD: "None",
-    };
-    const target = map[watchedBaseCcy];
+    const target = defaultExchangeFor(watchedBaseCcy);
     if (target && form.getValues().preferredExchange !== target) {
       form.setValue("preferredExchange", target, { shouldDirty: false });
     }

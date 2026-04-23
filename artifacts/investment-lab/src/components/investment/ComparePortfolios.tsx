@@ -21,6 +21,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PortfolioInput, PortfolioOutput, ValidationResult } from "@/lib/types";
 import { runValidation } from "@/lib/validation";
 import { buildPortfolio, computeNaturalBucketCount } from "@/lib/portfolio";
+import { defaultExchangeFor } from "@/lib/exchange";
 import { diffPortfolios } from "@/lib/compare";
 import { PortfolioMetrics } from "./PortfolioMetrics";
 import { StressTest } from "./StressTest";
@@ -86,19 +87,13 @@ export function ComparePortfolios() {
   const watchedA = form.watch("portA.baseCurrency");
   const watchedB = form.watch("portB.baseCurrency");
   useEffect(() => {
-    const map: Record<string, "SIX" | "XETRA" | "LSE" | "None"> = {
-      CHF: "SIX", EUR: "XETRA", GBP: "LSE", USD: "None",
-    };
-    const t = map[watchedA];
+    const t = defaultExchangeFor(watchedA);
     if (t && form.getValues().portA.preferredExchange !== t) {
       form.setValue("portA.preferredExchange", t, { shouldDirty: false });
     }
   }, [watchedA]);
   useEffect(() => {
-    const map: Record<string, "SIX" | "XETRA" | "LSE" | "None"> = {
-      CHF: "SIX", EUR: "XETRA", GBP: "LSE", USD: "None",
-    };
-    const t = map[watchedB];
+    const t = defaultExchangeFor(watchedB);
     if (t && form.getValues().portB.preferredExchange !== t) {
       form.setValue("portB.preferredExchange", t, { shouldDirty: false });
     }
