@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
-import { AlertCircle, CheckCircle2, Info, Target, ShieldAlert, BookOpen, ArrowRight } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info, Target, ShieldAlert, BookOpen, ArrowRight, Download, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { Button } from "@/components/ui/button";
@@ -53,7 +54,29 @@ export function BuildPortfolio() {
   const [output, setOutput] = useState<PortfolioOutput | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [hasGenerated, setHasGenerated] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
+  const pdfRef = useRef<HTMLDivElement>(null);
+
+  const handleExportPDF = async () => {
+    if (!pdfRef.current || !output) return;
+    
+    setIsExporting(true);
+    try {
+      const { baseCurrency, riskAppetite } = form.getValues();
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `investment-decision-lab_${baseCurrency}_${riskAppetite}_${timestamp}.pdf`;
+      
+      const { exportToPdf } = await import("@/lib/exportPdf");
+      await exportToPdf(pdfRef.current, filename);
+      toast.success("PDF exported successfully");
+    } catch (error) {
+      console.error(error);
+      toast.error("Failed to export PDF");
+    } finally {
+      setIsExporting(false);
+    }
+  };
 
   const onSubmit = (data: PortfolioInput) => {
     // Coerce numeric types that might come back as strings from the form inputs
@@ -371,7 +394,27 @@ export function BuildPortfolio() {
             animate={{ opacity: 1, y: 0 }}
             className="space-y-6"
           >
-            {/* Section 2: Validation */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <h2 className="text-2xl font-bold tracking-tight">Portfolio Results</h2>
+              {output && validation.isValid && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleExportPDF}
+                  disabled={isExporting}
+                >
+                  {isExporting ? (
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  ) : (
+                    <Download className="h-4 w-4 mr-2" />
+                  )}
+                  {isExporting ? "Generating PDF..." : "Export PDF"}
+                </Button>
+              )}
+            </div>
+
+            <div ref={pdfRef} className="space-y-6 bg-background">
+              {/* Section 2: Validation */}
             {validation.errors.length > 0 && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
@@ -589,6 +632,7 @@ export function BuildPortfolio() {
                 </div>
               </>
             )}
+            </div>
           </motion.div>
         )}
       </div>
