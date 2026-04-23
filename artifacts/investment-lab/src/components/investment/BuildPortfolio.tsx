@@ -211,7 +211,21 @@ export function BuildPortfolio() {
                       </FormLabel>
                       <FormControl>
                         <RadioGroup
-                          onValueChange={field.onChange}
+                          onValueChange={(val) => {
+                            field.onChange(val);
+                            const map: Record<string, number> = {
+                              Low: 20,
+                              Moderate: 40,
+                              High: 60,
+                              "Very High": 80,
+                            };
+                            if (map[val] !== undefined) {
+                              form.setValue("targetEquityPct", map[val], {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              });
+                            }
+                          }}
                           defaultValue={field.value}
                           className="grid grid-cols-2 gap-2"
                         >
