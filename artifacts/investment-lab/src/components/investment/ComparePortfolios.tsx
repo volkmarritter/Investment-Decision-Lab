@@ -270,21 +270,54 @@ export function ComparePortfolios() {
           )}
         />
 
-        <div className="space-y-4 pt-4 border-t">
+        <div className="space-y-3 pt-4 border-t">
           <FormField
             control={form.control}
             name={`${prefix}.includeCurrencyHedging`}
             render={({ field }) => (
               <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                <FormLabel className="text-sm font-medium">Currency Hedging</FormLabel>
+                <div className="space-y-0.5">
+                  <FormLabel>Currency Hedging</FormLabel>
+                  <FormDescription className="text-xs">Hedge foreign exposure</FormDescription>
+                </div>
+                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name={`${prefix}.includeSyntheticETFs`}
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                <div className="space-y-0.5">
+                  <FormLabel>Include Synthetic ETFs</FormLabel>
+                  <FormDescription className="text-xs">
+                    Use swap-based replication for US equity to eliminate 15% dividend withholding-tax leakage (~20-30 bps/yr); accepts controlled counterparty risk.
+                  </FormDescription>
+                </div>
+                <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name={`${prefix}.lookThroughView`}
+            render={({ field }) => (
+              <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                <div className="space-y-0.5">
+                  <FormLabel>Look-Through Analysis</FormLabel>
+                  <FormDescription className="text-xs">
+                    Decompose selected ETFs into their underlying country, sector and top-holding exposures to reveal hidden concentration and overlap.
+                  </FormDescription>
+                </div>
                 <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
               </FormItem>
             )}
           />
         </div>
 
-        <div className="space-y-3 pt-3 border-t">
-          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <div className="space-y-3 pt-2 border-t">
+          <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground pt-2">
             Satellite Asset Classes
           </h4>
           <FormField
@@ -292,7 +325,10 @@ export function ComparePortfolios() {
             name={`${prefix}.includeCommodities`}
             render={({ field }) => (
               <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                <FormLabel className="text-sm font-medium">Commodities (Gold)</FormLabel>
+                <div className="space-y-0.5">
+                  <FormLabel>Commodities (Gold)</FormLabel>
+                  <FormDescription className="text-xs">Add a gold sleeve as inflation/crisis diversifier</FormDescription>
+                </div>
                 <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
               </FormItem>
             )}
@@ -302,7 +338,10 @@ export function ComparePortfolios() {
             name={`${prefix}.includeListedRealEstate`}
             render={({ field }) => (
               <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                <FormLabel className="text-sm font-medium">Listed Real Estate</FormLabel>
+                <div className="space-y-0.5">
+                  <FormLabel>Listed Real Estate</FormLabel>
+                  <FormDescription className="text-xs">Add a REIT allocation</FormDescription>
+                </div>
                 <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
               </FormItem>
             )}
@@ -312,7 +351,10 @@ export function ComparePortfolios() {
             name={`${prefix}.includeCrypto`}
             render={({ field }) => (
               <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
-                <FormLabel className="text-sm font-medium">Include Crypto</FormLabel>
+                <div className="space-y-0.5">
+                  <FormLabel>Include Crypto</FormLabel>
+                  <FormDescription className="text-xs">Add a small digital asset allocation</FormDescription>
+                </div>
                 <FormControl><Switch checked={field.value} onCheckedChange={field.onChange} /></FormControl>
               </FormItem>
             )}
