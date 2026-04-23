@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
-import { Plus, Trash2, AlertTriangle, CheckCircle, XCircle } from "lucide-react";
+import { Plus, Trash2, AlertTriangle, CheckCircle, XCircle, Upload, Download } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +16,8 @@ import { Separator } from "@/components/ui/separator";
 
 import { ExplainAnalysis, ExplainPosition, RiskAppetite, BaseCurrency } from "@/lib/types";
 import { analyzePortfolio } from "@/lib/explain";
+import { ImportCsvDialog } from "./ImportCsvDialog";
+import { ParsedPositionRow } from "@/lib/csvImport";
 
 interface ExplainFormValues {
   baseCurrency: BaseCurrency;
@@ -35,15 +38,44 @@ const defaultValues: ExplainFormValues = {
 
 export function ExplainPortfolio() {
   const [analysis, setAnalysis] = useState<ExplainAnalysis | null>(null);
+  const [importDialogOpen, setImportDialogOpen] = useState(false);
 
   const form = useForm<ExplainFormValues>({
     defaultValues,
   });
 
-  const { fields, append, remove } = useFieldArray({
+  const { fields, append, remove, replace } = useFieldArray({
     control: form.control,
     name: "positions",
   });
+
+  const handleDownloadTemplate = () => {
+    const csvContent = "Asset Class,Region,Weight\nEquities,USA,40\nEquities,Europe,20\nBonds,Global,40";
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
+    const url = URL.createObjectURL(blob);
+    link.setAttribute("href", url);
+    link.setAttribute("download", "portfolio_template.csv");
+    link.style.visibility = "hidden";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleImport = (rows: ParsedPositionRow[], isAppend: boolean) => {
+    const newPositions = rows.map(r => ({
+      assetClass: r.assetClass,
+      region: r.region,
+      weight: r.weight
+    }));
+    
+    if (isAppend) {
+      append(newPositions);
+    } else {
+      replace(newPositions);
+    }
+    toast.success(`Imported ${rows.length} positions`);
+  };
 
   const onSubmit = (data: ExplainFormValues) => {
     // Coerce weights to numbers
@@ -117,15 +149,35 @@ export function ExplainPortfolio() {
                 <div className="space-y-4">
                   <div className="flex items-center justify-between">
                     <FormLabel className="text-base">Positions</FormLabel>
-                    <Button 
-                      type="button" 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => append({ assetClass: "Equity", region: "USA", weight: 0 })}
-                      className="h-8 text-xs"
-                    >
-                      <Plus className="mr-2 h-3 w-3" /> Add Row
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={handleDownloadTemplate}
+                        className="h-8 text-xs"
+                      >
+                        <Download className="mr-2 h-3 w-3" /> Template
+                      </Button>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => setImportDialogOpen(true)}
+                        className="h-8 text-xs"
+                      >
+                        <Upload className="mr-2 h-3 w-3" /> Import CSV
+                      </Button>
+                      <Button 
+                        type="button" 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={() => append({ assetClass: "Equity", region: "USA", weight: 0 })}
+                        className="h-8 text-xs"
+                      >
+                        <Plus className="mr-2 h-3 w-3" /> Add Row
+                      </Button>
+                    </div>
                   </div>
                   
                   <div className="rounded-md border overflow-hidden">
@@ -203,6 +255,12 @@ export function ExplainPortfolio() {
           </CardContent>
         </Card>
       </div>
+
+      <ImportCsvDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        onImport={handleImport}
+      />
 
       <div>
         <AnimatePresence mode="wait">
