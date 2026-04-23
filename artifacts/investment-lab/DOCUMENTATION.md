@@ -224,6 +224,7 @@ There is no server, no cookie, and no telemetry.
 Append a new entry whenever functionality changes. Newest first.
 
 ### 2026-04-23
+- **Bugfix — Preferred Exchange not switching with Base Currency.** All form `<Select>`/`<RadioGroup>` controls in Build, Compare and Explain were using `defaultValue={field.value}` (uncontrolled), so when Base Currency changed and the auto-sync set `preferredExchange` via `form.setValue`, the form state updated but the visible dropdown did not. Same issue would have affected the new Reset button and Load Scenario. Fixed by switching every form Select/RadioGroup to controlled `value={field.value}`.
 - **Reset button** added to Build Portfolio header. Restores all defaults while preserving Base Currency, Horizon and Risk Appetite. Icon-only (`RotateCcw`) with bilingual tooltip.
 - **DOCUMENTATION.md** created (this file). Maintenance policy: every functional change updates this document and adds a changelog entry.
 

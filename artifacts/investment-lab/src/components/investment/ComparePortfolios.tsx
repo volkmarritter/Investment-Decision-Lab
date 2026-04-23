@@ -161,7 +161,7 @@ export function ComparePortfolios() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Base Currency</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger><SelectValue placeholder="Currency" /></SelectTrigger>
                   </FormControl>
@@ -194,7 +194,7 @@ export function ComparePortfolios() {
             <FormItem className="space-y-3">
               <FormLabel>Risk Appetite</FormLabel>
               <FormControl>
-                <RadioGroup onValueChange={field.onChange} defaultValue={field.value} className="grid grid-cols-2 gap-2">
+                <RadioGroup onValueChange={field.onChange} value={field.value} className="grid grid-cols-2 gap-2">
                   {["Low", "Moderate", "High", "Very High"].map((risk) => (
                     <FormItem key={risk} className="flex items-center space-x-2 space-y-0 rounded-md border p-2">
                       <FormControl><RadioGroupItem value={risk} /></FormControl>
@@ -266,7 +266,7 @@ export function ComparePortfolios() {
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Preferred Exchange</FormLabel>
-                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
                     <SelectTrigger><SelectValue placeholder="Exchange" /></SelectTrigger>
                   </FormControl>
@@ -288,7 +288,7 @@ export function ComparePortfolios() {
           render={({ field }) => (
             <FormItem>
               <FormLabel>Thematic Tilt</FormLabel>
-              <Select onValueChange={field.onChange} defaultValue={field.value}>
+              <Select onValueChange={field.onChange} value={field.value}>
                 <FormControl>
                   <SelectTrigger><SelectValue placeholder="Theme" /></SelectTrigger>
                 </FormControl>

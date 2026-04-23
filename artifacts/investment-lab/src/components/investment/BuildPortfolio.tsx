@@ -215,7 +215,7 @@ export function BuildPortfolio() {
                             <TooltipContent>{t("build.baseCurrency.tooltip")}</TooltipContent>
                           </Tooltip>
                         </FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Select currency" />
@@ -280,7 +280,7 @@ export function BuildPortfolio() {
                               });
                             }
                           }}
-                          defaultValue={field.value}
+                          value={field.value}
                           className="grid grid-cols-2 gap-2"
                         >
                           {["Low", "Moderate", "High", "Very High"].map((risk) => (
@@ -386,7 +386,7 @@ export function BuildPortfolio() {
                             <TooltipContent>{t("build.preferredExchange.tooltip")}</TooltipContent>
                           </Tooltip>
                         </FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Exchange" />
@@ -416,7 +416,7 @@ export function BuildPortfolio() {
                           <TooltipContent>{t("build.thematicTilt.tooltip")}</TooltipContent>
                         </Tooltip>
                       </FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
+                      <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                           <SelectTrigger>
                             <SelectValue placeholder="Theme" />

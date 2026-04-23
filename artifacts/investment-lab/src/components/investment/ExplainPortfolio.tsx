@@ -109,7 +109,7 @@ export function ExplainPortfolio() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>{t("build.baseCurrency.label")}</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Currency" />
@@ -131,7 +131,7 @@ export function ExplainPortfolio() {
                     render={({ field }) => (
                       <FormItem>
                         <FormLabel>{t("explain.riskProfile.label")}</FormLabel>
-                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                        <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
                             <SelectTrigger>
                               <SelectValue placeholder="Risk Profile" />
