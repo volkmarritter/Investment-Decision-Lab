@@ -26,6 +26,7 @@ import { StressTest } from "./StressTest";
 import { FeeEstimator } from "./FeeEstimator";
 import { MonteCarloSimulation } from "./MonteCarloSimulation";
 import { LookThroughAnalysis } from "./LookThroughAnalysis";
+import { GeoExposureMap } from "./GeoExposureMap";
 import { HomeBiasAnalysis } from "./HomeBiasAnalysis";
 import { CurrencyOverview } from "./CurrencyOverview";
 import { TopHoldings } from "./TopHoldings";
@@ -705,9 +706,13 @@ export function BuildPortfolio() {
                   baseCurrency={form.getValues().baseCurrency}
                 />
 
-                {/* Look-Through Analysis + Top 10 Holdings (only when look-through view is active) */}
+                {/* Geographic Exposure Map + Look-Through Analysis + Top 10 Holdings (only when look-through view is active) */}
                 {form.getValues().lookThroughView && (
                   <>
+                    <GeoExposureMap
+                      etfs={output.etfImplementation}
+                      baseCurrency={form.getValues().baseCurrency}
+                    />
                     <LookThroughAnalysis
                       etfs={output.etfImplementation}
                       baseCurrency={form.getValues().baseCurrency}

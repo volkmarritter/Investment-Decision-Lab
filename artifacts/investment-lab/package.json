@@ -44,9 +44,11 @@
     "@tailwindcss/typography": "^0.5.15",
     "@tailwindcss/vite": "catalog:",
     "@tanstack/react-query": "catalog:",
+    "@types/d3-scale": "^4.0.9",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "@types/react-simple-maps": "^3.0.6",
     "@vitejs/plugin-react": "catalog:",
     "@workspace/api-client-react": "workspace:*",
     "class-variance-authority": "catalog:",
@@ -77,6 +79,8 @@
     "zod": "catalog:"
   },
   "dependencies": {
-    "html2canvas-pro": "^2.0.2"
+    "d3-scale": "^4.0.2",
+    "html2canvas-pro": "^2.0.2",
+    "react-simple-maps": "^3.0.0"
   }
 }
