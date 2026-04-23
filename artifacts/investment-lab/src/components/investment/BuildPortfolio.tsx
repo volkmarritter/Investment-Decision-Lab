@@ -25,6 +25,7 @@ import { buildPortfolio } from "@/lib/portfolio";
 import { StressTest } from "./StressTest";
 import { FeeEstimator } from "./FeeEstimator";
 import { MonteCarloSimulation } from "./MonteCarloSimulation";
+import { LookThroughAnalysis } from "./LookThroughAnalysis";
 import { SavedScenariosUI } from "./SavedScenariosUI";
 import { DisclaimerPdfBlock } from "./Disclaimer";
 import { useT } from "@/lib/i18n";
@@ -393,6 +394,21 @@ export function BuildPortfolio() {
                   />
                   <FormField
                     control={form.control}
+                    name="lookThroughView"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                        <div className="space-y-0.5">
+                          <FormLabel>{t("build.lookThrough.label")}</FormLabel>
+                          <FormDescription className="text-xs">{t("build.lookThrough.desc")}</FormDescription>
+                        </div>
+                        <FormControl>
+                          <Switch checked={field.value} onCheckedChange={field.onChange} />
+                        </FormControl>
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
                     name="includeCrypto"
                     render={({ field }) => (
                       <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
@@ -713,6 +729,11 @@ export function BuildPortfolio() {
                     ))}
                   </div>
                 </div>
+
+                {/* Section 7b: Look-Through Analysis (optional) */}
+                {form.getValues().lookThroughView && (
+                  <LookThroughAnalysis etfs={output.etfImplementation} />
+                )}
 
                 {/* Section 8: Scenario Stress Test */}
                 <StressTest allocation={output.allocation} />
