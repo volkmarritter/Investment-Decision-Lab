@@ -24,6 +24,7 @@ import { runValidation } from "@/lib/validation";
 import { buildPortfolio } from "@/lib/portfolio";
 import { StressTest } from "./StressTest";
 import { FeeEstimator } from "./FeeEstimator";
+import { SavedScenariosUI } from "./SavedScenariosUI";
 
 const COLORS = [
   "hsl(var(--chart-1))",
@@ -117,8 +118,20 @@ export function BuildPortfolio() {
       <div className="lg:col-span-5 lg:sticky lg:top-24 lg:self-start lg:max-h-[calc(100vh-8rem)] overflow-y-auto pr-2 pb-8 custom-scrollbar">
         <Card>
           <CardHeader>
-            <CardTitle>Portfolio Parameters</CardTitle>
-            <CardDescription>Define your constraints and preferences.</CardDescription>
+            <div className="flex flex-col space-y-4 sm:flex-row sm:items-start sm:justify-between sm:space-y-0">
+              <div>
+                <CardTitle>Portfolio Parameters</CardTitle>
+                <CardDescription>Define your constraints and preferences.</CardDescription>
+              </div>
+              <SavedScenariosUI
+                hasGenerated={hasGenerated}
+                getCurrentInput={() => form.getValues()}
+                onLoadScenario={(input) => {
+                  form.reset(input);
+                  onSubmit(input);
+                }}
+              />
+            </div>
           </CardHeader>
           <CardContent>
             <Form {...form}>
