@@ -1,24 +1,25 @@
 import { jsPDF } from "jspdf";
-import html2canvas from "html2canvas";
+import html2canvas from "html2canvas-pro";
 
 export async function exportToPdf(
   element: HTMLElement,
   filename: string
 ): Promise<void> {
   const isDark = document.documentElement.classList.contains("dark");
-  
+
   if (isDark) {
     document.documentElement.classList.remove("dark");
   }
 
   try {
     // Give DOM a moment to reflow if theme changed
-    await new Promise((resolve) => setTimeout(resolve, 50));
-    
+    await new Promise((resolve) => setTimeout(resolve, 100));
+
     const canvas = await html2canvas(element, {
       scale: 2,
       useCORS: true,
       backgroundColor: "#ffffff",
+      logging: false,
     });
 
     const imgData = canvas.toDataURL("image/png");
