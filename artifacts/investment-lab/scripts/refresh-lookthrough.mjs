@@ -94,14 +94,30 @@ function parseEquityIsinsFromLookthroughSource(src) {
   return equity;
 }
 
-// Skip the small set of non-equity ISINs whose top-holdings list either does
-// not apply (gold ETF) or is uninformative for an equity-style display
-// (broad-market crypto basket published with daily-shifting weights). These
-// stay hand-curated.
-async function extractEquityIsinsFromLookthrough() {
-  const src = await readFile(LOOKTHROUGH_TS, "utf8");
-  return parseEquityIsinsFromLookthroughSource(src);
+// Pure parser: given the text of src/lib/lookthrough.ts, return the Set of
+// ALL ISIN keys in PROFILES (equity + non-equity). Used to detect orphan
+// overrides — entries in lookthrough.overrides.json whose ISIN no longer
+// has a curated profile to merge onto, so the merge layer in
+// src/lib/lookthrough.ts silently skips them. We still keep writing for
+// these every month if they linger in the JSON file, which is exactly the
+// silent drift this warning surfaces. Same shape regex as the equity
+// parser above so future PROFILES literal-shape refactors trip both
+// loud-failing tests at once.
+function parseAllProfileIsinsFromLookthroughSource(src) {
+  const all = new Set();
+  const re = /"([A-Z]{2}[A-Z0-9]{9}\d)"\s*:\s*\{\s*isEquity:\s*(?:true|false)/g;
+  let m;
+  while ((m = re.exec(src)) !== null) all.add(m[1]);
+  return all;
 }
+
+// Note: the equity-only filter (skipping non-equity ISINs whose top-holdings
+// list either does not apply — gold ETC — or is uninformative for an
+// equity-style display — broad-market crypto basket with daily-shifting
+// weights) is now applied in main() directly via
+// parseEquityIsinsFromLookthroughSource(), since main() already needs the
+// raw lookthrough.ts source to also extract the full PROFILES set for the
+// orphan-override check below.
 
 // Top-10 holdings: parses the static <table data-testid="etf-holdings_top-holdings_table">
 // block on a justETF profile page. Returns an array of { name, pct } sorted in
@@ -221,6 +237,7 @@ export {
   extractTopHoldings,
   extractBreakdown,
   parseEquityIsinsFromLookthroughSource,
+  parseAllProfileIsinsFromLookthroughSource,
 };
 // Note: deriveCurrencyFromGeo / COUNTRY_TO_CURRENCY / HEDGED_ISINS are
 // re-exported below — once they're declared.
@@ -379,7 +396,9 @@ async function fetchBreakdownAjax(isin, kind, cookie) {
 
 async function main() {
   const allIsins = await extractIsinsFromCatalog();
-  const equityIsins = await extractEquityIsinsFromLookthrough();
+  const lookthroughSrc = await readFile(LOOKTHROUGH_TS, "utf8");
+  const equityIsins = parseEquityIsinsFromLookthroughSource(lookthroughSrc);
+  const allProfileIsins = parseAllProfileIsinsFromLookthroughSource(lookthroughSrc);
   const isins = (TARGET_ISINS.length ? TARGET_ISINS : allIsins).filter((isin) =>
     equityIsins.has(isin)
   );
@@ -395,6 +414,28 @@ async function main() {
     existing = raw.overrides ?? {};
   } catch {
     // first run — leave empty
+  }
+
+  // Detect orphan overrides up front: ISIN keys in the existing JSON file
+  // (or about-to-be-written `next`, since `next = { ...existing }`) that
+  // have no matching curated profile in PROFILES. The merge layer in
+  // src/lib/lookthrough.ts silently skips these at runtime — we surface
+  // the names here so the maintainer sees them in the monthly GitHub
+  // Action's `Refresh top-holdings from justETF (monthly)` step output.
+  // The merge layer also re-emits the same warning at module load time
+  // (see lookthrough.ts) so the subsequent typecheck/test steps and the
+  // dev server boot also flag it; this duplication is intentional —
+  // surfacing it in the refresh step itself means the maintainer doesn't
+  // have to scroll past test output to find it.
+  const orphanOverrideIsins = Object.keys(existing).filter(
+    (isin) => !allProfileIsins.has(isin)
+  );
+  if (orphanOverrideIsins.length > 0) {
+    console.warn(
+      `\n! ${orphanOverrideIsins.length} override ISIN(s) in lookthrough.overrides.json have no matching curated profile in src/lib/lookthrough.ts — ` +
+        `their refreshed holdings/breakdowns will never reach the UI: ${orphanOverrideIsins.join(", ")}. ` +
+        `If a curated ISIN was renamed or removed, either restore the PROFILES entry or delete the orphan override from the JSON file.\n`
+    );
   }
 
   const next = { ...existing };

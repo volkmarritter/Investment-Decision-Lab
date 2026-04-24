@@ -14,7 +14,26 @@
 // task #10 just fixed. This file pins the seam down with a synthetic
 // fixture so any such regression trips CI before the snapshot is committed
 // (the monthly GitHub Action runs `pnpm run test` after the refresh).
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterAll } from "vitest";
+
+// Capture console.warn from the moment the test module loads — BEFORE the
+// import below pulls in src/lib/lookthrough.ts and its module-load-time
+// merge loop fires the orphan warning. We use vi.hoisted because vi.mock
+// is hoisted above static imports, and the lookthrough module's
+// top-level merge loop runs synchronously at first import. By the time a
+// `beforeAll` could run, the warning has already been printed.
+//
+// The captured array is asserted against further down in the
+// "orphan override warning" describe block — the synthetic XX9999999999
+// fixture below is the canary that must trip it.
+const consoleSpy = vi.hoisted(() => {
+  const warnings: string[] = [];
+  const original = console.warn;
+  console.warn = (...args: unknown[]) => {
+    warnings.push(args.map((a) => String(a)).join(" "));
+  };
+  return { warnings, restore: () => { console.warn = original; } };
+});
 
 // Fixture override file injected in place of the real
 // src/data/lookthrough.overrides.json. We pick:
@@ -83,6 +102,7 @@ import {
   profileFor,
   topHoldingsStampFor,
   getLookthroughSnapshotMeta,
+  getOrphanOverrideIsins,
 } from "../src/lib/lookthrough";
 
 describe("lookthrough overrides — getLookthroughSnapshotMeta", () => {
@@ -187,5 +207,45 @@ describe("lookthrough overrides — ALIAS resolution flows the override through"
     // fallback.
     expect(topHoldingsStampFor("IE00BCRY6557")).toBe(FX.SP500_AS_OF);
     expect(topHoldingsStampFor("IE00B3YCGJ38")).toBe(FX.SP500_AS_OF);
+  });
+});
+
+// Pins the orphan-override warning behavior added for task #16. The merge
+// loop in src/lib/lookthrough.ts silently no-ops when an override ISIN has
+// no matching curated profile (the `if (!target) continue;` guard tested
+// above) — but silently skipping means a refreshed top-10 list for an
+// ISIN nobody can see goes unnoticed. The merge layer now (a) collects
+// those orphan ISINs into a getter and (b) emits a single batched
+// console.warn at module load. The monthly justETF refresh GitHub Action
+// runs `pnpm run test` after the snapshot is committed, so this assertion
+// surfaces the warning in the workflow log when an orphan slips in.
+// Restore the original console.warn after the suite finishes so the patched
+// reference doesn't leak across test files (vitest currently runs each test
+// file in its own worker, so the leak is theoretical today, but cleanup keeps
+// the test self-contained if that ever changes).
+afterAll(() => consoleSpy.restore());
+
+describe("lookthrough overrides — orphan override warning", () => {
+  it("getOrphanOverrideIsins() lists every override ISIN with no curated profile", () => {
+    // The fixture above includes XX9999999999 (synthetic, not in PROFILES)
+    // alongside three real ISINs (IE00B5BMR087, IE00B3WJKG14 — both in
+    // PROFILES). Only the synthetic one is an orphan.
+    expect(getOrphanOverrideIsins()).toEqual(["XX9999999999"]);
+  });
+
+  it("emits exactly one batched console.warn at module load naming the orphan ISIN(s)", () => {
+    // Single batched line — not one per orphan — so the dev console / test
+    // output stays readable even if multiple ISINs are removed at once.
+    const orphanWarnings = consoleSpy.warnings.filter((w) =>
+      w.includes("XX9999999999")
+    );
+    expect(orphanWarnings).toHaveLength(1);
+    const [warning] = orphanWarnings;
+    // The message must clearly identify (a) the file, (b) what the
+    // problem is, and (c) how to fix it — otherwise a future maintainer
+    // sees the warning in CI and has to grep for it to understand it.
+    expect(warning).toMatch(/lookthrough\.overrides\.json/);
+    expect(warning).toMatch(/no matching curated profile/);
+    expect(warning).toMatch(/restore the PROFILES entry|delete the orphan/);
   });
 });

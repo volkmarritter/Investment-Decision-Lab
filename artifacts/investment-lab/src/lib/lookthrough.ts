@@ -470,9 +470,23 @@ export function breakdownsStampFor(isin: string): string | null {
   return profileFor(isin)?.breakdownsAsOf ?? null;
 }
 
+// Collect override ISINs whose curated PROFILES entry is missing — see the
+// orphan warning emitted right after the merge loop. We can't warn inline
+// because emitting one line per orphan would be noisy in tests and the dev
+// console; we batch the names into a single warning instead.
+const orphanOverrideIsins: string[] = [];
 for (const [isin, patch] of Object.entries(RAW_LOOKTHROUGH_OVERRIDES)) {
   const target = PROFILES[isin];
-  if (!target || !patch) continue;
+  if (!target || !patch) {
+    // An override exists for an ISIN that has no curated profile. The
+    // refresh job will still keep writing top-10 holdings + breakdown
+    // maps for it every month, but the merge loop has nowhere to apply
+    // them, so the data never reaches the UI. This typically means the
+    // curated PROFILES entry was renamed or removed and the override
+    // wasn't cleaned up — see the orphan warning below.
+    if (!target && patch) orphanOverrideIsins.push(isin);
+    continue;
+  }
   if (patch.topHoldings && patch.topHoldings.length > 0) {
     target.topHoldings = patch.topHoldings;
   }
@@ -491,6 +505,25 @@ for (const [isin, patch] of Object.entries(RAW_LOOKTHROUGH_OVERRIDES)) {
   if (patch.breakdownsAsOf) {
     target.breakdownsAsOf = patch.breakdownsAsOf;
   }
+}
+
+// Surface orphan overrides (ISINs the refresh job is still writing for, but
+// that no longer have a curated profile to merge onto). Exported so the
+// monthly refresh action's CI test step can read it back via the test in
+// tests/lookthrough-overrides.test.ts and surface the names in the workflow
+// log — see .github/workflows/refresh-lookthrough.yml.
+export function getOrphanOverrideIsins(): string[] {
+  return [...orphanOverrideIsins];
+}
+
+if (orphanOverrideIsins.length > 0) {
+  // Single batched warning so each test run / dev server boot prints one
+  // line, not N. Names every orphan ISIN so the maintainer can decide
+  // whether to restore the curated profile or delete the stale override.
+  console.warn(
+    `[lookthrough] ${orphanOverrideIsins.length} override ISIN(s) in lookthrough.overrides.json have no matching curated profile in PROFILES — their refreshed holdings/breakdowns will never reach the UI: ${orphanOverrideIsins.join(", ")}. ` +
+      `If a curated ISIN was renamed or removed, either restore the PROFILES entry or delete the orphan override.`
+  );
 }
 
 export function profileFor(isin: string): LookthroughProfile | null {
