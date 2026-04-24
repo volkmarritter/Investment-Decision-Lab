@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
-import { AlertCircle, CheckCircle2, Info, Target, ShieldAlert, BookOpen, ArrowRight, Download, Loader2, RotateCcw, ClipboardCopy, X } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info, Target, ShieldAlert, BookOpen, ArrowRight, Download, Loader2, RotateCcw, ClipboardCopy, X, Minus, Plus } from "lucide-react";
 import {
   loadManualWeights,
   setManualWeight,
@@ -409,35 +409,63 @@ export function BuildPortfolio() {
                       {t("build.numEtfs.label")}
                       <InfoHint iconClassName="h-3 w-3" className="whitespace-pre-line"><span className="whitespace-pre-line">{t("build.numEtfs.tooltip")}</span></InfoHint>
                     </label>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
                       <Controller
                         control={form.control}
                         name="numETFsMin"
-                        render={({ field }) => (
-                          <Input type="number" inputMode="numeric" min={3} max={15} placeholder="Min" className="flex-1 min-w-0" {...field} value={field.value ?? ""} onChange={(e) => {
-                            if (e.target.value === "") { field.onChange(undefined); setNumETFsMode("manual"); return; }
-                            const v = Math.max(3, Math.min(15, Number(e.target.value)));
-                            field.onChange(v);
+                        render={({ field }) => {
+                          const current = Number.isFinite(Number(field.value)) ? Number(field.value) : 8;
+                          const setMin = (v: number) => {
+                            const clamped = Math.max(3, Math.min(15, v));
+                            field.onChange(clamped);
                             const currentMax = Number(form.getValues("numETFs"));
-                            if (Number.isFinite(currentMax) && currentMax < v) form.setValue("numETFs", v);
+                            if (Number.isFinite(currentMax) && currentMax < clamped) form.setValue("numETFs", clamped);
                             setNumETFsMode("manual");
-                          }} />
-                        )}
+                          };
+                          return (
+                            <div className="flex items-center flex-1 min-w-0 rounded-md border border-input bg-background overflow-hidden">
+                              <Button type="button" variant="ghost" size="icon" className="h-9 w-9 rounded-none shrink-0 hover:bg-accent" onClick={() => setMin(current - 1)} disabled={current <= 3} aria-label="Decrease minimum number of ETFs">
+                                <Minus className="h-4 w-4" />
+                              </Button>
+                              <Input type="number" inputMode="numeric" min={3} max={15} placeholder="Min" className="flex-1 min-w-0 border-0 text-center px-1 h-9 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" {...field} value={field.value ?? ""} onChange={(e) => {
+                                if (e.target.value === "") { field.onChange(undefined); setNumETFsMode("manual"); return; }
+                                setMin(Number(e.target.value));
+                              }} />
+                              <Button type="button" variant="ghost" size="icon" className="h-9 w-9 rounded-none shrink-0 hover:bg-accent" onClick={() => setMin(current + 1)} disabled={current >= 15} aria-label="Increase minimum number of ETFs">
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          );
+                        }}
                       />
-                      <span className="text-muted-foreground text-sm shrink-0">–</span>
+                      <span className="text-muted-foreground text-sm shrink-0 px-1">–</span>
                       <Controller
                         control={form.control}
                         name="numETFs"
-                        render={({ field }) => (
-                          <Input type="number" inputMode="numeric" min={3} max={15} placeholder="Max" className="flex-1 min-w-0" {...field} onChange={(e) => {
-                            if (e.target.value === "") { field.onChange(""); setNumETFsMode("manual"); return; }
-                            const raw = Math.max(3, Math.min(15, Number(e.target.value)));
+                        render={({ field }) => {
+                          const current = Number.isFinite(Number(field.value)) ? Number(field.value) : 10;
+                          const setMax = (v: number) => {
+                            const raw = Math.max(3, Math.min(15, v));
                             const currentMin = Number(form.getValues("numETFsMin"));
                             const clamped = Number.isFinite(currentMin) ? Math.max(raw, currentMin) : raw;
                             field.onChange(clamped);
                             setNumETFsMode("manual");
-                          }} />
-                        )}
+                          };
+                          return (
+                            <div className="flex items-center flex-1 min-w-0 rounded-md border border-input bg-background overflow-hidden">
+                              <Button type="button" variant="ghost" size="icon" className="h-9 w-9 rounded-none shrink-0 hover:bg-accent" onClick={() => setMax(current - 1)} disabled={current <= 3} aria-label="Decrease maximum number of ETFs">
+                                <Minus className="h-4 w-4" />
+                              </Button>
+                              <Input type="number" inputMode="numeric" min={3} max={15} placeholder="Max" className="flex-1 min-w-0 border-0 text-center px-1 h-9 focus-visible:ring-0 focus-visible:ring-offset-0 rounded-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" {...field} onChange={(e) => {
+                                if (e.target.value === "") { field.onChange(""); setNumETFsMode("manual"); return; }
+                                setMax(Number(e.target.value));
+                              }} />
+                              <Button type="button" variant="ghost" size="icon" className="h-9 w-9 rounded-none shrink-0 hover:bg-accent" onClick={() => setMax(current + 1)} disabled={current >= 15} aria-label="Increase maximum number of ETFs">
+                                <Plus className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          );
+                        }}
                       />
                     </div>
                     <div className="flex items-center justify-start">
