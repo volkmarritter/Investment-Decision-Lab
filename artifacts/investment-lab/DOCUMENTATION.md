@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-04-24
+Last updated: 2026-04-24 (night, refresh-weekly)
 
 ---
 
@@ -167,7 +167,7 @@ The catalog is a single in-code object: `const CATALOG: Record<string, ETFRecord
 |-------|------|---------|
 | `name` | string | Full marketing name of the ETF / ETC / ETP. |
 | `isin` | string | ISIN — also the join key used by the data-refresh overrides file. |
-| `terBps` | number | Total Expense Ratio in basis points; refreshed nightly by the justETF script (see §5.2). |
+| `terBps` | number | Total Expense Ratio in basis points; refreshed weekly by the justETF script (see §5.2). |
 | `domicile` | string | Fund domicile (mostly Ireland — UCITS / Section 110 — plus Switzerland for the SPI tracker and Jersey for the Bitcoin ETP). |
 | `replication` | `"Physical" \| "Physical (sampled)" \| "Synthetic"` | Tracking method; affects the `comment` and the synthetic toggle. |
 | `distribution` | `"Accumulating" \| "Distributing"` | Income treatment; surfaced in the Implementation table. |
@@ -226,7 +226,7 @@ There are 22 entries. Grouped by purpose:
 | `Equity-Sustainability` | iShares Global Clean Energy | IE00B1XNHC34 | 65 bps | LSE | LSE `INRG` / XETRA `IQQH` / SIX `INRG` / Euronext `INRG` |
 | `Equity-Cybersecurity` | iShares Digital Security | IE00BG0J4C88 | 40 bps | LSE | LSE `LOCK` / XETRA `2B7K` / Euronext `LOCK` |
 
-TER values are subject to the nightly refresh job (§5.2); the table above shows the curated baseline.
+TER values (and a small set of additional fields — see §5.2) are subject to the weekly refresh job; the table above shows the curated baseline.
 
 #### 4.7.3 Step 1 — Bucket → catalog key (`lookupKey`)
 
@@ -274,7 +274,7 @@ If `lookupKey` returns `null` (asset-class + region combination not covered by t
 
 #### 4.7.6 TER override layer
 
-After `CATALOG` is declared, the module loads `src/data/etfs.overrides.json` (see §5.2 for the refresh pipeline) and shallow-merges any ISIN-keyed `{ terBps?, name?, domicile?, currency? }` patch onto the matching record. The merge is by ISIN, not by catalog key, so a single override entry updates every share class with the same ISIN. The committed default file is empty, so when no refresh has run the engine behaves identically to the in-code values.
+After `CATALOG` is declared, the module loads `src/data/etfs.overrides.json` (see §5.2 for the refresh pipeline) and shallow-merges any ISIN-keyed `{ terBps?, name?, domicile?, currency?, aumMillionsEUR?, inceptionDate?, distribution?, replication? }` patch onto the matching record. The merge is by ISIN, not by catalog key, so a single override entry updates every share class with the same ISIN. The committed default file is empty, so when no refresh has run the engine behaves identically to the in-code values.
 
 #### 4.7.7 Output: `ETFImplementation`
 
@@ -283,7 +283,7 @@ After `CATALOG` is declared, the module loads `src/data/etfs.overrides.json` (se
 #### 4.7.8 What is intentionally NOT in the selection logic
 
 - **No provider rotation / diversification across issuers.** The catalog stores exactly one "best-in-class" ETF per slot; if you want iShares ↔ Vanguard alternation, add it to the catalog.
-- **No live data calls at runtime.** All catalog data is in code; only TER values can change via the snapshot refresh JSON. The user's browser never makes a market-data API call.
+- **No live data calls at runtime.** All catalog data is in code; only the snapshot-refreshable fields listed in §5.2 (TER, fund size, inception date, distribution policy, replication method) can change via the JSON override. The user's browser never makes a market-data API call.
 - **No tax-residency-aware switching.** Domicile is Ireland by default for the UCITS-tax-leakage benefits; this is shown as data but not used as a selection input.
 - **No on-the-fly bid-ask / liquidity ranking.** Listing order in the fallback chain is fixed (LSE → XETRA → SIX) for determinism. Real liquidity considerations are baked into which listing is set as `defaultExchange` per ETF.
 
@@ -363,7 +363,7 @@ All messages and suggestions are localised (EN/DE). The `lang` parameter default
 
 ### 5.2 Data Refresh Pipeline (snapshot build)
 
-The app stays **frontend-only at runtime**. Reference data is refreshed via a nightly snapshot build that bakes the latest values into the bundle — the user's browser never makes a live API call.
+The app stays **frontend-only at runtime**. Reference data is refreshed via a **weekly** snapshot build that bakes the latest values into the bundle — the user's browser never makes a live API call.
 
 **Source.** [justETF](https://www.justetf.com) public ETF profile pages.
 
@@ -371,14 +371,22 @@ The app stays **frontend-only at runtime**. Reference data is refreshed via a ni
 
 | File | Role |
 |------|------|
-| `scripts/refresh-justetf.mjs` | Node script. Reads every ISIN from `src/lib/etfs.ts`, fetches its justETF profile, extracts the fields listed in `EXTRACTORS`, and writes them to the snapshot file. Polite (1.5 s delay between requests), descriptive `User-Agent`, sanity-bounded (rejects TER outside `(0%, 3%]`), exits non-zero if more than half the ISINs fail. Supports `DRY_RUN=1` and a positional ISIN allow-list. |
+| `scripts/refresh-justetf.mjs` | Node script. Reads every ISIN from `src/lib/etfs.ts`, fetches its justETF profile, extracts the fields listed in `EXTRACTORS` (currently `terBps`, `aumMillionsEUR`, `inceptionDate`, `distribution`, `replication` — each with EN + DE label fallback), and writes them to the snapshot file. Polite (1.5 s delay between requests), descriptive `User-Agent`, sanity-bounded (rejects TER outside `(0%, 3%]`, AUM outside `[1, 1_000_000]` EUR-millions, inception years outside `[1990, currentYear+1]`), exits non-zero if more than half the ISINs fail. Supports `DRY_RUN=1` and a positional ISIN allow-list. |
 | `src/data/etfs.overrides.json` | Snapshot file. ISIN-keyed partial `ETFRecord` patches with a `_meta.lastRefreshed` timestamp. Empty by default; populated by the script. |
 | `src/lib/etfs.ts` (override layer) | At module load, shallow-merges every override into the matching `CATALOG[isin]` entry. Empty file ⇒ no-op ⇒ engine and tests behave exactly as before. |
-| `.github/workflows/refresh-data.yml` | GitHub Action. Runs the script daily at 03:00 UTC (also `workflow_dispatch`), runs `typecheck` + `test` against the new snapshot, commits the diff if any. |
+| `.github/workflows/refresh-data.yml` | GitHub Action. Runs the script **weekly on Sundays at 03:00 UTC** (cron `0 3 * * 0`, also `workflow_dispatch`), runs `typecheck` + `test` against the new snapshot, commits the diff directly to the default branch if any. |
 
-**Refreshed fields.** Currently only `terBps` (Total Expense Ratio in basis points). Adding more is a one-liner in the `EXTRACTORS` map of the script — no other code change needed.
+**Refreshed fields.**
 
-**What stays curated by hand** (not touched by the snapshot): `replication`, `listings`, `defaultExchange`, `distribution`, `comment`, every look-through profile in `lookthrough.ts` (reference date Q4 2024), all CMAs in `metrics.ts`, all stress scenarios in `scenarios.ts`. These are stable, editorial decisions and changing them automatically would defeat the determinism guarantee.
+- `terBps` — Total Expense Ratio in basis points (sanity guard: `(0%, 3%]`).
+- `aumMillionsEUR` — Fund size in millions of EUR. USD-quoted entries are ignored to keep the unit consistent (sanity guard: `[1, 1_000_000]`).
+- `inceptionDate` — Inception date as ISO `YYYY-MM-DD` (sanity guard: year in `[1990, currentYear+1]`).
+- `distribution` — `"Accumulating"` or `"Distributing"` (mapped from EN/DE wording: Distributing/Accumulating/Capitalisation, Ausschüttend/Thesaurierend).
+- `replication` — `"Physical"`, `"Physical (sampled)"` or `"Synthetic"` (mapped from EN/DE wording: Physical / Physical (Sampling) / Synthetic, Physisch / Physisch (Sampling) / Synthetisch).
+
+Adding more is a two-step change: add an entry to the `EXTRACTORS` map of `scripts/refresh-justetf.mjs` (with EN + DE label fallbacks) **and** widen the `Pick<>` of `ETFOverride` in `src/lib/etfs.ts` so the type system permits the new field on disk.
+
+**What stays curated by hand** (not touched by the snapshot): `listings`, `defaultExchange`, `comment`, every look-through profile in `lookthrough.ts` (reference date Q4 2024), all CMAs in `metrics.ts`, all stress scenarios in `scenarios.ts`. These are stable, editorial decisions and changing them automatically would defeat the determinism guarantee. Note: `distribution` and `replication` were curated-only until 2026-04-24 — they are now also refreshed by the script (the on-disk override patches the in-code default; if no override is written for a field the curated value still wins).
 
 **Local usage.**
 
@@ -577,6 +585,9 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-04-24 (night, refresh-weekly)
+- **justETF snapshot refresh moved from daily to weekly, and four more fields are now refreshed.** `.github/workflows/refresh-data.yml` now runs on cron `0 3 * * 0` (Sundays 03:00 UTC) instead of `0 3 * * *` — weekly cadence, with `workflow_dispatch` still available for ad-hoc runs from the Actions tab. The commit message in the workflow changed from `nightly` to `weekly`. The `EXTRACTORS` map in `scripts/refresh-justetf.mjs` was extended from a single field to five: `terBps` (existing), `aumMillionsEUR`, `inceptionDate`, `distribution`, `replication`. Each extractor accepts both English and German label variants of the justETF profile page (Total expense ratio / Gesamtkostenquote, Fund size / Fondsgröße, Inception / Auflagedatum, Distribution policy / Ertragsverwendung, Replication / Replikationsmethode), and each one is sanity-bounded (TER `(0%, 3%]`, AUM `[1, 1_000_000]` EUR-millions with USD entries deliberately rejected to keep the unit consistent, inception year `[1990, currentYear+1]`, distribution and replication mapped onto our two- / three-value enums). A small shared `parseDateLoose` helper handles the `12 May 2010` / `12. Mai 2010` / `12.05.2010` / ISO date forms justETF prints. `ETFRecord` and `ETFDetails` in `src/lib/etfs.ts` gained two new optional fields (`aumMillionsEUR?: number`, `inceptionDate?: string`); `getETFDetails` now threads them through to the UI; the `ETFOverride` `Pick<>` was widened to admit all five refreshable fields plus the existing `terBps`/`name`/`domicile`/`currency`. The Methodology "Data Refresh & Freshness" section text now reads "weekly, Sundays at 03:00 UTC" / "wöchentlich, sonntags 03:00 UTC" in both languages, the "Refreshed fields" line lists all five fields, and the "Curated by hand" list was shrunk accordingly (distribution and replication moved from curated-only to refreshed-with-curated-fallback). `scripts/README.md`, the JSON snapshot's `_meta.note`, and DOCUMENTATION §4.7.1 / §4.7.6 / §5.2 were updated in lockstep. No engine math changed; existing snapshot still only carries `terBps` overrides so behaviour is identical until the next Sunday refresh; suite at 101 / 101 passing, typecheck clean.
 
 ### 2026-04-24 (night, corr-share)
 - **The "held" markers on the correlation matrix are now also shown on the Methodology tab**, so they no longer disappear when the user navigates away from the Build tab. Implementation: a new in-memory pub/sub slot in `src/lib/settings.ts` (`setLastAllocation` / `getLastAllocation` / `subscribeLastAllocation`, event `idl-last-allocation-changed`) is published from `BuildPortfolio` whenever its `output` state transitions (built, language re-build, validation failure → null, reset → null), and consumed by the Methodology tab's correlation-matrix Section. The publish is centralised in a single `useEffect([output])` so there is exactly one source of truth and no duplicate events; the lang-rebuild effect simply calls `setOutput(next)` and lets the [output] effect re-publish. The reset button explicitly clears `output`/`validation`/`hasGenerated` so the Methodology held markers are removed immediately when the user resets the Build form. When a portfolio is currently built, the Methodology matrix uses the user's actual `output.allocation` and applies the same bold-row + dot-marker + dimmed-row treatment as `PortfolioMetrics`; when no portfolio has been built yet, it falls back to the BENCHMARK (equity-only ACWI proxy) and renders without held markers, with a small hint line under the table telling the reader to build a portfolio in the Build tab to see holdings highlighted. Storage is intentionally **in-memory only** (not localStorage) so the Methodology reference matrix doesn't show stale "held" markers from a previous browser session. `setLastAllocation` deep-copies item objects on write and `getLastAllocation` deep-copies on read, so external consumers cannot mutate the internal in-memory store by reference. EN+DE legend strings are inline. No engine math changed; suite is 101 / 101 passing (1 new regression test: round-trip publish/get/subscribe, clone-on-set, null/[] both clear, unsubscribe stops further callbacks).

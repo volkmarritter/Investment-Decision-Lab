@@ -12,6 +12,10 @@ export interface ETFDetails {
   distribution: "Accumulating" | "Distributing";
   currency: string;
   comment: string;
+  // Optional fields populated by the weekly justETF snapshot refresh
+  // (scripts/refresh-justetf.mjs). Undefined when no refresh has run yet.
+  aumMillionsEUR?: number;
+  inceptionDate?: string; // ISO YYYY-MM-DD
 }
 
 type ExchangeCode = "LSE" | "XETRA" | "SIX" | "Euronext";
@@ -28,6 +32,10 @@ interface ETFRecord {
   comment: string;
   listings: ListingMap;
   defaultExchange: ExchangeCode;
+  // Optional, snapshot-refreshable fields. Curated catalog leaves them
+  // undefined; the override layer fills them once the script has run.
+  aumMillionsEUR?: number;
+  inceptionDate?: string; // ISO YYYY-MM-DD
 }
 
 const E = (r: ETFRecord) => r;
@@ -314,10 +322,24 @@ const CATALOG: Record<string, ETFRecord> = {
 // script writes ISIN-keyed partial records into src/data/etfs.overrides.json;
 // at module load we shallow-merge them on top of the matching CATALOG entry so
 // the engine, tests and UI continue to work unchanged when the file is empty.
-// Currently only `terBps` is refreshed automatically; other fields can be added
-// to the script and they will be picked up here without further changes.
+// The script currently refreshes: terBps, aumMillionsEUR, inceptionDate,
+// distribution, replication. Additional fields can be added by extending
+// EXTRACTORS in the script and widening the Pick<> below — the merge itself
+// is generic.
 // ----------------------------------------------------------------------------
-type ETFOverride = Partial<Pick<ETFRecord, "terBps" | "name" | "domicile" | "currency">>;
+type ETFOverride = Partial<
+  Pick<
+    ETFRecord,
+    | "terBps"
+    | "name"
+    | "domicile"
+    | "currency"
+    | "aumMillionsEUR"
+    | "inceptionDate"
+    | "distribution"
+    | "replication"
+  >
+>;
 const RAW_OVERRIDES = (overridesFile as { overrides?: Record<string, ETFOverride> }).overrides ?? {};
 for (const rec of Object.values(CATALOG)) {
   const patch = RAW_OVERRIDES[rec.isin];
@@ -439,6 +461,8 @@ export function getETFDetails(
     distribution: rec.distribution,
     currency: rec.currency,
     comment: rec.comment,
+    aumMillionsEUR: rec.aumMillionsEUR,
+    inceptionDate: rec.inceptionDate,
   };
 }
 

@@ -288,20 +288,25 @@ export function Methodology() {
           </p>
           <p className="text-sm text-muted-foreground leading-relaxed">
             {de
-              ? "Die App ist bewusst frontend-only und ruft zur Laufzeit keine fremden Server. Die Stammdaten der ETFs (TER, Name, Domizil, Währung) werden stattdessen über einen nächtlichen Snapshot-Build aktualisiert: ein Skript holt die Werte einmal pro Tag von justETF, schreibt sie als JSON ins Repository und der nächste Build backt den frischen Stand ins Bundle. Im Browser des Nutzers wird also weiterhin keine Live-Verbindung benötigt — er bekommt aber stets die zuletzt nachts geprüften Werte."
-              : "The app is intentionally frontend-only and makes no remote calls at runtime. ETF reference data (TER, name, domicile, currency) is refreshed via a nightly snapshot build instead: a script pulls the values once per day from justETF, writes them as JSON into the repository, and the next build bakes the fresh snapshot into the bundle. The user's browser still never makes a live call — but it always sees the most recently nightly-verified values."}
+              ? "Die App ist bewusst frontend-only und ruft zur Laufzeit keine fremden Server. Die Stammdaten der ETFs (TER, Fondsgröße, Auflagedatum, Ertragsverwendung, Replikationsmethode) werden stattdessen über einen wöchentlichen Snapshot-Build aktualisiert: ein Skript holt die Werte einmal pro Woche (sonntags 03:00 UTC) von justETF, schreibt sie als JSON ins Repository und der nächste Build backt den frischen Stand ins Bundle. Im Browser des Nutzers wird also weiterhin keine Live-Verbindung benötigt — er bekommt aber stets die zuletzt sonntags geprüften Werte."
+              : "The app is intentionally frontend-only and makes no remote calls at runtime. ETF reference data (TER, fund size, inception date, distribution policy, replication method) is refreshed via a weekly snapshot build instead: a script pulls the values once a week (Sundays at 03:00 UTC) from justETF, writes them as JSON into the repository, and the next build bakes the fresh snapshot into the bundle. The user's browser still never makes a live call — but it always sees the most recently Sunday-verified values."}
           </p>
           <div className="rounded-md border bg-muted/30 p-3 text-xs leading-relaxed space-y-1">
             <div><span className="font-semibold">{de ? "Quelle" : "Source"}:</span> justetf.com (public ETF profile pages)</div>
             <div><span className="font-semibold">{de ? "Skript" : "Script"}:</span> <code className="font-mono">artifacts/investment-lab/scripts/refresh-justetf.mjs</code></div>
             <div><span className="font-semibold">{de ? "Snapshot-Datei" : "Snapshot file"}:</span> <code className="font-mono">src/data/etfs.overrides.json</code></div>
-            <div><span className="font-semibold">{de ? "Zeitplan" : "Schedule"}:</span> {de ? "täglich 03:00 UTC via GitHub Action " : "daily at 03:00 UTC via GitHub Action "}<code className="font-mono">.github/workflows/refresh-data.yml</code></div>
-            <div><span className="font-semibold">{de ? "Aktualisierte Felder" : "Refreshed fields"}:</span> {de ? "TER (Gesamtkostenquote in Basispunkten)" : "TER (Total Expense Ratio, in basis points)"}</div>
+            <div><span className="font-semibold">{de ? "Zeitplan" : "Schedule"}:</span> {de ? "wöchentlich, sonntags 03:00 UTC, via GitHub Action " : "weekly, Sundays at 03:00 UTC, via GitHub Action "}<code className="font-mono">.github/workflows/refresh-data.yml</code></div>
+            <div>
+              <span className="font-semibold">{de ? "Aktualisierte Felder" : "Refreshed fields"}:</span>{" "}
+              {de
+                ? "TER (Gesamtkostenquote in Basispunkten), Fondsgröße (Mio. EUR), Auflagedatum (ISO), Ertragsverwendung (thesaurierend / ausschüttend), Replikationsmethode (physisch / physisch (Sampling) / synthetisch)"
+                : "TER (Total Expense Ratio in basis points), fund size (EUR millions), inception date (ISO), distribution policy (accumulating / distributing), replication method (physical / physical (sampled) / synthetic)"}
+            </div>
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
             {de
-              ? "Hand-kuratiert (vom Snapshot nicht überschrieben) bleiben: Replikationsmethode (physisch / sampled / synthetisch), Notierungen je Börse (LSE / XETRA / SIX), Default-Börse, Ausschüttungsart, redaktioneller Kommentar sowie alle Look-Through-Profile (Geo-/Sektor-/Währungs-/Top-Holdings-Aufteilung pro ISIN, Stichtag Q4 2024). Diese Werte ändern sich selten und werden bei jeder ETF-Aufnahme bewusst gesetzt."
-              : "Curated by hand (not overwritten by the snapshot): replication method (physical / sampled / synthetic), per-exchange listings (LSE / XETRA / SIX), default exchange, distribution type, editorial comment, and all look-through profiles (geo / sector / currency / top-holdings breakdown per ISIN, reference date Q4 2024). These values change rarely and are set deliberately when an ETF is added."}
+              ? "Hand-kuratiert (vom Snapshot nicht überschrieben) bleiben: Notierungen je Börse (LSE / XETRA / SIX / Euronext), Default-Börse, redaktioneller Kommentar sowie alle Look-Through-Profile (Geo-/Sektor-/Währungs-/Top-Holdings-Aufteilung pro ISIN, Stichtag Q4 2024). Diese Werte ändern sich selten und werden bei jeder ETF-Aufnahme bewusst gesetzt."
+              : "Curated by hand (not overwritten by the snapshot): per-exchange listings (LSE / XETRA / SIX / Euronext), default exchange, editorial comment, and all look-through profiles (geo / sector / currency / top-holdings breakdown per ISIN, reference date Q4 2024). These values change rarely and are set deliberately when an ETF is added."}
           </p>
           <p className="text-xs text-muted-foreground leading-relaxed">
             {de

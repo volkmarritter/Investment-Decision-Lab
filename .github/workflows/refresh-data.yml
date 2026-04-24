@@ -1,13 +1,18 @@
 name: Refresh ETF data (justETF snapshot)
 
 # Snapshot-build data pipeline (Variante 1).
-# Runs the refresh script every night, commits any diff in the override JSON
+# Runs the refresh script once per week, commits any diff in the override JSON
 # and lets the normal deploy job ship the new bundle. The app stays
 # frontend-only at runtime — no live API call from the browser.
+#
+# Weekly cadence (instead of daily) keeps the load on justETF very light while
+# still capturing TER / AUM / distribution / replication / inception drift in
+# a timely manner. Trigger an out-of-band refresh manually via workflow_dispatch
+# whenever you need the snapshot updated immediately.
 
 on:
   schedule:
-    - cron: "0 3 * * *" # 03:00 UTC every day
+    - cron: "0 3 * * 0" # 03:00 UTC every Sunday
   workflow_dispatch: # allow manual triggering from the Actions tab
 
 permissions:
@@ -46,7 +51,7 @@ jobs:
             git config user.name  "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add artifacts/investment-lab/src/data/etfs.overrides.json
-            git commit -m "chore(data): nightly justETF snapshot $(date -u +%Y-%m-%d)"
+            git commit -m "chore(data): weekly justETF snapshot $(date -u +%Y-%m-%d)"
             git push
           else
             echo "No data changes."

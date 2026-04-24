@@ -24,16 +24,20 @@ After a successful run, commit the modified `src/data/etfs.overrides.json` and r
 Only fields listed in the `EXTRACTORS` map of the script are touched. Today that is:
 
 - `terBps` — Total Expense Ratio in basis points (e.g. `7` for 0.07 %)
+- `aumMillionsEUR` — Fund size in millions of EUR (USD-quoted funds are rejected by the extractor)
+- `inceptionDate` — Inception date as ISO `YYYY-MM-DD`
+- `distribution` — `"Accumulating"` or `"Distributing"`
+- `replication` — `"Physical"`, `"Physical (sampled)"` or `"Synthetic"`
 
-Everything else (`name`, `replication`, `listings`, `defaultExchange`, `comment`, ...) stays curated in `src/lib/etfs.ts`. Add new extractors to the script if you want more fields covered.
+Everything else (`name`, `listings`, `defaultExchange`, `comment`, the look-through profiles in `lookthrough.ts`, the CMAs in `metrics.ts`, the stress scenarios in `scenarios.ts`, ...) stays curated in code. Add new extractors to the script — and widen the `ETFOverride` `Pick<>` in `src/lib/etfs.ts` — if you want more fields covered.
 
 ### Politeness & robustness
 
 - A **1.5 s delay** is enforced between page requests.
 - A descriptive `User-Agent` is sent. **Edit it** to point at your own contact address before running this in CI.
-- justETF's HTML is unofficially scraped — if the structure changes and a regex stops matching, the script logs a warning, keeps the previous value for that ISIN, and exits non-zero so a CI job will fail visibly instead of silently writing garbage.
-- Sanity guard: any extracted TER outside `(0 %, 3 %]` is rejected.
+- justETF's HTML is unofficially scraped — if a regex stops matching for a single field on a single ISIN, the script logs a warning and keeps the previous value for that field on disk (no clobber). The ISIN is only counted as a *failure* when **no** field could be extracted at all. The script exits non-zero only when failures outnumber successes (`failCount > okCount`), so a small number of stale rows still passes CI but a wholesale parser break (e.g. justETF rewrites their page) reliably fails the workflow.
+- Sanity guards: TER must lie in `(0 %, 3 %]`, AUM in `[1, 1_000_000]` EUR-millions (USD-denominated values are rejected), inception year in `[1990, currentYear+1]`, and `distribution` / `replication` are coerced onto our two- / three-value enums respectively.
 
-### Nightly automation
+### Weekly automation
 
-`.github/workflows/refresh-data.yml` runs this script every night, commits the diff (if any) and deploys. See that file for the schedule and required permissions.
+`.github/workflows/refresh-data.yml` runs this script every **Sunday at 03:00 UTC** (and on manual `workflow_dispatch`), runs `typecheck` + `test` against the new snapshot, and commits the diff if any. The weekly cadence keeps the load on justETF very light while still catching TER / AUM / distribution / replication drift in a timely manner — trigger an out-of-band run from the Actions tab whenever you need an immediate refresh. See that file for the schedule and required permissions.
