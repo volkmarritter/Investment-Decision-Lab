@@ -111,3 +111,39 @@ jobs:
             echo "Opening new tracking issue"
             gh issue create --title "$TITLE" --body-file "$REPORT"
           fi
+
+      # Recovery notification: when the smoke job is green AND there is an
+      # open tracking issue from a previous red streak, close it with a
+      # comment naming the run that recovered. This makes the alert loop
+      # self-healing — the on-call engineer doesn't have to remember to
+      # close the issue manually after shipping a fix, and the next red run
+      # therefore opens a *new* issue (a clean per-incident audit trail)
+      # instead of appending to a stale one.
+      #
+      # Silent-success contract: a green run with no open tracking issue
+      # makes no API writes (the `gh issue list` lookup is read-only and the
+      # close branch is gated on a non-empty result). No spurious closes,
+      # no spurious comments.
+      - name: Close tracking issue on recovery
+        if: success() && steps.smoke.conclusion == 'success'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          TITLE="[justetf-smoke] Layout regression detected"
+
+          EXISTING=$(gh issue list \
+            --state open \
+            --search "\"$TITLE\" in:title" \
+            --json number \
+            --jq '.[0].number // empty')
+
+          if [ -z "$EXISTING" ]; then
+            echo "No open tracking issue — nothing to close."
+            exit 0
+          fi
+
+          echo "Closing recovered tracking issue #$EXISTING"
+          gh issue close "$EXISTING" \
+            --comment "Smoke check is green again — closing automatically. Recovered by workflow run: $RUN_URL"
