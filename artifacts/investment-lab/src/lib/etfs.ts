@@ -14,7 +14,7 @@ export interface ETFDetails {
   comment: string;
 }
 
-type ExchangeCode = "LSE" | "XETRA" | "SIX" | "Euronext";
+type ExchangeCode = "LSE" | "XETRA" | "SIX";
 type ListingMap = Partial<Record<ExchangeCode, { ticker: string }>>;
 
 interface ETFRecord {
@@ -44,7 +44,7 @@ const CATALOG: Record<string, ETFRecord> = {
     currency: "USD",
     comment:
       "Single-fund global equity (developed + emerging) tracking MSCI ACWI IMI; used when the ETF budget is too small for region-by-region splits.",
-    listings: { LSE: { ticker: "SPYI" }, XETRA: { ticker: "SPYI" }, SIX: { ticker: "SPYI" }, Euronext: { ticker: "SPYI" } },
+    listings: { LSE: { ticker: "SPYI" }, XETRA: { ticker: "SPYI" }, SIX: { ticker: "SPYI" } },
     defaultExchange: "LSE",
   }),
   "Equity-USA": E({
@@ -57,7 +57,7 @@ const CATALOG: Record<string, ETFRecord> = {
     currency: "USD",
     comment:
       "Largest, most liquid S&P 500 UCITS with very tight tracking and minimal bid-ask spreads.",
-    listings: { LSE: { ticker: "CSPX" }, XETRA: { ticker: "SXR8" }, SIX: { ticker: "CSSPX" }, Euronext: { ticker: "CSPX" } },
+    listings: { LSE: { ticker: "CSPX" }, XETRA: { ticker: "SXR8" }, SIX: { ticker: "CSSPX" } },
     defaultExchange: "LSE",
   }),
   "Equity-USA-Synthetic": E({
@@ -70,7 +70,7 @@ const CATALOG: Record<string, ETFRecord> = {
     currency: "USD",
     comment:
       "Swap-based replication eliminates the 15% US dividend withholding-tax leakage that physical Irish-domiciled ETFs incur, structurally adding ~20–30 bps/yr; introduces counterparty risk to the swap counterparties.",
-    listings: { LSE: { ticker: "SPXS" }, XETRA: { ticker: "SC0J" }, SIX: { ticker: "SPXS" }, Euronext: { ticker: "SPXS" } },
+    listings: { LSE: { ticker: "SPXS" }, XETRA: { ticker: "SC0J" }, SIX: { ticker: "SPXS" } },
     defaultExchange: "LSE",
   }),
   "Equity-Europe": E({
@@ -83,7 +83,7 @@ const CATALOG: Record<string, ETFRecord> = {
     currency: "EUR",
     comment:
       "Broad pan-European core exposure across UK, eurozone and Switzerland, with very low TER.",
-    listings: { LSE: { ticker: "IMEU" }, XETRA: { ticker: "SXR7" }, SIX: { ticker: "CEU" }, Euronext: { ticker: "IMAE" } },
+    listings: { LSE: { ticker: "IMEU" }, XETRA: { ticker: "SXR7" }, SIX: { ticker: "CEU" } },
     defaultExchange: "XETRA",
   }),
   "Equity-Switzerland": E({
@@ -109,7 +109,7 @@ const CATALOG: Record<string, ETFRecord> = {
     currency: "JPY",
     comment:
       "Wide-coverage Japan exposure including small caps; useful for a diversified developed-markets sleeve.",
-    listings: { LSE: { ticker: "SJPA" }, XETRA: { ticker: "SXR4" }, SIX: { ticker: "CSJP" }, Euronext: { ticker: "IJPA" } },
+    listings: { LSE: { ticker: "SJPA" }, XETRA: { ticker: "SXR4" }, SIX: { ticker: "CSJP" } },
     defaultExchange: "LSE",
   }),
   "Equity-EM": E({
@@ -122,7 +122,7 @@ const CATALOG: Record<string, ETFRecord> = {
     currency: "USD",
     comment:
       "Broadest emerging-markets ETF including small caps; sampled replication keeps tracking error low.",
-    listings: { LSE: { ticker: "EIMI" }, XETRA: { ticker: "IS3N" }, SIX: { ticker: "EIMI" }, Euronext: { ticker: "EMIM" } },
+    listings: { LSE: { ticker: "EIMI" }, XETRA: { ticker: "IS3N" }, SIX: { ticker: "EIMI" } },
     defaultExchange: "LSE",
   }),
   // ---------- Equity (hedged variants) ----------
@@ -136,7 +136,7 @@ const CATALOG: Record<string, ETFRecord> = {
     currency: "EUR",
     comment:
       "EUR-hedged share class strips out USD/EUR FX volatility; small drag from rolling forwards.",
-    listings: { LSE: { ticker: "IUSE" }, XETRA: { ticker: "IUSE" }, Euronext: { ticker: "IUSE" } },
+    listings: { LSE: { ticker: "IUSE" }, XETRA: { ticker: "IUSE" } },
     defaultExchange: "XETRA",
   }),
   "Equity-USA-CHF": E({
@@ -174,7 +174,7 @@ const CATALOG: Record<string, ETFRecord> = {
     currency: "USD",
     comment:
       "Diversified global investment-grade bond exposure; available in EUR, CHF and GBP hedged share classes.",
-    listings: { LSE: { ticker: "AGGG" }, XETRA: { ticker: "EUNA" }, SIX: { ticker: "AGGH" }, Euronext: { ticker: "AGGG" } },
+    listings: { LSE: { ticker: "AGGG" }, XETRA: { ticker: "EUNA" }, SIX: { ticker: "AGGH" } },
     defaultExchange: "LSE",
   }),
   "FixedIncome-Global-EUR": E({
@@ -186,7 +186,7 @@ const CATALOG: Record<string, ETFRecord> = {
     distribution: "Accumulating",
     currency: "EUR",
     comment: "EUR-hedged global aggregate; preferred for euro-based defensive sleeve.",
-    listings: { XETRA: { ticker: "AGGH" }, LSE: { ticker: "AGGH" }, Euronext: { ticker: "AGGH" } },
+    listings: { XETRA: { ticker: "AGGH" }, LSE: { ticker: "AGGH" } },
     defaultExchange: "XETRA",
   }),
   "FixedIncome-Global-CHF": E({
@@ -224,7 +224,7 @@ const CATALOG: Record<string, ETFRecord> = {
     currency: "USD",
     comment:
       "Physically-backed gold ETC vaulted in London; very low TER and tight spreads vs spot.",
-    listings: { LSE: { ticker: "SGLD" }, XETRA: { ticker: "8PSG" }, SIX: { ticker: "SGLD" }, Euronext: { ticker: "SGLD" } },
+    listings: { LSE: { ticker: "SGLD" }, XETRA: { ticker: "8PSG" }, SIX: { ticker: "SGLD" } },
     defaultExchange: "LSE",
   }),
   // ---------- Real Estate ----------
@@ -238,7 +238,7 @@ const CATALOG: Record<string, ETFRecord> = {
     currency: "USD",
     comment:
       "Global developed-market REITs with above-average dividend yield; meaningful US weight (~60%).",
-    listings: { LSE: { ticker: "IWDP" }, XETRA: { ticker: "IQQ6" }, SIX: { ticker: "IWDP" }, Euronext: { ticker: "IWDP" } },
+    listings: { LSE: { ticker: "IWDP" }, XETRA: { ticker: "IQQ6" }, SIX: { ticker: "IWDP" } },
     defaultExchange: "LSE",
   }),
   // ---------- Digital Assets ----------
@@ -252,7 +252,7 @@ const CATALOG: Record<string, ETFRecord> = {
     currency: "USD",
     comment:
       "Physically-backed bitcoin ETP with cold-storage custody; concentrated single-asset exposure.",
-    listings: { LSE: { ticker: "BITC" }, XETRA: { ticker: "BITC" }, SIX: { ticker: "BITC" }, Euronext: { ticker: "BITC" } },
+    listings: { LSE: { ticker: "BITC" }, XETRA: { ticker: "BITC" }, SIX: { ticker: "BITC" } },
     defaultExchange: "SIX",
   }),
   // ---------- Thematic ----------
@@ -266,7 +266,7 @@ const CATALOG: Record<string, ETFRecord> = {
     currency: "USD",
     comment:
       "Concentrated US tech-sector tilt; high stock-level concentration in mega-cap names.",
-    listings: { LSE: { ticker: "IUIT" }, XETRA: { ticker: "QDVE" }, SIX: { ticker: "IUIT" }, Euronext: { ticker: "IUIT" } },
+    listings: { LSE: { ticker: "IUIT" }, XETRA: { ticker: "QDVE" }, SIX: { ticker: "IUIT" } },
     defaultExchange: "LSE",
   }),
   "Equity-Healthcare": E({
@@ -278,7 +278,7 @@ const CATALOG: Record<string, ETFRecord> = {
     distribution: "Accumulating",
     currency: "USD",
     comment: "Global healthcare-innovation theme spanning biotech, devices and digital health.",
-    listings: { LSE: { ticker: "HEAL" }, XETRA: { ticker: "2B77" }, Euronext: { ticker: "HEAL" } },
+    listings: { LSE: { ticker: "HEAL" }, XETRA: { ticker: "2B77" } },
     defaultExchange: "LSE",
   }),
   "Equity-Sustainability": E({
@@ -291,7 +291,7 @@ const CATALOG: Record<string, ETFRecord> = {
     currency: "USD",
     comment:
       "Concentrated global clean-energy basket; historically high volatility and sector concentration.",
-    listings: { LSE: { ticker: "INRG" }, XETRA: { ticker: "IQQH" }, SIX: { ticker: "INRG" }, Euronext: { ticker: "INRG" } },
+    listings: { LSE: { ticker: "INRG" }, XETRA: { ticker: "IQQH" }, SIX: { ticker: "INRG" } },
     defaultExchange: "LSE",
   }),
   "Equity-Cybersecurity": E({
@@ -303,7 +303,7 @@ const CATALOG: Record<string, ETFRecord> = {
     distribution: "Accumulating",
     currency: "USD",
     comment: "Global cybersecurity and digital-security theme; smaller AUM, wider spreads possible.",
-    listings: { LSE: { ticker: "LOCK" }, XETRA: { ticker: "2B7K" }, Euronext: { ticker: "LOCK" } },
+    listings: { LSE: { ticker: "LOCK" }, XETRA: { ticker: "2B7K" } },
     defaultExchange: "LSE",
   }),
 };

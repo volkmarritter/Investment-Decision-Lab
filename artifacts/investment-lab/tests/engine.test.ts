@@ -1224,25 +1224,4 @@ describe("CMA layered overrides", () => {
     }
   });
 
-  it("Euronext is a valid preferred exchange; preferring Euronext picks Euronext tickers for major ETFs and falls back gracefully for SIX-only sleeves", () => {
-    const inEuronext = baseInput({ baseCurrency: "EUR", numETFs: 12, preferredExchange: "Euronext" });
-    // PreferredExchange "Euronext" is accepted by buildPortfolio (no throw).
-    const out = buildPortfolio(inEuronext);
-    expect(out.allocation.length).toBeGreaterThan(0);
-    // Spot-check that picking Euronext yields the Euronext tickers we wired up.
-    const cspx = getETFDetails("Equity", "USA", inEuronext);
-    const eimi = getETFDetails("Equity", "EM", inEuronext);
-    const sgld = getETFDetails("Commodities", "Gold", inEuronext);
-    expect(cspx.ticker).toBe("CSPX");
-    expect(cspx.exchange).toBe("Euronext");
-    expect(eimi.ticker).toBe("EMIM");
-    expect(eimi.exchange).toBe("Euronext");
-    expect(sgld.ticker).toBe("SGLD");
-    expect(sgld.exchange).toBe("Euronext");
-    // SIX-only Equity-Switzerland has no Euronext listing → engine must fall back to SIX (CHSPI).
-    const inCHF = baseInput({ baseCurrency: "CHF", numETFs: 12, preferredExchange: "Euronext" });
-    const ch = getETFDetails("Equity", "Switzerland", inCHF);
-    expect(ch.ticker).toBe("CHSPI");
-    expect(ch.exchange).not.toBe("Euronext");
-  });
 });

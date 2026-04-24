@@ -393,7 +393,6 @@ export function BuildPortfolio() {
                             <SelectItem value="LSE">LSE (London)</SelectItem>
                             <SelectItem value="XETRA">XETRA (Frankfurt)</SelectItem>
                             <SelectItem value="SIX">SIX (Zürich)</SelectItem>
-                            <SelectItem value="Euronext">{t("build.preferredExchange.option.euronext")}</SelectItem>
                           </SelectContent>
                         </Select>
                       </FormItem>
