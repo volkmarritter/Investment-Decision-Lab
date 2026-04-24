@@ -12,12 +12,14 @@ const EXCHANGE_LINE: Record<PromptLang, Record<PreferredExchange, string>> = {
     SIX: "Prefer ETFs tradable on SIX Swiss Exchange. If this is not possible, name the next-best alternative and explain the exception.",
     XETRA: "Prefer ETFs tradable on Xetra (Deutsche Boerse). If this is not possible, name the next-best alternative and explain the exception.",
     LSE: "Prefer ETFs tradable on London Stock Exchange (LSE). If this is not possible, name the next-best alternative and explain the exception.",
+    Euronext: "Prefer ETFs tradable on Euronext Amsterdam. If this is not possible, name the next-best alternative and explain the exception.",
     None: "No specific exchange preference; pick the most liquid UCITS-compliant venue and justify the choice briefly.",
   },
   de: {
     SIX: "Bevorzuge ETFs, die an der SIX Swiss Exchange handelbar sind. Falls dies nicht moeglich ist, nenne die naechstbeste Alternative und begruende die Ausnahme.",
     XETRA: "Bevorzuge ETFs, die an der Xetra (Deutsche Boerse) handelbar sind. Falls dies nicht moeglich ist, nenne die naechstbeste Alternative und begruende die Ausnahme.",
     LSE: "Bevorzuge ETFs, die an der London Stock Exchange (LSE) handelbar sind. Falls dies nicht moeglich ist, nenne die naechstbeste Alternative und begruende die Ausnahme.",
+    Euronext: "Bevorzuge ETFs, die an der Euronext Amsterdam handelbar sind. Falls dies nicht moeglich ist, nenne die naechstbeste Alternative und begruende die Ausnahme.",
     None: "Keine spezifische Boersenpraeferenz; waehle den liquidesten UCITS-konformen Handelsplatz und begruende die Wahl kurz.",
   },
 };

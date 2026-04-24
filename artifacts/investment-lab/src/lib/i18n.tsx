@@ -390,7 +390,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "build.numEtfs.label": "Anzahl der ETFs",
     "build.numEtfs.tooltip": "Min–Max-Bereich der zu verwendenden ETFs (jeweils 3–15).\n\nMax. wirkt als harte Obergrenze. Erzeugt Ihre Auswahl mehr Buckets als Max., werden zuerst die kleinsten Satelliten entfernt (REITs, Krypto, Thematik, Gold).\n\nReicht die Obergrenze immer noch nicht, um jeder Aktienregion einen eigenen Platz zu geben, wird das Aktien-Sleeve auf zwei Positionen reduziert: Equity-Global (MSCI ACWI IMI) plus eine Equity-Home-Tilt im Basiswährungs-Markt (USA für USD, Schweiz für CHF, Europa für EUR/GBP). Gesamte Aktienquote und Home-Bias bleiben erhalten.",
     "build.preferredExchange.label": "Bevorzugte Börse",
-    "build.preferredExchange.tooltip": "ETFs nach Möglichkeit nach Börsenzulassungen filtern. „Keine (europäische Listings)" lässt die Engine je ETF die liquideste europäische Notierung wählen (LSE, XETRA, SIX oder Euronext Amsterdam).",
+    "build.preferredExchange.tooltip": "ETFs nach Möglichkeit nach Börsenzulassungen filtern. \"Keine (europäische Listings)\" lässt die Engine je ETF die liquideste europäische Notierung wählen (LSE, XETRA, SIX oder Euronext Amsterdam).",
     "build.preferredExchange.option.none": "Keine (europäische Listings)",
     "build.preferredExchange.option.euronext": "Euronext (Amsterdam)",
     "build.thematicTilt.label": "Thematische Ausrichtung (Optional)",

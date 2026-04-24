@@ -354,6 +354,73 @@ export function Methodology() {
               ? "Defensiv-Sleeve (Cash & Anleihen), Satelliten-Sleeves (REIT 6 %, Krypto 1–3 %, Thematik 3–5 %, Gold ≤ 5 %) und Risikoobergrenzen sind weiterhin regelbasiert wie im übrigen Methodik-Dokument beschrieben."
               : "The defensive sleeve (cash & bonds), satellite sleeves (REIT 6%, Crypto 1–3%, Thematic 3–5%, Gold ≤ 5%) and risk caps remain rule-based as documented in the rest of this methodology."}
           </p>
+
+          {/* ---------- Live home-bias multiplier editor ---------- */}
+          <div className="rounded-md border bg-muted/30 p-3 space-y-3" data-testid="home-bias-editor">
+            <div className="flex flex-wrap items-center gap-2">
+              <Layers className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-semibold">
+                {de ? "Home-Bias-Multiplikatoren (live editierbar)" : "Home-bias multipliers (live editable)"}
+              </span>
+              <Badge variant="outline" className="text-[10px]">
+                {de ? "Bereich 0,0 – 5,0" : "range 0.0 – 5.0"}
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {de
+                ? "Pro Basiswährung den Verstärkungsfaktor auf die heimische Aktien-Region setzen. Werte werden lokal in Ihrem Browser gespeichert; Änderungen wirken beim nächsten Klick auf „Portfolio generieren“."
+                : "Set the amplification factor on the home equity region per base currency. Values are stored locally in your browser; changes take effect the next time you click \"Generate Portfolio\"."}
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {HB_CURRENCIES.map((c) => {
+                const isOverride = hbOverrides[c] !== undefined;
+                const region = de ? HB_REGION_LABEL_DE[c] : HB_REGION_LABEL[c];
+                const def = HOME_BIAS_DEFAULTS[c];
+                return (
+                  <div key={`hb-edit-${c}`} className="space-y-1">
+                    <Label htmlFor={`hb-${c}`} className="text-xs flex items-center gap-1.5">
+                      <span className="font-mono">{c}</span>
+                      <span className="text-muted-foreground">→ {region}</span>
+                      {isOverride && (
+                        <Badge variant="default" className="text-[10px] px-1.5 py-0">
+                          {de ? "Eigene" : "Custom"}
+                        </Badge>
+                      )}
+                    </Label>
+                    <Input
+                      id={`hb-${c}`}
+                      type="number"
+                      inputMode="decimal"
+                      min={0}
+                      max={5}
+                      step={0.1}
+                      value={hbDraft[c]}
+                      onChange={(e) => setHbDraft((d) => ({ ...d, [c]: e.target.value }))}
+                      className="h-8 font-mono text-sm"
+                      data-testid={`input-home-bias-${c}`}
+                    />
+                    <div className="text-[10px] text-muted-foreground">
+                      {de ? "Default" : "default"} × {def.toFixed(1)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" onClick={applyHbDraft} data-testid="button-home-bias-apply">
+                {de ? "Übernehmen" : "Apply"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={resetHb} data-testid="button-home-bias-reset">
+                <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                {de ? "Auf Defaults zurücksetzen" : "Reset to defaults"}
+              </Button>
+              <span className="text-[10px] text-muted-foreground">
+                {de
+                  ? "Hinweis: Wirkung erst nach erneutem „Portfolio generieren\"."
+                  : "Note: takes effect after re-running \"Generate Portfolio\"."}
+              </span>
+            </div>
+          </div>
         </Section>
 
         <Section value="cma" icon={<Database className="h-4 w-4" />} title={de ? "Kapitalmarktannahmen (CMAs)" : "Capital Market Assumptions (CMAs)"}>

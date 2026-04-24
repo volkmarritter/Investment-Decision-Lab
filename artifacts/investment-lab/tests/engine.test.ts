@@ -1152,6 +1152,11 @@ describe("CMA layered overrides", () => {
 
   it("home-bias overrides: increasing CHF multiplier raises Switzerland equity weight; reset restores default", async () => {
     const settings = await import("../src/lib/settings");
+    // Local helper — equityWeightOf is scoped to a different describe block.
+    const eqW = (out: ReturnType<typeof buildPortfolio>, region: string) =>
+      out.allocation
+        .filter((a) => a.assetClass === "Equity" && a.region === region)
+        .reduce((s, a) => s + a.weight, 0);
     // Use a real in-memory localStorage stub so set/get/remove all work consistently.
     const fakeStore: Record<string, string> = {};
     const orig = (globalThis as { window?: unknown }).window;
@@ -1169,12 +1174,12 @@ describe("CMA layered overrides", () => {
     try {
       // Baseline (engine default factor 2.5 for CHF).
       const baseline = buildPortfolio(baseInput({ baseCurrency: "CHF", numETFs: 12 }));
-      const baselineCH = equityWeightOf(baseline, "Switzerland");
+      const baselineCH = eqW(baseline, "Switzerland");
       // Bump CHF multiplier well above default.
       settings.setHomeBiasOverrides({ CHF: 4.5 });
       expect(settings.resolvedHomeBias("CHF")).toBe(4.5);
       const tilted = buildPortfolio(baseInput({ baseCurrency: "CHF", numETFs: 12 }));
-      const tiltedCH = equityWeightOf(tilted, "Switzerland");
+      const tiltedCH = eqW(tilted, "Switzerland");
       expect(tiltedCH).toBeGreaterThan(baselineCH);
       // Out-of-bounds → clamped to [0, 5]
       settings.setHomeBiasOverrides({ CHF: 999 });
@@ -1184,7 +1189,7 @@ describe("CMA layered overrides", () => {
       expect(settings.resolvedHomeBias("CHF")).toBe(2.5);
       const restored = buildPortfolio(baseInput({ baseCurrency: "CHF", numETFs: 12 }));
       // After reset, Switzerland weight is again equal to the baseline (within rounding).
-      expect(Math.abs(equityWeightOf(restored, "Switzerland") - baselineCH)).toBeLessThan(0.01);
+      expect(Math.abs(eqW(restored, "Switzerland") - baselineCH)).toBeLessThan(0.01);
     } finally {
       if (orig) (globalThis as unknown as { window: typeof orig }).window = orig;
       else delete (globalThis as { window?: unknown }).window;
@@ -1219,19 +1224,25 @@ describe("CMA layered overrides", () => {
     }
   });
 
-  it("Euronext is a valid preferred exchange and major ETFs expose Euronext tickers", () => {
+  it("Euronext is a valid preferred exchange; preferring Euronext picks Euronext tickers for major ETFs and falls back gracefully for SIX-only sleeves", () => {
+    const inEuronext = baseInput({ baseCurrency: "EUR", numETFs: 12, preferredExchange: "Euronext" });
     // PreferredExchange "Euronext" is accepted by buildPortfolio (no throw).
-    const out = buildPortfolio(baseInput({ baseCurrency: "EUR", numETFs: 12, preferredExchange: "Euronext" }));
-    expect(out.allocations.length).toBeGreaterThan(0);
-    // Spot-check a few ETFs that should now expose Euronext listings.
-    const cspx = getETFDetails("Equity-USA");
-    const eimi = getETFDetails("Equity-EM");
-    const sgld = getETFDetails("Commodities-Gold");
-    expect(cspx?.listings.Euronext?.ticker).toBe("CSPX");
-    expect(eimi?.listings.Euronext?.ticker).toBe("EMIM");
-    expect(sgld?.listings.Euronext?.ticker).toBe("SGLD");
-    // SIX-only Equity-Switzerland must NOT have a Euronext listing.
-    const ch = getETFDetails("Equity-Switzerland");
-    expect(ch?.listings.Euronext).toBeUndefined();
+    const out = buildPortfolio(inEuronext);
+    expect(out.allocation.length).toBeGreaterThan(0);
+    // Spot-check that picking Euronext yields the Euronext tickers we wired up.
+    const cspx = getETFDetails("Equity", "USA", inEuronext);
+    const eimi = getETFDetails("Equity", "EM", inEuronext);
+    const sgld = getETFDetails("Commodities", "Gold", inEuronext);
+    expect(cspx.ticker).toBe("CSPX");
+    expect(cspx.exchange).toBe("Euronext");
+    expect(eimi.ticker).toBe("EMIM");
+    expect(eimi.exchange).toBe("Euronext");
+    expect(sgld.ticker).toBe("SGLD");
+    expect(sgld.exchange).toBe("Euronext");
+    // SIX-only Equity-Switzerland has no Euronext listing → engine must fall back to SIX (CHSPI).
+    const inCHF = baseInput({ baseCurrency: "CHF", numETFs: 12, preferredExchange: "Euronext" });
+    const ch = getETFDetails("Equity", "Switzerland", inCHF);
+    expect(ch.ticker).toBe("CHSPI");
+    expect(ch.exchange).not.toBe("Euronext");
   });
 });

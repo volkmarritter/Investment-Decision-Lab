@@ -56,7 +56,7 @@ Defined in `src/lib/types.ts`:
 | `targetEquityPct` | `number` 0–100 | Capped by risk appetite. |
 | `numETFs` | `number` (Max) | Hard ceiling on ETF count used by engine. |
 | `numETFsMin` | `number` (optional) | Advisory floor; drives the warning when natural buckets fall below it. |
-| `preferredExchange` | `None \| LSE \| XETRA \| SIX` | ETF listing preference. |
+| `preferredExchange` | `None \| LSE \| XETRA \| SIX \| Euronext` | ETF listing preference (`None` = engine picks the most liquid European listing per ETF). |
 | `thematicPreference` | `None \| Technology \| Healthcare \| Sustainability \| Cybersecurity` | Adds a thematic sleeve. |
 | `includeCurrencyHedging` | `boolean` | Selects hedged share-classes where available. |
 | `includeSyntheticETFs` | `boolean` | Allows swap-based US equity replication. |
@@ -159,7 +159,7 @@ Each weight is rounded to one decimal; any rounding residual is added to the lar
 
 Each non-cash bucket is mapped to a concrete ETF via `getETFDetails(assetClass, region, input)` in `src/lib/etfs.ts`. The chosen ETF respects:
 
-- `preferredExchange` (LSE / XETRA / SIX, else default listing).
+- `preferredExchange` (LSE / XETRA / SIX / Euronext Amsterdam, else default listing).
 - `includeCurrencyHedging` (hedged share class when available and base ≠ USD).
 - `includeSyntheticETFs` (swap-based S&P 500 for US equity, only when not hedged).
 
@@ -365,6 +365,7 @@ All persistence is `localStorage`-only:
 | `investment-lab.lang.v1` | `i18n.tsx` | Language preference. |
 | `idl.riskFreeRate` | `settings.ts` | User-editable risk-free rate. |
 | `idl.cmaOverrides` | `settings.ts` | Per-asset-class μ/σ overrides set in the Methodology tab; sanitized on read (key whitelist + value bounds). |
+| `idl.homeBiasOverrides` | `settings.ts` | Per-base-currency home-bias multipliers (`USD\|EUR\|GBP\|CHF` → number, range `[0, 5]`); sanitized on read (currency whitelist + value clamp). Read by `computeEquityRegionWeights` at portfolio-build time via `resolvedHomeBias()`. |
 | `investment-lab.savedScenarios.v1` | `savedScenarios.ts` | List of named scenarios. |
 | `vite-ui-theme` | `components/theme-provider.tsx` (next-themes) | Light/dark mode. |
 
@@ -445,6 +446,11 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-04-24 (later)
+- **Live-editable home-bias overlay.** The home-bias multipliers that tilt the equity-region anchor toward the user's home market (USD ×1.0, EUR ×1.5, GBP ×1.5, CHF ×2.5 by default) are no longer hard-coded constants — they are now exposed as a four-input editor in the Methodology tab (range 0.0–5.0 per currency, with Apply / Reset and a "Custom" badge once an override is active). `settings.ts` gained `getHomeBiasOverrides`, `setHomeBiasOverrides`, `resetHomeBiasOverrides`, `subscribeHomeBiasOverrides`, `resolvedHomeBias` and `HOME_BIAS_DEFAULTS`; values persist in `localStorage["idl.homeBiasOverrides"]` and are sanitized on read (currency whitelist + clamp to `[0, 5]`). `computeEquityRegionWeights` in `portfolio.ts` now reads `resolvedHomeBias(input.baseCurrency)` at every build, so changes take effect on the next "Generate Portfolio" click. The Methodology constants table updates live (× value + Custom badge per currency). 2 new tests cover (i) CHF override raises Switzerland equity weight + reset restores the baseline, (ii) `getHomeBiasOverrides` drops unknown currencies and clamps out-of-bounds multipliers.
+- **Euronext (Amsterdam) added as 4th preferred exchange.** `PreferredExchange` union extended in `types.ts` with `"Euronext"`; `etfs.ts` `ListingMap` gained an optional `Euronext` slot and 16 major ETFs received their canonical Euronext Amsterdam tickers (e.g. CSPX, EMIM, SPYI, IMAE, SGLD, IWDP, BITC, IUIT, HEAL, INRG, AGGG, AGGH) — Equity-Switzerland and CHF-hedged share-classes are intentionally NOT given Euronext listings (SIX-only / Frankfurt-only). The Build tab Select gained a "Euronext (Amsterdam)" option; the legacy "None" option was relabelled "None (European listings)" to make the engine's behaviour explicit (it picks the most liquid European listing per ETF). `aiPrompt.ts` `EXCHANGE_LINE` got matching EN/DE Euronext lines so the Copy-AI-Prompt feature stays exhaustive. 1 new engine test verifies (i) `preferredExchange="Euronext"` builds without throwing, (ii) CSPX/EMIM/SGLD resolve with `exchange === "Euronext"`, (iii) Switzerland equity gracefully falls back to SIX (CHSPI) since it has no Euronext listing. Suite at 98 cases.
+- §8 Persistence updated with the new `idl.homeBiasOverrides` key. §3 input-table now shows `Euronext` in the `preferredExchange` enum.
 
 ### 2026-04-24
 - **Capital Market Assumptions are now layered: seed → consensus → user.** The CMA table in `metrics.ts` (the deepest assumption in the engine — drives Sharpe, frontier, alpha/beta and Monte Carlo) is no longer a single hard-coded record. It is now a three-layer stack applied at module load, with strict priority: (1) **user overrides** from `localStorage["idl.cmaOverrides"]`, (2) **multi-provider consensus** from the new `src/data/cmas.consensus.json` snapshot file, (3) **engine seed** (`CMA_SEED`, the previous in-code defaults). `applyCMALayers()` mutates the leaf objects of the exported `CMA` record in place, so every existing caller (`CMA[k].expReturn`, `CMA[k].vol`) keeps working without any code change. The Methodology tab gained two new UI blocks inside the CMA section: a **multi-provider consensus status** banner (shows whether `cmas.consensus.json` is populated, the `lastReviewed` date, the list of providers mixed in, or "engine defaults active" when empty), and an **editable CMA table** where the user can type custom μ and σ per asset class. Each row shows the seed value as a hint, the currently-active μ/σ, two input cells, and source badges (`Custom` / `Consensus` / `Engine`) for both μ and σ — making the active assumption explicit. **Apply** persists to localStorage and broadcasts an `idl-cma-changed` event; `PortfolioMetrics` and `MonteCarloSimulation` subscribe and re-run `useMemo` so the metrics block (Sharpe, frontier, α/β, drawdown) and the Monte Carlo simulation reflect the new assumptions immediately. **Reset** wipes overrides.
