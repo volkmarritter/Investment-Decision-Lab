@@ -1,0 +1,53 @@
+name: justETF layout smoke check (daily)
+
+# Daily early-warning channel for justETF layout / data-testid changes.
+#
+# The three scheduled refresh jobs (refresh-data.yml weekly, refresh-listings.yml
+# nightly, refresh-lookthrough.yml monthly) all use "no-clobber" extractors:
+# when a regex stops matching, the previous override value is preserved on
+# disk and the job exits 0 as long as failures don't outnumber successes.
+# That is the correct behaviour for the production refresh path (partial data
+# beats wiped data), but it means a slow rolling break across many ISINs can
+# go unnoticed for days.
+#
+# This workflow closes that gap. It runs scripts/smoke-justetf.mjs once a day,
+# which fetches one well-known live profile page per ETF type (equity / gold /
+# crypto), runs the same exported extractors used by the refresh scripts, and
+# fails the workflow the moment any expected field comes back empty. CI then
+# surfaces the breakage as a red run the same day justETF changes their
+# markup, instead of weeks later when someone happens to refresh the fixtures.
+#
+# This is intentionally read-only: nothing is committed, no override file is
+# touched. The job's only output is a green or red badge.
+
+on:
+  schedule:
+    - cron: "30 5 * * *" # 05:30 UTC every day — chosen to not collide with
+                         # refresh-data.yml (Sun 03:00), refresh-listings.yml
+                         # (daily 02:00) or refresh-lookthrough.yml (1st 04:00)
+  workflow_dispatch: # allow manual re-runs from the Actions tab after a fix
+
+# Read-only job — does not need contents:write because nothing is committed.
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Probe live justETF profile pages with the exported extractors
+        working-directory: artifacts/investment-lab
+        run: node scripts/smoke-justetf.mjs
