@@ -863,16 +863,21 @@ export function Methodology() {
         <Section value="etfs" icon={<Building2 className="h-4 w-4" />} title={de ? "ETF-Katalog" : "ETF Catalog"}>
           <p className="text-sm text-muted-foreground">
             {de
-              ? "Reale UCITS-ETFs (z. B. iShares, Vanguard, Xtrackers, Amundi, Invesco) mit ISIN, Ticker, Börse, Domizil, Replikationsmethode und TER. Manuell gepflegt."
-              : "Real UCITS ETFs (e.g. iShares, Vanguard, Xtrackers, Amundi, Invesco) with ISIN, ticker, exchange, domicile, replication method and TER. Manually curated."}
+              ? "Reale UCITS-ETFs der Emittenten iShares, SPDR, Invesco, UBS und CoinShares mit ISIN, Tickern je Börse, Domizil, Replikationsmethode, Ausschüttungspolitik, Fondswährung, TER, Fondsvolumen, Auflagedatum und einer kurzen redaktionellen Auswahlbegründung."
+              : "Real UCITS ETFs from the issuers iShares, SPDR, Invesco, UBS and CoinShares with ISIN, per-exchange tickers, domicile, replication method, distribution policy, fund currency, TER, fund size, inception date and a short editorial rationale for why the fund was picked."}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {de
+              ? "Hybrider Pflegemodus: Werte, die sich häufig bewegen, werden automatisch aus justETF aktualisiert (TER, AUM, Auflagedatum, Ausschüttung, Replikation – wöchentlich; Listings je Börse – täglich; Look-Through-Daten und Top-10-Holdings – monatlich). Werte, die redaktionelle Entscheidungen darstellen (Fondsauswahl je Anlageklasse, Standardbörse, Auswahlbegründung, Hedge-Währung), bleiben in Code gepflegt. Details siehe Abschnitt „Datenpflege & Aktualität (Snapshot-Build)“ oben."
+              : "Hybrid maintenance mode: values that move regularly are refreshed automatically from justETF (TER, AUM, inception, distribution and replication — weekly; per-exchange listings — daily; look-through breakdowns and top-10 holdings — monthly). Values that represent editorial decisions (which fund to use per asset class, the default exchange, the selection rationale, and the hedge-currency mapping) stay curated in code. See the \"Data Refresh & Freshness (snapshot build)\" section above for the full schedule."}
           </p>
           <div className="text-xs text-muted-foreground space-y-1">
-            <div>{de ? "Quelle" : "Source"}: {de ? "Offizielle Emittenten-Factsheets und justETF-Katalog (öffentlich, indikativ)." : "Issuer official factsheets and the justETF catalog (public, indicative)."}</div>
-            <div>{de ? "Zuletzt geprüft" : "Last reviewed"}: {LAST_REVIEWED}</div>
+            <div>{de ? "Quelle" : "Source"}: {de ? "Offizielle Emittenten-Factsheets (für die kuratierten Felder) und justETF (für alle automatisch aktualisierten Felder; öffentlich, indikativ)." : "Issuer official factsheets (for the curated fields) and justETF (for every automatically refreshed field; public, indicative)."}</div>
+            <div>{de ? "Zuletzt redaktionell geprüft" : "Last editorial review"}: {LAST_REVIEWED}</div>
             <div className="text-amber-700 dark:text-amber-400">
               {de
-                ? "Wichtig: TERs, Listings und Domizile können sich ändern. Vor jedem Kauf bitte die Live-Daten beim Emittenten oder Broker prüfen."
-                : "Important: TERs, listings and domiciles can change. Always verify live data with the issuer or broker before any purchase."}
+                ? "Wichtig: Auch die automatischen Snapshots sind nur so frisch wie der letzte erfolgreiche Refresh-Lauf. Vor jedem Kauf bitte die Live-Daten beim Emittenten oder Broker prüfen — insbesondere TER, Listings und Verfügbarkeit in Ihrer Jurisdiktion."
+                : "Important: even the automatic snapshots are only as fresh as the last successful refresh run. Always verify live data with the issuer or broker before any purchase — especially TER, listings and availability in your jurisdiction."}
             </div>
           </div>
         </Section>
