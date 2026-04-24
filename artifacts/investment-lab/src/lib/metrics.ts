@@ -366,10 +366,27 @@ export interface CorrelationCell {
   value: number;
 }
 
-export function buildCorrelationMatrix(allocation: AssetAllocation[]): { labels: string[]; matrix: number[][] } {
+// Stable display order for the correlation matrix: equities first
+// (developed → EM → thematic), then bonds & cash, then real assets,
+// finishing with crypto. Matches the visual grouping used in §4 of
+// the Methodology tab.
+const CORR_DISPLAY_ORDER: AssetKey[] = [
+  "equity_us", "equity_eu", "equity_ch", "equity_jp", "equity_em", "equity_thematic",
+  "bonds", "cash",
+  "gold", "reits", "crypto",
+];
+
+export function buildCorrelationMatrix(allocation: AssetAllocation[]): {
+  keys: AssetKey[];
+  labels: string[];
+  matrix: number[][];
+  held: boolean[];
+} {
   const exp = mapAllocationToAssets(allocation);
-  const keys = exp.map((e) => e.key);
+  const heldSet = new Set<AssetKey>(exp.map((e) => e.key));
+  const keys = [...CORR_DISPLAY_ORDER];
   const labels = keys.map((k) => CMA[k].label);
   const matrix = keys.map((a) => keys.map((b) => corr(a, b)));
-  return { labels, matrix };
+  const held = keys.map((k) => heldSet.has(k));
+  return { keys, labels, matrix, held };
 }

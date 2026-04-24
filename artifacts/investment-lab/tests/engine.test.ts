@@ -756,6 +756,51 @@ describe("metrics", () => {
       }
     }
   });
+
+  it("correlation matrix always shows all 11 asset classes regardless of holdings", () => {
+    // 100% equity portfolio (no bonds, cash, gold, reits, crypto held)
+    const out = buildPortfolio(baseInput({
+      riskAppetite: "Very High",
+      targetEquityPct: 100,
+      includeCommodities: false,
+      includeListedRealEstate: false,
+      includeCrypto: false,
+    }));
+    const { keys, labels, matrix, held } = buildCorrelationMatrix(out.allocation);
+    // Always 11 rows/cols
+    expect(keys).toEqual([
+      "equity_us", "equity_eu", "equity_ch", "equity_jp", "equity_em", "equity_thematic",
+      "bonds", "cash", "gold", "reits", "crypto",
+    ]);
+    expect(labels.length).toBe(11);
+    expect(matrix.length).toBe(11);
+    expect(matrix.every((r) => r.length === 11)).toBe(true);
+    expect(held.length).toBe(11);
+    // At least one equity row is held; bonds/cash/gold/reits/crypto are not
+    expect(held.some((h, i) => h && keys[i].startsWith("equity_"))).toBe(true);
+    expect(held[keys.indexOf("bonds")]).toBe(false);
+    expect(held[keys.indexOf("gold")]).toBe(false);
+    expect(held[keys.indexOf("reits")]).toBe(false);
+    expect(held[keys.indexOf("crypto")]).toBe(false);
+    // The non-held rows still carry valid correlation data (e.g. bonds×equity_us = 0.10)
+    const iBonds = keys.indexOf("bonds");
+    const iEqUs = keys.indexOf("equity_us");
+    expect(matrix[iBonds][iEqUs]).toBeCloseTo(0.10, 6);
+    expect(matrix[iEqUs][iBonds]).toBeCloseTo(0.10, 6);
+  });
+
+  it("correlation matrix marks held=true for every asset class actually in the portfolio", () => {
+    const out = buildPortfolio(baseInput({
+      includeCommodities: true,
+      includeListedRealEstate: true,
+      includeCrypto: true,
+    }));
+    const { keys, held } = buildCorrelationMatrix(out.allocation);
+    // Sanity: gold/reits/crypto should be on for this input
+    expect(held[keys.indexOf("gold")]).toBe(true);
+    expect(held[keys.indexOf("reits")]).toBe(true);
+    expect(held[keys.indexOf("crypto")]).toBe(true);
+  });
 });
 
 // ---------------------------------------------------------------------------

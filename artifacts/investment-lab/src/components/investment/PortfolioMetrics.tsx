@@ -237,15 +237,27 @@ export function PortfolioMetrics({ allocation }: { allocation: AssetAllocation[]
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-[160px]"></TableHead>
-                  {correlation.labels.map((l) => (
-                    <TableHead key={l} className="text-right text-[10px] uppercase tracking-wider">{l}</TableHead>
+                  {correlation.labels.map((l, idx) => (
+                    <TableHead
+                      key={l}
+                      className={`text-right text-[10px] uppercase tracking-wider ${correlation.held[idx] ? "text-foreground font-semibold" : "text-muted-foreground/70"}`}
+                    >
+                      {l}
+                    </TableHead>
                   ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {correlation.matrix.map((row, i) => (
-                  <TableRow key={correlation.labels[i]}>
-                    <TableCell className="font-medium text-xs">{correlation.labels[i]}</TableCell>
+                  <TableRow
+                    key={correlation.labels[i]}
+                    data-held={correlation.held[i] ? "true" : "false"}
+                    className={correlation.held[i] ? "" : "opacity-60"}
+                  >
+                    <TableCell className={`text-xs ${correlation.held[i] ? "font-semibold" : "font-medium text-muted-foreground"}`}>
+                      {correlation.labels[i]}
+                      {correlation.held[i] && <span className="ml-1 text-[9px] text-primary/80 align-top">●</span>}
+                    </TableCell>
                     {row.map((val, j) => (
                       <TableCell
                         key={j}
@@ -260,6 +272,9 @@ export function PortfolioMetrics({ allocation }: { allocation: AssetAllocation[]
               </TableBody>
             </Table>
           </div>
+          <p className="text-[11px] text-muted-foreground">
+            <span className="text-primary/80">●</span> {t("metrics.corr.heldLegend")}
+          </p>
           <p className="text-[11px] text-muted-foreground">{t("metrics.corr.legend")}</p>
         </div>
 
