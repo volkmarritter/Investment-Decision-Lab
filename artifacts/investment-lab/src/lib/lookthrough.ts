@@ -417,16 +417,24 @@ const HEDGED_ISINS = new Set<string>([
 // src/data/lookthrough.overrides.json; we shallow-merge each present field
 // on top of the matching profile at module load. Refreshed fields:
 //   - topHoldings + topHoldingsAsOf (parsed from the static profile HTML)
-//   - geo, sector + breakdownsAsOf  (parsed from the Wicket Ajax loadMore
-//     endpoint with a session cookie — see refresh-lookthrough.mjs)
-// currency stays hand-curated because justETF doesn't publish a per-ETF
-// currency breakdown table at all.
+//   - geo, sector + breakdownsAsOf  (parsed from the static profile HTML
+//     when complete, or the Wicket Ajax loadMore endpoint with a session
+//     cookie when justETF renders a "Show more" link — see
+//     refresh-lookthrough.mjs)
+//   - currency                       (re-bucketed from the just-refreshed
+//     geo map via a country -> local-listing-currency table inside the
+//     refresh script. justETF doesn't publish a per-ETF currency table
+//     directly, so this is a derived approximation. Skipped — and
+//     therefore left to the curated value below — for the
+//     currency-hedged share classes in HEDGED_ISINS, whose hedge-currency
+//     map is authoritative.)
 // ----------------------------------------------------------------------------
 type LookthroughOverride = {
   topHoldings?: Array<{ name: string; pct: number }>;
   topHoldingsAsOf?: string;
   geo?: ExposureMap;
   sector?: ExposureMap;
+  currency?: ExposureMap;
   breakdownsAsOf?: string;
 };
 const RAW_LOOKTHROUGH_OVERRIDES =
@@ -476,6 +484,9 @@ for (const [isin, patch] of Object.entries(RAW_LOOKTHROUGH_OVERRIDES)) {
   }
   if (patch.sector && Object.keys(patch.sector).length > 0) {
     target.sector = patch.sector;
+  }
+  if (patch.currency && Object.keys(patch.currency).length > 0) {
+    target.currency = patch.currency;
   }
   if (patch.breakdownsAsOf) {
     target.breakdownsAsOf = patch.breakdownsAsOf;

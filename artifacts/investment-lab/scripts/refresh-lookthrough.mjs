@@ -211,6 +211,108 @@ export {
   extractBreakdown,
   parseEquityIsinsFromLookthroughSource,
 };
+// Note: deriveCurrencyFromGeo / COUNTRY_TO_CURRENCY / HEDGED_ISINS are
+// re-exported below — once they're declared.
+
+// Country → currency mapping used to derive the per-ISIN `currency`
+// breakdown from the (auto-refreshed) `geo` breakdown. justETF does NOT
+// publish a per-ETF currency table directly — only the fund's base
+// currency in the profile header — so for unhedged equity ETFs we
+// approximate currency exposure by re-bucketing the country exposure via
+// each country's local listing currency. This is the same approximation
+// the look-through engine in src/lib/lookthrough.ts already applies when
+// it doesn't have a hand-curated currency map.
+//
+// Limitations baked into the methodology copy: (1) multinationals listed
+// in country X may earn in other currencies, (2) currency-hedged share
+// classes override this entirely (those ISINs are in HEDGED_ISINS in
+// src/lib/lookthrough.ts and we deliberately skip the derivation for
+// them — see deriveCurrencyFromGeo below). Unmapped countries fall into
+// the "Other" bucket.
+const COUNTRY_TO_CURRENCY = {
+  "United States": "USD",
+  "United Kingdom": "GBP",
+  Switzerland: "CHF",
+  Japan: "JPY",
+  Canada: "CAD",
+  Australia: "AUD",
+  China: "CNY",
+  "Hong Kong": "HKD",
+  Taiwan: "TWD",
+  "South Korea": "KRW",
+  India: "INR",
+  Singapore: "SGD",
+  Sweden: "SEK",
+  Denmark: "DKK",
+  Norway: "NOK",
+  Brazil: "BRL",
+  "South Africa": "ZAR",
+  Mexico: "MXN",
+  Israel: "ILS",
+  "Saudi Arabia": "SAR",
+  "United Arab Emirates": "AED",
+  Thailand: "THB",
+  Indonesia: "IDR",
+  Malaysia: "MYR",
+  Poland: "PLN",
+  // Eurozone members
+  Germany: "EUR",
+  France: "EUR",
+  Italy: "EUR",
+  Spain: "EUR",
+  Netherlands: "EUR",
+  Belgium: "EUR",
+  Ireland: "EUR",
+  Finland: "EUR",
+  Portugal: "EUR",
+  Austria: "EUR",
+  Greece: "EUR",
+  Luxembourg: "EUR",
+  // justETF's normalising bucket — pass through.
+  Other: "Other",
+};
+
+// ISINs whose currency exposure equals the share-class hedge currency
+// rather than the underlying country mix. Mirrors HEDGED_ISINS in
+// src/lib/lookthrough.ts. For these ISINs we deliberately do NOT write a
+// derived currency map — the curated entry stays authoritative.
+const HEDGED_ISINS = new Set([
+  "IE00BCRY6557",
+  "IE00BYX5MS15",
+  "IE00B3ZW0K18",
+  "IE00BDBRDM35",
+  "IE00BDBRDN42",
+  "IE00BDBRDP65",
+]);
+
+// Re-buckets a country breakdown into a currency breakdown using the
+// country → currency map above. Returns undefined when the input is
+// missing, when more than 5 percentage-points of weight fall into
+// unmapped countries (a signal we should refresh COUNTRY_TO_CURRENCY
+// rather than silently bucket the unknowns into "Other"), or when the
+// resulting map sums outside 95–105 % of 100.
+export { deriveCurrencyFromGeo, COUNTRY_TO_CURRENCY, HEDGED_ISINS };
+function deriveCurrencyFromGeo(geo) {
+  if (!geo || typeof geo !== "object") return undefined;
+  const out = {};
+  let unmapped = 0;
+  for (const [country, pct] of Object.entries(geo)) {
+    if (!Number.isFinite(pct) || pct <= 0) continue;
+    const ccy = COUNTRY_TO_CURRENCY[country];
+    if (!ccy) {
+      unmapped += pct;
+      continue;
+    }
+    out[ccy] = Math.round(((out[ccy] ?? 0) + pct) * 100) / 100;
+  }
+  if (unmapped > 5) return undefined;
+  if (unmapped > 0) {
+    out.Other = Math.round(((out.Other ?? 0) + unmapped) * 100) / 100;
+  }
+  const sum = Object.values(out).reduce((a, b) => a + b, 0);
+  if (sum < 95 || sum > 105) return undefined;
+  return out;
+}
 
 // True when the static profile HTML rendered a "Show more" link beneath
 // the given breakdown table — i.e. there are hidden rows that require the
@@ -367,15 +469,36 @@ async function main() {
     }
 
     if (geo && sector) {
-      next[isin] = {
+      // Currency is derived from the (just-refreshed) country breakdown
+      // via COUNTRY_TO_CURRENCY — see deriveCurrencyFromGeo above.
+      // Skipped for currency-hedged share classes (HEDGED_ISINS), where
+      // the curated hedge-currency map remains authoritative.
+      let currency;
+      if (HEDGED_ISINS.has(isin)) {
+        console.log(`    ${isin}: hedged share class — leaving curated currency map untouched`);
+      } else {
+        currency = deriveCurrencyFromGeo(geo);
+        if (!currency) {
+          console.warn(
+            `  ! ${isin}: currency derivation failed (>5 % unmapped countries) — leaving curated currency map untouched`
+          );
+        }
+      }
+
+      const patch = {
         ...(next[isin] ?? {}),
         geo,
         sector,
         breakdownsAsOf: stamp,
       };
+      if (currency) patch.currency = currency;
+      next[isin] = patch;
+
       console.log(
         `  \u2713 ${isin}: breakdowns refreshed ` +
-          `(geo=${Object.keys(geo).length} entries, sector=${Object.keys(sector).length} entries)`
+          `(geo=${Object.keys(geo).length} entries, sector=${Object.keys(sector).length} entries` +
+          (currency ? `, currency=${Object.keys(currency).length} entries derived` : ", currency=skipped") +
+          `)`
       );
       breakdownsOk++;
     } else if (cookie) {
@@ -414,9 +537,9 @@ async function main() {
       note:
         "ISIN -> partial LookthroughProfile overrides applied on top of the curated PROFILES in src/lib/lookthrough.ts. " +
         "Populated monthly (1st of month, 04:00 UTC) by the refresh-lookthrough GitHub Action. " +
-        "Refreshed fields: topHoldings (top-10 stocks, per-ISIN topHoldingsAsOf stamp) and " +
-        "geo / sector breakdown maps (per-ISIN breakdownsAsOf stamp, fetched via the Wicket Ajax loadMore endpoint with a session cookie). " +
-        "currency stays hand-curated because justETF doesn't publish a per-ETF currency breakdown table.",
+        "Refreshed fields: topHoldings (top-10 stocks, per-ISIN topHoldingsAsOf stamp), " +
+        "geo / sector breakdown maps (per-ISIN breakdownsAsOf stamp, scraped from justETF — static profile HTML when complete, Wicket Ajax loadMore endpoint with a session cookie when justETF renders a 'Show more' link), " +
+        "and currency (re-bucketed from the just-refreshed geo map via a country -> local-listing-currency table — justETF doesn't publish a per-ETF currency breakdown directly; skipped for currency-hedged share classes whose curated hedge-currency map remains authoritative).",
     },
     overrides: next,
   };

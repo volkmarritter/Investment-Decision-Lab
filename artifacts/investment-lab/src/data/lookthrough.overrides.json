@@ -1,9 +1,9 @@
 {
   "_meta": {
     "source": "justetf.com",
-    "lastRefreshed": "2026-04-24T19:30:20.470Z",
+    "lastRefreshed": "2026-04-24T19:38:21.552Z",
     "refreshedBy": "scripts/refresh-lookthrough.mjs",
-    "note": "ISIN -> partial LookthroughProfile overrides applied on top of the curated PROFILES in src/lib/lookthrough.ts. Populated monthly (1st of month, 04:00 UTC) by the refresh-lookthrough GitHub Action. Refreshed fields: topHoldings (top-10 stocks, per-ISIN topHoldingsAsOf stamp) and geo / sector breakdown maps (per-ISIN breakdownsAsOf stamp, fetched via the Wicket Ajax loadMore endpoint with a session cookie). currency stays hand-curated because justETF doesn't publish a per-ETF currency breakdown table."
+    "note": "ISIN -> partial LookthroughProfile overrides applied on top of the curated PROFILES in src/lib/lookthrough.ts. Populated monthly (1st of month, 04:00 UTC) by the refresh-lookthrough GitHub Action. Refreshed fields: topHoldings (top-10 stocks, per-ISIN topHoldingsAsOf stamp), geo / sector breakdown maps (per-ISIN breakdownsAsOf stamp, scraped from justETF — static profile HTML when complete, Wicket Ajax loadMore endpoint with a session cookie when justETF renders a 'Show more' link), and currency (re-bucketed from the just-refreshed geo map via a country -> local-listing-currency table — justETF doesn't publish a per-ETF currency breakdown directly; skipped for currency-hedged share classes whose curated hedge-currency map remains authoritative)."
   },
   "overrides": {
     "IE00B3YLTY66": {
@@ -49,7 +49,7 @@
           "pct": 1.05
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T19:30:20.470Z",
+      "topHoldingsAsOf": "2026-04-24T19:38:21.552Z",
       "geo": {
         "United States": 57.04,
         "Japan": 6.05,
@@ -81,7 +81,21 @@
         "Real Estate": 2.24,
         "Other": 4.19
       },
-      "breakdownsAsOf": "2026-04-24T19:30:20.470Z"
+      "breakdownsAsOf": "2026-04-24T19:38:21.552Z",
+      "currency": {
+        "USD": 57.04,
+        "JPY": 6.05,
+        "GBP": 3.25,
+        "CAD": 2.87,
+        "TWD": 2.73,
+        "CNY": 2.47,
+        "KRW": 2.21,
+        "CHF": 2.17,
+        "EUR": 6.52,
+        "AUD": 1.69,
+        "INR": 1.46,
+        "Other": 11.54
+      }
     },
     "IE00B5BMR087": {
       "topHoldings": [
@@ -126,7 +140,7 @@
           "pct": 1.56
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T19:30:20.470Z",
+      "topHoldingsAsOf": "2026-04-24T19:38:21.552Z",
       "geo": {
         "United States": 95.12,
         "Ireland": 1.47,
@@ -146,7 +160,12 @@
         "Basic Materials": 1.64,
         "Other": 2.81
       },
-      "breakdownsAsOf": "2026-04-24T19:30:20.470Z"
+      "breakdownsAsOf": "2026-04-24T19:38:21.552Z",
+      "currency": {
+        "USD": 95.12,
+        "EUR": 1.47,
+        "Other": 3.41
+      }
     },
     "IE00B4K48X80": {
       "topHoldings": [
@@ -191,7 +210,7 @@
           "pct": 1.32
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T19:30:20.470Z",
+      "topHoldingsAsOf": "2026-04-24T19:38:21.552Z",
       "geo": {
         "United Kingdom": 19.55,
         "Switzerland": 14.47,
@@ -221,7 +240,15 @@
         "Real Estate": 0.73,
         "Other": 6.11
       },
-      "breakdownsAsOf": "2026-04-24T19:30:20.470Z"
+      "breakdownsAsOf": "2026-04-24T19:38:21.552Z",
+      "currency": {
+        "GBP": 19.55,
+        "CHF": 14.47,
+        "EUR": 51.07,
+        "SEK": 4.82,
+        "DKK": 1.51,
+        "Other": 8.58
+      }
     },
     "CH0237935652": {
       "topHoldings": [
@@ -266,7 +293,7 @@
           "pct": 2.04
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T19:30:20.470Z",
+      "topHoldingsAsOf": "2026-04-24T19:38:21.552Z",
       "geo": {
         "Switzerland": 93.05,
         "Other": 6.95
@@ -284,7 +311,11 @@
         "Utilities": 0.16,
         "Other": 6.82
       },
-      "breakdownsAsOf": "2026-04-24T19:30:20.470Z"
+      "breakdownsAsOf": "2026-04-24T19:38:21.552Z",
+      "currency": {
+        "CHF": 93.05,
+        "Other": 6.95
+      }
     },
     "IE00B4L5YX21": {
       "topHoldings": [
@@ -329,7 +360,7 @@
           "pct": 1.57
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T19:30:20.470Z",
+      "topHoldingsAsOf": "2026-04-24T19:38:21.552Z",
       "geo": {
         "Japan": 98.13,
         "Other": 1.87
@@ -348,7 +379,11 @@
         "Energy": 1,
         "Other": 1.87
       },
-      "breakdownsAsOf": "2026-04-24T19:30:20.470Z"
+      "breakdownsAsOf": "2026-04-24T19:38:21.552Z",
+      "currency": {
+        "JPY": 98.13,
+        "Other": 1.87
+      }
     },
     "IE00BKM4GZ66": {
       "topHoldings": [
@@ -393,7 +428,7 @@
           "pct": 0.68
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T19:30:20.470Z",
+      "topHoldingsAsOf": "2026-04-24T19:38:21.552Z",
       "geo": {
         "Taiwan": 21.78,
         "China": 19.52,
@@ -425,7 +460,24 @@
         "Real Estate": 1.76,
         "Other": 6.18
       },
-      "breakdownsAsOf": "2026-04-24T19:30:20.470Z"
+      "breakdownsAsOf": "2026-04-24T19:38:21.552Z",
+      "currency": {
+        "TWD": 21.78,
+        "CNY": 19.52,
+        "KRW": 17.98,
+        "INR": 11.86,
+        "BRL": 4,
+        "ZAR": 2.99,
+        "SAR": 2.54,
+        "MXN": 1.74,
+        "MYR": 1.33,
+        "AED": 1.28,
+        "HKD": 1.16,
+        "THB": 1.15,
+        "PLN": 1.07,
+        "IDR": 1.01,
+        "Other": 10.59
+      }
     },
     "IE00B1FZS350": {
       "topHoldings": [
@@ -470,7 +522,7 @@
           "pct": 1.78
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T19:30:20.470Z",
+      "topHoldingsAsOf": "2026-04-24T19:38:21.552Z",
       "geo": {
         "United States": 61.4,
         "Japan": 8.24,
@@ -493,7 +545,20 @@
         "Technology": 0.03,
         "Other": 2.97
       },
-      "breakdownsAsOf": "2026-04-24T19:30:20.470Z"
+      "breakdownsAsOf": "2026-04-24T19:38:21.552Z",
+      "currency": {
+        "USD": 61.4,
+        "JPY": 8.24,
+        "AUD": 3.95,
+        "GBP": 3.68,
+        "HKD": 3.45,
+        "SGD": 3.28,
+        "EUR": 5.33,
+        "CAD": 2.02,
+        "CHF": 1.85,
+        "SEK": 1.17,
+        "Other": 5.63
+      }
     },
     "IE00B3WJKG14": {
       "topHoldings": [
@@ -538,7 +603,7 @@
           "pct": 1.59
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T19:30:20.470Z",
+      "topHoldingsAsOf": "2026-04-24T19:38:21.552Z",
       "geo": {
         "United States": 94.94,
         "Ireland": 1.16,
@@ -548,7 +613,12 @@
         "Technology": 96.41,
         "Other": 3.59
       },
-      "breakdownsAsOf": "2026-04-24T19:30:20.470Z"
+      "breakdownsAsOf": "2026-04-24T19:38:21.552Z",
+      "currency": {
+        "USD": 94.94,
+        "EUR": 1.16,
+        "Other": 3.9
+      }
     },
     "IE00BYZK4776": {
       "topHoldings": [
@@ -593,7 +663,7 @@
           "pct": 1.96
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T19:30:20.470Z",
+      "topHoldingsAsOf": "2026-04-24T19:38:21.552Z",
       "geo": {
         "United States": 63.1,
         "Switzerland": 5.91,
@@ -612,7 +682,17 @@
         "Technology": 1.55,
         "Other": 6.87
       },
-      "breakdownsAsOf": "2026-04-24T19:30:20.470Z"
+      "breakdownsAsOf": "2026-04-24T19:38:21.552Z",
+      "currency": {
+        "USD": 63.1,
+        "CHF": 5.91,
+        "KRW": 4.89,
+        "JPY": 3.88,
+        "GBP": 2.59,
+        "DKK": 2.39,
+        "EUR": 7.02,
+        "Other": 10.22
+      }
     },
     "IE00B1XNHC34": {
       "topHoldings": [
@@ -657,7 +737,7 @@
           "pct": 2.15
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T19:30:20.470Z",
+      "topHoldingsAsOf": "2026-04-24T19:38:21.552Z",
       "geo": {
         "United States": 31.66,
         "China": 16.36,
@@ -683,7 +763,20 @@
         "Real Estate": 0.13,
         "Other": 12.2
       },
-      "breakdownsAsOf": "2026-04-24T19:30:20.470Z"
+      "breakdownsAsOf": "2026-04-24T19:38:21.552Z",
+      "currency": {
+        "USD": 31.66,
+        "CNY": 16.36,
+        "BRL": 8.55,
+        "EUR": 11.49,
+        "DKK": 4.27,
+        "INR": 2.96,
+        "KRW": 2.84,
+        "ILS": 2.23,
+        "JPY": 2.22,
+        "CAD": 1.96,
+        "Other": 15.46
+      }
     },
     "IE00BG0J4C88": {
       "topHoldings": [
@@ -728,7 +821,7 @@
           "pct": 1.95
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T19:30:20.470Z",
+      "topHoldingsAsOf": "2026-04-24T19:38:21.552Z",
       "geo": {
         "United States": 65.06,
         "Japan": 11.43,
@@ -747,7 +840,18 @@
         "Consumer Discretionary": 0.9,
         "Other": 5.63
       },
-      "breakdownsAsOf": "2026-04-24T19:30:20.470Z"
+      "breakdownsAsOf": "2026-04-24T19:38:21.552Z",
+      "currency": {
+        "USD": 65.06,
+        "JPY": 11.43,
+        "TWD": 4.27,
+        "ILS": 3.11,
+        "AUD": 1.85,
+        "INR": 1.48,
+        "SEK": 1.34,
+        "EUR": 1.21,
+        "Other": 10.25
+      }
     }
   }
 }

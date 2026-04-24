@@ -26,6 +26,9 @@ import {
 import {
   extractTopHoldings,
   extractBreakdown,
+  deriveCurrencyFromGeo,
+  COUNTRY_TO_CURRENCY,
+  HEDGED_ISINS,
   parseEquityIsinsFromLookthroughSource,
 } from "../scripts/refresh-lookthrough.mjs";
 
@@ -399,6 +402,137 @@ describe("refresh-lookthrough extractBreakdown", () => {
     expect(extractBreakdown(null as never, "sectors")).toBeUndefined();
     expect(extractBreakdown("", "sectors")).toBeUndefined();
     expect(extractBreakdown(42 as never, "sectors")).toBeUndefined();
+  });
+});
+
+describe("refresh-lookthrough deriveCurrencyFromGeo", () => {
+  // Currency exposure for an unhedged equity ETF is approximated by
+  // re-bucketing its country exposure via the local listing currency for
+  // each country (USA → USD, Switzerland → CHF, eurozone members → EUR,
+  // etc.). justETF doesn't publish a per-ETF currency table directly, so
+  // this is the cleanest auto-refreshable approximation. Currency-hedged
+  // share classes (HEDGED_ISINS) deliberately bypass this — for those
+  // the curated hedge-currency map remains authoritative.
+
+  it("re-buckets a typical world-equity geo into USD/EUR/JPY/...", () => {
+    // Mimics a developed-market index: USA dominates, Japan / UK / Swiss /
+    // eurozone fill the rest.
+    const geo = {
+      "United States": 65,
+      Japan: 6,
+      "United Kingdom": 4,
+      Switzerland: 3,
+      France: 4,
+      Germany: 4,
+      Netherlands: 2,
+      Canada: 3,
+      Australia: 2,
+      Other: 7,
+    };
+    const out = deriveCurrencyFromGeo(geo);
+    expect(out).toBeDefined();
+    expect(out!.USD).toBe(65);
+    expect(out!.JPY).toBe(6);
+    expect(out!.GBP).toBe(4);
+    expect(out!.CHF).toBe(3);
+    // Eurozone countries collapse into a single EUR bucket.
+    expect(out!.EUR).toBe(10);
+    expect(out!.CAD).toBe(3);
+    expect(out!.AUD).toBe(2);
+    expect(out!.Other).toBe(7);
+    const sum = Object.values(out!).reduce((a, b) => a + b, 0);
+    expect(sum).toBeCloseTo(100, 1);
+  });
+
+  it("collapses every eurozone member into a single EUR bucket", () => {
+    const geo = {
+      France: 25,
+      Germany: 25,
+      Italy: 15,
+      Spain: 15,
+      Netherlands: 10,
+      Ireland: 5,
+      Belgium: 5,
+    };
+    const out = deriveCurrencyFromGeo(geo);
+    expect(out).toBeDefined();
+    expect(Object.keys(out!)).toEqual(["EUR"]);
+    expect(out!.EUR).toBe(100);
+  });
+
+  it("passes the 'Other' country bucket straight through to an 'Other' currency bucket", () => {
+    // justETF's "Other" row is the normalising remainder; we don't try to
+    // attribute a currency to it.
+    const geo = { "United States": 70, Other: 30 };
+    const out = deriveCurrencyFromGeo(geo);
+    expect(out).toBeDefined();
+    expect(out!.USD).toBe(70);
+    expect(out!.Other).toBe(30);
+  });
+
+  it("returns undefined when more than 5 % of weight falls into unmapped countries", () => {
+    // 'Atlantis' is not in COUNTRY_TO_CURRENCY. 8 % unmapped > 5 % cap, so
+    // the derivation must refuse rather than silently mis-bucket.
+    const geo = { "United States": 60, Japan: 32, Atlantis: 8 };
+    expect(deriveCurrencyFromGeo(geo)).toBeUndefined();
+  });
+
+  it("tolerates ≤ 5 % unmapped weight by routing it into the 'Other' currency bucket", () => {
+    // 3 % unmapped is within the tolerance — it folds into Other rather
+    // than rejecting the whole derivation.
+    const geo = { "United States": 75, Japan: 22, Atlantis: 3 };
+    const out = deriveCurrencyFromGeo(geo);
+    expect(out).toBeDefined();
+    expect(out!.USD).toBe(75);
+    expect(out!.JPY).toBe(22);
+    expect(out!.Other).toBe(3);
+  });
+
+  it("returns undefined for missing or non-object inputs", () => {
+    expect(deriveCurrencyFromGeo(undefined as never)).toBeUndefined();
+    expect(deriveCurrencyFromGeo(null as never)).toBeUndefined();
+    expect(deriveCurrencyFromGeo("not a map" as never)).toBeUndefined();
+  });
+
+  it("returns undefined when input rows sum well outside 95–105 %", () => {
+    // After re-bucketing through the country map a sum < 95 % can only
+    // happen if the geo input itself was malformed. Refusing here stops
+    // a corrupted refresh from poisoning the curated currency value.
+    expect(deriveCurrencyFromGeo({ "United States": 30, Japan: 20 })).toBeUndefined();
+  });
+
+  it("HEDGED_ISINS contains the currency-hedged share classes the script must skip", () => {
+    // Pinned so a future drift between the script-side HEDGED_ISINS and
+    // the runtime HEDGED_ISINS in src/lib/lookthrough.ts surfaces as a
+    // test failure, not as a silently wrong currency map.
+    expect(HEDGED_ISINS.has("IE00BCRY6557")).toBe(true);
+    expect(HEDGED_ISINS.has("IE00BYX5MS15")).toBe(true);
+    expect(HEDGED_ISINS.has("IE00B3ZW0K18")).toBe(true);
+    expect(HEDGED_ISINS.has("IE00BDBRDM35")).toBe(true);
+    expect(HEDGED_ISINS.has("IE00BDBRDN42")).toBe(true);
+    expect(HEDGED_ISINS.has("IE00BDBRDP65")).toBe(true);
+    // Spot-check that broad unhedged ETFs are NOT in the set (they MUST
+    // get a derived currency map).
+    expect(HEDGED_ISINS.has("IE00B4L5Y983")).toBe(false);
+  });
+
+  it("COUNTRY_TO_CURRENCY covers every country produced by the live justETF refresh", () => {
+    // The refresh script runs against ~11 equity ISINs and produces a
+    // bounded set of country names. We pin the union here so a new
+    // ISIN/country combination forces an explicit decision about its
+    // currency rather than silently rejecting the derivation.
+    const liveCountries = [
+      "United States", "United Kingdom", "Switzerland", "Japan", "Canada",
+      "Australia", "China", "Hong Kong", "Taiwan", "South Korea", "India",
+      "Singapore", "Sweden", "Denmark", "Brazil", "South Africa", "Mexico",
+      "Israel", "Saudi Arabia", "United Arab Emirates", "Thailand",
+      "Indonesia", "Malaysia", "Poland", "Germany", "France", "Italy",
+      "Spain", "Netherlands", "Belgium", "Ireland", "Finland", "Portugal",
+      "Other",
+    ];
+    for (const c of liveCountries) {
+      expect(COUNTRY_TO_CURRENCY[c]).toBeTruthy();
+    }
   });
 });
 
