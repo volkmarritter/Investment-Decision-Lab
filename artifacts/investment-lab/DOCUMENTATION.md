@@ -155,15 +155,146 @@ For CHF / EUR / GBP without a pre-existing home bucket, a tilt is carved from th
 
 Each weight is rounded to one decimal; any rounding residual is added to the largest bucket so totals sum to 100.0%.
 
-### 4.7 ETF implementation
+### 4.7 ETF implementation — catalog, mapping, and selection logic
 
-Each non-cash bucket is mapped to a concrete ETF via `getETFDetails(assetClass, region, input)` in `src/lib/etfs.ts`. The chosen ETF respects:
+Once §§4.1–4.6 have produced the abstract `allocation` (asset-class + region + weight rows), each non-cash row must be turned into a real, tradable UCITS ETF — that is the job of `getETFDetails(assetClass, region, input)` in `src/lib/etfs.ts`. This section documents the full mechanism end-to-end so a contributor can add or swap an ETF without breaking the engine.
 
-- `preferredExchange` (LSE / XETRA / SIX, else default listing). Euronext Amsterdam tickers are kept in the catalog data for reference but are intentionally not user-pickable; the engine uses them only as a last-resort fallback when `preferredExchange === "None"` and an ETF has no LSE / XETRA / SIX listing (no current catalog entry triggers this).
-- `includeCurrencyHedging` (hedged share class when available and base ≠ USD).
-- `includeSyntheticETFs` (swap-based S&P 500 for US equity, only when not hedged).
+#### 4.7.1 Catalog data model
 
-Each `ETFImplementation` row exposes ISIN, ticker, exchange, TER (bps), domicile, replication, distribution, currency, and a structured `comment`.
+The catalog is a single in-code object: `const CATALOG: Record<string, ETFRecord>`. Each entry is keyed by an **abstract product slot** (e.g. `"Equity-USA"`, `"Equity-USA-EUR"`, `"FixedIncome-Global-CHF"`), not by ticker or ISIN. The fields on `ETFRecord`:
+
+| Field | Type | Meaning |
+|-------|------|---------|
+| `name` | string | Full marketing name of the ETF / ETC / ETP. |
+| `isin` | string | ISIN — also the join key used by the data-refresh overrides file. |
+| `terBps` | number | Total Expense Ratio in basis points; refreshed nightly by the justETF script (see §5.2). |
+| `domicile` | string | Fund domicile (mostly Ireland — UCITS / Section 110 — plus Switzerland for the SPI tracker and Jersey for the Bitcoin ETP). |
+| `replication` | `"Physical" \| "Physical (sampled)" \| "Synthetic"` | Tracking method; affects the `comment` and the synthetic toggle. |
+| `distribution` | `"Accumulating" \| "Distributing"` | Income treatment; surfaced in the Implementation table. |
+| `currency` | string | Fund currency of the share class (not the trading currency). |
+| `comment` | string | One-line plain-language note on what the ETF is and why it was picked; shown in the UI. |
+| `listings` | `Partial<Record<ExchangeCode, { ticker: string }>>` | Map of available exchange listings → trading symbol. `ExchangeCode = "LSE" \| "XETRA" \| "SIX" \| "Euronext"`. |
+| `defaultExchange` | `ExchangeCode` | Which listing to use when the user has no preference (`preferredExchange === "None"`). Must exist in `listings`. **Never set this to `"Euronext"`** — Euronext is reserved as a last-resort fallback only (see §4.7.4). |
+
+#### 4.7.2 The catalog at a glance
+
+There are 22 entries. Grouped by purpose:
+
+**Core equity (unhedged)**
+
+| Catalog key | ETF | ISIN | TER | Default | Listings |
+|-------------|-----|------|-----|---------|----------|
+| `Equity-Global` | SPDR MSCI ACWI IMI UCITS | IE00B3YLTY66 | 17 bps | LSE | LSE / XETRA / SIX / Euronext (all `SPYI`) |
+| `Equity-USA` | iShares Core S&P 500 UCITS | IE00B5BMR087 | 7 bps | LSE | LSE `CSPX` / XETRA `SXR8` / SIX `CSSPX` / Euronext `CSPX` |
+| `Equity-USA-Synthetic` | Invesco S&P 500 UCITS (Swap) | IE00B3YCGJ38 | 5 bps | LSE | LSE `SPXS` / XETRA `SC0J` / SIX `SPXS` / Euronext `SPXS` |
+| `Equity-Europe` | iShares Core MSCI Europe | IE00B4K48X80 | 12 bps | XETRA | LSE `IMEU` / XETRA `SXR7` / SIX `CEU` / Euronext `IMAE` |
+| `Equity-Switzerland` | iShares Core SPI | CH0237935652 | 10 bps | SIX | SIX `CHSPI` only |
+| `Equity-Japan` | iShares Core MSCI Japan IMI | IE00B4L5YX21 | 12 bps | LSE | LSE `SJPA` / XETRA `SXR4` / SIX `CSJP` / Euronext `IJPA` |
+| `Equity-EM` | iShares Core MSCI EM IMI | IE00BKM4GZ66 | 18 bps | LSE | LSE `EIMI` / XETRA `IS3N` / SIX `EIMI` / Euronext `EMIM` |
+
+**Core equity (currency-hedged share classes)**
+
+| Catalog key | ETF | ISIN | TER | Default | Listings |
+|-------------|-----|------|-----|---------|----------|
+| `Equity-USA-EUR` | iShares S&P 500 EUR Hedged | IE00B3ZW0K18 | 20 bps | XETRA | LSE / XETRA / Euronext (all `IUSE`) |
+| `Equity-USA-CHF` | UBS S&P 500 CHF Hedged | IE00B3ZW0K18 | 22 bps | SIX | SIX `S500CHA` only |
+| `Equity-USA-GBP` | iShares Core S&P 500 GBP Hedged | IE00BYX5MS15 | 20 bps | LSE | LSE `GSPX` only |
+
+**Fixed income**
+
+| Catalog key | ETF | ISIN | TER | Default | Listings |
+|-------------|-----|------|-----|---------|----------|
+| `FixedIncome-Global` | iShares Core Global Aggregate Bond | IE00B3F81409 | 10 bps | LSE | LSE `AGGG` / XETRA `EUNA` / SIX `AGGH` / Euronext `AGGG` |
+| `FixedIncome-Global-EUR` | iShares Global Aggregate Bond EUR Hedged | IE00BDBRDM35 | 10 bps | XETRA | XETRA / LSE / Euronext (all `AGGH`) |
+| `FixedIncome-Global-CHF` | iShares Global Aggregate Bond CHF Hedged | IE00BDBRDN42 | 12 bps | SIX | SIX `AGGS` only |
+| `FixedIncome-Global-GBP` | iShares Global Aggregate Bond GBP Hedged | IE00BDBRDP65 | 10 bps | LSE | LSE `AGBP` only |
+
+**Satellites**
+
+| Catalog key | ETF | ISIN | TER | Default | Listings |
+|-------------|-----|------|-----|---------|----------|
+| `Commodities-Gold` | Invesco Physical Gold ETC | IE00B579F325 | 12 bps | LSE | LSE `SGLD` / XETRA `8PSG` / SIX `SGLD` / Euronext `SGLD` |
+| `RealEstate-GlobalREITs` | iShares Developed Markets Property Yield | IE00B1FZS350 | 59 bps | LSE | LSE `IWDP` / XETRA `IQQ6` / SIX `IWDP` / Euronext `IWDP` |
+| `DigitalAssets-BroadCrypto` | CoinShares Physical Bitcoin | GB00BLD4ZL17 | 25 bps | SIX | LSE / XETRA / SIX / Euronext (all `BITC`) |
+
+**Thematic tilts** (only used when `thematicPreference !== "None"`)
+
+| Catalog key | ETF | ISIN | TER | Default | Listings |
+|-------------|-----|------|-----|---------|----------|
+| `Equity-Technology` | iShares S&P 500 Information Technology | IE00B3WJKG14 | 15 bps | LSE | LSE `IUIT` / XETRA `QDVE` / SIX `IUIT` / Euronext `IUIT` |
+| `Equity-Healthcare` | iShares Healthcare Innovation | IE00BYZK4776 | 40 bps | LSE | LSE `HEAL` / XETRA `2B77` / Euronext `HEAL` |
+| `Equity-Sustainability` | iShares Global Clean Energy | IE00B1XNHC34 | 65 bps | LSE | LSE `INRG` / XETRA `IQQH` / SIX `INRG` / Euronext `INRG` |
+| `Equity-Cybersecurity` | iShares Digital Security | IE00BG0J4C88 | 40 bps | LSE | LSE `LOCK` / XETRA `2B7K` / Euronext `LOCK` |
+
+TER values are subject to the nightly refresh job (§5.2); the table above shows the curated baseline.
+
+#### 4.7.3 Step 1 — Bucket → catalog key (`lookupKey`)
+
+For each non-cash allocation row the engine first chooses **which catalog slot** to use. The decision is encoded in `lookupKey(assetClass, region, input)` and follows this strict priority:
+
+1. **Fixed Income**
+   - If `includeCurrencyHedging === true` AND `baseCurrency !== "USD"` AND a matching `FixedIncome-Global-<base>` slot exists → use it.
+   - Otherwise → `FixedIncome-Global` (USD-denominated).
+2. **Commodities** → always `Commodities-Gold`.
+3. **Real Estate** → always `RealEstate-GlobalREITs`.
+4. **Digital Assets** → always `DigitalAssets-BroadCrypto`.
+5. **Equity** — region-driven:
+   - `region === "Global"` → `Equity-Global` (the compaction fallback from §4.5).
+   - `region === "Home"` (only used by §4.5 Global+Home compaction): map base currency to the home equity sleeve — USD → `Equity-USA` (with hedging / synthetic resolution as below), CHF → `Equity-Switzerland`, EUR/GBP → `Equity-Europe`.
+   - `region` includes `"USA"`:
+     1. If hedging is on AND base ≠ USD AND `Equity-USA-<base>` exists → that hedged sleeve.
+     2. Else if `includeSyntheticETFs === true` → `Equity-USA-Synthetic` (the swap-based S&P 500).
+     3. Else → `Equity-USA` (physical iShares CSPX).
+   - `region` includes `"Europe"` → `Equity-Europe`.
+   - `region` includes `"Switzerland"` → `Equity-Switzerland`.
+   - `region` includes `"Japan"` → `Equity-Japan`.
+   - `region` includes `"EM"` → `Equity-EM`.
+   - `region === "Technology" / "Healthcare" / "Sustainability" / "Cybersecurity"` → the matching thematic sleeve.
+6. If none of the above branches matches → return `null`. The caller (`getETFDetails`) then emits a generic placeholder row (§4.7.5) so the portfolio still renders without throwing.
+
+**Tie-breaking notes**
+
+- *Hedging beats synthetic.* For US equity with both `includeCurrencyHedging` and `includeSyntheticETFs` enabled and base ≠ USD, the hedged physical share class wins because the catalog has no hedged-synthetic variant.
+- *Synthetic is US-only by design.* The catalog deliberately ships only one synthetic sleeve (the Invesco S&P 500 swap ETF) — that is where the 15 % US dividend-withholding leakage justifies the swap structure. Other regions stay physical.
+
+#### 4.7.4 Step 2 — Catalog key → concrete listing (`pickListing`)
+
+Once `lookupKey` has chosen a slot, `pickListing(rec, preferredExchange)` resolves which **exchange + ticker** to display. The 4-step order is:
+
+1. **Honour an explicit user preference.** If `preferredExchange ∈ {"LSE","XETRA","SIX"}` AND the ETF has a listing on that venue → return that ticker on that venue.
+2. **Otherwise use the ETF's declared `defaultExchange`** (provided it isn't Euronext — and it isn't for any current catalog entry).
+3. **Fallback chain in deterministic order:** try `LSE`, then `XETRA`, then `SIX`. Return the first one that exists in the ETF's `listings`.
+4. **Last-resort fallback: Euronext.** Only used when `preferredExchange === "None"` AND none of the venues above lists this ETF. With today's catalog this branch is unreachable (every ETF has at least one of LSE/XETRA/SIX); it is kept for forward-compatibility if a Euronext-only ETF is added later.
+
+**Why Euronext is in the data but never a user choice.** The Build tab's Preferred Exchange dropdown only exposes `None / LSE / XETRA / SIX`. The Amsterdam tickers are kept in the catalog for reference (so e.g. an investor copy-pasting the Implementation table into a broker still sees the canonical Euronext ticker if they enable that venue manually), but the engine will not silently pick Euronext when a non-Euronext listing exists. A regression test in `tests/engine.test.ts` walks every implementation row of a generated portfolio and asserts none resolves to Euronext.
+
+#### 4.7.5 Placeholder / unknown buckets
+
+If `lookupKey` returns `null` (asset-class + region combination not covered by the catalog), `getETFDetails` returns a `placeholder(assetClass, region)` row with `ticker: "—"`, `exchange: "—"`, `terBps: 25` and a comment flagging it as illustrative. This guarantees the engine never throws on an unknown bucket — an important contract for the deterministic narrative output.
+
+#### 4.7.6 TER override layer
+
+After `CATALOG` is declared, the module loads `src/data/etfs.overrides.json` (see §5.2 for the refresh pipeline) and shallow-merges any ISIN-keyed `{ terBps?, name?, domicile?, currency? }` patch onto the matching record. The merge is by ISIN, not by catalog key, so a single override entry updates every share class with the same ISIN. The committed default file is empty, so when no refresh has run the engine behaves identically to the in-code values.
+
+#### 4.7.7 Output: `ETFImplementation`
+
+`getETFDetails` returns an `ETFDetails` row containing: `name`, `isin`, `ticker`, `exchange`, `terBps`, `domicile`, `replication`, `distribution`, `currency`, and a `comment`. `buildPortfolio` then attaches the bucket weight and emits the array as `etfImplementation`, which the UI renders in the Build tab's Implementation table.
+
+#### 4.7.8 What is intentionally NOT in the selection logic
+
+- **No provider rotation / diversification across issuers.** The catalog stores exactly one "best-in-class" ETF per slot; if you want iShares ↔ Vanguard alternation, add it to the catalog.
+- **No live data calls at runtime.** All catalog data is in code; only TER values can change via the snapshot refresh JSON. The user's browser never makes a market-data API call.
+- **No tax-residency-aware switching.** Domicile is Ireland by default for the UCITS-tax-leakage benefits; this is shown as data but not used as a selection input.
+- **No on-the-fly bid-ask / liquidity ranking.** Listing order in the fallback chain is fixed (LSE → XETRA → SIX) for determinism. Real liquidity considerations are baked into which listing is set as `defaultExchange` per ETF.
+
+#### 4.7.9 How to add or swap an ETF
+
+1. Pick a stable **catalog key** that describes the slot, not the product (e.g. `Equity-EM-SmallCap`, `FixedIncome-EM-USD`).
+2. Add an `ETFRecord` literal inside the relevant comment block in `src/lib/etfs.ts`. Fill every field, including at least one entry under `listings` and a corresponding `defaultExchange`.
+3. If the new slot is reachable through a *new* asset-class/region combination, extend `lookupKey` so the engine routes that bucket to your key.
+4. Add a sanity test in `tests/engine.test.ts` (use one of the existing ETF-resolution tests as a template) covering: (a) the slot resolves under the expected inputs, (b) `pickListing` returns the right ticker for every supported preferred exchange, (c) hedging / synthetic fallbacks behave as intended.
+5. Run `pnpm --filter @workspace/investment-lab run typecheck` and `… run test` — both must pass.
+6. Update §4.7.2 (catalog table) and §11 (changelog) in this document. The maintenance rule is enforced by review.
 
 ### 4.8 Narrative output
 
@@ -446,6 +577,9 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-04-24 (night, doc)
+- **Documented the full ETF logic and selection mechanism in §4.7.** Section 4.7 was expanded from a four-line paragraph to a comprehensive reference covering: (4.7.1) the `ETFRecord` data model and what every catalog field means; (4.7.2) the entire 22-entry catalog grouped into core equity / hedged share classes / fixed income / satellites / thematic, with key, ETF name, ISIN, TER, default exchange and per-venue tickers (LSE / XETRA / SIX / Euronext); (4.7.3) the `lookupKey` step that maps an abstract `(assetClass, region)` bucket to a catalog slot, including the strict priority order for hedging vs synthetic vs region match and the documented tie-breaker that hedged-physical beats synthetic when both are requested; (4.7.4) the 4-step `pickListing` resolver that picks the exchange/ticker, with an explicit explanation of why Euronext lives in the data but is never user-pickable; (4.7.5) the placeholder/unknown-bucket contract; (4.7.6) the TER override layer keyed by ISIN; (4.7.7) the `ETFImplementation` output shape; (4.7.8) what is intentionally NOT in the selection logic (no provider rotation, no live data, no liquidity ranking); (4.7.9) a step-by-step "how to add or swap an ETF" recipe for contributors. No code change, no test change.
 
 ### 2026-04-24 (night)
 - **Removed "Euronext (Amsterdam)" from the Preferred Exchange dropdown — but kept the catalog data and added a last-resort fallback rule.** The Build tab Select now offers only `None (European listings)`, `LSE`, `XETRA`, `SIX`; the user can no longer pick Euronext explicitly. `PreferredExchange` union in `types.ts` is back to `"None" | "LSE" | "XETRA" | "SIX"`; `aiPrompt.ts` `EXCHANGE_LINE` no longer carries Euronext lines (EN/DE); `i18n.tsx` lost `build.preferredExchange.option.euronext` (EN/DE) and the tooltip says "LSE, XETRA or SIX" / "LSE, XETRA oder SIX"; `BuildPortfolio.tsx` Select renders four items only.
