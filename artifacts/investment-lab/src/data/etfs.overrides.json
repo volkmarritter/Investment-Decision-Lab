@@ -1,0 +1,9 @@
+{
+  "_meta": {
+    "source": "justetf.com",
+    "lastRefreshed": null,
+    "refreshedBy": "scripts/refresh-justetf.mjs",
+    "note": "ISIN -> partial ETFRecord overrides applied on top of the in-code CATALOG in src/lib/etfs.ts. Empty by default; populated by the nightly refresh script. Only fields present in this file override the catalog defaults; everything else stays as defined in code."
+  },
+  "overrides": {}
+}

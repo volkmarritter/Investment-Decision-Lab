@@ -230,6 +230,38 @@ All messages and suggestions are localised (EN/DE). The `lang` parameter default
 
 ---
 
+### 5.2 Data Refresh Pipeline (snapshot build)
+
+The app stays **frontend-only at runtime**. Reference data is refreshed via a nightly snapshot build that bakes the latest values into the bundle — the user's browser never makes a live API call.
+
+**Source.** [justETF](https://www.justetf.com) public ETF profile pages.
+
+**Components.**
+
+| File | Role |
+|------|------|
+| `scripts/refresh-justetf.mjs` | Node script. Reads every ISIN from `src/lib/etfs.ts`, fetches its justETF profile, extracts the fields listed in `EXTRACTORS`, and writes them to the snapshot file. Polite (1.5 s delay between requests), descriptive `User-Agent`, sanity-bounded (rejects TER outside `(0%, 3%]`), exits non-zero if more than half the ISINs fail. Supports `DRY_RUN=1` and a positional ISIN allow-list. |
+| `src/data/etfs.overrides.json` | Snapshot file. ISIN-keyed partial `ETFRecord` patches with a `_meta.lastRefreshed` timestamp. Empty by default; populated by the script. |
+| `src/lib/etfs.ts` (override layer) | At module load, shallow-merges every override into the matching `CATALOG[isin]` entry. Empty file ⇒ no-op ⇒ engine and tests behave exactly as before. |
+| `.github/workflows/refresh-data.yml` | GitHub Action. Runs the script daily at 03:00 UTC (also `workflow_dispatch`), runs `typecheck` + `test` against the new snapshot, commits the diff if any. |
+
+**Refreshed fields.** Currently only `terBps` (Total Expense Ratio in basis points). Adding more is a one-liner in the `EXTRACTORS` map of the script — no other code change needed.
+
+**What stays curated by hand** (not touched by the snapshot): `replication`, `listings`, `defaultExchange`, `distribution`, `comment`, every look-through profile in `lookthrough.ts` (reference date Q4 2024), all CMAs in `metrics.ts`, all stress scenarios in `scenarios.ts`. These are stable, editorial decisions and changing them automatically would defeat the determinism guarantee.
+
+**Local usage.**
+
+```bash
+# from artifacts/investment-lab/
+node scripts/refresh-justetf.mjs                 # refresh everything
+node scripts/refresh-justetf.mjs IE00B5BMR087    # one ISIN only
+DRY_RUN=1 node scripts/refresh-justetf.mjs       # parse & log, do not write
+```
+
+**Edit before deploying to your fork.** Update the `User-Agent` string in `scripts/refresh-justetf.mjs` to point at your own contact address; justETF asks scrapers to identify themselves.
+
+---
+
 ## 6. UI Components (`src/components/investment/`)
 
 | Component | Responsibility |
@@ -355,6 +387,7 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 Append a new entry whenever functionality changes. Newest first.
 
 ### 2026-04-23
+- **Snapshot-build data refresh pipeline (justETF).** Added a Node script `scripts/refresh-justetf.mjs` that pulls per-ISIN fields (currently TER) from public justETF profile pages and writes them to `src/data/etfs.overrides.json`. `src/lib/etfs.ts` shallow-merges those overrides on top of the in-code `CATALOG` at module load — when the file is empty (the committed default) the engine behaves exactly as before, so the 90-test suite still passes. New GitHub Action `.github/workflows/refresh-data.yml` runs the script nightly, runs typecheck + tests against the snapshot, and commits the diff if any. The Methodology tab now has a dedicated "Data Refresh & Freshness" card explaining the pipeline (EN/DE) and listing what stays curated by hand. Full details in section 5.2 above. App stays frontend-only at runtime; the user's browser never makes a live API call.
 - **Validation: new "High" risk + short-horizon warning.** Mirrors the Very-High rule one step down: when risk appetite is "High" and horizon is < 5 years, a warning is shown suggesting a longer horizon or reducing risk to Moderate (EN/DE).
 - **Validation: "Very High" risk warning now triggers for horizons < 10 years (was < 5).** Aligns the rule with the typical recommendation that an aggressive 100% equity-tolerance profile presupposes a long horizon to ride out drawdowns. Single-line change in `src/lib/validation.ts`; affects both Build and Compare tabs (EN/DE).
 - **Compare tab: suppress non-actionable "High complexity" warning.** Portfolio B's defaults (`numETFsMin: 11`, `numETFs: 13`) intentionally produce a more diversified comparison portfolio, but the user can no longer adjust the ETF max-cap in Compare (control was removed earlier). The complexity warning therefore always fired without any way to act on it. The warning is now filtered out at the Compare call site (matched by message string in EN and DE) so only actionable warnings remain. The Build tab keeps surfacing it because the cap is still adjustable there.

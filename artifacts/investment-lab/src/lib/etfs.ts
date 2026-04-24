@@ -1,4 +1,5 @@
 import { PortfolioInput } from "./types";
+import overridesFile from "@/data/etfs.overrides.json";
 
 export interface ETFDetails {
   name: string;
@@ -305,6 +306,22 @@ const CATALOG: Record<string, ETFRecord> = {
     defaultExchange: "LSE",
   }),
 };
+
+// ----------------------------------------------------------------------------
+// Optional data refresh overrides (see scripts/refresh-justetf.mjs).
+// The CATALOG above is the curated, deterministic source of truth. The refresh
+// script writes ISIN-keyed partial records into src/data/etfs.overrides.json;
+// at module load we shallow-merge them on top of the matching CATALOG entry so
+// the engine, tests and UI continue to work unchanged when the file is empty.
+// Currently only `terBps` is refreshed automatically; other fields can be added
+// to the script and they will be picked up here without further changes.
+// ----------------------------------------------------------------------------
+type ETFOverride = Partial<Pick<ETFRecord, "terBps" | "name" | "domicile" | "currency">>;
+const RAW_OVERRIDES = (overridesFile as { overrides?: Record<string, ETFOverride> }).overrides ?? {};
+for (const rec of Object.values(CATALOG)) {
+  const patch = RAW_OVERRIDES[rec.isin];
+  if (patch) Object.assign(rec, patch);
+}
 
 function placeholder(assetClass: string, region: string): ETFDetails {
   return {

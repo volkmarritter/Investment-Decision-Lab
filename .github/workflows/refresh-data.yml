@@ -1,0 +1,53 @@
+name: Refresh ETF data (justETF snapshot)
+
+# Snapshot-build data pipeline (Variante 1).
+# Runs the refresh script every night, commits any diff in the override JSON
+# and lets the normal deploy job ship the new bundle. The app stays
+# frontend-only at runtime — no live API call from the browser.
+
+on:
+  schedule:
+    - cron: "0 3 * * *" # 03:00 UTC every day
+  workflow_dispatch: # allow manual triggering from the Actions tab
+
+permissions:
+  contents: write # required to commit the refreshed JSON
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Refresh ETF overrides from justETF
+        working-directory: artifacts/investment-lab
+        run: node scripts/refresh-justetf.mjs
+
+      - name: Run typecheck and tests against the new snapshot
+        working-directory: artifacts/investment-lab
+        run: |
+          pnpm run typecheck
+          pnpm run test
+
+      - name: Commit & push if changed
+        run: |
+          if [[ -n "$(git status --porcelain artifacts/investment-lab/src/data/etfs.overrides.json)" ]]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add artifacts/investment-lab/src/data/etfs.overrides.json
+            git commit -m "chore(data): nightly justETF snapshot $(date -u +%Y-%m-%d)"
+            git push
+          else
+            echo "No data changes."
+          fi

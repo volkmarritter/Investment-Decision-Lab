@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BookOpen, Database, Calculator, AlertTriangle, ExternalLink, RotateCcw, ShieldQuestion, Layers, Activity, GitCompare, Building2 } from "lucide-react";
+import { BookOpen, Database, Calculator, AlertTriangle, ExternalLink, RotateCcw, ShieldQuestion, Layers, Activity, GitCompare, Building2, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -71,6 +71,49 @@ export function Methodology() {
                 : "This application is for educational and illustration purposes only. All returns, volatilities, correlations and stress scenarios are static, rule-based estimates — they do not reflect live market data and do not guarantee future results."}
             </AlertDescription>
           </Alert>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <RefreshCw className="h-4 w-4" />
+            {de ? "Datenpflege & Aktualität (Snapshot-Build)" : "Data Refresh & Freshness (snapshot build)"}
+          </CardTitle>
+          <CardDescription>
+            {de
+              ? "Wie und wie oft die ETF-Stammdaten aktualisiert werden — und welche Werte hand-kuratiert bleiben."
+              : "How and how often the ETF reference data is refreshed — and which values stay hand-curated."}
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm">
+          <p className="text-muted-foreground leading-relaxed">
+            {de
+              ? "Die App ist bewusst frontend-only und ruft zur Laufzeit keine fremden Server. Die Stammdaten der ETFs (TER, Name, Domizil, Währung) werden stattdessen über einen nächtlichen Snapshot-Build aktualisiert: ein Skript holt die Werte einmal pro Tag von justETF, schreibt sie als JSON ins Repository und der nächste Build backt den frischen Stand ins Bundle. Im Browser des Nutzers wird also weiterhin keine Live-Verbindung benötigt — er bekommt aber stets die zuletzt nachts geprüften Werte."
+              : "The app is intentionally frontend-only and makes no remote calls at runtime. ETF reference data (TER, name, domicile, currency) is refreshed via a nightly snapshot build instead: a script pulls the values once per day from justETF, writes them as JSON into the repository, and the next build bakes the fresh snapshot into the bundle. The user's browser still never makes a live call — but it always sees the most recently nightly-verified values."}
+          </p>
+          <div className="rounded-md border bg-muted/30 p-3 text-xs leading-relaxed space-y-1">
+            <div><span className="font-semibold">{de ? "Quelle" : "Source"}:</span> justetf.com (public ETF profile pages)</div>
+            <div><span className="font-semibold">{de ? "Skript" : "Script"}:</span> <code className="font-mono">artifacts/investment-lab/scripts/refresh-justetf.mjs</code></div>
+            <div><span className="font-semibold">{de ? "Snapshot-Datei" : "Snapshot file"}:</span> <code className="font-mono">src/data/etfs.overrides.json</code></div>
+            <div><span className="font-semibold">{de ? "Zeitplan" : "Schedule"}:</span> {de ? "täglich 03:00 UTC via GitHub Action " : "daily at 03:00 UTC via GitHub Action "}<code className="font-mono">.github/workflows/refresh-data.yml</code></div>
+            <div><span className="font-semibold">{de ? "Aktualisierte Felder" : "Refreshed fields"}:</span> {de ? "TER (Gesamtkostenquote in Basispunkten)" : "TER (Total Expense Ratio, in basis points)"}</div>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            {de
+              ? "Hand-kuratiert (vom Snapshot nicht überschrieben) bleiben: Replikationsmethode (physisch / sampled / synthetisch), Notierungen je Börse (LSE / XETRA / SIX), Default-Börse, Ausschüttungsart, redaktioneller Kommentar sowie alle Look-Through-Profile (Geo-/Sektor-/Währungs-/Top-Holdings-Aufteilung pro ISIN, Stichtag Q4 2024). Diese Werte ändern sich selten und werden bei jeder ETF-Aufnahme bewusst gesetzt."
+              : "Curated by hand (not overwritten by the snapshot): replication method (physical / sampled / synthetic), per-exchange listings (LSE / XETRA / SIX), default exchange, distribution type, editorial comment, and all look-through profiles (geo / sector / currency / top-holdings breakdown per ISIN, reference date Q4 2024). These values change rarely and are set deliberately when an ETF is added."}
+          </p>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            {de
+              ? "Auch nicht automatisiert: die Kapitalmarkt-Annahmen (langfristige erwartete Renditen, Volatilitäten, Korrelationen) und die Stress-Szenarien. Diese stammen aus den öffentlich publizierten Long-Term Capital Market Assumptions großer Asset-Manager und werden bewusst stabil gehalten, damit Vergleichsanalysen über die Zeit konsistent bleiben."
+              : "Also not automated: the capital market assumptions (long-term expected returns, volatilities, correlations) and the stress scenarios. These are drawn from the publicly published Long-Term Capital Market Assumptions of major asset managers and are deliberately kept stable so that comparison analyses stay consistent over time."}
+          </p>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            {de
+              ? "Bei Standardauslieferung ist die Snapshot-Datei leer — die App nutzt dann die im Code hinterlegten Default-Werte. Sobald das Refresh-Skript einmal lief, werden die geholten Felder per ISIN auf die Default-Werte gelegt; alles andere bleibt deterministisch."
+              : "On a fresh checkout the snapshot file is empty — the app then uses the in-code default values. Once the refresh script has run at least once, the fetched fields override the defaults per ISIN; everything else stays deterministic."}
+          </p>
         </CardContent>
       </Card>
 
