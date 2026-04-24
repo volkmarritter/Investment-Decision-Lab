@@ -35,6 +35,9 @@ export interface AssetAllocation {
   assetClass: string;
   region: string;
   weight: number;
+  /** True when this row's weight was pinned by the user via the manual
+   *  weight overrides UI on the Build tab. */
+  isManualOverride?: boolean;
 }
 
 export interface ETFImplementation {
@@ -53,6 +56,10 @@ export interface ETFImplementation {
   distribution: "Accumulating" | "Distributing";
   currency: string;
   comment: string;
+  /** Mirrors AssetAllocation.isManualOverride for the implementation row of
+   *  the same bucket. Cash is excluded from the implementation table, so the
+   *  flag is meaningful only for non-Cash rows. */
+  isManualOverride?: boolean;
 }
 
 export interface PortfolioOutput {

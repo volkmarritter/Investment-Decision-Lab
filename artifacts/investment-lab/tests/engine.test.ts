@@ -1376,3 +1376,188 @@ describe("setLastAllocation / subscribeLastAllocation (cross-tab pub/sub)", () =
     }
   });
 });
+
+// ---------------------------------------------------------------------------
+// Manual weight overrides
+// ---------------------------------------------------------------------------
+import { applyManualWeights, bucketKey } from "../src/lib/manualWeights";
+
+describe("manualWeights.applyManualWeights", () => {
+  const sumWeights = (rows: Array<{ weight: number }>) =>
+    Math.round(rows.reduce((s, r) => s + r.weight, 0) * 10) / 10;
+
+  it("returns natural rows unchanged when no overrides are provided", () => {
+    const natural = [
+      { bucket: "Equity - USA", weight: 60 },
+      { bucket: "Bonds - Global", weight: 30 },
+      { bucket: "Cash - USD", weight: 10 },
+    ];
+    const r = applyManualWeights(natural, {});
+    expect(r.appliedCount).toBe(0);
+    expect(r.staleKeys).toEqual([]);
+    expect(r.saturated).toBe(false);
+    expect(r.rows.map(x => x.weight)).toEqual([60, 30, 10]);
+    expect(r.rows.every(x => !x.isManualOverride)).toBe(true);
+  });
+
+  it("pins a single row and proportionally redistributes the residual", () => {
+    const natural = [
+      { bucket: "Equity - USA", weight: 60 },
+      { bucket: "Bonds - Global", weight: 30 },
+      { bucket: "Cash - USD", weight: 10 },
+    ];
+    const r = applyManualWeights(natural, { "Equity - USA": 40 });
+    expect(r.appliedCount).toBe(1);
+    expect(r.saturated).toBe(false);
+    expect(r.rows[0]).toMatchObject({ bucket: "Equity - USA", weight: 40, isManualOverride: true });
+    // Residual = 60, distributed 30:10 → 45:15.
+    expect(r.rows[1].weight).toBeCloseTo(45, 1);
+    expect(r.rows[2].weight).toBeCloseTo(15, 1);
+    expect(sumWeights(r.rows)).toBe(100);
+  });
+
+  it("pins multiple rows; non-pinned rows still sum the residual", () => {
+    const natural = [
+      { bucket: "Equity - USA", weight: 50 },
+      { bucket: "Equity - Europe", weight: 20 },
+      { bucket: "Bonds - Global", weight: 20 },
+      { bucket: "Cash - USD", weight: 10 },
+    ];
+    const r = applyManualWeights(natural, {
+      "Equity - USA": 25,
+      "Cash - USD": 5,
+    });
+    expect(r.appliedCount).toBe(2);
+    expect(r.rows[0]).toMatchObject({ weight: 25, isManualOverride: true });
+    expect(r.rows[3]).toMatchObject({ weight: 5, isManualOverride: true });
+    // Residual = 70 split between Europe(20) and Bonds(20) → 35/35.
+    expect(r.rows[1].weight).toBeCloseTo(35, 1);
+    expect(r.rows[2].weight).toBeCloseTo(35, 1);
+    expect(sumWeights(r.rows)).toBe(100);
+  });
+
+  it("scales pinned rows down proportionally when their sum >= 100 and zeroes the rest (saturated)", () => {
+    const natural = [
+      { bucket: "Equity - USA", weight: 50 },
+      { bucket: "Bonds - Global", weight: 30 },
+      { bucket: "Cash - USD", weight: 20 },
+    ];
+    const r = applyManualWeights(natural, {
+      "Equity - USA": 80,
+      "Bonds - Global": 40,
+    });
+    expect(r.saturated).toBe(true);
+    // Pinned sum = 120, scale = 100/120 → USA = 80*5/6 ≈ 66.7; Bonds = 40*5/6 ≈ 33.3.
+    expect(r.rows[0].weight).toBeCloseTo(66.7, 1);
+    expect(r.rows[1].weight).toBeCloseTo(33.3, 1);
+    expect(r.rows[2].weight).toBe(0);
+    expect(sumWeights(r.rows)).toBe(100);
+    expect(r.pinnedSum).toBe(120);
+  });
+
+  it("treats sum exactly 100 as saturated (non-pinned go to zero)", () => {
+    const natural = [
+      { bucket: "Equity - USA", weight: 60 },
+      { bucket: "Bonds - Global", weight: 40 },
+    ];
+    const r = applyManualWeights(natural, {
+      "Equity - USA": 70,
+      "Bonds - Global": 30,
+    });
+    expect(r.saturated).toBe(true);
+    expect(r.rows[0].weight).toBeCloseTo(70, 1);
+    expect(r.rows[1].weight).toBeCloseTo(30, 1);
+    expect(sumWeights(r.rows)).toBe(100);
+  });
+
+  it("flags overrides for buckets not present as stale, without applying them", () => {
+    const natural = [
+      { bucket: "Equity - USA", weight: 60 },
+      { bucket: "Bonds - Global", weight: 40 },
+    ];
+    const r = applyManualWeights(natural, {
+      "Equity - USA": 50,
+      "Digital Assets - Broad Crypto": 5, // stale
+    });
+    expect(r.appliedCount).toBe(1);
+    expect(r.staleKeys).toEqual(["Digital Assets - Broad Crypto"]);
+    expect(r.rows[0].weight).toBeCloseTo(50, 1);
+    expect(r.rows[1].weight).toBeCloseTo(50, 1);
+    expect(sumWeights(r.rows)).toBe(100);
+  });
+
+  it("accepts a 0% override (excludes a row without removing it)", () => {
+    const natural = [
+      { bucket: "Equity - USA", weight: 60 },
+      { bucket: "Bonds - Global", weight: 30 },
+      { bucket: "Cash - USD", weight: 10 },
+    ];
+    const r = applyManualWeights(natural, { "Cash - USD": 0 });
+    expect(r.rows[2]).toMatchObject({ weight: 0, isManualOverride: true });
+    expect(sumWeights(r.rows)).toBe(100);
+    // Residual = 100 distributed across Equity(60) and Bonds(30) → 66.7 / 33.3.
+    expect(r.rows[0].weight).toBeCloseTo(66.7, 1);
+    expect(r.rows[1].weight).toBeCloseTo(33.3, 1);
+  });
+
+  it("clamps inputs outside [0, 100] before applying", () => {
+    const natural = [
+      { bucket: "Equity - USA", weight: 60 },
+      { bucket: "Bonds - Global", weight: 40 },
+    ];
+    const r = applyManualWeights(natural, {
+      "Equity - USA": 150,   // → 100
+      "Bonds - Global": -25, // → 0
+    });
+    expect(r.saturated).toBe(true);
+    expect(r.rows[0].weight).toBe(100);
+    expect(r.rows[1].weight).toBe(0);
+  });
+
+  it("scales pinned rows up proportionally when there are no non-pinned rows and pinned sum < 100", () => {
+    const natural = [
+      { bucket: "Equity - USA", weight: 60 },
+      { bucket: "Bonds - Global", weight: 40 },
+    ];
+    const r = applyManualWeights(natural, {
+      "Equity - USA": 30,
+      "Bonds - Global": 20,
+    });
+    // Pinned sum 50, no non-pinned rows → scale up by 2 to fill 100.
+    expect(r.rows[0].weight).toBeCloseTo(60, 1);
+    expect(r.rows[1].weight).toBeCloseTo(40, 1);
+    expect(sumWeights(r.rows)).toBe(100);
+  });
+
+  it("absorbs rounding drift on the largest non-pinned row so the total is exactly 100", () => {
+    // Three non-pinned rows of equal natural weight + one pinned row whose
+    // residual does not divide evenly.
+    const natural = [
+      { bucket: "A - 1", weight: 25 },
+      { bucket: "B - 1", weight: 25 },
+      { bucket: "C - 1", weight: 25 },
+      { bucket: "D - 1", weight: 25 },
+    ];
+    const r = applyManualWeights(natural, { "A - 1": 31 });
+    // Residual 69 / 75 ≈ 0.92 → each non-pinned ≈ 23 (rounded to 1 dp).
+    expect(sumWeights(r.rows)).toBe(100);
+    expect(r.rows[0]).toMatchObject({ weight: 31, isManualOverride: true });
+  });
+
+  it("end-to-end: buildPortfolio applies overrides and the engine output sums to 100", () => {
+    const natural = buildPortfolio(baseInput(), "en");
+    const usEquity = natural.allocation.find(a => a.assetClass === "Equity" && a.region === "USA");
+    expect(usEquity).toBeTruthy();
+    const overrides = { [bucketKey("Equity", "USA")]: 10 };
+    const overridden = buildPortfolio(baseInput(), "en", overrides);
+    const usOverridden = overridden.allocation.find(a => a.assetClass === "Equity" && a.region === "USA");
+    expect(usOverridden?.weight).toBeCloseTo(10, 1);
+    expect(usOverridden?.isManualOverride).toBe(true);
+    const total = Math.round(overridden.allocation.reduce((s, a) => s + a.weight, 0) * 10) / 10;
+    expect(total).toBe(100);
+    // The implementation table mirrors the override flag.
+    const usEtf = overridden.etfImplementation.find(e => e.assetClass === "Equity" && e.bucket.endsWith("USA"));
+    expect(usEtf?.isManualOverride).toBe(true);
+    expect(usEtf?.weight).toBeCloseTo(10, 1);
+  });
+});

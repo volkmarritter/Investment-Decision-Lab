@@ -1,7 +1,15 @@
 import { useState, useRef, useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
-import { AlertCircle, CheckCircle2, Info, Target, ShieldAlert, BookOpen, ArrowRight, Download, Loader2, RotateCcw, ClipboardCopy } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info, Target, ShieldAlert, BookOpen, ArrowRight, Download, Loader2, RotateCcw, ClipboardCopy, X } from "lucide-react";
+import {
+  loadManualWeights,
+  setManualWeight,
+  clearManualWeight,
+  clearAllManualWeights,
+  subscribeManualWeights,
+  type ManualWeights,
+} from "@/lib/manualWeights";
 import { buildAiPrompt } from "@/lib/aiPrompt";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
@@ -77,16 +85,21 @@ export function BuildPortfolio() {
   const resultsRef = useRef<HTMLDivElement>(null);
   const pdfRef = useRef<HTMLDivElement>(null);
 
+  // Manual weight overrides — persisted in localStorage, applied at engine
+  // build time so frozen rows survive setting changes.
+  const [manualWeights, setManualWeightsState] = useState<ManualWeights>(() => loadManualWeights());
+  useEffect(() => subscribeManualWeights(setManualWeightsState), []);
+
   useEffect(() => {
     if (hasGenerated && output) {
       const parsedData = form.getValues();
       setValidation(runValidation(parsedData, lang));
-      const next = buildPortfolio(parsedData, lang);
+      const next = buildPortfolio(parsedData, lang, manualWeights);
       // Note: setOutput below will re-trigger the [output] effect which
       // publishes setLastAllocation, so we don't need to publish here too.
       setOutput(next);
     }
-  }, [lang]);
+  }, [lang, manualWeights]);
 
   // Single source of truth for cross-tab publishing: whenever `output`
   // changes (built, rebuilt, cleared on reset, or cleared on validation
@@ -140,7 +153,7 @@ export function BuildPortfolio() {
     setValidation(valResult);
 
     if (valResult.isValid) {
-      const portOutput = buildPortfolio(parsedData, lang);
+      const portOutput = buildPortfolio(parsedData, lang, manualWeights);
       setOutput(portOutput);
     } else {
       setOutput(null);
@@ -771,6 +784,57 @@ export function BuildPortfolio() {
                     <CardDescription>{t("build.implementation.desc")}</CardDescription>
                   </CardHeader>
                   <CardContent>
+                    {(() => {
+                      const presentBuckets = new Set(output.etfImplementation.map(e => e.bucket));
+                      const activeOverrides = Object.entries(manualWeights).filter(([k]) => presentBuckets.has(k));
+                      const activeCount = activeOverrides.length;
+                      const pinnedSum = activeOverrides.reduce((s, [, v]) => s + v, 0);
+                      const saturated = activeCount > 0 && pinnedSum >= 100;
+                      const staleCount = Object.keys(manualWeights).length - activeCount;
+                      if (activeCount === 0 && staleCount === 0) return null;
+                      return (
+                        <div className="mb-3 space-y-2" data-testid="manual-weights-banner">
+                          {activeCount > 0 && (
+                            <Alert>
+                              <Info className="h-4 w-4" />
+                              <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                <span>
+                                  {activeCount === 1
+                                    ? t("build.impl.manual.bannerOne")
+                                    : t("build.impl.manual.bannerMany").replace("{n}", String(activeCount))}
+                                </span>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => clearAllManualWeights()}
+                                  data-testid="manual-weights-reset-all"
+                                >
+                                  <RotateCcw className="h-3 w-3 mr-1" />
+                                  {t("build.impl.manual.resetAll")}
+                                </Button>
+                              </AlertDescription>
+                            </Alert>
+                          )}
+                          {saturated && (
+                            <Alert variant="destructive">
+                              <AlertCircle className="h-4 w-4" />
+                              <AlertDescription>
+                                {t("build.impl.manual.warnSaturated").replace("{sum}", pinnedSum.toFixed(1))}
+                              </AlertDescription>
+                            </Alert>
+                          )}
+                          {staleCount > 0 && (
+                            <Alert>
+                              <Info className="h-4 w-4" />
+                              <AlertDescription>
+                                {t("build.impl.manual.warnStale").replace("{n}", String(staleCount))}
+                              </AlertDescription>
+                            </Alert>
+                          )}
+                        </div>
+                      );
+                    })()}
                     <div className="rounded-md border overflow-x-auto">
                       <Table className="text-xs">
                         <TableHeader>
@@ -790,12 +854,32 @@ export function BuildPortfolio() {
                         </TableHeader>
                         <TableBody>
                           {output.etfImplementation.map((etf, i) => (
-                            <TableRow key={i}>
+                            <TableRow key={i} data-testid={`etf-row-${etf.bucket}`}>
                               <TableCell>
-                                <div className="font-medium">{etf.assetClass}</div>
+                                <div className="font-medium flex items-center gap-1.5 flex-wrap">
+                                  {etf.assetClass}
+                                  {etf.isManualOverride && (
+                                    <Badge
+                                      variant="secondary"
+                                      className="text-[9px] px-1.5 py-0 h-4"
+                                      data-testid={`custom-badge-${etf.bucket}`}
+                                    >
+                                      {t("build.impl.manual.badge")}
+                                    </Badge>
+                                  )}
+                                </div>
                                 <div className="text-[10px] text-muted-foreground mt-0.5">{etf.bucket.split(" - ")[1] ?? ""}</div>
                               </TableCell>
-                              <TableCell className="text-right font-mono">{etf.weight.toFixed(1)}%</TableCell>
+                              <TableCell className="text-right">
+                                <ManualWeightCell
+                                  bucket={etf.bucket}
+                                  displayedWeight={etf.weight}
+                                  isOverride={!!etf.isManualOverride}
+                                  pinnedValue={manualWeights[etf.bucket]}
+                                  resetTitle={t("build.impl.manual.resetRow")}
+                                  editTitle={t("build.impl.manual.editTitle")}
+                                />
+                              </TableCell>
                               <TableCell className="font-medium">{etf.exampleETF}</TableCell>
                               <TableCell className="font-mono whitespace-nowrap">{etf.isin}</TableCell>
                               <TableCell className="font-mono whitespace-nowrap">
@@ -982,4 +1066,123 @@ function NumEtfsRangeWarning({ form }: { form: any }) {
     );
   }
   return null;
+}
+
+// ---------------------------------------------------------------------------
+// Inline editable weight cell. Shows the current displayed weight as a small
+// numeric input. When the user commits a value (Enter or blur), the override
+// is persisted via setManualWeight; clearManualWeight is wired to the small
+// reset button shown when the row is overridden.
+// ---------------------------------------------------------------------------
+function ManualWeightCell(props: {
+  bucket: string;
+  displayedWeight: number;
+  isOverride: boolean;
+  pinnedValue: number | undefined;
+  resetTitle: string;
+  editTitle: string;
+}) {
+  const { bucket, displayedWeight, isOverride, pinnedValue, resetTitle, editTitle } = props;
+  // Source of truth for the input is ALWAYS the engine's effective weight,
+  // not the user-typed pinned value. In the saturated / all-pinned-undershoot
+  // edge cases the engine rescales pinned weights to keep the column at 100%,
+  // so showing the typed value would diverge from what downstream metrics use.
+  const effective = useRef(displayedWeight);
+  effective.current = displayedWeight;
+  const [draft, setDraft] = useState<string>(displayedWeight.toFixed(1));
+  const [focused, setFocused] = useState(false);
+  // Cancel/dirty flags used by the commit guard so that (a) Escape truly
+  // reverts without persisting, and (b) focus + blur on an untouched cell
+  // does not create a phantom override.
+  const cancelNext = useRef(false);
+  const dirty = useRef(false);
+
+  // Sync external changes (rebuild, reset, lang switch, cross-tab) back into
+  // the input when the user is not actively editing.
+  useEffect(() => {
+    if (!focused) {
+      setDraft(displayedWeight.toFixed(1));
+      dirty.current = false;
+    }
+  }, [displayedWeight, focused]);
+
+  const commit = () => {
+    if (cancelNext.current) {
+      // Escape was pressed — restore the engine value and skip persistence.
+      cancelNext.current = false;
+      dirty.current = false;
+      setDraft(effective.current.toFixed(1));
+      return;
+    }
+    if (!dirty.current) return; // focus + blur with no change ⇒ no-op
+    dirty.current = false;
+    const parsed = parseFloat(draft.replace(",", "."));
+    if (!Number.isFinite(parsed)) {
+      // Invalid input: revert to the engine value and clear any existing
+      // override so the row goes back to natural sizing.
+      setDraft(effective.current.toFixed(1));
+      if (isOverride) clearManualWeight(bucket);
+      return;
+    }
+    const clamped = Math.max(0, Math.min(100, Math.round(parsed * 10) / 10));
+    // No-op guard: if the typed value matches what is already in effect
+    // (the pinned value on an overridden row, or the natural displayed
+    // weight on a non-overridden row), don't write to storage. This avoids
+    // creating phantom overrides on focus + blur with no real edit.
+    const compareTo =
+      isOverride && typeof pinnedValue === "number"
+        ? pinnedValue
+        : effective.current;
+    if (Math.abs(clamped - compareTo) < 0.05) {
+      setDraft(compareTo.toFixed(1));
+      return;
+    }
+    setDraft(clamped.toFixed(1));
+    setManualWeight(bucket, clamped);
+  };
+
+  return (
+    <div className="inline-flex items-center justify-end gap-1">
+      <Input
+        type="number"
+        inputMode="decimal"
+        step="0.1"
+        min={0}
+        max={100}
+        value={draft}
+        onChange={(e) => { dirty.current = true; setDraft(e.target.value); }}
+        onFocus={() => setFocused(true)}
+        onBlur={() => { setFocused(false); commit(); }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            (e.currentTarget as HTMLInputElement).blur();
+          }
+          if (e.key === "Escape") {
+            cancelNext.current = true;
+            (e.currentTarget as HTMLInputElement).blur();
+          }
+        }}
+        title={editTitle}
+        aria-label={editTitle}
+        className={`h-7 w-16 px-1.5 text-right font-mono text-xs ${isOverride ? "border-primary/60" : ""}`}
+        data-testid={`weight-input-${bucket}`}
+      />
+      <span className="text-muted-foreground text-xs select-none">%</span>
+      {isOverride ? (
+        <button
+          type="button"
+          onClick={() => clearManualWeight(bucket)}
+          title={resetTitle}
+          aria-label={resetTitle}
+          className="text-muted-foreground hover:text-foreground rounded p-0.5"
+          data-testid={`weight-reset-${bucket}`}
+        >
+          <X className="h-3 w-3" />
+        </button>
+      ) : (
+        <span className="w-4" />
+      )}
+    </div>
+  );
 }

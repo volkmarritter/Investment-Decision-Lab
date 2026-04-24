@@ -3,6 +3,7 @@ import { getETFDetails } from "./etfs";
 import { Lang } from "./i18n";
 import { CMA, AssetKey } from "./metrics";
 import { resolvedHomeBias, HomeBiasCurrency } from "./settings";
+import { applyManualWeights, bucketKey, type ManualWeights } from "./manualWeights";
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -119,7 +120,11 @@ export function computeNaturalBucketCount(input: PortfolioInput): number {
   return tmp.allocation.length;
 }
 
-export function buildPortfolio(input: PortfolioInput, lang: Lang = "en"): PortfolioOutput {
+export function buildPortfolio(
+  input: PortfolioInput,
+  lang: Lang = "en",
+  manualWeights?: ManualWeights,
+): PortfolioOutput {
   const de = lang === "de";
   const maxEquityMap: Record<string, number> = {
     "Low": 40,
@@ -257,6 +262,29 @@ export function buildPortfolio(input: PortfolioInput, lang: Lang = "en"): Portfo
 
   allocation.sort((a, b) => b.weight - a.weight);
 
+  // ---------------------------------------------------------------------------
+  // Apply user-pinned weight overrides (if any). Pinned rows keep the user's
+  // typed weight; remaining rows are scaled proportionally so the portfolio
+  // still sums to 100%. Rows whose bucket has no override are unaffected
+  // beyond the proportional rescale. See src/lib/manualWeights.ts.
+  // ---------------------------------------------------------------------------
+  if (manualWeights && Object.keys(manualWeights).length > 0) {
+    const naturalRows = allocation.map((a) => ({
+      bucket: bucketKey(a.assetClass, a.region),
+      weight: a.weight,
+    }));
+    const adjusted = applyManualWeights(naturalRows, manualWeights);
+    for (let i = 0; i < allocation.length; i++) {
+      allocation[i].weight = adjusted.rows[i].weight;
+      if (adjusted.rows[i].isManualOverride) {
+        allocation[i].isManualOverride = true;
+      }
+    }
+    // Re-sort by post-override weight so the largest holdings remain on top
+    // (matches the natural-allocation behavior the rest of the UI expects).
+    allocation.sort((a, b) => b.weight - a.weight);
+  }
+
   const etfImplementation: ETFImplementation[] = [];
   for (const alloc of allocation) {
     if (alloc.assetClass === "Cash") continue;
@@ -265,6 +293,7 @@ export function buildPortfolio(input: PortfolioInput, lang: Lang = "en"): Portfo
       bucket: `${alloc.assetClass} - ${alloc.region}`,
       assetClass: alloc.assetClass,
       weight: alloc.weight,
+      isManualOverride: alloc.isManualOverride,
       intent: de
         ? `Bietet Exposure zu ${alloc.region} innerhalb von ${alloc.assetClass}.`
         : `Provide ${alloc.region} exposure within ${alloc.assetClass}.`,
