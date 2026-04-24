@@ -50,12 +50,13 @@ async function extractIsinsFromCatalog() {
   return [...isins];
 }
 
-// Skip the small set of non-equity ISINs whose top-holdings list either does
-// not apply (gold ETF) or is uninformative for an equity-style display
-// (broad-market crypto basket published with daily-shifting weights). These
-// stay hand-curated.
-async function extractEquityIsinsFromLookthrough() {
-  const src = await readFile(LOOKTHROUGH_TS, "utf8");
+// Pure parser: given the text of src/lib/lookthrough.ts, return the Set of
+// ISINs whose PROFILES entry has `isEquity: true`. Split out from the
+// filesystem-reading wrapper so tests can feed it a fixture string directly
+// (see tests/scrapers.test.ts) — keeping it side-effect-free is what makes
+// the equity-only filter test loud-failing if the PROFILES literal shape
+// ever changes.
+function parseEquityIsinsFromLookthroughSource(src) {
   const equity = new Set();
   // Match each PROFILES entry: "ISIN": { isEquity: true | false, ... }
   const re = /"([A-Z]{2}[A-Z0-9]{9}\d)"\s*:\s*\{\s*isEquity:\s*(true|false)/g;
@@ -64,6 +65,15 @@ async function extractEquityIsinsFromLookthrough() {
     if (m[2] === "true") equity.add(m[1]);
   }
   return equity;
+}
+
+// Skip the small set of non-equity ISINs whose top-holdings list either does
+// not apply (gold ETF) or is uninformative for an equity-style display
+// (broad-market crypto basket published with daily-shifting weights). These
+// stay hand-curated.
+async function extractEquityIsinsFromLookthrough() {
+  const src = await readFile(LOOKTHROUGH_TS, "utf8");
+  return parseEquityIsinsFromLookthroughSource(src);
 }
 
 // Top-10 holdings: parses the static <table data-testid="etf-holdings_top-holdings_table">
@@ -109,8 +119,8 @@ function extractTopHoldings(html) {
   return trimmed;
 }
 
-// Pure export for unit tests under tests/scrapers.test.ts.
-export { extractTopHoldings };
+// Pure exports for unit tests under tests/scrapers.test.ts.
+export { extractTopHoldings, parseEquityIsinsFromLookthroughSource };
 
 async function fetchProfile(isin) {
   const url = `https://www.justetf.com/en/etf-profile.html?isin=${isin}`;

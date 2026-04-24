@@ -22,7 +22,10 @@ import {
   LISTINGS_EXTRACTORS,
   VENUE_MAP,
 } from "../scripts/refresh-justetf.mjs";
-import { extractTopHoldings } from "../scripts/refresh-lookthrough.mjs";
+import {
+  extractTopHoldings,
+  parseEquityIsinsFromLookthroughSource,
+} from "../scripts/refresh-lookthrough.mjs";
 
 const FIXTURES = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -209,5 +212,102 @@ describe("refresh-lookthrough extractTopHoldings", () => {
 
   it("returns undefined when the holdings table is missing entirely", () => {
     expect(extractTopHoldings("<html><body>nothing</body></html>")).toBeUndefined();
+  });
+});
+
+describe("refresh-lookthrough parseEquityIsinsFromLookthroughSource", () => {
+  // The monthly top-holdings refresh deliberately skips non-equity ISINs:
+  //   - gold ETFs publish no holdings (the fund holds bullion, not equities),
+  //   - broad-market crypto baskets publish daily-shifting weights that are
+  //     uninformative as a static "Top 10" snapshot.
+  // The filter relies on parsing src/lib/lookthrough.ts and matching the
+  // `"ISIN": { isEquity: true | false, ... }` literal shape. If anyone ever
+  // restructures PROFILES (e.g. moves isEquity out of the inline object,
+  // wraps each entry in a helper, or renames the field) the regex would
+  // silently match nothing and the script would happily skip every ISIN as
+  // "non-equity". This test feeds a synthetic source string covering one of
+  // each ISIN class — an equity index, a gold-bullion ETC, a crypto basket
+  // — and asserts only the equity ISIN is returned, so any drift in the
+  // PROFILES literal shape trips CI loudly.
+  const fixtureSrc = `
+    export const PROFILES: Record<string, LookthroughProfile> = {
+      // Equity index — must be included in the refresh batch.
+      "IE00B4L5Y983": {
+        isEquity: true,
+        geo: { US: 70, JP: 6 },
+      },
+      // Physical gold ETC — must be excluded.
+      "IE00B4ND3602": {
+        isEquity: false,
+        geo: {},
+      },
+      // Crypto basket — must be excluded.
+      "DE000A27Z304": {
+        isEquity: false,
+        geo: {},
+      },
+    };
+  `;
+
+  it("returns only ISINs whose PROFILES entry has isEquity: true", () => {
+    const equity = parseEquityIsinsFromLookthroughSource(fixtureSrc);
+    expect([...equity].sort()).toEqual(["IE00B4L5Y983"]);
+  });
+
+  it("excludes the gold ETC and crypto basket ISINs (isEquity: false)", () => {
+    const equity = parseEquityIsinsFromLookthroughSource(fixtureSrc);
+    expect(equity.has("IE00B4ND3602")).toBe(false);
+    expect(equity.has("DE000A27Z304")).toBe(false);
+  });
+
+  it("returns an empty Set when no PROFILES entries are present", () => {
+    const equity = parseEquityIsinsFromLookthroughSource("export const PROFILES = {};");
+    expect(equity.size).toBe(0);
+  });
+
+  it("stays in sync with the real lookthrough.ts catalog (sentinel ISINs and minimum count)", () => {
+    // Read the actual src/lib/lookthrough.ts and confirm the parser still
+    // finds the well-known equity sentinel ISINs the engine ships with.
+    // We assert specific ISINs (not just `size > 0`) so a partial regex
+    // degradation — e.g. someone wraps a few PROFILES entries in a helper
+    // and only the unwrapped ones still match — fails CI loudly instead of
+    // sneaking through with a smaller-but-non-zero result.
+    const lookthroughTs = readFileSync(
+      path.join(
+        path.dirname(fileURLToPath(import.meta.url)),
+        "..",
+        "src",
+        "lib",
+        "lookthrough.ts",
+      ),
+      "utf8",
+    );
+    const equity = parseEquityIsinsFromLookthroughSource(lookthroughTs);
+
+    // Sentinels: a representative slice of the curated equity catalog
+    // (broad world, S&P 500, regional, sector). Any of these going missing
+    // means either the catalog dropped a pillar holding (worth a code
+    // review) or the parser regressed (worth a parser fix) — both warrant
+    // a loud CI failure rather than a quiet skip.
+    const SENTINEL_EQUITY_ISINS = [
+      "IE00B3YLTY66", // MSCI ACWI IMI
+      "IE00B5BMR087", // S&P 500 (iShares Core CSPX)
+      "IE00B4K48X80", // MSCI Europe IMI
+      "IE00BKM4GZ66", // MSCI EM IMI
+      "IE00B3WJKG14", // S&P 500 Information Technology
+    ];
+    for (const isin of SENTINEL_EQUITY_ISINS) {
+      expect(equity.has(isin)).toBe(true);
+    }
+
+    // Minimum count: the curated catalog has > 10 equity profiles today;
+    // a sudden drop below that almost certainly means the parser only
+    // matched a subset of entries.
+    expect(equity.size).toBeGreaterThanOrEqual(10);
+
+    // Every parsed value still has to be a syntactically valid ISIN.
+    for (const isin of equity) {
+      expect(isin).toMatch(/^[A-Z]{2}[A-Z0-9]{9}\d$/);
+    }
   });
 });
