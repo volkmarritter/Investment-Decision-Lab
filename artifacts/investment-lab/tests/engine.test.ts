@@ -1122,6 +1122,34 @@ describe("CMA layered overrides", () => {
     }
   });
 
+  it("getCMAOverrides discards entries with unknown keys and out-of-bounds values", async () => {
+    const { getCMAOverrides } = await import("../src/lib/settings");
+    // Simulate tampered localStorage by stubbing window.localStorage
+    const fakeStore: Record<string, string> = {
+      "idl.cmaOverrides": JSON.stringify({
+        equity_us: { expReturn: 0.08, vol: 0.18 },
+        nonsense_key: { expReturn: 0.05 },
+        crypto: { expReturn: 5, vol: 99 }, // out of bounds → clamped not dropped
+        bonds: { expReturn: "abc" }, // wrong type → dropped
+      }),
+    };
+    const orig = (globalThis as { window?: { localStorage: Storage } }).window;
+    (globalThis as unknown as { window: { localStorage: Pick<Storage, "getItem"> } }).window = {
+      localStorage: { getItem: (k: string) => fakeStore[k] ?? null },
+    };
+    try {
+      const o = getCMAOverrides();
+      expect(o.equity_us).toEqual({ expReturn: 0.08, vol: 0.18 });
+      expect(o.nonsense_key).toBeUndefined();
+      expect(o.crypto?.expReturn).toBe(1); // clamped to upper bound
+      expect(o.crypto?.vol).toBe(2);       // clamped to upper bound
+      expect(o.bonds).toBeUndefined();     // wrong type → entry dropped
+    } finally {
+      if (orig) (globalThis as unknown as { window: typeof orig }).window = orig;
+      else delete (globalThis as { window?: unknown }).window;
+    }
+  });
+
   it("home-bias overrides: increasing CHF multiplier raises Switzerland equity weight; reset restores default", async () => {
     const settings = await import("../src/lib/settings");
     // Use a real in-memory localStorage stub so set/get/remove all work consistently.
@@ -1191,8 +1219,7 @@ describe("CMA layered overrides", () => {
     }
   });
 
-  it("Euronext is a valid preferred exchange and major ETFs expose Euronext tickers", async () => {
-    const { getETFDetails } = await import("../src/lib/etfs");
+  it("Euronext is a valid preferred exchange and major ETFs expose Euronext tickers", () => {
     // PreferredExchange "Euronext" is accepted by buildPortfolio (no throw).
     const out = buildPortfolio(baseInput({ baseCurrency: "EUR", numETFs: 12, preferredExchange: "Euronext" }));
     expect(out.allocations.length).toBeGreaterThan(0);
@@ -1206,33 +1233,5 @@ describe("CMA layered overrides", () => {
     // SIX-only Equity-Switzerland must NOT have a Euronext listing.
     const ch = getETFDetails("Equity-Switzerland");
     expect(ch?.listings.Euronext).toBeUndefined();
-  });
-
-  it("getCMAOverrides discards entries with unknown keys and out-of-bounds values", async () => {
-    const { getCMAOverrides } = await import("../src/lib/settings");
-    // Simulate tampered localStorage by stubbing window.localStorage
-    const fakeStore: Record<string, string> = {
-      "idl.cmaOverrides": JSON.stringify({
-        equity_us: { expReturn: 0.08, vol: 0.18 },
-        nonsense_key: { expReturn: 0.05 },
-        crypto: { expReturn: 5, vol: 99 }, // out of bounds → clamped not dropped
-        bonds: { expReturn: "abc" }, // wrong type → dropped
-      }),
-    };
-    const orig = (globalThis as { window?: { localStorage: Storage } }).window;
-    (globalThis as unknown as { window: { localStorage: Pick<Storage, "getItem"> } }).window = {
-      localStorage: { getItem: (k: string) => fakeStore[k] ?? null },
-    };
-    try {
-      const o = getCMAOverrides();
-      expect(o.equity_us).toEqual({ expReturn: 0.08, vol: 0.18 });
-      expect(o.nonsense_key).toBeUndefined();
-      expect(o.crypto?.expReturn).toBe(1); // clamped to upper bound
-      expect(o.crypto?.vol).toBe(2);       // clamped to upper bound
-      expect(o.bonds).toBeUndefined();     // wrong type → entry dropped
-    } finally {
-      if (orig) (globalThis as unknown as { window: typeof orig }).window = orig;
-      else delete (globalThis as { window?: unknown }).window;
-    }
   });
 });

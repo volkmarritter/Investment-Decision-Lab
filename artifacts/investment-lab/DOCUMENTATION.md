@@ -56,7 +56,7 @@ Defined in `src/lib/types.ts`:
 | `targetEquityPct` | `number` 0–100 | Capped by risk appetite. |
 | `numETFs` | `number` (Max) | Hard ceiling on ETF count used by engine. |
 | `numETFsMin` | `number` (optional) | Advisory floor; drives the warning when natural buckets fall below it. |
-| `preferredExchange` | `None \| LSE \| XETRA \| SIX \| Euronext` | ETF listing preference. `None` = "European listings" — engine picks each ETF's most liquid European listing among LSE / XETRA / SIX / Euronext (Amsterdam). |
+| `preferredExchange` | `None \| LSE \| XETRA \| SIX` | ETF listing preference. |
 | `thematicPreference` | `None \| Technology \| Healthcare \| Sustainability \| Cybersecurity` | Adds a thematic sleeve. |
 | `includeCurrencyHedging` | `boolean` | Selects hedged share-classes where available. |
 | `includeSyntheticETFs` | `boolean` | Allows swap-based US equity replication. |
@@ -159,7 +159,7 @@ Each weight is rounded to one decimal; any rounding residual is added to the lar
 
 Each non-cash bucket is mapped to a concrete ETF via `getETFDetails(assetClass, region, input)` in `src/lib/etfs.ts`. The chosen ETF respects:
 
-- `preferredExchange` (LSE / XETRA / SIX / Euronext, else default listing).
+- `preferredExchange` (LSE / XETRA / SIX, else default listing).
 - `includeCurrencyHedging` (hedged share class when available and base ≠ USD).
 - `includeSyntheticETFs` (swap-based S&P 500 for US equity, only when not hedged).
 
@@ -365,7 +365,6 @@ All persistence is `localStorage`-only:
 | `investment-lab.lang.v1` | `i18n.tsx` | Language preference. |
 | `idl.riskFreeRate` | `settings.ts` | User-editable risk-free rate. |
 | `idl.cmaOverrides` | `settings.ts` | Per-asset-class μ/σ overrides set in the Methodology tab; sanitized on read (key whitelist + value bounds). |
-| `idl.homeBiasOverrides` | `settings.ts` | Per-base-currency home-bias multiplier overrides (USD/EUR/GBP/CHF, range 0–5) set in the Methodology tab; sanitized on read (currency whitelist + value clamp). |
 | `investment-lab.savedScenarios.v1` | `savedScenarios.ts` | List of named scenarios. |
 | `vite-ui-theme` | `components/theme-provider.tsx` (next-themes) | Light/dark mode. |
 
