@@ -1,9 +1,61 @@
 {
   "_meta": {
     "source": "justetf.com",
-    "lastRefreshed": null,
+    "lastRefreshed": "2026-04-24T08:04:32.368Z",
     "refreshedBy": "scripts/refresh-justetf.mjs",
     "note": "ISIN -> partial ETFRecord overrides applied on top of the in-code CATALOG in src/lib/etfs.ts. Empty by default; populated by the nightly refresh script. Only fields present in this file override the catalog defaults; everything else stays as defined in code."
   },
-  "overrides": {}
+  "overrides": {
+    "IE00B3YLTY66": {
+      "terBps": 17
+    },
+    "IE00B5BMR087": {
+      "terBps": 7
+    },
+    "IE00B3YCGJ38": {
+      "terBps": 5
+    },
+    "IE00B4K48X80": {
+      "terBps": 12
+    },
+    "CH0237935652": {
+      "terBps": 10
+    },
+    "IE00B4L5YX21": {
+      "terBps": 12
+    },
+    "IE00BKM4GZ66": {
+      "terBps": 18
+    },
+    "IE00B3ZW0K18": {
+      "terBps": 20
+    },
+    "IE00B3F81409": {
+      "terBps": 10
+    },
+    "IE00BDBRDM35": {
+      "terBps": 10
+    },
+    "IE00B579F325": {
+      "terBps": 12
+    },
+    "IE00B1FZS350": {
+      "terBps": 59
+    },
+    "GB00BLD4ZL17": {
+      "terBps": 15
+    },
+    "IE00B3WJKG14": {
+      "terBps": 15
+    },
+    "IE00BYZK4776": {
+      "terBps": 40
+    },
+    "IE00B1XNHC34": {
+      "terBps": 65
+    },
+    "IE00BG0J4C88": {
+      "terBps": 40
+    }
+  }
 }
