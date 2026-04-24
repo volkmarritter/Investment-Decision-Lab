@@ -347,6 +347,32 @@ type ETFOverride = Partial<
   listings?: ListingMap;
 };
 const RAW_OVERRIDES = (overridesFile as { overrides?: Record<string, ETFOverride> }).overrides ?? {};
+
+// Snapshot freshness metadata written by scripts/refresh-justetf.mjs.
+// `lastRefreshedMode` indicates which cadence wrote the file most recently:
+//   - "core"     → weekly Sundays 03:00 UTC (TER, AUM, inception, distribution, replication)
+//   - "listings" → nightly 02:00 UTC (per-exchange ticker map)
+// Since both modes write to the same file, we only ever know the latest run's
+// stamp + mode, not separate per-mode stamps.
+export type ETFsSnapshotMode = "core" | "listings";
+export interface ETFsSnapshotMeta {
+  lastRefreshed: string | null;
+  lastRefreshedMode: ETFsSnapshotMode | null;
+}
+const _ETFS_META = (overridesFile as {
+  _meta?: { lastRefreshed?: string | null; lastRefreshedMode?: string | null };
+})._meta ?? {};
+const _ETFS_SNAPSHOT_META: ETFsSnapshotMeta = {
+  lastRefreshed: _ETFS_META.lastRefreshed ?? null,
+  lastRefreshedMode:
+    _ETFS_META.lastRefreshedMode === "core" || _ETFS_META.lastRefreshedMode === "listings"
+      ? _ETFS_META.lastRefreshedMode
+      : null,
+};
+export function getETFsSnapshotMeta(): ETFsSnapshotMeta {
+  return _ETFS_SNAPSHOT_META;
+}
+
 for (const rec of Object.values(CATALOG)) {
   const patch = RAW_OVERRIDES[rec.isin];
   if (!patch) continue;

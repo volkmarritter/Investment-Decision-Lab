@@ -6,6 +6,7 @@ import { Trophy, Info, ChevronDown, ChevronUp } from "lucide-react";
 import { ETFImplementation, BaseCurrency } from "@/lib/types";
 import { buildLookthrough, LOOKTHROUGH_REFERENCE_DATE, profileFor } from "@/lib/lookthrough";
 import { useT } from "@/lib/i18n";
+import { TopHoldingsFreshness } from "./SnapshotFreshness";
 
 interface Props {
   etfs: ETFImplementation[];
@@ -118,6 +119,7 @@ export function TopHoldings({ etfs, baseCurrency }: Props) {
           <p>
             {t(dateLineKey).replace("{date}", dateLabel)}
           </p>
+          <TopHoldingsFreshness etfs={etfs} />
           <p>{t("build.top10.transparency.differences")}</p>
           <ul className="list-disc list-inside pl-2 space-y-1">
             <li>{t("build.top10.transparency.reason.mix")}</li>

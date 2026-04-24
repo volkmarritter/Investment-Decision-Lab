@@ -6,6 +6,7 @@ import { Telescope, Info, ChevronDown, ChevronUp } from "lucide-react";
 import { ETFImplementation, BaseCurrency } from "@/lib/types";
 import { buildLookthrough } from "@/lib/lookthrough";
 import { useT } from "@/lib/i18n";
+import { LookthroughCuratedStamp } from "./SnapshotFreshness";
 
 interface Props {
   etfs: ETFImplementation[];
@@ -120,6 +121,7 @@ export function LookThroughAnalysis({ etfs, baseCurrency }: Props) {
           </ul>
         </div>
 
+        <LookthroughCuratedStamp />
         <p className="text-[10px] text-muted-foreground italic">
           {t("build.lookthrough.disclaimer")}
         </p>

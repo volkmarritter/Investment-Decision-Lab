@@ -418,6 +418,30 @@ type LookthroughOverride = {
 };
 const RAW_LOOKTHROUGH_OVERRIDES =
   (lookthroughOverridesFile as { overrides?: Record<string, LookthroughOverride> }).overrides ?? {};
+
+// Snapshot freshness metadata written by scripts/refresh-lookthrough.mjs.
+// Per-ISIN top-holdings stamps live on each profile (`topHoldingsAsOf`); this
+// file-level value is the timestamp of the last refresh job run, used as a
+// fallback when no per-ISIN stamp is available.
+export interface LookthroughSnapshotMeta {
+  lastRefreshed: string | null;
+}
+const _LT_META = (lookthroughOverridesFile as {
+  _meta?: { lastRefreshed?: string | null };
+})._meta ?? {};
+const _LT_SNAPSHOT_META: LookthroughSnapshotMeta = {
+  lastRefreshed: _LT_META.lastRefreshed ?? null,
+};
+export function getLookthroughSnapshotMeta(): LookthroughSnapshotMeta {
+  return _LT_SNAPSHOT_META;
+}
+
+// Returns the per-ISIN top-holdings as-of stamp if the monthly refresh has
+// populated it; null when the row is still served from the curated default.
+export function topHoldingsStampFor(isin: string): string | null {
+  return profileFor(isin)?.topHoldingsAsOf ?? null;
+}
+
 for (const [isin, patch] of Object.entries(RAW_LOOKTHROUGH_OVERRIDES)) {
   const target = PROFILES[isin];
   if (!target || !patch) continue;
