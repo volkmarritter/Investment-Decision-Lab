@@ -109,6 +109,9 @@ function extractTopHoldings(html) {
   return trimmed;
 }
 
+// Pure export for unit tests under tests/scrapers.test.ts.
+export { extractTopHoldings };
+
 async function fetchProfile(isin) {
   const url = `https://www.justetf.com/en/etf-profile.html?isin=${isin}`;
   const res = await fetch(url, { headers: { "User-Agent": USER_AGENT, "Accept-Language": "en" } });
@@ -188,7 +191,13 @@ async function main() {
   process.exit(failCount > okCount ? 1 : 0);
 }
 
-main().catch((e) => {
-  console.error("Fatal:", e);
-  process.exit(2);
-});
+// Only run main() when invoked directly from the CLI. When this module is
+// imported (e.g. by tests/scrapers.test.ts) the network fetch loop must NOT
+// auto-execute.
+const isCli = process.argv[1] === fileURLToPath(import.meta.url);
+if (isCli) {
+  main().catch((e) => {
+    console.error("Fatal:", e);
+    process.exit(2);
+  });
+}

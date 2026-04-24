@@ -21,6 +21,17 @@ export interface LookthroughProfile {
 // scripts/refresh-lookthrough.mjs.
 export const LOOKTHROUGH_REFERENCE_DATE = "Q4 2024";
 
+// Surfaced freshness metadata for the look-through override file. The UI
+// reads this to show a "Top-10 holdings refreshed <date>" stamp on the
+// TopHoldings card. On a fresh checkout (file present but no refresh has
+// run) `lastRefreshed` is null and the UI falls back to LOOKTHROUGH_REFERENCE_DATE.
+type LookthroughOverridesMeta = {
+  source?: string;
+  lastRefreshed?: string | null;
+};
+export const LOOKTHROUGH_OVERRIDES_META: LookthroughOverridesMeta =
+  (lookthroughOverridesFile as { _meta?: LookthroughOverridesMeta })._meta ?? {};
+
 const PROFILES: Record<string, LookthroughProfile> = {
   // MSCI ACWI IMI — single-fund global equity (developed + emerging, all-cap)
   "IE00B3YLTY66": {

@@ -357,6 +357,21 @@ for (const rec of Object.values(CATALOG)) {
   }
 }
 
+// Surfaced freshness metadata (UI displays "core data as of <date>" and
+// "listings as of <date>" stamps next to the ETF Implementation table).
+// On a fresh checkout where no refresh job has run yet the file's _meta has
+// `lastCoreRefresh` / `lastListingsRefresh` set to null and the UI hides the
+// stamp gracefully.
+type OverridesMeta = {
+  source?: string;
+  lastRefreshed?: string | null;
+  lastRefreshedMode?: "core" | "listings" | "all" | null;
+  lastCoreRefresh?: string | null;
+  lastListingsRefresh?: string | null;
+};
+export const ETF_OVERRIDES_META: OverridesMeta =
+  (overridesFile as { _meta?: OverridesMeta })._meta ?? {};
+
 function placeholder(assetClass: string, region: string): ETFDetails {
   return {
     name: `Generic ${assetClass} ETF — ${region}`,

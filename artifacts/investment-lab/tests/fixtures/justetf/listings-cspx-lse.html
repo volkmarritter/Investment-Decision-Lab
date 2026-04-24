@@ -1,0 +1,49 @@
+<!--
+  Synthetic, minimal fragment that mirrors the structure of the justETF
+  "Listings" panel for IE00B5BMR087 (iShares Core S&P 500 UCITS ETF, USD).
+
+  Why synthetic: we deliberately do NOT snapshot the real justETF page —
+    1. it would be ~MB of unrelated chrome / scripts / ads,
+    2. it would couple the test to layout cosmetics that don't matter, and
+    3. it would raise unnecessary copyright questions about vendoring a
+       third-party page.
+
+  This fragment captures the only contract our extractor depends on:
+    * <table data-testid="etf-trade-data-panel_table">
+    * <tr   data-testid="etf-trade-data-panel_row-{venue}">
+    * cells with data-testid suffixes ending in "_trade-currency" / "_ticker"
+
+  CSPX (USD) and CSP1 (GBX) are both genuine LSE share classes of the same
+  iShares fund. The currency-preference picker MUST return CSPX because the
+  catalog primary currency for IE00B5BMR087 is USD.
+  Mund (Munich) is included to confirm unmapped venues are dropped. SIX
+  appears as `vtx` (Virt-X / SIX Swiss legacy id) to confirm vtx -> SIX.
+-->
+<table data-testid="etf-trade-data-panel_table">
+  <tbody>
+    <tr data-testid="etf-trade-data-panel_row-xlon">
+      <td data-testid="etf-trade-data-panel_row-xlon_trade-currency">USD</td>
+      <td data-testid="etf-trade-data-panel_row-xlon_ticker">CSPX</td>
+    </tr>
+    <tr data-testid="etf-trade-data-panel_row-xlon">
+      <td data-testid="etf-trade-data-panel_row-xlon_trade-currency">GBX</td>
+      <td data-testid="etf-trade-data-panel_row-xlon_ticker">CSP1</td>
+    </tr>
+    <tr data-testid="etf-trade-data-panel_row-xetr">
+      <td data-testid="etf-trade-data-panel_row-xetr_trade-currency">EUR</td>
+      <td data-testid="etf-trade-data-panel_row-xetr_ticker">SXR8</td>
+    </tr>
+    <tr data-testid="etf-trade-data-panel_row-vtx">
+      <td data-testid="etf-trade-data-panel_row-vtx_trade-currency">USD</td>
+      <td data-testid="etf-trade-data-panel_row-vtx_ticker">CSSPX</td>
+    </tr>
+    <tr data-testid="etf-trade-data-panel_row-ams">
+      <td data-testid="etf-trade-data-panel_row-ams_trade-currency">EUR</td>
+      <td data-testid="etf-trade-data-panel_row-ams_ticker">CSPX</td>
+    </tr>
+    <tr data-testid="etf-trade-data-panel_row-mund">
+      <td data-testid="etf-trade-data-panel_row-mund_trade-currency">EUR</td>
+      <td data-testid="etf-trade-data-panel_row-mund_ticker">SXR8</td>
+    </tr>
+  </tbody>
+</table>

@@ -1,0 +1,58 @@
+<!--
+  Synthetic Top-10 holdings fragment for IE00B4L5Y983 (iShares Core MSCI
+  World UCITS ETF). Mirrors the justETF table structure that
+  scripts/refresh-lookthrough.mjs::extractTopHoldings depends on.
+
+  Weights are ordered descending and sum to ~22 %, well below the 105 % sum
+  rejection threshold. Names use the same `<a title="...">` shape justETF
+  emits.
+-->
+<table data-testid="etf-holdings_top-holdings_table">
+  <tbody>
+    <tr data-testid="etf-holdings_top-holdings_row">
+      <td><a href="#" title="Apple Inc">Apple Inc</a></td>
+      <td><span data-testid="row_value_percentage">5.21 %</span></td>
+    </tr>
+    <tr data-testid="etf-holdings_top-holdings_row">
+      <td><a href="#" title="Microsoft Corp">Microsoft Corp</a></td>
+      <td><span data-testid="row_value_percentage">4.10 %</span></td>
+    </tr>
+    <tr data-testid="etf-holdings_top-holdings_row">
+      <td><a href="#" title="NVIDIA Corp">NVIDIA Corp</a></td>
+      <td><span data-testid="row_value_percentage">3.55 %</span></td>
+    </tr>
+    <tr data-testid="etf-holdings_top-holdings_row">
+      <td><a href="#" title="Amazon.com Inc">Amazon.com Inc</a></td>
+      <td><span data-testid="row_value_percentage">2.32 %</span></td>
+    </tr>
+    <tr data-testid="etf-holdings_top-holdings_row">
+      <td><a href="#" title="Meta Platforms Inc Class A">Meta Platforms Inc Class A</a></td>
+      <td><span data-testid="row_value_percentage">1.55 %</span></td>
+    </tr>
+    <tr data-testid="etf-holdings_top-holdings_row">
+      <td><a href="#" title="Alphabet Inc Class A">Alphabet Inc Class A</a></td>
+      <td><span data-testid="row_value_percentage">1.32 %</span></td>
+    </tr>
+    <tr data-testid="etf-holdings_top-holdings_row">
+      <td><a href="#" title="Alphabet Inc Class C">Alphabet Inc Class C</a></td>
+      <td><span data-testid="row_value_percentage">1.18 %</span></td>
+    </tr>
+    <tr data-testid="etf-holdings_top-holdings_row">
+      <td><a href="#" title="Broadcom Inc">Broadcom Inc</a></td>
+      <td><span data-testid="row_value_percentage">1.05 %</span></td>
+    </tr>
+    <tr data-testid="etf-holdings_top-holdings_row">
+      <td><a href="#" title="Tesla Inc">Tesla Inc</a></td>
+      <td><span data-testid="row_value_percentage">0.92 %</span></td>
+    </tr>
+    <tr data-testid="etf-holdings_top-holdings_row">
+      <td><a href="#" title="Eli Lilly and Co">Eli Lilly and Co</a></td>
+      <td><span data-testid="row_value_percentage">0.78 %</span></td>
+    </tr>
+    <!-- An 11th row to confirm the slice(0,10) cap. -->
+    <tr data-testid="etf-holdings_top-holdings_row">
+      <td><a href="#" title="Berkshire Hathaway Inc Class B">Berkshire Hathaway Inc Class B</a></td>
+      <td><span data-testid="row_value_percentage">0.71 %</span></td>
+    </tr>
+  </tbody>
+</table>

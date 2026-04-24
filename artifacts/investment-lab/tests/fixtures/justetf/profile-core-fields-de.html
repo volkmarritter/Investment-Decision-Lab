@@ -1,0 +1,27 @@
+<!--
+  German-locale counterpart of profile-core-fields.html. Ensures the DE label
+  branches in scripts/refresh-justetf.mjs::CORE_EXTRACTORS (Gesamtkostenquote,
+  Fondsgröße, Auflagedatum, Ertragsverwendung, Replikationsmethode) are
+  exercised, so that a DE-locale-only label rename on justETF still trips a
+  loud test failure rather than silently producing empty overrides for the
+  weekly core refresh.
+-->
+<div>
+  <h2>Wesentliche Daten</h2>
+  <dl>
+    <dt>Gesamtkostenquote</dt>
+    <dd><span class="value">0,07 %</span> p.a.</dd>
+
+    <dt>Fondsgröße</dt>
+    <dd>EUR 12.345 Mio</dd>
+
+    <dt>Ertragsverwendung</dt>
+    <dd>Thesaurierend</dd>
+
+    <dt>Replikationsmethode</dt>
+    <dd>Physisch (Sampling)</dd>
+
+    <dt>Auflagedatum</dt>
+    <dd>15.05.2010</dd>
+  </dl>
+</div>

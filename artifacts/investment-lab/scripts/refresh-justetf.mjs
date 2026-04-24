@@ -51,20 +51,6 @@ const REQUEST_DELAY_MS = 1500;
 const USER_AGENT =
   "InvestmentDecisionLab-DataRefresh/1.0 (+https://github.com/your-org/investment-lab; contact: ops@example.com)";
 
-// --- CLI parsing -------------------------------------------------------------
-const ARGS = process.argv.slice(2);
-const MODE = (() => {
-  const flag = ARGS.find((a) => a.startsWith("--mode="));
-  if (!flag) return "all";
-  const v = flag.slice("--mode=".length);
-  if (!["core", "listings", "all"].includes(v)) {
-    console.error(`Unknown --mode=${v}. Expected core|listings|all.`);
-    process.exit(2);
-  }
-  return v;
-})();
-const TARGET_ISINS = ARGS.filter((a) => !a.startsWith("--"));
-
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 // Extract every (isin, currency) pair from the curated catalog so the listings
@@ -254,8 +240,16 @@ const LISTINGS_EXTRACTORS = {
 
 const ALL_EXTRACTORS = { ...CORE_EXTRACTORS, ...LISTINGS_EXTRACTORS };
 
-const ACTIVE_EXTRACTORS =
-  MODE === "core" ? CORE_EXTRACTORS : MODE === "listings" ? LISTINGS_EXTRACTORS : ALL_EXTRACTORS;
+// Pure exports for unit tests under tests/scrapers.test.ts.
+// `parseDateLoose` is included so date-parsing edge cases can be tested in
+// isolation from the network-fetching `main()` flow.
+export {
+  CORE_EXTRACTORS,
+  LISTINGS_EXTRACTORS,
+  ALL_EXTRACTORS,
+  VENUE_MAP,
+  parseDateLoose,
+};
 
 async function fetchProfile(isin) {
   const url = `https://www.justetf.com/en/etf-profile.html?isin=${isin}`;
@@ -265,15 +259,32 @@ async function fetchProfile(isin) {
 }
 
 async function main() {
+  const args = process.argv.slice(2);
+  const mode = (() => {
+    const flag = args.find((a) => a.startsWith("--mode="));
+    if (!flag) return "all";
+    const v = flag.slice("--mode=".length);
+    if (!["core", "listings", "all"].includes(v)) {
+      console.error(`Unknown --mode=${v}. Expected core|listings|all.`);
+      process.exit(2);
+    }
+    return v;
+  })();
+  const targetIsins = args.filter((a) => !a.startsWith("--"));
+  const activeExtractors =
+    mode === "core" ? CORE_EXTRACTORS : mode === "listings" ? LISTINGS_EXTRACTORS : ALL_EXTRACTORS;
+
   const catalog = await extractCatalogEntries();
   const allIsins = [...catalog.keys()];
-  const isins = TARGET_ISINS.length ? TARGET_ISINS : allIsins;
-  console.log(`Refreshing ${isins.length} ISIN(s) from justETF — mode=${MODE}, fields=[${Object.keys(ACTIVE_EXTRACTORS).join(", ")}]`);
+  const isins = targetIsins.length ? targetIsins : allIsins;
+  console.log(`Refreshing ${isins.length} ISIN(s) from justETF — mode=${mode}, fields=[${Object.keys(activeExtractors).join(", ")}]`);
 
   let existing = {};
+  let existingMeta = {};
   try {
     const raw = JSON.parse(await readFile(OVERRIDES_JSON, "utf8"));
     existing = raw.overrides ?? {};
+    existingMeta = raw._meta ?? {};
   } catch {
     // first run — leave empty
   }
@@ -287,7 +298,7 @@ async function main() {
     try {
       const html = await fetchProfile(isin);
       const patch = {};
-      for (const [field, extractor] of Object.entries(ACTIVE_EXTRACTORS)) {
+      for (const [field, extractor] of Object.entries(activeExtractors)) {
         const v = extractor(html, rec);
         if (v !== undefined) patch[field] = v;
       }
@@ -314,11 +325,24 @@ async function main() {
     process.exit(failCount > okCount ? 1 : 0);
   }
 
+  // Track per-mode timestamps so the UI can show "core fields verified <date>"
+  // and "listings verified <date>" independently. Each mode only updates its
+  // own stamp; the other one is preserved from the previous run so a nightly
+  // listings refresh doesn't reset the weekly core-fields stamp (and vice
+  // versa).
+  const stamp = new Date().toISOString();
+  const lastCoreRefresh =
+    mode === "core" || mode === "all" ? stamp : existingMeta.lastCoreRefresh ?? null;
+  const lastListingsRefresh =
+    mode === "listings" || mode === "all" ? stamp : existingMeta.lastListingsRefresh ?? null;
+
   const payload = {
     _meta: {
       source: "justetf.com",
-      lastRefreshed: new Date().toISOString(),
-      lastRefreshedMode: MODE,
+      lastRefreshed: stamp,
+      lastRefreshedMode: mode,
+      lastCoreRefresh,
+      lastListingsRefresh,
       refreshedBy: "scripts/refresh-justetf.mjs",
       note:
         "ISIN -> partial ETFRecord overrides applied on top of the in-code CATALOG in src/lib/etfs.ts. " +
@@ -333,7 +357,13 @@ async function main() {
   process.exit(failCount > okCount ? 1 : 0);
 }
 
-main().catch((e) => {
-  console.error("Fatal:", e);
-  process.exit(2);
-});
+// Only run main() when invoked directly from the CLI. When this module is
+// imported (e.g. by tests/scrapers.test.ts) the network fetch loop must NOT
+// auto-execute.
+const isCli = process.argv[1] === fileURLToPath(import.meta.url);
+if (isCli) {
+  main().catch((e) => {
+    console.error("Fatal:", e);
+    process.exit(2);
+  });
+}

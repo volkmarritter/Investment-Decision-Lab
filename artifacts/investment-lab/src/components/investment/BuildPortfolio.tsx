@@ -32,6 +32,7 @@ import { Separator } from "@/components/ui/separator";
 import { PortfolioInput, PortfolioOutput, ValidationResult } from "@/lib/types";
 import { runValidation } from "@/lib/validation";
 import { buildPortfolio, computeNaturalBucketCount } from "@/lib/portfolio";
+import { ETF_OVERRIDES_META } from "@/lib/etfs";
 import { defaultExchangeFor } from "@/lib/exchange";
 import { setLastAllocation } from "@/lib/settings";
 import { StressTest } from "./StressTest";
@@ -996,6 +997,46 @@ export function BuildPortfolio() {
                     <p className="text-[10px] text-muted-foreground mt-2 italic">
                       {t("build.impl.disclaimer")}
                     </p>
+                    {(() => {
+                      // Per-field freshness footer. The two refresh cadences
+                      // (weekly "core" + nightly "listings") write independent
+                      // ISO timestamps into etfs.overrides.json under
+                      // _meta.lastCoreRefresh / lastListingsRefresh; we surface
+                      // both here so the user can see exactly when each
+                      // dimension was last verified against justETF.
+                      const fmt = (iso: string) =>
+                        new Intl.DateTimeFormat(
+                          lang === "de" ? "de-DE" : "en-US",
+                          { year: "numeric", month: "short", day: "numeric" },
+                        ).format(new Date(iso));
+                      const core = ETF_OVERRIDES_META.lastCoreRefresh ?? null;
+                      const listings = ETF_OVERRIDES_META.lastListingsRefresh ?? null;
+                      let key: string;
+                      let msg: string;
+                      if (core && listings) {
+                        key = "build.impl.freshness.both";
+                        msg = t(key)
+                          .replace("{coreDate}", fmt(core))
+                          .replace("{listingsDate}", fmt(listings));
+                      } else if (core) {
+                        key = "build.impl.freshness.coreOnly";
+                        msg = t(key).replace("{coreDate}", fmt(core));
+                      } else if (listings) {
+                        key = "build.impl.freshness.listingsOnly";
+                        msg = t(key).replace("{listingsDate}", fmt(listings));
+                      } else {
+                        key = "build.impl.freshness.none";
+                        msg = t(key);
+                      }
+                      return (
+                        <p
+                          className="text-[10px] text-muted-foreground mt-1 italic"
+                          data-testid="text-impl-freshness"
+                        >
+                          {msg}
+                        </p>
+                      );
+                    })()}
                   </CardContent>
                 </Card>
 

@@ -4,12 +4,26 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { Trophy, Info, ChevronDown, ChevronUp } from "lucide-react";
 import { ETFImplementation, BaseCurrency } from "@/lib/types";
-import { buildLookthrough, LOOKTHROUGH_REFERENCE_DATE } from "@/lib/lookthrough";
+import { buildLookthrough, LOOKTHROUGH_REFERENCE_DATE, profileFor } from "@/lib/lookthrough";
 import { useT } from "@/lib/i18n";
 
 interface Props {
   etfs: ETFImplementation[];
   baseCurrency: BaseCurrency;
+}
+
+// Format an ISO timestamp as a localised short date ("Apr 24, 2026" /
+// "24. Apr. 2026"). Returns null on bad input so the caller can fall back to
+// the static curated reference date.
+function formatStamp(iso: string | undefined | null, lang: string): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return new Intl.DateTimeFormat(lang === "de" ? "de-DE" : "en-US", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  }).format(d);
 }
 
 export function TopHoldings({ etfs, baseCurrency }: Props) {
@@ -18,6 +32,27 @@ export function TopHoldings({ etfs, baseCurrency }: Props) {
   const [open, setOpen] = useState(false);
   const topName = r.topConcentrations[0]?.name;
   const topPct = r.topConcentrations[0]?.pctOfPortfolio.toFixed(2);
+
+  // Pick the freshest per-ISIN topHoldingsAsOf across the equity ETFs that
+  // actually contribute to the displayed top-10. If any equity ETF is still
+  // on the curated default (no auto-stamp), fall back to LOOKTHROUGH_REFERENCE_DATE
+  // for honesty — the user shouldn't see "refreshed last week" if even one
+  // contributing fund is hand-curated.
+  const equityProfiles = etfs
+    .map((e) => profileFor(e.isin))
+    .filter((p): p is NonNullable<typeof p> => p !== null && p.isEquity);
+  const allEquityHaveAutoStamp =
+    equityProfiles.length > 0 && equityProfiles.every((p) => Boolean(p.topHoldingsAsOf));
+  const latestAutoStamp = allEquityHaveAutoStamp
+    ? equityProfiles
+        .map((p) => p.topHoldingsAsOf!)
+        .sort()
+        .at(-1) ?? null
+    : null;
+  const dateLabel = formatStamp(latestAutoStamp, lang) ?? LOOKTHROUGH_REFERENCE_DATE;
+  const dateLineKey = latestAutoStamp
+    ? "build.top10.transparency.dataDateAuto"
+    : "build.top10.transparency.dataDate";
 
   return (
     <Card>
@@ -81,7 +116,7 @@ export function TopHoldings({ etfs, baseCurrency }: Props) {
             <Info className="h-3.5 w-3.5" /> {t("build.top10.transparency.title")}
           </div>
           <p>
-            {t("build.top10.transparency.dataDate").replace("{date}", LOOKTHROUGH_REFERENCE_DATE)}
+            {t(dateLineKey).replace("{date}", dateLabel)}
           </p>
           <p>{t("build.top10.transparency.differences")}</p>
           <ul className="list-disc list-inside pl-2 space-y-1">
