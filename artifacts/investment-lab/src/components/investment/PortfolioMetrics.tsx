@@ -7,7 +7,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { AssetAllocation } from "@/lib/types";
 import { computeMetrics, computeFrontier, buildCorrelationMatrix, mapAllocationToAssets, CMA } from "@/lib/metrics";
-import { getRiskFreeRate, subscribeRiskFreeRate } from "@/lib/settings";
+import { getRiskFreeRate, subscribeRiskFreeRate, subscribeCMAOverrides } from "@/lib/settings";
+import { applyCMALayers } from "@/lib/metrics";
 import { useT } from "@/lib/i18n";
 
 export function PortfolioMetrics({ allocation }: { allocation: AssetAllocation[] }) {
@@ -16,9 +17,12 @@ export function PortfolioMetrics({ allocation }: { allocation: AssetAllocation[]
   const [expanded, setExpanded] = useState(false);
   const [rf, setRf] = useState<number>(() => getRiskFreeRate());
   useEffect(() => subscribeRiskFreeRate(setRf), []);
+  // Re-render whenever the user edits CMA overrides in the Methodology tab.
+  const [cmaVersion, setCmaVersion] = useState(0);
+  useEffect(() => subscribeCMAOverrides(() => { applyCMALayers(); setCmaVersion((v) => v + 1); }), []);
 
-  const m = useMemo(() => computeMetrics(allocation), [allocation, rf]);
-  const frontier = useMemo(() => computeFrontier(allocation), [allocation, rf]);
+  const m = useMemo(() => computeMetrics(allocation), [allocation, rf, cmaVersion]);
+  const frontier = useMemo(() => computeFrontier(allocation), [allocation, rf, cmaVersion]);
   const correlation = useMemo(() => buildCorrelationMatrix(allocation), [allocation]);
   const exposures = useMemo(() => mapAllocationToAssets(allocation), [allocation]);
 

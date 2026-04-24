@@ -1,5 +1,6 @@
 import { AssetAllocation } from "./types";
-import { getRiskFreeRate } from "./settings";
+import { getRiskFreeRate, getCMAOverrides } from "./settings";
+import consensusFile from "@/data/cmas.consensus.json";
 
 export type AssetKey =
   | "equity_us"
@@ -21,7 +22,14 @@ export interface AssetCMA {
   vol: number;
 }
 
-export const CMA: Record<AssetKey, AssetCMA> = {
+// Seed values (engine fallback). These are the deliberately conservative,
+// stable defaults documented in the Methodology tab. Two further override
+// layers may be applied on top (priority: user > consensus > seed):
+//   1. Multi-provider CONSENSUS from src/data/cmas.consensus.json (Option A)
+//   2. USER overrides from localStorage (Option B), edited in the Methodology tab
+// Both layers mutate the leaf objects of CMA in place so every existing caller
+// (CMA[key].expReturn, CMA[key].vol) keeps working without changes.
+const CMA_SEED: Record<AssetKey, AssetCMA> = {
   equity_us:        { key: "equity_us",        label: "US Equity",         expReturn: 0.070, vol: 0.16 },
   equity_eu:        { key: "equity_eu",        label: "Europe Equity",     expReturn: 0.075, vol: 0.17 },
   equity_ch:        { key: "equity_ch",        label: "Swiss Equity",      expReturn: 0.060, vol: 0.13 },
@@ -34,6 +42,119 @@ export const CMA: Record<AssetKey, AssetCMA> = {
   reits:            { key: "reits",            label: "Listed Real Estate", expReturn: 0.065, vol: 0.18 },
   crypto:           { key: "crypto",           label: "Crypto",            expReturn: 0.120, vol: 0.70 },
 };
+
+// Live, mutable view used by the engine and UI everywhere.
+export const CMA: Record<AssetKey, AssetCMA> = Object.fromEntries(
+  (Object.entries(CMA_SEED) as [AssetKey, AssetCMA][]).map(([k, v]) => [k, { ...v }]),
+) as Record<AssetKey, AssetCMA>;
+
+// --- Layer 1: consensus from public LTCMAs (manual yearly curation) ----------
+interface ConsensusFile {
+  _meta?: { lastReviewed?: string | null; providers?: string[]; note?: string };
+  assets?: Partial<Record<AssetKey, {
+    consensus?: { expReturn?: number; vol?: number; n?: number };
+    providers?: Record<string, { expReturn?: number; vol?: number; asOf?: string }>;
+  }>>;
+}
+const CONSENSUS = consensusFile as ConsensusFile;
+
+export interface CMAConsensusInfo {
+  hasConsensus: boolean;
+  lastReviewed: string | null;
+  providers: string[];
+  perAsset: Partial<Record<AssetKey, {
+    consensus: { expReturn?: number; vol?: number; n?: number };
+    providers: Record<string, { expReturn?: number; vol?: number; asOf?: string }>;
+  }>>;
+}
+
+export function getCMAConsensus(): CMAConsensusInfo {
+  const perAsset: CMAConsensusInfo["perAsset"] = {};
+  let hasConsensus = false;
+  for (const [k, v] of Object.entries(CONSENSUS.assets ?? {})) {
+    if (v && (v.consensus || v.providers)) {
+      perAsset[k as AssetKey] = { consensus: v.consensus ?? {}, providers: v.providers ?? {} };
+      if (v.consensus?.expReturn !== undefined || v.consensus?.vol !== undefined) hasConsensus = true;
+    }
+  }
+  return {
+    hasConsensus,
+    lastReviewed: CONSENSUS._meta?.lastReviewed ?? null,
+    providers: CONSENSUS._meta?.providers ?? [],
+    perAsset,
+  };
+}
+
+// Sanity helper: only let finite, in-bounds numbers reach CMA.
+function sanitizeCMAValue(v: unknown, bounds: [number, number]): number | undefined {
+  if (typeof v !== "number" || !Number.isFinite(v)) return undefined;
+  if (v < bounds[0] || v > bounds[1]) return undefined;
+  return v;
+}
+
+// --- Layer 2: live user overrides (Option B) --------------------------------
+// Re-applies seed -> consensus -> user, in that order. Called at module load
+// and whenever the user edits values in the Methodology tab. Both consensus
+// JSON values and user override values are sanitized (type-checked + clamped
+// to μ ∈ [-0.5, +1.0], σ ∈ [0, 2]) on every call, so malformed snapshot data
+// or tampered localStorage can never corrupt CMA — even after multiple
+// successive idl-cma-changed events. The user overrides path also receives a
+// second pass of sanitization in getCMAOverrides() (which additionally
+// enforces the asset-key whitelist).
+const MU_BOUNDS: [number, number] = [-0.5, 1];
+const SIGMA_BOUNDS: [number, number] = [0, 2];
+export function applyCMALayers() {
+  // Layer 0: seed.
+  for (const k of Object.keys(CMA_SEED) as AssetKey[]) {
+    CMA[k].expReturn = CMA_SEED[k].expReturn;
+    CMA[k].vol = CMA_SEED[k].vol;
+  }
+  // Layer 1: multi-provider consensus snapshot (sanitized).
+  for (const [k, v] of Object.entries(CONSENSUS.assets ?? {})) {
+    const key = k as AssetKey;
+    if (!CMA[key]) continue;
+    const er = sanitizeCMAValue(v?.consensus?.expReturn, MU_BOUNDS);
+    const vl = sanitizeCMAValue(v?.consensus?.vol, SIGMA_BOUNDS);
+    if (er !== undefined) CMA[key].expReturn = er;
+    if (vl !== undefined) CMA[key].vol = vl;
+  }
+  // Layer 2: user overrides (already sanitized in getCMAOverrides; re-clamp
+  // here defensively in case the API ever changes).
+  const userOverrides = getCMAOverrides();
+  for (const [k, v] of Object.entries(userOverrides)) {
+    const key = k as AssetKey;
+    if (!CMA[key]) continue;
+    const er = sanitizeCMAValue(v.expReturn, MU_BOUNDS);
+    const vl = sanitizeCMAValue(v.vol, SIGMA_BOUNDS);
+    if (er !== undefined) CMA[key].expReturn = er;
+    if (vl !== undefined) CMA[key].vol = vl;
+  }
+}
+
+// Apply once eagerly at module load.
+applyCMALayers();
+
+// Helper that exposes the current "active source" per asset for the UI.
+export function getCMASources(): Record<AssetKey, {
+  expReturnSource: "seed" | "consensus" | "user";
+  volSource: "seed" | "consensus" | "user";
+}> {
+  const userOverrides = getCMAOverrides();
+  const out = {} as Record<AssetKey, { expReturnSource: "seed" | "consensus" | "user"; volSource: "seed" | "consensus" | "user" }>;
+  for (const k of Object.keys(CMA_SEED) as AssetKey[]) {
+    const cons = CONSENSUS.assets?.[k]?.consensus;
+    const user = userOverrides[k];
+    out[k] = {
+      expReturnSource: user?.expReturn !== undefined ? "user" : cons?.expReturn !== undefined ? "consensus" : "seed",
+      volSource: user?.vol !== undefined ? "user" : cons?.vol !== undefined ? "consensus" : "seed",
+    };
+  }
+  return out;
+}
+
+export function getCMASeed(key: AssetKey): { expReturn: number; vol: number } {
+  return { expReturn: CMA_SEED[key].expReturn, vol: CMA_SEED[key].vol };
+}
 
 export const RISK_FREE_RATE_DEFAULT = 0.025;
 export const RISK_FREE_RATE = RISK_FREE_RATE_DEFAULT;

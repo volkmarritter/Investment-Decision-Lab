@@ -1,4 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { subscribeCMAOverrides } from "@/lib/settings";
+import { applyCMALayers } from "@/lib/metrics";
 import { Activity, TrendingUp, TrendingDown, Target } from "lucide-react";
 import {
   Area,
@@ -34,6 +36,11 @@ export function MonteCarloSimulation({
 }: MonteCarloSimulationProps) {
   const { t, lang } = useT();
   const [investmentAmount, setInvestmentAmount] = useState<number>(100000);
+  // Re-run the simulation whenever the user edits CMA overrides in the
+  // Methodology tab. runMonteCarlo now reads μ/σ from CMA, so override
+  // changes must trigger a fresh useMemo computation.
+  const [cmaVersion, setCmaVersion] = useState(0);
+  useEffect(() => subscribeCMAOverrides(() => { applyCMALayers(); setCmaVersion((v) => v + 1); }), []);
 
   const result = useMemo(
     () =>
@@ -41,7 +48,7 @@ export function MonteCarloSimulation({
         hedged: !!hedged,
         baseCurrency,
       }),
-    [allocation, horizonYears, investmentAmount, hedged, baseCurrency]
+    [allocation, horizonYears, investmentAmount, hedged, baseCurrency, cmaVersion]
   );
 
   const formatCurrency = (value: number) => {

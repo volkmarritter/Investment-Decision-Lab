@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-04-23
+Last updated: 2026-04-24
 
 ---
 
@@ -262,6 +262,65 @@ DRY_RUN=1 node scripts/refresh-justetf.mjs       # parse & log, do not write
 
 ---
 
+### 5.3 Capital Market Assumptions — consensus & user overrides
+
+The CMA table in `src/lib/metrics.ts` (`CMA_SEED`, the historical engine fallback) is the deepest assumption in the entire app. Every metric — Sharpe, alpha/beta, frontier, Monte Carlo, drawdown estimate — depends on the μ/σ values per asset class. To keep the engine deterministic but the assumptions transparent and adjustable, three layers are stacked at module load:
+
+| Priority | Layer | Source | Editable by |
+|----|----|----|----|
+| 1 (highest) | **User overrides** | `localStorage["idl.cmaOverrides"]` | End user, via the editable table in the Methodology tab |
+| 2 | **Multi-provider consensus** | `src/data/cmas.consensus.json` (committed) | Maintainer (yearly) |
+| 3 (fallback) | **Engine seed** | `CMA_SEED` constant in `metrics.ts` | Developer (code change) |
+
+`applyCMALayers()` in `metrics.ts` re-applies the three layers in order and mutates the leaf objects of the exported `CMA` record in place — every existing caller (`CMA[k].expReturn`, `CMA[k].vol`) keeps working without changes. It is called once at module load and again whenever the user dispatches a CMA-change event from the Methodology editor.
+
+**Layer 2 — multi-provider consensus (Option A).** `cmas.consensus.json` ships empty by default (engine falls back to seed values). The maintainer fills it once a year by reading the publicly published Long-Term Capital Market Assumptions of major asset managers and computing the per-asset-class mean. Recommended source set:
+
+| Provider | Document | Cadence |
+|----|----|----|
+| BlackRock Investment Institute | Capital Market Assumptions | Quarterly (use latest of the year) |
+| J.P. Morgan Asset Management | Long-Term Capital Market Assumptions | Annual (October) |
+| Vanguard | Vanguard Capital Markets Model — Investment Outlook | Annual + monthly updates |
+| Schroders | 30-Year Return Forecasts | Annual |
+| Robeco | Expected Returns 5-Year Outlook | Annual |
+| BNY Mellon | 10-Year Capital Market Assumptions | Annual |
+| Invesco | Long-Term Capital Market Assumptions | Annual |
+
+JSON shape:
+
+```json
+{
+  "_meta": { "lastReviewed": "2026-Q1", "providers": ["BlackRock 2026", "JPM 2026", "Vanguard 2026", "Schroders 2026", "Robeco 2026"] },
+  "assets": {
+    "equity_us": {
+      "consensus": { "expReturn": 0.068, "vol": 0.165, "n": 5 },
+      "providers": {
+        "BlackRock 2026": { "expReturn": 0.063, "vol": 0.168, "asOf": "2025-Q4" },
+        "JPM 2026":       { "expReturn": 0.072, "vol": 0.163, "asOf": "2025-09" }
+      }
+    }
+  }
+}
+```
+
+Only `consensus.expReturn` and `consensus.vol` are read by the engine; `providers` and `asOf` exist for traceability and may be surfaced in the Methodology UI later. Asset keys must match the `AssetKey` union (`equity_us`, `equity_eu`, `equity_ch`, `equity_jp`, `equity_em`, `equity_thematic`, `bonds`, `cash`, `gold`, `reits`, `crypto`).
+
+**Why manual and not scraped.** Each provider publishes their CMAs in a different format (PDF, HTML article, sometimes Excel) and frequently restructures their layout. A scraper would either break silently within a year or produce incorrect numbers. Since CMAs change only once a year, a 30-minute manual update by the maintainer is more reliable than 200 lines of brittle PDF extraction.
+
+**Layer 1 — user overrides (Option B).** The Methodology tab exposes an editable table where the user can type custom μ and σ per asset class. Empty cells fall through to the consensus or seed value. On **Apply**, the values are persisted to `localStorage` under `idl.cmaOverrides` and broadcast via the `idl-cma-changed` custom event. `PortfolioMetrics` and `MonteCarloSimulation` subscribe via `subscribeCMAOverrides`, call `applyCMALayers()` to refresh the in-memory `CMA` record, and re-run `useMemo` so the metrics block (Sharpe, alpha/beta, frontier, drawdown) and the Monte Carlo simulation (`runMonteCarlo` reads μ/σ directly from `CMA` after the refactor) immediately reflect the new assumptions. **Reset** wipes overrides and restores the consensus/seed values.
+
+**What is *not* affected by CMA overrides** (intentional separation):
+
+- **Stress test scenarios** (`scenarios.ts`) — these are *historical-style return shocks* per asset bucket (e.g. 2008 GFC: equity_usa = -45%, bonds = +6%), not μ/σ assumptions. They live independently so a user can keep mainstream CMAs but still stress against a tail event. Add new scenarios in `scenarios.ts` directly.
+- **Portfolio construction** (`portfolio.ts → buildPortfolio`) — uses CMA at construction time (Sharpe overlay in `computeEquityRegionWeights`), so a *fresh* portfolio built after overrides have been set will reflect them. Already-built portfolios are not retro-rebuilt; the user must hit "Generate Portfolio" again to redraw. This is by design — building is an explicit user action.
+- **Validation rules** (`validation.ts`) — risk caps and horizon thresholds are independent of expected returns.
+
+Source badges in the UI (`Custom` / `Consensus` / `Engine`) make the active source explicit per asset and per μ/σ field, so the user can always see which assumption is currently driving the numbers.
+
+**Validation bounds.** μ is clamped to `[-50%, +100%]` p.a., σ to `[0%, 200%]` p.a. — these are sanity bounds, not realism bounds. The Methodology UI does not warn for unusual values; the user is assumed to know what they are doing when overriding house assumptions.
+
+---
+
 ## 6. UI Components (`src/components/investment/`)
 
 | Component | Responsibility |
@@ -305,6 +364,7 @@ All persistence is `localStorage`-only:
 |-----|-------|---------|
 | `investment-lab.lang.v1` | `i18n.tsx` | Language preference. |
 | `idl.riskFreeRate` | `settings.ts` | User-editable risk-free rate. |
+| `idl.cmaOverrides` | `settings.ts` | Per-asset-class μ/σ overrides set in the Methodology tab; sanitized on read (key whitelist + value bounds). |
 | `investment-lab.savedScenarios.v1` | `savedScenarios.ts` | List of named scenarios. |
 | `vite-ui-theme` | `components/theme-provider.tsx` (next-themes) | Light/dark mode. |
 
@@ -385,6 +445,13 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-04-24
+- **Capital Market Assumptions are now layered: seed → consensus → user.** The CMA table in `metrics.ts` (the deepest assumption in the engine — drives Sharpe, frontier, alpha/beta and Monte Carlo) is no longer a single hard-coded record. It is now a three-layer stack applied at module load, with strict priority: (1) **user overrides** from `localStorage["idl.cmaOverrides"]`, (2) **multi-provider consensus** from the new `src/data/cmas.consensus.json` snapshot file, (3) **engine seed** (`CMA_SEED`, the previous in-code defaults). `applyCMALayers()` mutates the leaf objects of the exported `CMA` record in place, so every existing caller (`CMA[k].expReturn`, `CMA[k].vol`) keeps working without any code change. The Methodology tab gained two new UI blocks inside the CMA section: a **multi-provider consensus status** banner (shows whether `cmas.consensus.json` is populated, the `lastReviewed` date, the list of providers mixed in, or "engine defaults active" when empty), and an **editable CMA table** where the user can type custom μ and σ per asset class. Each row shows the seed value as a hint, the currently-active μ/σ, two input cells, and source badges (`Custom` / `Consensus` / `Engine`) for both μ and σ — making the active assumption explicit. **Apply** persists to localStorage and broadcasts an `idl-cma-changed` event; `PortfolioMetrics` and `MonteCarloSimulation` subscribe and re-run `useMemo` so the metrics block (Sharpe, frontier, α/β, drawdown) and the Monte Carlo simulation reflect the new assumptions immediately. **Reset** wipes overrides.
+- **Monte Carlo now reads μ/σ from CMA** instead of a duplicated `bucketAssumption` table. `runMonteCarlo` previously had its own copy of expected returns and volatilities per asset bucket — this would have silently bypassed user overrides. Refactored to look up the active values via a thin `bucketKey(assetClass, region)` mapper and `CMA[key]`, so Sharpe, frontier and Monte Carlo all share a single source of truth. The FX-hedge σ reduction for foreign equity (≈3pp DM, 2pp EM, σ floor 5%) is now applied *after* the CMA read so user overrides and hedging stay composable. End-to-end verified: Sharpe -25.5 → -39.6 and Monte Carlo expected return 5.69% → 10.75% when US equity μ is overridden to 20%; both revert on Reset. Added 5 regression tests (CMA wiring, manual CMA mutation reflected in MC, FX-hedge σ composition, sanitization of tampered localStorage with unknown keys / out-of-bounds values / wrong types, sanitizer holds across repeated `applyCMALayers()` calls). Suite at 95 tests.
+- **Hardened CMA boundary validation.** Sanitization now lives **inside** `applyCMALayers()` (one code path, runs on every call — at module load *and* on every `idl-cma-changed` event). Consensus JSON values are type-checked and clamped (μ → `[-50%, +100%]`, σ → `[0%, 200%]`) before they enter `CMA`; `getCMAOverrides()` additionally enforces an asset-key whitelist on the user-overrides path. Earlier draft used a one-shot IIFE which would have let later `applyCMALayers()` calls re-introduce malformed consensus values — caught in code review and folded into a single sanitized layering function. Added a regression test that injects an out-of-bounds consensus value, calls `applyCMALayers()` three times, and asserts the bounds hold every time.
+- **Stress test independence documented.** Stress shocks in `scenarios.ts` are *historical-style return shocks* per asset bucket, not μ/σ assumptions, and are intentionally decoupled from CMA overrides so a user can keep mainstream CMAs while stressing against tail events. §5.3 now lists what is and is not affected by overrides.
+- The consensus JSON ships empty by default — the engine falls back to the seed values, so the existing tests still pass unchanged. Full details in section 5.3 above. Per-asset-class notes were folded into a collapsed accordion to keep the editor visible without scroll. §8 Persistence updated with the new `idl.cmaOverrides` key.
 
 ### 2026-04-23
 - **Snapshot-build data refresh pipeline (justETF).** Added a Node script `scripts/refresh-justetf.mjs` that pulls per-ISIN fields (currently TER) from public justETF profile pages and writes them to `src/data/etfs.overrides.json`. `src/lib/etfs.ts` shallow-merges those overrides on top of the in-code `CATALOG` at module load — when the file is empty (the committed default) the engine behaves exactly as before, so the 90-test suite still passes. New GitHub Action `.github/workflows/refresh-data.yml` runs the script nightly, runs typecheck + tests against the snapshot, and commits the diff if any. The Methodology tab now has a dedicated "Data Refresh & Freshness" card explaining the pipeline (EN/DE) and listing what stays curated by hand. Full details in section 5.2 above. App stays frontend-only at runtime; the user's browser never makes a live API call.

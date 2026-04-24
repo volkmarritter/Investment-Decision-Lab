@@ -1057,3 +1057,96 @@ describe("AI Prompt builder (buildAiPrompt)", () => {
     }
   });
 });
+
+// ----------------------------------------------------------------------------
+// CMA layering & Monte Carlo wiring (regression — see DOCUMENTATION.md §5.3)
+// ----------------------------------------------------------------------------
+describe("CMA layered overrides", () => {
+  it("Monte Carlo expected-return reflects the active CMA value (single source of truth)", async () => {
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    const { CMA } = await import("../src/lib/metrics");
+    const alloc = [{ assetClass: "Equity", region: "USA", weight: 100 }];
+    const baseline = runMonteCarlo(alloc, 5, 100_000, { paths: 200, seed: 1 });
+    expect(baseline.expectedReturn).toBeCloseTo(CMA.equity_us.expReturn, 6);
+  });
+
+  it("manually mutating CMA leaves immediately changes Monte Carlo expected return", async () => {
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    const { CMA } = await import("../src/lib/metrics");
+    const alloc = [{ assetClass: "Equity", region: "USA", weight: 100 }];
+    const before = runMonteCarlo(alloc, 5, 100_000, { paths: 200, seed: 1 }).expectedReturn;
+    const original = CMA.equity_us.expReturn;
+    CMA.equity_us.expReturn = 0.123;
+    const after = runMonteCarlo(alloc, 5, 100_000, { paths: 200, seed: 1 }).expectedReturn;
+    CMA.equity_us.expReturn = original; // restore for downstream tests
+    expect(after).toBeCloseTo(0.123, 6);
+    expect(after).not.toBeCloseTo(before, 4);
+  });
+
+  it("FX-hedge sigma reduction stays composable on top of CMA σ for foreign equity", async () => {
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    const { CMA } = await import("../src/lib/metrics");
+    // CHF investor holding US equity → foreign equity → hedged should cut σ by 0.03
+    const alloc = [{ assetClass: "Equity", region: "USA", weight: 100 }];
+    const unhedged = runMonteCarlo(alloc, 5, 100_000, { paths: 200, seed: 1, hedged: false, baseCurrency: "CHF" });
+    const hedged = runMonteCarlo(alloc, 5, 100_000, { paths: 200, seed: 1, hedged: true, baseCurrency: "CHF" });
+    expect(unhedged.expectedVol).toBeCloseTo(CMA.equity_us.vol, 6);
+    expect(hedged.expectedVol).toBeCloseTo(Math.max(0.05, CMA.equity_us.vol - 0.03), 6);
+  });
+
+  it("applyCMALayers stays sanitized across repeated calls (consensus path)", async () => {
+    // Reviewer-flagged regression: a single sanitize-once-at-module-load IIFE
+    // would let a later applyCMALayers() call (triggered on every idl-cma-changed
+    // event) re-introduce malformed consensus values. Verify the sanitizer is
+    // re-applied on every call by injecting a malformed value into the live
+    // CONSENSUS object and calling applyCMALayers() multiple times.
+    const metrics = await import("../src/lib/metrics");
+    const consensusMod = await import("../src/data/cmas.consensus.json");
+    const consensus = (consensusMod.default ?? consensusMod) as {
+      assets?: Record<string, { consensus?: { expReturn?: unknown; vol?: unknown } }>;
+    };
+    consensus.assets = consensus.assets ?? {};
+    const original = consensus.assets.bonds;
+    consensus.assets.bonds = { consensus: { expReturn: 99, vol: -5 } }; // way out of bounds
+    try {
+      for (let i = 0; i < 3; i++) metrics.applyCMALayers();
+      // Both malformed values must be rejected on every call → fall through to seed.
+      expect(metrics.CMA.bonds.expReturn).toBeGreaterThanOrEqual(-0.5);
+      expect(metrics.CMA.bonds.expReturn).toBeLessThanOrEqual(1);
+      expect(metrics.CMA.bonds.vol).toBeGreaterThanOrEqual(0);
+      expect(metrics.CMA.bonds.vol).toBeLessThanOrEqual(2);
+    } finally {
+      if (original) consensus.assets.bonds = original;
+      else delete consensus.assets.bonds;
+      metrics.applyCMALayers();
+    }
+  });
+
+  it("getCMAOverrides discards entries with unknown keys and out-of-bounds values", async () => {
+    const { getCMAOverrides } = await import("../src/lib/settings");
+    // Simulate tampered localStorage by stubbing window.localStorage
+    const fakeStore: Record<string, string> = {
+      "idl.cmaOverrides": JSON.stringify({
+        equity_us: { expReturn: 0.08, vol: 0.18 },
+        nonsense_key: { expReturn: 0.05 },
+        crypto: { expReturn: 5, vol: 99 }, // out of bounds → clamped not dropped
+        bonds: { expReturn: "abc" }, // wrong type → dropped
+      }),
+    };
+    const orig = (globalThis as { window?: { localStorage: Storage } }).window;
+    (globalThis as unknown as { window: { localStorage: Pick<Storage, "getItem"> } }).window = {
+      localStorage: { getItem: (k: string) => fakeStore[k] ?? null },
+    };
+    try {
+      const o = getCMAOverrides();
+      expect(o.equity_us).toEqual({ expReturn: 0.08, vol: 0.18 });
+      expect(o.nonsense_key).toBeUndefined();
+      expect(o.crypto?.expReturn).toBe(1); // clamped to upper bound
+      expect(o.crypto?.vol).toBe(2);       // clamped to upper bound
+      expect(o.bonds).toBeUndefined();     // wrong type → entry dropped
+    } finally {
+      if (orig) (globalThis as unknown as { window: typeof orig }).window = orig;
+      else delete (globalThis as { window?: unknown }).window;
+    }
+  });
+});

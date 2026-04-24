@@ -8,9 +8,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { CMA, BENCHMARK, buildCorrelationMatrix } from "@/lib/metrics";
+import { CMA, BENCHMARK, buildCorrelationMatrix, getCMAConsensus, getCMASources, getCMASeed, applyCMALayers, AssetKey } from "@/lib/metrics";
 import { SCENARIOS } from "@/lib/scenarios";
-import { getRiskFreeRate, setRiskFreeRate, resetRiskFreeRate, subscribeRiskFreeRate, RF_DEFAULT_RATE } from "@/lib/settings";
+import { getRiskFreeRate, setRiskFreeRate, resetRiskFreeRate, subscribeRiskFreeRate, RF_DEFAULT_RATE, getCMAOverrides, setCMAOverrides, resetCMAOverrides, subscribeCMAOverrides, CMAUserOverrides } from "@/lib/settings";
 import { useT } from "@/lib/i18n";
 
 const LAST_REVIEWED = "Q2 2026";
@@ -26,6 +26,52 @@ export function Methodology() {
   const applyRf = () => {
     const v = parseFloat(rfInput.replace(",", "."));
     if (Number.isFinite(v) && v >= 0 && v <= 20) setRiskFreeRate(v / 100);
+  };
+
+  // ---------------------------------------------------------------- CMA editor
+  // Local working buffer of user inputs. Persisted on "Apply".
+  const fmtPct = (n: number, dp = 2) => (n * 100).toFixed(dp);
+  const buildDraft = (): Record<AssetKey, { mu: string; sigma: string }> => {
+    const ov = getCMAOverrides();
+    const out = {} as Record<AssetKey, { mu: string; sigma: string }>;
+    (Object.keys(CMA) as AssetKey[]).forEach((k) => {
+      const u = ov[k];
+      out[k] = {
+        mu: u?.expReturn !== undefined ? fmtPct(u.expReturn, 2) : "",
+        sigma: u?.vol !== undefined ? fmtPct(u.vol, 2) : "",
+      };
+    });
+    return out;
+  };
+  const [cmaDraft, setCmaDraft] = useState(() => buildDraft());
+  const [cmaVersion, setCmaVersion] = useState(0);
+  useEffect(() => subscribeCMAOverrides(() => { applyCMALayers(); setCmaVersion((v) => v + 1); setCmaDraft(buildDraft()); }), []);
+
+  const cmaSources = getCMASources();
+  const consensus = getCMAConsensus();
+  const overrides = getCMAOverrides();
+  const userOverrideCount = Object.keys(overrides).length;
+  void cmaVersion;
+
+  const applyCmaDraft = () => {
+    const next: CMAUserOverrides = {};
+    (Object.keys(CMA) as AssetKey[]).forEach((k) => {
+      const d = cmaDraft[k];
+      const entry: { expReturn?: number; vol?: number } = {};
+      const mu = parseFloat(d.mu.replace(",", "."));
+      const sg = parseFloat(d.sigma.replace(",", "."));
+      if (Number.isFinite(mu)) entry.expReturn = mu / 100;
+      if (Number.isFinite(sg) && sg >= 0) entry.vol = sg / 100;
+      if (entry.expReturn !== undefined || entry.vol !== undefined) next[k] = entry;
+    });
+    setCMAOverrides(next);
+  };
+  const resetCma = () => { resetCMAOverrides(); };
+
+  const sourceBadge = (src: "seed" | "consensus" | "user") => {
+    if (src === "user") return <Badge variant="default" className="text-[10px] px-1.5 py-0">{de ? "Eigene" : "Custom"}</Badge>;
+    if (src === "consensus") return <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{de ? "Konsens" : "Consensus"}</Badge>;
+    return <Badge variant="outline" className="text-[10px] px-1.5 py-0">{de ? "Engine" : "Engine"}</Badge>;
   };
 
   // Build a representative correlation matrix using benchmark assets
@@ -268,28 +314,156 @@ export function Methodology() {
               <li className="flex items-center gap-2"><ExternalLink className="h-3 w-3" /> Schroders, Robeco, AQR — Expected Returns publications</li>
             </ul>
           </div>
-          <div className="rounded-md border overflow-x-auto">
+          {/* ---------- Multi-provider Consensus status (Option A) ---------- */}
+          <div className="rounded-md border bg-muted/30 p-3 space-y-2" data-testid="cma-consensus-status">
+            <div className="flex flex-wrap items-center gap-2">
+              <Database className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-semibold">{de ? "Anbieter-Konsens" : "Multi-provider consensus"}</span>
+              {consensus.hasConsensus ? (
+                <>
+                  <Badge variant="secondary" className="text-[10px]">{de ? "geladen" : "loaded"}</Badge>
+                  {consensus.lastReviewed && (
+                    <span className="text-xs text-muted-foreground">
+                      {de ? "Stand:" : "as of:"} {consensus.lastReviewed}
+                    </span>
+                  )}
+                  <span className="text-xs text-muted-foreground">
+                    · {de ? "Quellen" : "providers"}: {consensus.providers.length}
+                  </span>
+                </>
+              ) : (
+                <Badge variant="outline" className="text-[10px]">{de ? "leer – Engine-Defaults aktiv" : "empty — engine defaults active"}</Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {consensus.hasConsensus
+                ? (de
+                    ? "Die unten angezeigten μ und σ stammen aus dem gemittelten Konsens der gelisteten Anbieter, sofern keine eigenen Werte gesetzt sind."
+                    : "The μ and σ shown below are drawn from the averaged consensus of the listed providers unless you have set your own values.")
+                : (de
+                    ? "Aktuell sind keine Konsens-Werte hinterlegt. Die Engine verwendet die handgepflegten Default-Werte. Wartung erfolgt jährlich aus den öffentlich publizierten LTCMA-Reports der oben gelisteten Anbieter (siehe DOCUMENTATION.md §5.3)."
+                    : "No consensus values are loaded right now. The engine uses the hand-curated defaults. Maintenance happens yearly from the publicly published LTCMA reports of the providers listed above (see DOCUMENTATION.md §5.3).")}
+            </p>
+            {consensus.hasConsensus && consensus.providers.length > 0 && (
+              <div className="text-xs text-muted-foreground">
+                <span className="font-semibold">{de ? "Eingeflossene Anbieter:" : "Sources mixed in:"}</span>{" "}
+                {consensus.providers.join(" · ")}
+              </div>
+            )}
+          </div>
+
+          {/* ---------- Editable CMA table (Option B) ---------- */}
+          <div className="rounded-md border overflow-x-auto" data-testid="cma-editor">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>{de ? "Anlageklasse" : "Asset Class"}</TableHead>
-                  <TableHead className="text-right">{de ? "Erw. Rendite p.a." : "Expected Return p.a."}</TableHead>
-                  <TableHead className="text-right">{de ? "Volatilität p.a." : "Volatility p.a."}</TableHead>
-                  <TableHead>{de ? "Anmerkung" : "Note"}</TableHead>
+                  <TableHead className="text-right">{de ? "Aktiv μ" : "Active μ"}</TableHead>
+                  <TableHead className="text-right">{de ? "Aktiv σ" : "Active σ"}</TableHead>
+                  <TableHead className="w-[120px]">{de ? "Eigene μ %" : "Custom μ %"}</TableHead>
+                  <TableHead className="w-[120px]">{de ? "Eigene σ %" : "Custom σ %"}</TableHead>
+                  <TableHead>{de ? "Quelle" : "Source"}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(Object.keys(CMA) as Array<keyof typeof CMA>).map((k) => (
-                  <TableRow key={k}>
-                    <TableCell className="font-medium text-xs">{CMA[k].label}</TableCell>
-                    <TableCell className="text-right font-mono text-xs">{(CMA[k].expReturn * 100).toFixed(2)}%</TableCell>
-                    <TableCell className="text-right font-mono text-xs">{(CMA[k].vol * 100).toFixed(1)}%</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{noteFor(k, de)}</TableCell>
-                  </TableRow>
-                ))}
+                {(Object.keys(CMA) as AssetKey[]).map((k) => {
+                  const seed = getCMASeed(k);
+                  const src = cmaSources[k];
+                  return (
+                    <TableRow key={k}>
+                      <TableCell className="font-medium text-xs">
+                        <div>{CMA[k].label}</div>
+                        <div className="text-[10px] text-muted-foreground font-mono">
+                          {de ? "Seed" : "Seed"}: {fmtPct(seed.expReturn)}% / {fmtPct(seed.vol, 1)}%
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs">{fmtPct(CMA[k].expReturn)}%</TableCell>
+                      <TableCell className="text-right font-mono text-xs">{fmtPct(CMA[k].vol, 1)}%</TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          inputMode="decimal"
+                          placeholder={fmtPct(CMA[k].expReturn)}
+                          value={cmaDraft[k].mu}
+                          onChange={(e) => setCmaDraft((d) => ({ ...d, [k]: { ...d[k], mu: e.target.value } }))}
+                          className="h-7 text-xs font-mono w-full"
+                          data-testid={`cma-mu-${k}`}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          inputMode="decimal"
+                          placeholder={fmtPct(CMA[k].vol, 1)}
+                          value={cmaDraft[k].sigma}
+                          onChange={(e) => setCmaDraft((d) => ({ ...d, [k]: { ...d[k], sigma: e.target.value } }))}
+                          className="h-7 text-xs font-mono w-full"
+                          data-testid={`cma-sigma-${k}`}
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex flex-wrap gap-1">
+                          <span className="text-[10px] text-muted-foreground">μ</span>{sourceBadge(src.expReturnSource)}
+                          <span className="text-[10px] text-muted-foreground ml-1">σ</span>{sourceBadge(src.volSource)}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground">
+              {de
+                ? "Lass die Felder leer, um den Konsens- bzw. Engine-Wert zu nutzen. Eigene Werte werden lokal in deinem Browser gespeichert (localStorage) und überschreiben die Defaults überall in der App."
+                : "Leave fields empty to use the consensus or engine value. Custom values are stored locally in your browser (localStorage) and override the defaults everywhere in the app."}
+            </p>
+            <div className="flex gap-2">
+              {userOverrideCount > 0 && (
+                <Badge variant="default" className="text-[10px]" data-testid="cma-override-count">
+                  {userOverrideCount} {de ? "Override(s) aktiv" : "override(s) active"}
+                </Badge>
+              )}
+              <Button size="sm" variant="outline" onClick={resetCma} disabled={userOverrideCount === 0} data-testid="cma-reset">
+                <RotateCcw className="h-3 w-3 mr-1" />
+                {de ? "Zurücksetzen" : "Reset"}
+              </Button>
+              <Button size="sm" onClick={applyCmaDraft} data-testid="cma-apply">
+                {de ? "Übernehmen" : "Apply"}
+              </Button>
+            </div>
+          </div>
+
+          {/* ---------- Per-asset notes (collapsed in accordion to save space) ---------- */}
+          <Accordion type="single" collapsible>
+            <AccordionItem value="cma-notes">
+              <AccordionTrigger className="text-xs">{de ? "Anmerkungen je Anlageklasse" : "Per asset class notes"}</AccordionTrigger>
+              <AccordionContent>
+                <div className="rounded-md border overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>{de ? "Anlageklasse" : "Asset Class"}</TableHead>
+                        <TableHead>{de ? "Anmerkung" : "Note"}</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {(Object.keys(CMA) as AssetKey[]).map((k) => (
+                        <TableRow key={k}>
+                          <TableCell className="font-medium text-xs">{CMA[k].label}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground">{noteFor(k, de)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          </Accordion>
         </Section>
 
         <Section value="corr" icon={<GitCompare className="h-4 w-4" />} title={de ? "Korrelationsmatrix" : "Correlation Matrix"}>

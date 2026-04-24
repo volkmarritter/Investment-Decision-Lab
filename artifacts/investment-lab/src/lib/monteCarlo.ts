@@ -1,4 +1,28 @@
 import { AssetAllocation } from "./types";
+import { CMA, AssetKey } from "./metrics";
+
+// Map an (assetClass, region) pair to the CMA key. Mirrors the logic in
+// metrics.mapAllocationToAssets so Monte Carlo, Sharpe and the frontier all
+// draw from the same single source of truth (CMA — including any user
+// overrides applied via applyCMALayers).
+function bucketKey(assetClass: string, region: string): AssetKey {
+  const ac = assetClass.toLowerCase();
+  const rg = region.toLowerCase();
+  if (ac.includes("cash")) return "cash";
+  if (ac.includes("fixed") || ac.includes("bond")) return "bonds";
+  if (ac.includes("commod")) return "gold";
+  if (ac.includes("real estate")) return "reits";
+  if (ac.includes("digital") || ac.includes("crypto")) return "crypto";
+  if (ac.includes("equity")) {
+    if (rg.includes("usa")) return "equity_us";
+    if (rg.includes("switzer")) return "equity_ch";
+    if (rg.includes("europ")) return "equity_eu";
+    if (rg.includes("japan")) return "equity_jp";
+    if (rg.includes("em")) return "equity_em";
+    return "equity_thematic";
+  }
+  return "equity_thematic";
+}
 
 export interface BucketAssumption {
   mu: number;
@@ -23,48 +47,25 @@ function bucketAssumption(
   hedged: boolean = false,
   baseCurrency: string = "USD"
 ): BucketAssumption {
-  const ac = assetClass.toLowerCase();
-  const rg = region.toLowerCase();
+  const key = bucketKey(assetClass, region);
+  const cma = CMA[key];
+  let mu = cma.expReturn;
+  let sigma = cma.vol;
 
-  if (ac.includes("cash")) return { mu: 0.02, sigma: 0.005 };
-  if (ac.includes("fixed") || ac.includes("bond")) return { mu: 0.035, sigma: 0.06 };
-  if (ac.includes("commod")) return { mu: 0.04, sigma: 0.16 };
-  if (ac.includes("real estate")) return { mu: 0.06, sigma: 0.18 };
-  if (ac.includes("digital") || ac.includes("crypto")) return { mu: 0.18, sigma: 0.7 };
-  let baseEq: BucketAssumption | null = null;
-  let isForeignEquity = false;
-  if (ac.includes("equity")) {
-    if (rg.includes("usa")) {
-      baseEq = { mu: 0.07, sigma: 0.16 };
-      isForeignEquity = baseCurrency !== "USD";
-    } else if (rg.includes("switzer")) {
-      baseEq = { mu: 0.055, sigma: 0.14 };
-      isForeignEquity = baseCurrency !== "CHF";
-    } else if (rg.includes("europ")) {
-      baseEq = { mu: 0.065, sigma: 0.17 };
-      isForeignEquity = baseCurrency !== "EUR";
-    } else if (rg.includes("japan") && rg.includes("em")) {
-      baseEq = { mu: 0.075, sigma: 0.19 };
-      isForeignEquity = true;
-    } else if (rg.includes("japan")) {
-      baseEq = { mu: 0.06, sigma: 0.17 };
-      isForeignEquity = true;
-    } else if (rg.includes("em")) {
-      baseEq = { mu: 0.085, sigma: 0.22 };
-      isForeignEquity = true;
-    } else {
-      baseEq = { mu: 0.075, sigma: 0.2 };
-      isForeignEquity = true;
+  // FX-hedge sigma reduction for foreign equity. Applied after reading CMA so
+  // user overrides + hedging stay composable. Removing FX vol typically cuts
+  // ~3pp of total sigma for developed markets, ~2pp for EM. Keep a floor.
+  if (key.startsWith("equity_") && hedged) {
+    const homeKey: Record<string, AssetKey | undefined> = {
+      USD: "equity_us", EUR: "equity_eu", CHF: "equity_ch",
+    };
+    const isForeignEquity = homeKey[baseCurrency] !== key;
+    if (isForeignEquity) {
+      const cut = key === "equity_em" ? 0.02 : 0.03;
+      sigma = Math.max(0.05, sigma - cut);
     }
-    if (hedged && isForeignEquity) {
-      // Removing FX vol typically cuts ~3pp of total sigma for developed markets,
-      // ~2pp for EM (where local market vol dominates). Keep a floor.
-      const cut = rg.includes("em") ? 0.02 : 0.03;
-      baseEq = { mu: baseEq.mu, sigma: Math.max(0.05, baseEq.sigma - cut) };
-    }
-    return baseEq;
   }
-  return { mu: 0.05, sigma: 0.12 };
+  return { mu, sigma };
 }
 
 function mulberry32(seed: number) {

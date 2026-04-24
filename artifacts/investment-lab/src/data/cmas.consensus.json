@@ -1,0 +1,8 @@
+{
+  "_meta": {
+    "lastReviewed": null,
+    "providers": [],
+    "note": "Per-asset-class consensus (mean across providers) of publicly published Long-Term Capital Market Assumptions. Empty by default — engine falls back to the seed values in src/lib/metrics.ts. To populate: see DOCUMENTATION.md section 5.3 for the maintainer workflow and the list of providers to consult."
+  },
+  "assets": {}
+}
