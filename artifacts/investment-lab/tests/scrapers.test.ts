@@ -21,6 +21,7 @@ import {
   CORE_EXTRACTORS,
   LISTINGS_EXTRACTORS,
   VENUE_MAP,
+  lastRefreshedModeFor,
 } from "../scripts/refresh-justetf.mjs";
 import {
   extractTopHoldings,
@@ -139,6 +140,30 @@ describe("refresh-justetf LISTINGS_EXTRACTORS", () => {
   it("VENUE_MAP keeps the four exchange buckets the UI actually surfaces", () => {
     const buckets = new Set(Object.values(VENUE_MAP));
     expect(buckets).toEqual(new Set(["LSE", "XETRA", "SIX", "Euronext"]));
+  });
+});
+
+describe("refresh-justetf lastRefreshedModeFor", () => {
+  // Guard for the Snapshot freshness footer (ETFSnapshotFreshness): the
+  // "(last refresh job: ...)" hint is only rendered when _meta
+  // .lastRefreshedMode is exactly "core" or "listings". The script must
+  // never let the raw "all" CLI value leak into the snapshot, otherwise
+  // the hint silently disappears for any developer who runs the script
+  // without a --mode flag.
+  it("preserves explicit CI cadences", () => {
+    expect(lastRefreshedModeFor("core")).toBe("core");
+    expect(lastRefreshedModeFor("listings")).toBe("listings");
+  });
+
+  it("collapses the manual --mode=all run to 'core'", () => {
+    expect(lastRefreshedModeFor("all")).toBe("core");
+  });
+
+  it("falls back to 'core' for any unexpected value", () => {
+    // Defensive: if a future flag accidentally reaches this point, we
+    // still want a hint label the UI can display.
+    expect(lastRefreshedModeFor(undefined)).toBe("core");
+    expect(lastRefreshedModeFor("")).toBe("core");
   });
 });
 

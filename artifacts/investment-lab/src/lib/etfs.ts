@@ -391,7 +391,11 @@ for (const rec of Object.values(CATALOG)) {
 type OverridesMeta = {
   source?: string;
   lastRefreshed?: string | null;
-  lastRefreshedMode?: "core" | "listings" | "all" | null;
+  // The refresh script normalises every run to "core" or "listings" via
+  // lastRefreshedModeFor() — see scripts/refresh-justetf.mjs. A bare
+  // `--mode=all` developer run is collapsed to "core" so the UI's
+  // "(last refresh job: ...)" hint always renders.
+  lastRefreshedMode?: "core" | "listings" | null;
   lastCoreRefresh?: string | null;
   lastListingsRefresh?: string | null;
 };

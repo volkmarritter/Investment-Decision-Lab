@@ -240,6 +240,25 @@ const LISTINGS_EXTRACTORS = {
 
 const ALL_EXTRACTORS = { ...CORE_EXTRACTORS, ...LISTINGS_EXTRACTORS };
 
+// Normalises the CLI `--mode` flag into the value written to
+// `_meta.lastRefreshedMode` in etfs.overrides.json.
+//
+// The snapshot file is consumed by the UI's ETFSnapshotFreshness footer,
+// which only renders the "(last refresh job: ...)" hint when the mode is
+// exactly "core" or "listings" — the two real CI cadences. Writing "all"
+// (the default mode for a manual `node scripts/refresh-justetf.mjs` run)
+// would silently suppress that hint, leaving the user without any cue
+// about which job produced the snapshot.
+//
+// To guarantee the hint always renders, we collapse `--mode=all` to
+// "core" here: an `all` run refreshes both groups in a single pass, but
+// for labelling purposes the core fund-metadata refresh is the more
+// substantive cadence and matches what the snapshot looks like after the
+// regular weekly CI run.
+function lastRefreshedModeFor(mode) {
+  return mode === "listings" ? "listings" : "core";
+}
+
 // Pure exports for unit tests under tests/scrapers.test.ts.
 // `parseDateLoose` is included so date-parsing edge cases can be tested in
 // isolation from the network-fetching `main()` flow.
@@ -249,6 +268,7 @@ export {
   ALL_EXTRACTORS,
   VENUE_MAP,
   parseDateLoose,
+  lastRefreshedModeFor,
 };
 
 async function fetchProfile(isin) {
@@ -340,7 +360,7 @@ async function main() {
     _meta: {
       source: "justetf.com",
       lastRefreshed: stamp,
-      lastRefreshedMode: mode,
+      lastRefreshedMode: lastRefreshedModeFor(mode),
       lastCoreRefresh,
       lastListingsRefresh,
       refreshedBy: "scripts/refresh-justetf.mjs",
