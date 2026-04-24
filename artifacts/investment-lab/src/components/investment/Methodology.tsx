@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { BookOpen, Database, Calculator, AlertTriangle, ExternalLink, RotateCcw, ShieldQuestion, Layers, Activity, GitCompare, Building2, RefreshCw } from "lucide-react";
+import { BookOpen, Database, Calculator, AlertTriangle, ExternalLink, RotateCcw, ShieldQuestion, Layers, Activity, GitCompare, Building2, RefreshCw, Pencil } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -162,23 +162,121 @@ export function Methodology() {
                 : "This application is for educational and illustration purposes only. All returns, volatilities, correlations and stress scenarios are static, rule-based estimates — they do not reflect live market data and do not guarantee future results."}
             </AlertDescription>
           </Alert>
+
+          {/* ---------- What is editable here ---------- */}
+          <div className="rounded-md border bg-primary/5 p-3 space-y-2" data-testid="editable-overview">
+            <div className="flex items-center gap-2">
+              <Pencil className="h-4 w-4 text-primary" />
+              <span className="text-sm font-semibold">
+                {de ? "Live editierbar in dieser Ansicht" : "Live-editable in this view"}
+              </span>
+              <Badge variant="default" className="text-[10px] px-1.5 py-0">
+                {de ? "Eigene Werte" : "Custom values"}
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {de
+                ? "Die folgenden drei Abschnitte unten enthalten Live-editierbare Eingaben. Eigene Werte werden lokal in Ihrem Browser (localStorage) gespeichert und überschreiben die Defaults in der gesamten App. Klappen Sie den jeweiligen Abschnitt auf, um die Felder zu sehen."
+                : "The three sections listed below contain live-editable inputs. Custom values are stored locally in your browser (localStorage) and override the defaults across the entire app. Expand the section in question to see the fields."}
+            </p>
+            <ul className="text-xs space-y-1 pl-1">
+              <li className="flex items-start gap-2">
+                <Pencil className="h-3 w-3 mt-0.5 text-primary shrink-0" />
+                <span>
+                  <span className="font-semibold">{de ? "Risikofreier Zinssatz" : "Risk-Free Rate"}</span>
+                  {" — "}
+                  <span className="text-muted-foreground">
+                    {de
+                      ? "Sharpe-Ratio und Alpha. Default 2,50 %."
+                      : "Sharpe Ratio and Alpha. Default 2.50%."}
+                  </span>
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Pencil className="h-3 w-3 mt-0.5 text-primary shrink-0" />
+                <span>
+                  <span className="font-semibold">{de ? "Home-Bias-Multiplikatoren" : "Home-Bias Multipliers"}</span>
+                  {" — "}
+                  <span className="text-muted-foreground">
+                    {de
+                      ? "im Abschnitt „Portfolio-Konstruktion\". Verstärkungsfaktor pro Basiswährung (USD / EUR / GBP / CHF), Bereich 0,0 – 5,0."
+                      : "inside \"Portfolio Construction\". Amplification factor per base currency (USD / EUR / GBP / CHF), range 0.0 – 5.0."}
+                  </span>
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <Pencil className="h-3 w-3 mt-0.5 text-primary shrink-0" />
+                <span>
+                  <span className="font-semibold">{de ? "Kapitalmarktannahmen (CMAs)" : "Capital Market Assumptions (CMAs)"}</span>
+                  {" — "}
+                  <span className="text-muted-foreground">
+                    {de
+                      ? "eigene erwartete Rendite μ und Volatilität σ je Anlageklasse."
+                      : "custom expected return μ and volatility σ per asset class."}
+                  </span>
+                </span>
+              </li>
+            </ul>
+          </div>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <RefreshCw className="h-4 w-4" />
-            {de ? "Datenpflege & Aktualität (Snapshot-Build)" : "Data Refresh & Freshness (snapshot build)"}
-          </CardTitle>
-          <CardDescription>
+      <Accordion type="multiple" defaultValue={[]} className="space-y-3">
+        <Section
+          value="rf"
+          icon={<Activity className="h-4 w-4" />}
+          title={de ? "Risikofreier Zinssatz" : "Risk-Free Rate"}
+          editable
+          editableLabel={de ? "Editierbar" : "Editable"}
+        >
+          <p className="text-sm text-muted-foreground">
+            {de
+              ? "Dies ist die einzige Eingabe, die sich nach aktuellen Marktbedingungen richtet. Sie fließt in Sharpe-Ratio und Alpha ein. Standard 2,50 % entspricht einem typischen Korridor für kurzlaufende EUR/USD-Geldmarktsätze nach 2024."
+              : "This is the one input tied to current market conditions. It feeds into Sharpe Ratio and Alpha. Default 2.50% reflects a typical post-2024 short-term EUR/USD money market envelope."}
+          </p>
+          <div className="flex flex-wrap items-end gap-3">
+            <div className="space-y-1">
+              <Label htmlFor="rf-input" className="text-xs">{de ? "Aktueller Wert (%)" : "Current value (%)"}</Label>
+              <Input
+                id="rf-input"
+                type="number"
+                step="0.05"
+                min="0"
+                max="20"
+                value={rfInput}
+                onChange={(e) => setRfInput(e.target.value)}
+                onBlur={applyRf}
+                onKeyDown={(e) => { if (e.key === "Enter") applyRf(); }}
+                className="w-32 font-mono"
+              />
+            </div>
+            <Button onClick={applyRf} size="sm">{de ? "Übernehmen" : "Apply"}</Button>
+            <Button variant="outline" size="sm" onClick={() => resetRiskFreeRate()}>
+              <RotateCcw className="h-3.5 w-3.5 mr-1" />
+              {de ? "Zurücksetzen" : "Reset to default"} ({(RF_DEFAULT_RATE * 100).toFixed(2)}%)
+            </Button>
+            <div className="text-xs text-muted-foreground">
+              {de ? "Aktuell verwendet" : "Currently used"}: <span className="font-mono font-semibold text-foreground">{(rf * 100).toFixed(2)}%</span>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            {de
+              ? "Tipp: Sie können hier die Rendite einer 3-Monats-Staatsanleihe Ihrer Basiswährung eingeben (z. B. SARON für CHF, ESTR/EZB für EUR, T-Bills für USD). Der Wert wird lokal gespeichert."
+              : "Tip: enter the yield of a 3-month government bill in your base currency (e.g. SARON for CHF, ESTR/ECB for EUR, T-Bills for USD). The value is stored locally on your device."}
+          </p>
+        </Section>
+
+        <Section
+          value="data-refresh"
+          icon={<RefreshCw className="h-4 w-4" />}
+          title={de ? "Datenpflege & Aktualität (Snapshot-Build)" : "Data Refresh & Freshness (snapshot build)"}
+        >
+          <p className="text-sm text-muted-foreground leading-relaxed">
             {de
               ? "Wie und wie oft die ETF-Stammdaten aktualisiert werden — und welche Werte hand-kuratiert bleiben."
               : "How and how often the ETF reference data is refreshed — and which values stay hand-curated."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-3 text-sm">
-          <p className="text-muted-foreground leading-relaxed">
+          </p>
+          <p className="text-sm text-muted-foreground leading-relaxed">
             {de
               ? "Die App ist bewusst frontend-only und ruft zur Laufzeit keine fremden Server. Die Stammdaten der ETFs (TER, Name, Domizil, Währung) werden stattdessen über einen nächtlichen Snapshot-Build aktualisiert: ein Skript holt die Werte einmal pro Tag von justETF, schreibt sie als JSON ins Repository und der nächste Build backt den frischen Stand ins Bundle. Im Browser des Nutzers wird also weiterhin keine Live-Verbindung benötigt — er bekommt aber stets die zuletzt nachts geprüften Werte."
               : "The app is intentionally frontend-only and makes no remote calls at runtime. ETF reference data (TER, name, domicile, currency) is refreshed via a nightly snapshot build instead: a script pulls the values once per day from justETF, writes them as JSON into the repository, and the next build bakes the fresh snapshot into the bundle. The user's browser still never makes a live call — but it always sees the most recently nightly-verified values."}
@@ -205,57 +303,15 @@ export function Methodology() {
               ? "Bei Standardauslieferung ist die Snapshot-Datei leer — die App nutzt dann die im Code hinterlegten Default-Werte. Sobald das Refresh-Skript einmal lief, werden die geholten Felder per ISIN auf die Default-Werte gelegt; alles andere bleibt deterministisch."
               : "On a fresh checkout the snapshot file is empty — the app then uses the in-code default values. Once the refresh script has run at least once, the fetched fields override the defaults per ISIN; everything else stays deterministic."}
           </p>
-        </CardContent>
-      </Card>
+        </Section>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-base">
-            <Activity className="h-4 w-4" />
-            {de ? "Risikofreier Zinssatz (live einstellbar)" : "Risk-Free Rate (live editable)"}
-          </CardTitle>
-          <CardDescription>
-            {de
-              ? "Dies ist die einzige Eingabe, die sich nach aktuellen Marktbedingungen richtet. Sie fließt in Sharpe-Ratio und Alpha ein. Standard 2,50 % entspricht einem typischen Korridor für kurzlaufende EUR/USD-Geldmarktsätze nach 2024."
-              : "This is the one input tied to current market conditions. It feeds into Sharpe Ratio and Alpha. Default 2.50% reflects a typical post-2024 short-term EUR/USD money market envelope."}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="space-y-1">
-              <Label htmlFor="rf-input" className="text-xs">{de ? "Aktueller Wert (%)" : "Current value (%)"}</Label>
-              <Input
-                id="rf-input"
-                type="number"
-                step="0.05"
-                min="0"
-                max="20"
-                value={rfInput}
-                onChange={(e) => setRfInput(e.target.value)}
-                onBlur={applyRf}
-                onKeyDown={(e) => { if (e.key === "Enter") applyRf(); }}
-                className="w-32 font-mono"
-              />
-            </div>
-            <Button onClick={applyRf} size="sm">{de ? "Übernehmen" : "Apply"}</Button>
-            <Button variant="outline" size="sm" onClick={() => resetRiskFreeRate()}>
-              <RotateCcw className="h-3.5 w-3.5 mr-1" />
-              {de ? "Zurücksetzen" : "Reset to default"} ({(RF_DEFAULT_RATE * 100).toFixed(2)}%)
-            </Button>
-            <div className="text-xs text-muted-foreground">
-              {de ? "Aktuell verwendet" : "Currently used"}: <span className="font-mono font-semibold text-foreground">{(rf * 100).toFixed(2)}%</span>
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground mt-3 leading-relaxed">
-            {de
-              ? "Tipp: Sie können hier die Rendite einer 3-Monats-Staatsanleihe Ihrer Basiswährung eingeben (z. B. SARON für CHF, ESTR/EZB für EUR, T-Bills für USD). Der Wert wird lokal gespeichert."
-              : "Tip: enter the yield of a 3-month government bill in your base currency (e.g. SARON for CHF, ESTR/ECB for EUR, T-Bills for USD). The value is stored locally on your device."}
-          </p>
-        </CardContent>
-      </Card>
-
-      <Accordion type="multiple" defaultValue={["construction"]} className="space-y-3">
-        <Section value="construction" icon={<Layers className="h-4 w-4" />} title={de ? "Portfolio-Konstruktion (regelbasiert, nicht starr)" : "Portfolio Construction (rule-based, not fixed)"}>
+        <Section
+          value="construction"
+          icon={<Layers className="h-4 w-4" />}
+          title={de ? "Portfolio-Konstruktion (regelbasiert, nicht starr)" : "Portfolio Construction (rule-based, not fixed)"}
+          editable
+          editableLabel={de ? "Home-Bias editierbar" : "Home-bias editable"}
+        >
           <p className="text-sm text-muted-foreground">
             {de
               ? "Die regionalen Aktiengewichte sind nicht hartkodiert. Basis ist das globale Marktportfolio (annähernd MSCI-ACWI-Anteile) — die kanonische 'neutrale' Allokation der modernen Portfoliotheorie. Darauf werden dokumentierte Aktiv-Tilts angewandt: Sharpe-Aufschlag, Heimatmarkt-Bias, Horizont- und Themen-Tilt, sowie eine Konzentrationsobergrenze."
@@ -423,7 +479,13 @@ export function Methodology() {
           </div>
         </Section>
 
-        <Section value="cma" icon={<Database className="h-4 w-4" />} title={de ? "Kapitalmarktannahmen (CMAs)" : "Capital Market Assumptions (CMAs)"}>
+        <Section
+          value="cma"
+          icon={<Database className="h-4 w-4" />}
+          title={de ? "Kapitalmarktannahmen (CMAs)" : "Capital Market Assumptions (CMAs)"}
+          editable
+          editableLabel={de ? "μ / σ editierbar" : "μ / σ editable"}
+        >
           <p className="text-sm text-muted-foreground">
             {de
               ? "Langfristige erwartete Renditen und Volatilitäten je Anlageklasse. Bewusst konservativ und stabil über die Zeit. Diese Werte stammen NICHT aus Live-Daten – sie sind handgepflegte Konsens-Schätzungen aus öffentlich publizierten Long-Term Capital Market Assumptions großer Asset Manager."
@@ -736,11 +798,24 @@ export function Methodology() {
   );
 }
 
-function Section({ value, icon, title, children }: { value: string; icon: React.ReactNode; title: string; children: React.ReactNode }) {
+function Section({ value, icon, title, children, editable, editableLabel }: { value: string; icon: React.ReactNode; title: string; children: React.ReactNode; editable?: boolean; editableLabel?: string }) {
   return (
-    <AccordionItem value={value} className="border rounded-lg bg-card data-[state=open]:shadow-sm">
+    <AccordionItem value={value} className="border rounded-lg bg-card data-[state=open]:shadow-sm" data-testid={`methodology-section-${value}`}>
       <AccordionTrigger className="px-4 hover:no-underline">
-        <span className="flex items-center gap-2 text-sm font-semibold">{icon}{title}</span>
+        <span className="flex items-center gap-2 text-sm font-semibold flex-1 text-left">
+          {icon}
+          {title}
+          {editable && (
+            <Badge
+              variant="default"
+              className="ml-1 text-[10px] px-1.5 py-0 gap-1 inline-flex items-center"
+              data-testid={`badge-editable-${value}`}
+            >
+              <Pencil className="h-2.5 w-2.5" />
+              {editableLabel ?? "Editable"}
+            </Badge>
+          )}
+        </span>
       </AccordionTrigger>
       <AccordionContent className="px-4 pb-4 space-y-4">{children}</AccordionContent>
     </AccordionItem>
