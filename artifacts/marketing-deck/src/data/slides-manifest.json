@@ -1,1 +1,74 @@
-[]
+[
+  {
+    "id": "5e1c2f0a-1a01-4a01-9001-000000000001",
+    "position": 1,
+    "filepath": "src/pages/slides/Slide01Cover.tsx",
+    "title": "Investment Decision Lab",
+    "description": "Cover slide. Eyebrow plus headline plus a subtitle introducing the tool, with a sample BUILD endpoint and side-by-side input/output JSON blocks showing a client profile becoming a strategic allocation.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "5e1c2f0a-1a01-4a01-9001-000000000002",
+    "position": 2,
+    "filepath": "src/pages/slides/Slide02Problem.tsx",
+    "title": "Three tools, three answers",
+    "description": "Problem framing. Three numbered failure modes of the status quo: black-box optimisers, stale spreadsheets, dashboards that don't talk to clients.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "5e1c2f0a-1a01-4a01-9001-000000000003",
+    "position": 3,
+    "filepath": "src/pages/slides/Slide03QuickStart.tsx",
+    "title": "From risk score to ISIN",
+    "description": "Quick Start narrative in three numbered steps: set the profile, receive an allocation across nine asset classes, get the implementable order ticket with named ISIN.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "5e1c2f0a-1a01-4a01-9001-000000000004",
+    "position": 4,
+    "filepath": "src/pages/slides/Slide04Implementation.tsx",
+    "title": "Not a model. An order ticket.",
+    "description": "Implementation slide showing seven of the 16 hand-curated UCITS ETFs in a structured monospace table with asset class, fund name, ISIN, weight and TER.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "5e1c2f0a-1a01-4a01-9001-000000000005",
+    "position": 5,
+    "filepath": "src/pages/slides/Slide05RiskMetrics.tsx",
+    "title": "Correlation-aware risk",
+    "description": "Risk metrics slide. Big σp = √(wᵀ·Σ·w) formula in a code block on the left, list of metrics produced (vol, Sharpe, VaR/ES, contribution-to-risk, editable correlation matrix) on the right.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "5e1c2f0a-1a01-4a01-9001-000000000006",
+    "position": 6,
+    "filepath": "src/pages/slides/Slide06StressTests.tsx",
+    "title": "Stress test the story",
+    "description": "Six historical crisis windows with portfolio drawdowns on the left, a 10,000-path Monte Carlo percentile output as JSON on the right.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "5e1c2f0a-1a01-4a01-9001-000000000007",
+    "position": 7,
+    "filepath": "src/pages/slides/Slide07LookThrough.tsx",
+    "title": "See through every fund",
+    "description": "Look-through slide. Top single-name exposures (NVDA, AAPL, MSFT, ...) on the left, sector aggregation bar list on the right.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "5e1c2f0a-1a01-4a01-9001-000000000008",
+    "position": 8,
+    "filepath": "src/pages/slides/Slide08Methodology.tsx",
+    "title": "Built for the second look",
+    "description": "Methodology / governance slide. Four cards: every formula on screen, every input editable, bilingual EN/DE, no accounts and no tracking (frontend-only).",
+    "speakerNotes": ""
+  },
+  {
+    "id": "5e1c2f0a-1a01-4a01-9001-000000000009",
+    "position": 9,
+    "filepath": "src/pages/slides/Slide09Cta.tsx",
+    "title": "Open the Lab",
+    "description": "Closing CTA slide. Centered headline and subtitle inviting the reader to open the tool, two action chips, and a stats footer (16 ETFs, 6 stress windows, ~3,000 underlyings).",
+    "speakerNotes": ""
+  }
+]
