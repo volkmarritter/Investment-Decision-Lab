@@ -83,8 +83,57 @@ export function BuildPortfolio() {
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [hasGenerated, setHasGenerated] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [numETFsMode, setNumETFsMode] = useState<"auto" | "manual">("auto");
   const resultsRef = useRef<HTMLDivElement>(null);
   const pdfRef = useRef<HTMLDivElement>(null);
+
+  // Auto-adjust the Number of ETFs to match the natural bucket count whenever
+  // the user toggles satellite asset classes (Commodities, REITs, Crypto) or
+  // changes the Thematic tilt — but only as long as they haven't manually
+  // overridden the value (mode === "auto"). Recomputing is also re-triggered
+  // by riskAppetite / targetEquity / horizon / baseCurrency since those
+  // can shift how many equity region buckets the engine produces.
+  const watchedIncludeCommodities = form.watch("includeCommodities");
+  const watchedIncludeListedRealEstate = form.watch("includeListedRealEstate");
+  const watchedIncludeCrypto = form.watch("includeCrypto");
+  const watchedThematicPref = form.watch("thematicPreference");
+  const watchedRiskAppetite = form.watch("riskAppetite");
+  const watchedTargetEquityPct = form.watch("targetEquityPct");
+  const watchedHorizon = form.watch("horizon");
+  const watchedBaseCurrencyForEtfs = form.watch("baseCurrency");
+  useEffect(() => {
+    if (numETFsMode !== "auto") return;
+    const v = form.getValues();
+    let natural = 0;
+    try {
+      natural = computeNaturalBucketCount({
+        ...v,
+        horizon: Number(v.horizon),
+        targetEquityPct: Number(v.targetEquityPct),
+        numETFs: 15,
+      });
+    } catch {
+      return;
+    }
+    if (!Number.isFinite(natural) || natural <= 0) return;
+    const target = Math.max(3, Math.min(15, natural));
+    if (Number(v.numETFs) !== target) {
+      form.setValue("numETFs", target, { shouldDirty: false });
+    }
+    if (Number(v.numETFsMin) !== target) {
+      form.setValue("numETFsMin", target, { shouldDirty: false });
+    }
+  }, [
+    numETFsMode,
+    watchedIncludeCommodities,
+    watchedIncludeListedRealEstate,
+    watchedIncludeCrypto,
+    watchedThematicPref,
+    watchedRiskAppetite,
+    watchedTargetEquityPct,
+    watchedHorizon,
+    watchedBaseCurrencyForEtfs,
+  ]);
 
   // Manual weight overrides — persisted in localStorage, applied at engine
   // build time so frozen rows survive setting changes.
@@ -206,6 +255,7 @@ export function BuildPortfolio() {
                         setOutput(null);
                         setValidation(null);
                         setHasGenerated(false);
+                        setNumETFsMode("auto");
                       }}
                       aria-label={lang === "de" ? "Auf Standardwerte zurücksetzen" : "Reset to defaults"}
                     >
@@ -223,6 +273,7 @@ export function BuildPortfolio() {
                   getCurrentInput={() => form.getValues()}
                   onLoadScenario={(input) => {
                     form.reset(input);
+                    setNumETFsMode("manual");
                     onSubmit(input);
                   }}
                 />
@@ -354,9 +405,36 @@ export function BuildPortfolio() {
 
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-sm font-medium leading-none">
+                    <label className="flex items-center gap-2 text-sm font-medium leading-none flex-wrap">
                       {t("build.numEtfs.label")}
                       <InfoHint iconClassName="h-3 w-3" className="whitespace-pre-line"><span className="whitespace-pre-line">{t("build.numEtfs.tooltip")}</span></InfoHint>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          {numETFsMode === "auto" ? (
+                            <span
+                              role="status"
+                              aria-label={t("build.numEtfs.modeTooltip.auto")}
+                              className="ml-auto text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border bg-primary/10 text-primary border-primary/30 cursor-default select-none"
+                            >
+                              {t("build.numEtfs.auto")}
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => setNumETFsMode("auto")}
+                              aria-label={t("build.numEtfs.modeTooltip.manual")}
+                              className="ml-auto text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border bg-muted text-muted-foreground border-border hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                            >
+                              {t("build.numEtfs.manual")}
+                            </button>
+                          )}
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {numETFsMode === "auto"
+                            ? t("build.numEtfs.modeTooltip.auto")
+                            : t("build.numEtfs.modeTooltip.manual")}
+                        </TooltipContent>
+                      </Tooltip>
                     </label>
                     <div className="flex items-center gap-2">
                       <Controller
@@ -364,11 +442,12 @@ export function BuildPortfolio() {
                         name="numETFsMin"
                         render={({ field }) => (
                           <Input type="number" min={3} max={15} placeholder="Min" className="w-20" {...field} value={field.value ?? ""} onChange={(e) => {
-                            if (e.target.value === "") { field.onChange(undefined); return; }
+                            if (e.target.value === "") { field.onChange(undefined); setNumETFsMode("manual"); return; }
                             const v = Math.max(3, Math.min(15, Number(e.target.value)));
                             field.onChange(v);
                             const currentMax = Number(form.getValues("numETFs"));
                             if (Number.isFinite(currentMax) && currentMax < v) form.setValue("numETFs", v);
+                            setNumETFsMode("manual");
                           }} />
                         )}
                       />
@@ -378,11 +457,12 @@ export function BuildPortfolio() {
                         name="numETFs"
                         render={({ field }) => (
                           <Input type="number" min={3} max={15} placeholder="Max" className="w-20" {...field} onChange={(e) => {
-                            if (e.target.value === "") { field.onChange(""); return; }
+                            if (e.target.value === "") { field.onChange(""); setNumETFsMode("manual"); return; }
                             const raw = Math.max(3, Math.min(15, Number(e.target.value)));
                             const currentMin = Number(form.getValues("numETFsMin"));
                             const clamped = Number.isFinite(currentMin) ? Math.max(raw, currentMin) : raw;
                             field.onChange(clamped);
+                            setNumETFsMode("manual");
                           }} />
                         )}
                       />
