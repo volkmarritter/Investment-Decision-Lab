@@ -172,8 +172,19 @@ export function subscribeManualWeights(cb: (w: ManualWeights) => void): () => vo
 
 export interface ApplyResult {
   rows: Array<{ bucket: string; weight: number; isManualOverride: boolean }>;
-  /** True if pinned weights sum to >= 100 and non-pinned rows had to be zeroed. */
+  /**
+   * True if pinned weights fill the budget so that every non-pinned row is
+   * forced to 0 — i.e. their sum is at or above 100 (within float tolerance).
+   * This includes the benign "exactly 100%" case; use `over` to detect the
+   * destructive case where pinned rows actually had to be scaled down.
+   */
   saturated: boolean;
+  /**
+   * True only when the pinned sum is *strictly above* 100 (within float
+   * tolerance) and pinned rows had to be scaled down proportionally. At
+   * exactly 100% nothing gets scaled, so this is `false` in that case.
+   */
+  over: boolean;
   /** Sum of user-typed pinned weights (before any normalization). */
   pinnedSum: number;
   /** Number of overrides that applied to a bucket present in the allocation. */
@@ -181,6 +192,15 @@ export interface ApplyResult {
   /** Override keys that did not match any current bucket (kept in storage). */
   staleKeys: string[];
 }
+
+/**
+ * Float-tolerance for the "is the pinned sum at/over 100?" check. Manual
+ * weights come from 0.1-step text inputs that accumulate sums like
+ * 99.99999998 or 100.00000002; without an epsilon those would spuriously
+ * trigger the destructive "above 100%" warning. Exported so the UI can use
+ * the exact same threshold.
+ */
+export const MANUAL_WEIGHTS_SUM_EPSILON = 1e-6;
 
 function round1(x: number): number {
   return Math.round(x * 10) / 10;
@@ -222,17 +242,30 @@ export function applyManualWeights(
   }));
 
   if (appliedCount === 0) {
-    return { rows: out, saturated: false, pinnedSum: 0, appliedCount: 0, staleKeys };
+    return { rows: out, saturated: false, over: false, pinnedSum: 0, appliedCount: 0, staleKeys };
   }
 
-  const saturated = pinnedSum >= 100;
+  // "Over 100%" = pinned sum is *strictly above* 100 within float tolerance,
+  // so pinned rows have to be scaled down. "Exactly 100%" = within tolerance
+  // of 100 but not over; pinned rows are kept as the user typed them and
+  // non-pinned rows simply go to 0 (no scaling, the math is a no-op). Both
+  // cases are still "saturated" in the sense that non-pinned rows go to 0.
+  const over = pinnedSum > 100 + MANUAL_WEIGHTS_SUM_EPSILON;
+  const exactly100 = !over && pinnedSum >= 100 - MANUAL_WEIGHTS_SUM_EPSILON;
+  const saturated = over || exactly100;
 
-  if (saturated) {
+  if (over) {
     // Scale pinned weights proportionally so they sum to exactly 100; zero out
     // non-pinned rows. Avoid divide-by-zero when every pinned value is 0.
     const scale = pinnedSum > 0 ? 100 / pinnedSum : 0;
     for (let i = 0; i < natural.length; i++) {
       out[i].weight = isPinned[i] ? round1(pinned[i] * scale) : 0;
+      out[i].isManualOverride = isPinned[i];
+    }
+  } else if (exactly100) {
+    // Exactly 100% — keep pinned values as-is (no scaling) and zero the rest.
+    for (let i = 0; i < natural.length; i++) {
+      out[i].weight = isPinned[i] ? round1(pinned[i]) : 0;
       out[i].isManualOverride = isPinned[i];
     }
   } else {
@@ -298,5 +331,5 @@ export function applyManualWeights(
     if (target >= 0) out[target].weight = round1(out[target].weight + drift);
   }
 
-  return { rows: out, saturated, pinnedSum, appliedCount, staleKeys };
+  return { rows: out, saturated, over, pinnedSum, appliedCount, staleKeys };
 }

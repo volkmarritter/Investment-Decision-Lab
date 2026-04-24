@@ -319,7 +319,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "build.impl.manual.bannerOne": "1 manual weight override is active and will not auto-adjust when settings change.",
     "build.impl.manual.bannerMany": "{n} manual weight overrides are active and will not auto-adjust when settings change.",
     "build.impl.manual.resetAll": "Reset all to engine values",
-    "build.impl.manual.warnSaturated": "Manual weights sum to {sum}%, which is at or above 100%. Pinned rows have been scaled down proportionally and the remaining rows are zeroed.",
+    "build.impl.manual.warnSaturated": "Manual weights sum to {sum}%, which is above 100%. Pinned rows have been scaled down proportionally and the remaining rows are zeroed.",
     "build.impl.manual.warnStale": "{n} stored override(s) do not match any current bucket; they were preserved and will re-apply if the bucket reappears.",
     "build.impl.manual.help": "Type a percentage and press Enter or Tab. Pinned rows stay constant when settings change; remaining rows redistribute proportionally so the total is 100%.",
 
@@ -679,7 +679,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "build.impl.manual.bannerOne": "1 manueller Gewichts-Override ist aktiv und wird bei Einstellungsänderungen nicht automatisch angepasst.",
     "build.impl.manual.bannerMany": "{n} manuelle Gewichts-Overrides sind aktiv und werden bei Einstellungsänderungen nicht automatisch angepasst.",
     "build.impl.manual.resetAll": "Alle auf Engine-Werte zurücksetzen",
-    "build.impl.manual.warnSaturated": "Manuelle Gewichte summieren sich auf {sum}% (≥ 100%). Fixierte Zeilen wurden proportional skaliert und die übrigen Zeilen auf 0% gesetzt.",
+    "build.impl.manual.warnSaturated": "Manuelle Gewichte summieren sich auf {sum}% (über 100%). Fixierte Zeilen wurden proportional skaliert und die übrigen Zeilen auf 0% gesetzt.",
     "build.impl.manual.warnStale": "{n} gespeicherte Override(s) passen zu keinem aktuellen Bucket; sie bleiben erhalten und greifen wieder, sobald der Bucket erneut erscheint.",
     "build.impl.manual.help": "Prozentzahl eingeben und Enter oder Tab drücken. Fixierte Zeilen bleiben bei Einstellungsänderungen konstant; übrige Zeilen werden proportional umverteilt, sodass die Summe 100% ergibt.",
 

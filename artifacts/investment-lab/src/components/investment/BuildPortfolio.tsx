@@ -9,6 +9,7 @@ import {
   clearAllManualWeights,
   subscribeManualWeights,
   parseManualWeightInput,
+  MANUAL_WEIGHTS_SUM_EPSILON,
   type ManualWeights,
 } from "@/lib/manualWeights";
 import { buildAiPrompt } from "@/lib/aiPrompt";
@@ -900,7 +901,11 @@ export function BuildPortfolio() {
                       const activeOverrides = Object.entries(manualWeights).filter(([k]) => presentBuckets.has(k));
                       const activeCount = activeOverrides.length;
                       const pinnedSum = activeOverrides.reduce((s, [, v]) => s + v, 0);
-                      const saturated = activeCount > 0 && pinnedSum >= 100;
+                      // Only flag as "over" — the destructive scale-down case — when the
+                      // pinned sum is *strictly above* 100 (within float tolerance from
+                      // accumulated 0.1-step inputs). Exactly 100% is benign: pinned rows
+                      // stay as typed and non-pinned rows simply go to 0; no warning needed.
+                      const over = activeCount > 0 && pinnedSum > 100 + MANUAL_WEIGHTS_SUM_EPSILON;
                       const staleCount = Object.keys(manualWeights).length - activeCount;
                       if (activeCount === 0 && staleCount === 0) return null;
                       return (
@@ -927,7 +932,7 @@ export function BuildPortfolio() {
                               </AlertDescription>
                             </Alert>
                           )}
-                          {saturated && (
+                          {over && (
                             <Alert variant="destructive">
                               <AlertCircle className="h-4 w-4" />
                               <AlertDescription>

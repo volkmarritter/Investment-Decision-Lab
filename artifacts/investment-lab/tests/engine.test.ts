@@ -1681,7 +1681,7 @@ describe("manualWeights.applyManualWeights", () => {
     expect(sumWeights(r.rows)).toBe(100);
   });
 
-  it("scales pinned rows down proportionally when their sum >= 100 and zeroes the rest (saturated)", () => {
+  it("scales pinned rows down proportionally when their sum is strictly above 100 and zeroes the rest (over)", () => {
     const natural = [
       { bucket: "Equity - USA", weight: 50 },
       { bucket: "Bonds - Global", weight: 30 },
@@ -1692,6 +1692,7 @@ describe("manualWeights.applyManualWeights", () => {
       "Bonds - Global": 40,
     });
     expect(r.saturated).toBe(true);
+    expect(r.over).toBe(true);
     // Pinned sum = 120, scale = 100/120 → USA = 80*5/6 ≈ 66.7; Bonds = 40*5/6 ≈ 33.3.
     expect(r.rows[0].weight).toBeCloseTo(66.7, 1);
     expect(r.rows[1].weight).toBeCloseTo(33.3, 1);
@@ -1700,7 +1701,24 @@ describe("manualWeights.applyManualWeights", () => {
     expect(r.pinnedSum).toBe(120);
   });
 
-  it("treats sum exactly 100 as saturated (non-pinned go to zero)", () => {
+  it("just-above-100 (110) flags `over` and scales pinned rows down proportionally", () => {
+    const natural = [
+      { bucket: "Equity - USA", weight: 60 },
+      { bucket: "Bonds - Global", weight: 40 },
+    ];
+    const r = applyManualWeights(natural, {
+      "Equity - USA": 80,
+      "Bonds - Global": 30,
+    });
+    expect(r.over).toBe(true);
+    expect(r.saturated).toBe(true);
+    // Pinned sum 110, scale = 100/110 → USA = 80*10/11 ≈ 72.7; Bonds = 30*10/11 ≈ 27.3.
+    expect(r.rows[0].weight).toBeCloseTo(72.7, 1);
+    expect(r.rows[1].weight).toBeCloseTo(27.3, 1);
+    expect(sumWeights(r.rows)).toBe(100);
+  });
+
+  it("treats sum exactly 100 as saturated but NOT over — pinned values kept as-is, no scaling", () => {
     const natural = [
       { bucket: "Equity - USA", weight: 60 },
       { bucket: "Bonds - Global", weight: 40 },
@@ -1710,8 +1728,32 @@ describe("manualWeights.applyManualWeights", () => {
       "Bonds - Global": 30,
     });
     expect(r.saturated).toBe(true);
-    expect(r.rows[0].weight).toBeCloseTo(70, 1);
-    expect(r.rows[1].weight).toBeCloseTo(30, 1);
+    expect(r.over).toBe(false);
+    // Pinned values are kept exactly as the user typed them (no scaling).
+    expect(r.rows[0].weight).toBe(70);
+    expect(r.rows[1].weight).toBe(30);
+    expect(sumWeights(r.rows)).toBe(100);
+  });
+
+  it("treats a near-exact-100 sum (float drift like 99.9999998) as exactly-100, not over", () => {
+    const natural = [
+      { bucket: "A - 1", weight: 50 },
+      { bucket: "B - 1", weight: 30 },
+      { bucket: "C - 1", weight: 20 },
+    ];
+    // Three 0.1-step inputs that sum to 99.99999999... in IEEE-754:
+    //   0.1 + 0.2 = 0.30000000000000004
+    // Scaled up to percentages: 33.3 + 33.3 + 33.4 = 100.0 exactly,
+    // but 33.1 + 33.2 + 33.7 leaves us with float drift.
+    const a = 33.1, b = 33.2, c = 33.7;
+    const r = applyManualWeights(natural, { "A - 1": a, "B - 1": b, "C - 1": c });
+    // Sum is 100 ± ~1e-13; should NOT trigger `over`.
+    expect(r.over).toBe(false);
+    expect(r.saturated).toBe(true);
+    // Pinned values are kept as typed (rounded to 1 dp); no scaling kicked in.
+    expect(r.rows[0].weight).toBeCloseTo(a, 1);
+    expect(r.rows[1].weight).toBeCloseTo(b, 1);
+    expect(r.rows[2].weight).toBeCloseTo(c, 1);
     expect(sumWeights(r.rows)).toBe(100);
   });
 
