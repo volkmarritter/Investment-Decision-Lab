@@ -403,18 +403,51 @@ export function BuildPortfolio() {
                   )}
                 />
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <label className="flex items-center gap-2 text-sm font-medium leading-none flex-wrap">
+                    <label className="flex items-center gap-2 text-sm font-medium leading-none">
                       {t("build.numEtfs.label")}
                       <InfoHint iconClassName="h-3 w-3" className="whitespace-pre-line"><span className="whitespace-pre-line">{t("build.numEtfs.tooltip")}</span></InfoHint>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <Controller
+                        control={form.control}
+                        name="numETFsMin"
+                        render={({ field }) => (
+                          <Input type="number" inputMode="numeric" min={3} max={15} placeholder="Min" className="flex-1 min-w-0" {...field} value={field.value ?? ""} onChange={(e) => {
+                            if (e.target.value === "") { field.onChange(undefined); setNumETFsMode("manual"); return; }
+                            const v = Math.max(3, Math.min(15, Number(e.target.value)));
+                            field.onChange(v);
+                            const currentMax = Number(form.getValues("numETFs"));
+                            if (Number.isFinite(currentMax) && currentMax < v) form.setValue("numETFs", v);
+                            setNumETFsMode("manual");
+                          }} />
+                        )}
+                      />
+                      <span className="text-muted-foreground text-sm shrink-0">–</span>
+                      <Controller
+                        control={form.control}
+                        name="numETFs"
+                        render={({ field }) => (
+                          <Input type="number" inputMode="numeric" min={3} max={15} placeholder="Max" className="flex-1 min-w-0" {...field} onChange={(e) => {
+                            if (e.target.value === "") { field.onChange(""); setNumETFsMode("manual"); return; }
+                            const raw = Math.max(3, Math.min(15, Number(e.target.value)));
+                            const currentMin = Number(form.getValues("numETFsMin"));
+                            const clamped = Number.isFinite(currentMin) ? Math.max(raw, currentMin) : raw;
+                            field.onChange(clamped);
+                            setNumETFsMode("manual");
+                          }} />
+                        )}
+                      />
+                    </div>
+                    <div className="flex items-center justify-start">
                       <Tooltip>
                         <TooltipTrigger asChild>
                           {numETFsMode === "auto" ? (
                             <span
                               role="status"
                               aria-label={t("build.numEtfs.modeTooltip.auto")}
-                              className="ml-auto text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border bg-primary/10 text-primary border-primary/30 cursor-default select-none"
+                              className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border bg-primary/10 text-primary border-primary/30 cursor-default select-none"
                             >
                               {t("build.numEtfs.auto")}
                             </span>
@@ -423,7 +456,7 @@ export function BuildPortfolio() {
                               type="button"
                               onClick={() => setNumETFsMode("auto")}
                               aria-label={t("build.numEtfs.modeTooltip.manual")}
-                              className="ml-auto text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border bg-muted text-muted-foreground border-border hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
+                              className="text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded border bg-muted text-muted-foreground border-border hover:bg-accent hover:text-accent-foreground cursor-pointer transition-colors"
                             >
                               {t("build.numEtfs.manual")}
                             </button>
@@ -435,37 +468,6 @@ export function BuildPortfolio() {
                             : t("build.numEtfs.modeTooltip.manual")}
                         </TooltipContent>
                       </Tooltip>
-                    </label>
-                    <div className="flex items-center gap-2">
-                      <Controller
-                        control={form.control}
-                        name="numETFsMin"
-                        render={({ field }) => (
-                          <Input type="number" min={3} max={15} placeholder="Min" className="w-20" {...field} value={field.value ?? ""} onChange={(e) => {
-                            if (e.target.value === "") { field.onChange(undefined); setNumETFsMode("manual"); return; }
-                            const v = Math.max(3, Math.min(15, Number(e.target.value)));
-                            field.onChange(v);
-                            const currentMax = Number(form.getValues("numETFs"));
-                            if (Number.isFinite(currentMax) && currentMax < v) form.setValue("numETFs", v);
-                            setNumETFsMode("manual");
-                          }} />
-                        )}
-                      />
-                      <span className="text-muted-foreground text-sm">–</span>
-                      <Controller
-                        control={form.control}
-                        name="numETFs"
-                        render={({ field }) => (
-                          <Input type="number" min={3} max={15} placeholder="Max" className="w-20" {...field} onChange={(e) => {
-                            if (e.target.value === "") { field.onChange(""); setNumETFsMode("manual"); return; }
-                            const raw = Math.max(3, Math.min(15, Number(e.target.value)));
-                            const currentMin = Number(form.getValues("numETFsMin"));
-                            const clamped = Number.isFinite(currentMin) ? Math.max(raw, currentMin) : raw;
-                            field.onChange(clamped);
-                            setNumETFsMode("manual");
-                          }} />
-                        )}
-                      />
                     </div>
                     <NumEtfsRangeWarning form={form} />
                   </div>
