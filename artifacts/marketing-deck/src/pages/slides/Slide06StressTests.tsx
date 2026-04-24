@@ -30,7 +30,7 @@ export default function Slide06StressTests() {
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: "1.5vh", marginBottom: "4vh" }}>
           <div style={{ fontSize: "1vw", color: "#C0CAF5", opacity: 0.7 }}>Overview</div>
-          <div style={{ fontSize: "1vw", color: "#C0CAF5", opacity: 0.7 }}>The Problem</div>
+          <div style={{ fontSize: "1vw", color: "#C0CAF5", opacity: 0.7 }}>What It Does</div>
           <div style={{ fontSize: "1vw", color: "#C0CAF5", opacity: 0.7 }}>Quick Start</div>
         </div>
 
@@ -77,7 +77,7 @@ export default function Slide06StressTests() {
             lineHeight: 1.05,
           }}
         >
-          Stress test the story.
+          Six crises and a Monte Carlo, one click.
         </h1>
 
         <p

@@ -11,8 +11,8 @@
     "id": "5e1c2f0a-1a01-4a01-9001-000000000002",
     "position": 2,
     "filepath": "src/pages/slides/Slide02Problem.tsx",
-    "title": "Three tools, three answers",
-    "description": "Problem framing. Three numbered failure modes of the status quo: black-box optimisers, stale spreadsheets, dashboards that don't talk to clients.",
+    "title": "Allocate. Implement. Defend.",
+    "description": "Capability overview. Three numbered jobs the lab does in one workspace: allocate from a risk score across nine asset classes, implement with real UCITS ETFs, and defend with risk metrics, stress tests and look-through.",
     "speakerNotes": ""
   },
   {
@@ -43,7 +43,7 @@
     "id": "5e1c2f0a-1a01-4a01-9001-000000000006",
     "position": 6,
     "filepath": "src/pages/slides/Slide06StressTests.tsx",
-    "title": "Stress test the story",
+    "title": "Six crises and a Monte Carlo, one click.",
     "description": "Six historical crisis windows with portfolio drawdowns on the left, a 10,000-path Monte Carlo percentile output as JSON on the right.",
     "speakerNotes": ""
   },
