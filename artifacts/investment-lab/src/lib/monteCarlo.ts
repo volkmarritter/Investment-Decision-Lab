@@ -1,5 +1,5 @@
 import { AssetAllocation } from "./types";
-import { CMA, AssetKey } from "./metrics";
+import { CMA, AssetKey, corr } from "./metrics";
 
 // Map an (assetClass, region) pair to the CMA key. Mirrors the logic in
 // metrics.mapAllocationToAssets so Monte Carlo, Sharpe and the frontier all
@@ -113,17 +113,37 @@ export function runMonteCarlo(
   const baseCurrency = options.baseCurrency ?? "USD";
 
   let portfolioMu = 0;
-  let portfolioVar = 0;
 
-  const buckets: { weight: number; mu: number; sigma: number }[] = [];
+  // Build per-bucket (weight, mu, sigma, key) so we can compute portfolio
+  // variance using the FULL covariance matrix below — i.e. accounting for
+  // the diversification benefit of imperfectly correlated assets, the same
+  // way metrics.portfolioVol does. This keeps Monte Carlo's headline
+  // "Expected Volatility" line up with the analytical Risk & Performance
+  // Metrics view (modulo the FX-hedge sigma reduction below, which is
+  // intentionally a Monte-Carlo-only feature).
+  const buckets: { weight: number; mu: number; sigma: number; key: AssetKey }[] = [];
   for (const a of allocation) {
     const w = a.weight / 100;
     const { mu, sigma } = bucketAssumption(a.assetClass, a.region, hedged, baseCurrency);
-    buckets.push({ weight: w, mu, sigma });
+    const key = bucketKey(a.assetClass, a.region);
+    buckets.push({ weight: w, mu, sigma, key });
     portfolioMu += w * mu;
-    portfolioVar += w * w * sigma * sigma;
   }
-  const portfolioSigma = Math.sqrt(portfolioVar);
+
+  // σ_p = sqrt( ΣΣ w_i w_j σ_i σ_j ρ_ij ). Self-pairs contribute the old
+  // diagonal w² σ² terms (corr(k, k) === 1); off-diagonal pairs add the
+  // cross-asset covariance that the previous diagonal-only formula
+  // ignored. For a single-asset portfolio this collapses to w² σ², so the
+  // existing single-asset hedged/unhedged regression tests still hold.
+  let portfolioVar = 0;
+  for (let i = 0; i < buckets.length; i++) {
+    for (let j = 0; j < buckets.length; j++) {
+      const bi = buckets[i];
+      const bj = buckets[j];
+      portfolioVar += bi.weight * bj.weight * bi.sigma * bj.sigma * corr(bi.key, bj.key);
+    }
+  }
+  const portfolioSigma = Math.sqrt(Math.max(portfolioVar, 0));
 
   const years = Math.max(1, Math.round(horizonYears));
   const finalsPerYear: number[][] = Array.from({ length: years + 1 }, () => []);

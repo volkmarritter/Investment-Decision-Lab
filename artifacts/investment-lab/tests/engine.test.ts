@@ -1203,6 +1203,60 @@ describe("CMA layered overrides", () => {
     expect(hedged.expectedVol).toBeCloseTo(Math.max(0.05, CMA.equity_us.vol - 0.03), 6);
   });
 
+  it("Monte Carlo expected vol equals analytical portfolio vol when hedging is off (full covariance)", async () => {
+    // Regression: a previous implementation used a diagonal-only variance
+    // (Σ w² σ²), which over-stated portfolio σ for any diversified
+    // allocation by ignoring cross-asset covariance. The fix uses the
+    // same full ΣΣ w_i w_j σ_i σ_j ρ_ij formula as metrics.portfolioVol,
+    // so the MC headline number must agree with the analytical Risk &
+    // Performance Metrics view exactly when no FX-hedge adjustment is in
+    // play.
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    const { mapAllocationToAssets, portfolioVol } = await import("../src/lib/metrics");
+    const alloc = [
+      { assetClass: "Equity", region: "USA", weight: 50 },
+      { assetClass: "Equity", region: "Europe", weight: 20 },
+      { assetClass: "Fixed Income", region: "Global", weight: 25 },
+      { assetClass: "Commodities", region: "Global", weight: 5 },
+    ];
+    const mc = runMonteCarlo(alloc, 5, 100_000, { paths: 100, seed: 1, hedged: false, baseCurrency: "USD" });
+    const analytical = portfolioVol(mapAllocationToAssets(alloc));
+    expect(mc.expectedVol).toBeCloseTo(analytical, 8);
+    // Sanity: with the new (correlation-aware) formula, this equity-
+    // heavy mix's vol must be STRICTLY ABOVE the naïve diagonal-only
+    // Σ w² σ² — because most equity-equity correlations in this app's
+    // CMA are positive (0.7-0.85), and the previous diagonal-only
+    // formula effectively pretended ρ=0. This proves the cross-term
+    // covariance is actually being added.
+    const exposures = mapAllocationToAssets(alloc);
+    const { CMA } = await import("../src/lib/metrics");
+    let diagOnly = 0;
+    for (const e of exposures) diagOnly += e.weight * e.weight * CMA[e.key].vol * CMA[e.key].vol;
+    expect(mc.expectedVol).toBeGreaterThan(Math.sqrt(diagOnly));
+    // And the full vol must still be below the trivial worst case
+    // (perfect correlation = weighted-average of σ), which is the
+    // textbook "diversification benefit" sanity check.
+    let weightedAvgSigma = 0;
+    for (const e of exposures) weightedAvgSigma += e.weight * CMA[e.key].vol;
+    expect(mc.expectedVol).toBeLessThan(weightedAvgSigma);
+  });
+
+  it("Monte Carlo vol stays at-or-below analytical vol when hedging is on (FX hedge cuts σ further)", async () => {
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    const { mapAllocationToAssets, portfolioVol } = await import("../src/lib/metrics");
+    const alloc = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Equity", region: "Europe", weight: 10 },
+      { assetClass: "Fixed Income", region: "Global", weight: 30 },
+    ];
+    // CHF investor with hedging on → US + EU equity sigmas get a 3pp cut.
+    const mcHedged = runMonteCarlo(alloc, 5, 100_000, { paths: 100, seed: 1, hedged: true, baseCurrency: "CHF" });
+    const analytical = portfolioVol(mapAllocationToAssets(alloc));
+    expect(mcHedged.expectedVol).toBeLessThanOrEqual(analytical + 1e-9);
+    // And the cut should be material — at least 1pp on this mix.
+    expect(analytical - mcHedged.expectedVol).toBeGreaterThan(0.01);
+  });
+
   it("applyCMALayers stays sanitized across repeated calls (consensus path)", async () => {
     // Reviewer-flagged regression: a single sanitize-once-at-module-load IIFE
     // would let a later applyCMALayers() call (triggered on every idl-cma-changed
