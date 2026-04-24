@@ -13,6 +13,7 @@ import { SCENARIOS } from "@/lib/scenarios";
 import { getRiskFreeRate, setRiskFreeRate, resetRiskFreeRate, subscribeRiskFreeRate, RF_DEFAULT_RATE, getCMAOverrides, setCMAOverrides, resetCMAOverrides, subscribeCMAOverrides, CMAUserOverrides, getHomeBiasOverrides, setHomeBiasOverrides, resetHomeBiasOverrides, subscribeHomeBiasOverrides, resolvedHomeBias, HOME_BIAS_DEFAULTS, HomeBiasCurrency, getLastAllocation, subscribeLastAllocation } from "@/lib/settings";
 import type { AssetAllocation } from "@/lib/types";
 import { useT } from "@/lib/i18n";
+import { parseDecimalInput } from "@/lib/manualWeights";
 
 const LAST_REVIEWED = "Q2 2026";
 
@@ -25,8 +26,11 @@ export function Methodology() {
   useEffect(() => subscribeRiskFreeRate((v) => { setRf(v); setRfInput((v * 100).toFixed(2)); }), []);
 
   const applyRf = () => {
-    const v = parseFloat(rfInput.replace(",", "."));
-    if (Number.isFinite(v) && v >= 0 && v <= 20) setRiskFreeRate(v / 100);
+    // Locale-comma safe: route the user's draft string through the shared
+    // parser so "2,5" on a CH/DE/FR phone keypad parses the same as "2.5"
+    // (Task #14 — extended to Methodology by Task #19).
+    const v = parseDecimalInput(rfInput);
+    if (v !== null && v >= 0 && v <= 20) setRiskFreeRate(v / 100);
   };
 
   // ---------------------------------------------------------------- CMA editor
@@ -59,10 +63,13 @@ export function Methodology() {
     (Object.keys(CMA) as AssetKey[]).forEach((k) => {
       const d = cmaDraft[k];
       const entry: { expReturn?: number; vol?: number } = {};
-      const mu = parseFloat(d.mu.replace(",", "."));
-      const sg = parseFloat(d.sigma.replace(",", "."));
-      if (Number.isFinite(mu)) entry.expReturn = mu / 100;
-      if (Number.isFinite(sg) && sg >= 0) entry.vol = sg / 100;
+      // Locale-comma safe: route both fields through the shared parser so
+      // "0,5" on a CH/DE/FR phone keypad parses the same as "0.5"
+      // (Task #14 — extended to Methodology by Task #19).
+      const mu = parseDecimalInput(d.mu);
+      const sg = parseDecimalInput(d.sigma);
+      if (mu !== null) entry.expReturn = mu / 100;
+      if (sg !== null && sg >= 0) entry.vol = sg / 100;
       if (entry.expReturn !== undefined || entry.vol !== undefined) next[k] = entry;
     });
     setCMAOverrides(next);
@@ -105,10 +112,12 @@ export function Methodology() {
   const applyHbDraft = () => {
     const next: Record<string, number> = {};
     for (const c of HB_CURRENCIES) {
-      const raw = hbDraft[c].replace(",", ".").trim();
-      if (raw === "") continue;
-      const v = parseFloat(raw);
-      if (Number.isFinite(v) && v >= 0 && v <= 5) next[c] = v;
+      // Locale-comma safe: route through the shared parser so "1,2" on a
+      // CH/DE/FR phone keypad parses the same as "1.2" (Task #14 —
+      // extended to Methodology by Task #19). Empty / garbage → null →
+      // currency stays on its default multiplier.
+      const v = parseDecimalInput(hbDraft[c]);
+      if (v !== null && v >= 0 && v <= 5) next[c] = v;
     }
     setHomeBiasOverrides(next);
   };
@@ -249,10 +258,8 @@ export function Methodology() {
               <Label htmlFor="rf-input" className="text-xs">{de ? "Aktueller Wert (%)" : "Current value (%)"}</Label>
               <Input
                 id="rf-input"
-                type="number"
-                step="0.05"
-                min="0"
-                max="20"
+                type="text"
+                inputMode="decimal"
                 value={rfInput}
                 onChange={(e) => setRfInput(e.target.value)}
                 onBlur={applyRf}
@@ -487,11 +494,8 @@ export function Methodology() {
                     </Label>
                     <Input
                       id={`hb-${c}`}
-                      type="number"
+                      type="text"
                       inputMode="decimal"
-                      min={0}
-                      max={5}
-                      step={0.1}
                       value={hbDraft[c]}
                       onChange={(e) => setHbDraft((d) => ({ ...d, [c]: e.target.value }))}
                       className="h-8 font-mono text-sm"
@@ -611,8 +615,7 @@ export function Methodology() {
                       <TableCell className="text-right font-mono text-xs">{fmtPct(CMA[k].vol, 1)}%</TableCell>
                       <TableCell>
                         <Input
-                          type="number"
-                          step="0.1"
+                          type="text"
                           inputMode="decimal"
                           placeholder={fmtPct(CMA[k].expReturn)}
                           value={cmaDraft[k].mu}
@@ -623,9 +626,7 @@ export function Methodology() {
                       </TableCell>
                       <TableCell>
                         <Input
-                          type="number"
-                          step="0.1"
-                          min="0"
+                          type="text"
                           inputMode="decimal"
                           placeholder={fmtPct(CMA[k].vol, 1)}
                           value={cmaDraft[k].sigma}

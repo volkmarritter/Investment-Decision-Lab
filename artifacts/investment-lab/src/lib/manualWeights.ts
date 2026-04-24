@@ -101,6 +101,10 @@ export function clearAllManualWeights(): void {
 //     - FeeEstimator     "Investment Amount"
 //     - MonteCarlo       "Investment Amount"
 //     - ExplainPortfolio "Weight %" cell (positions table)
+//     - Methodology      "Risk-Free Rate"            (Task #19)
+//     - Methodology      "Home-Bias multipliers" (per currency: USD/EUR/GBP/CHF)
+//     - Methodology      "CMA μ override" per asset class
+//     - Methodology      "CMA σ override" per asset class
 //   KEPT as <input type="number"> on purpose (integer-only fields where the
 //   desktop spinner is still wanted, and where a user has no reason to type a
 //   decimal at all — so the comma bug cannot fire):
@@ -108,8 +112,6 @@ export function clearAllManualWeights(): void {
 //     - BuildPortfolio   "Target Equity Allocation"  (0–100, slider step=1)
 //     - BuildPortfolio   "Number of ETFs Min / Max"  (3–15, integer)
 //     - ComparePortfolios mirrors of the three above (same rationale)
-//     - Methodology editors (CMA μ/σ, home-bias, risk-free rate) — admin-only,
-//       outside the build/explain hot path; tracked as a follow-up sweep.
 // ---------------------------------------------------------------------------
 export interface ParseDecimalInputOptions {
   /** Lower bound (inclusive). Values below are clamped up. Default: no min. */
