@@ -389,10 +389,11 @@ export function BuildPortfolio() {
                             </SelectTrigger>
                           </FormControl>
                           <SelectContent>
-                            <SelectItem value="None">None (Global)</SelectItem>
-                            <SelectItem value="LSE">LSE</SelectItem>
-                            <SelectItem value="XETRA">XETRA</SelectItem>
-                            <SelectItem value="SIX">SIX</SelectItem>
+                            <SelectItem value="None">{t("build.preferredExchange.option.none")}</SelectItem>
+                            <SelectItem value="LSE">LSE (London)</SelectItem>
+                            <SelectItem value="XETRA">XETRA (Frankfurt)</SelectItem>
+                            <SelectItem value="SIX">SIX (Zürich)</SelectItem>
+                            <SelectItem value="Euronext">{t("build.preferredExchange.option.euronext")}</SelectItem>
                           </SelectContent>
                         </Select>
                       </FormItem>

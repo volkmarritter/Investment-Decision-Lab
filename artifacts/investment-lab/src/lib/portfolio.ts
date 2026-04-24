@@ -2,6 +2,7 @@ import { PortfolioInput, AssetAllocation, PortfolioOutput, ETFImplementation, Ba
 import { getETFDetails } from "./etfs";
 import { Lang } from "./i18n";
 import { CMA, AssetKey } from "./metrics";
+import { resolvedHomeBias, HomeBiasCurrency } from "./settings";
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max);
@@ -43,11 +44,16 @@ const MCAP_ANCHOR_CHF: Record<string, number> = {
   EM: 0.11,
 };
 
-const HOME_TILT: Record<BaseCurrency, { region: string; factor: number }> = {
-  USD: { region: "USA", factor: 1.0 },          // already dominant via anchor
-  EUR: { region: "Europe", factor: 1.5 },
-  GBP: { region: "Europe", factor: 1.5 },
-  CHF: { region: "Switzerland", factor: 2.5 },  // Swiss anchor is small, needs more tilt
+// Home-bias overlay region per base currency. The numeric factor is now
+// LIVE-EDITABLE via the Methodology tab — see settings.resolvedHomeBias.
+// This map only encodes the (currency → home region) pairing; the multiplier
+// itself is read at portfolio-build time so user overrides take effect on the
+// next "Generate Portfolio" click.
+const HOME_TILT_REGION: Record<BaseCurrency, string> = {
+  USD: "USA",          // already dominant via anchor (default factor 1.0)
+  EUR: "Europe",
+  GBP: "Europe",
+  CHF: "Switzerland",  // Swiss anchor is small, default factor 2.5
 };
 
 const REGION_TO_CMA: Record<string, AssetKey> = {
@@ -70,8 +76,9 @@ export function computeEquityRegionWeights(input: PortfolioInput): Record<string
     raw[r] = anchor[r] * sharpeMultiplier;
   }
 
-  const ht = HOME_TILT[input.baseCurrency];
-  if (raw[ht.region] !== undefined) raw[ht.region] *= ht.factor;
+  const homeRegion = HOME_TILT_REGION[input.baseCurrency];
+  const homeFactor = resolvedHomeBias(input.baseCurrency as HomeBiasCurrency);
+  if (raw[homeRegion] !== undefined) raw[homeRegion] *= homeFactor;
 
   if (input.horizon >= 10) raw["EM"] *= 1.3;
   if (input.thematicPreference === "Sustainability") raw["USA"] *= 0.85;

@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { CMA, BENCHMARK, buildCorrelationMatrix, getCMAConsensus, getCMASources, getCMASeed, applyCMALayers, AssetKey } from "@/lib/metrics";
 import { SCENARIOS } from "@/lib/scenarios";
-import { getRiskFreeRate, setRiskFreeRate, resetRiskFreeRate, subscribeRiskFreeRate, RF_DEFAULT_RATE, getCMAOverrides, setCMAOverrides, resetCMAOverrides, subscribeCMAOverrides, CMAUserOverrides } from "@/lib/settings";
+import { getRiskFreeRate, setRiskFreeRate, resetRiskFreeRate, subscribeRiskFreeRate, RF_DEFAULT_RATE, getCMAOverrides, setCMAOverrides, resetCMAOverrides, subscribeCMAOverrides, CMAUserOverrides, getHomeBiasOverrides, setHomeBiasOverrides, resetHomeBiasOverrides, subscribeHomeBiasOverrides, resolvedHomeBias, HOME_BIAS_DEFAULTS, HomeBiasCurrency } from "@/lib/settings";
 import { useT } from "@/lib/i18n";
 
 const LAST_REVIEWED = "Q2 2026";
@@ -67,6 +67,51 @@ export function Methodology() {
     setCMAOverrides(next);
   };
   const resetCma = () => { resetCMAOverrides(); };
+
+  // ---------------------------------------------------------- Home-bias editor
+  // Per-currency multiplier on the home equity region. Defaults from
+  // HOME_BIAS_DEFAULTS; user overrides persisted in localStorage.
+  const HB_CURRENCIES: HomeBiasCurrency[] = ["USD", "EUR", "GBP", "CHF"];
+  const HB_REGION_LABEL: Record<HomeBiasCurrency, string> = {
+    USD: "USA",
+    EUR: "Europe",
+    GBP: "Europe",
+    CHF: "Switzerland",
+  };
+  const HB_REGION_LABEL_DE: Record<HomeBiasCurrency, string> = {
+    USD: "USA",
+    EUR: "Europa",
+    GBP: "Europa",
+    CHF: "Schweiz",
+  };
+  const buildHbDraft = (): Record<HomeBiasCurrency, string> => {
+    const ov = getHomeBiasOverrides();
+    return {
+      USD: ov.USD !== undefined ? ov.USD.toFixed(2) : "",
+      EUR: ov.EUR !== undefined ? ov.EUR.toFixed(2) : "",
+      GBP: ov.GBP !== undefined ? ov.GBP.toFixed(2) : "",
+      CHF: ov.CHF !== undefined ? ov.CHF.toFixed(2) : "",
+    };
+  };
+  const [hbDraft, setHbDraft] = useState(() => buildHbDraft());
+  const [hbVersion, setHbVersion] = useState(0);
+  useEffect(() => subscribeHomeBiasOverrides(() => { setHbVersion((v) => v + 1); setHbDraft(buildHbDraft()); }), []);
+  void hbVersion;
+
+  const hbOverrides = getHomeBiasOverrides();
+  const hbOverrideCount = Object.keys(hbOverrides).length;
+
+  const applyHbDraft = () => {
+    const next: Record<string, number> = {};
+    for (const c of HB_CURRENCIES) {
+      const raw = hbDraft[c].replace(",", ".").trim();
+      if (raw === "") continue;
+      const v = parseFloat(raw);
+      if (Number.isFinite(v) && v >= 0 && v <= 5) next[c] = v;
+    }
+    setHomeBiasOverrides(next);
+  };
+  const resetHb = () => { resetHomeBiasOverrides(); };
 
   const sourceBadge = (src: "seed" | "consensus" | "user") => {
     if (src === "user") return <Badge variant="default" className="text-[10px] px-1.5 py-0">{de ? "Eigene" : "Custom"}</Badge>;
@@ -248,10 +293,10 @@ export function Methodology() {
                 : "Multiplier (Sharpe / 0.25)^0.4 favours markets with better risk-adjusted expected return without overriding the anchor allocation."}
             </li>
             <li>
-              <span className="font-semibold">{de ? "Heimatmarkt-Bias" : "Home-bias overlay"}</span>{" — "}
+              <span className="font-semibold">{de ? "Heimatmarkt-Bias (live editierbar)" : "Home-bias overlay (live editable)"}</span>{" — "}
               {de
-                ? "EUR/GBP ×1,5 auf Europa, CHF ×2,5 auf die Schweiz. USD braucht keinen Aufschlag, da der USA-Anker bereits dominant ist."
-                : "EUR/GBP ×1.5 on Europe, CHF ×2.5 on Switzerland. USD needs no extra tilt as the USA anchor is already dominant."}
+                ? `Defaults: EUR/GBP ×${HOME_BIAS_DEFAULTS.EUR.toFixed(1)} auf Europa, CHF ×${HOME_BIAS_DEFAULTS.CHF.toFixed(1)} auf die Schweiz, USD ×${HOME_BIAS_DEFAULTS.USD.toFixed(1)} (USA-Anker bereits dominant). Multiplikatoren unten je Währung anpassbar; Änderungen wirken beim nächsten Klick auf „Portfolio generieren“.`
+                : `Defaults: EUR/GBP ×${HOME_BIAS_DEFAULTS.EUR.toFixed(1)} on Europe, CHF ×${HOME_BIAS_DEFAULTS.CHF.toFixed(1)} on Switzerland, USD ×${HOME_BIAS_DEFAULTS.USD.toFixed(1)} (USA anchor already dominant). Multipliers can be edited per currency below; changes take effect the next time you click "Generate Portfolio".`}
             </li>
             <li>
               <span className="font-semibold">{de ? "Horizont- & Themen-Tilts" : "Horizon & theme tilts"}</span>{" — "}
@@ -279,10 +324,24 @@ export function Methodology() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow><TableCell className="text-xs">Home tilt USD → USA</TableCell><TableCell className="text-right font-mono text-xs">× 1.0</TableCell></TableRow>
-                <TableRow><TableCell className="text-xs">Home tilt EUR → Europe</TableCell><TableCell className="text-right font-mono text-xs">× 1.5</TableCell></TableRow>
-                <TableRow><TableCell className="text-xs">Home tilt GBP → Europe</TableCell><TableCell className="text-right font-mono text-xs">× 1.5</TableCell></TableRow>
-                <TableRow><TableCell className="text-xs">Home tilt CHF → Switzerland</TableCell><TableCell className="text-right font-mono text-xs">× 2.5</TableCell></TableRow>
+                {HB_CURRENCIES.map((c) => {
+                  const live = resolvedHomeBias(c);
+                  const isOverride = hbOverrides[c] !== undefined;
+                  const region = de ? HB_REGION_LABEL_DE[c] : HB_REGION_LABEL[c];
+                  return (
+                    <TableRow key={`hb-${c}`}>
+                      <TableCell className="text-xs">
+                        {de ? "Home-Bias" : "Home tilt"} {c} → {region}
+                        {isOverride && (
+                          <Badge variant="default" className="ml-2 text-[10px] px-1.5 py-0">
+                            {de ? "Eigene" : "Custom"}
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs">× {live.toFixed(2)}</TableCell>
+                    </TableRow>
+                  );
+                })}
                 <TableRow><TableCell className="text-xs">Long-horizon EM tilt (h ≥ 10)</TableCell><TableCell className="text-right font-mono text-xs">× 1.3</TableCell></TableRow>
                 <TableRow><TableCell className="text-xs">Sustainability theme on USA</TableCell><TableCell className="text-right font-mono text-xs">× 0.85</TableCell></TableRow>
                 <TableRow><TableCell className="text-xs">{de ? "Konzentrationsgrenze pro Region" : "Concentration cap per region"}</TableCell><TableCell className="text-right font-mono text-xs">≤ 65%</TableCell></TableRow>

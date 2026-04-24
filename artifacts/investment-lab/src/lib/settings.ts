@@ -124,3 +124,93 @@ export function subscribeCMAOverrides(cb: (o: CMAUserOverrides) => void): () => 
   window.addEventListener(CMA_EVENT, handler);
   return () => window.removeEventListener(CMA_EVENT, handler);
 }
+
+// ----------------------------------------------------------------------------
+// Home-bias overlay overrides (per base currency).
+// ----------------------------------------------------------------------------
+// The portfolio engine multiplies the home-region market-cap weight by a
+// base-currency-specific factor (see portfolio.ts → HOME_TILT). Defaults are:
+//   USD → 1.0 (USA already dominant)
+//   EUR → 1.5 (Europe)
+//   GBP → 1.5 (Europe)
+//   CHF → 2.5 (Switzerland anchor is small, needs more tilt)
+// User can override these per currency at runtime. Stored in localStorage; a
+// custom event lets components re-build their portfolio.
+
+const HB_KEY = "idl.homeBiasOverrides";
+const HB_EVENT = "idl-homebias-changed";
+
+export type HomeBiasCurrency = "USD" | "EUR" | "GBP" | "CHF";
+export type HomeBiasOverrides = Partial<Record<HomeBiasCurrency, number>>;
+
+export const HOME_BIAS_DEFAULTS: Record<HomeBiasCurrency, number> = {
+  USD: 1.0,
+  EUR: 1.5,
+  GBP: 1.5,
+  CHF: 2.5,
+};
+
+const HB_VALID_KEYS = new Set<HomeBiasCurrency>(["USD", "EUR", "GBP", "CHF"]);
+// Sanity bounds: a multiplier ≤ 0 would zero-out the home region; > 5 is
+// economically unreasonable. Both ends matter — clamp on read AND on write.
+const HB_MIN = 0;
+const HB_MAX = 5;
+
+function sanitizeHbValue(v: unknown): number | undefined {
+  if (typeof v !== "number" || !Number.isFinite(v)) return undefined;
+  return Math.max(HB_MIN, Math.min(HB_MAX, v));
+}
+
+export function getHomeBiasOverrides(): HomeBiasOverrides {
+  if (typeof window === "undefined") return {};
+  const raw = window.localStorage.getItem(HB_KEY);
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {};
+    const out: HomeBiasOverrides = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (!HB_VALID_KEYS.has(k as HomeBiasCurrency)) continue;
+      const s = sanitizeHbValue(v);
+      if (s !== undefined) out[k as HomeBiasCurrency] = s;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+// Returns the resolved home-bias factor for a given currency, applying any
+// user override on top of the engine default.
+export function resolvedHomeBias(ccy: HomeBiasCurrency): number {
+  const ov = getHomeBiasOverrides();
+  return ov[ccy] !== undefined ? ov[ccy]! : HOME_BIAS_DEFAULTS[ccy];
+}
+
+export function setHomeBiasOverrides(overrides: HomeBiasOverrides) {
+  if (typeof window === "undefined") return;
+  const cleaned: HomeBiasOverrides = {};
+  for (const [k, v] of Object.entries(overrides)) {
+    if (!HB_VALID_KEYS.has(k as HomeBiasCurrency)) continue;
+    const s = sanitizeHbValue(v);
+    if (s !== undefined) cleaned[k as HomeBiasCurrency] = s;
+  }
+  window.localStorage.setItem(HB_KEY, JSON.stringify(cleaned));
+  window.dispatchEvent(new CustomEvent(HB_EVENT, { detail: cleaned }));
+}
+
+export function resetHomeBiasOverrides() {
+  if (typeof window === "undefined") return;
+  window.localStorage.removeItem(HB_KEY);
+  window.dispatchEvent(new CustomEvent(HB_EVENT, { detail: {} }));
+}
+
+export function subscribeHomeBiasOverrides(cb: (o: HomeBiasOverrides) => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  const handler = (e: Event) => {
+    const detail = (e as CustomEvent).detail;
+    if (detail && typeof detail === "object") cb(detail as HomeBiasOverrides);
+  };
+  window.addEventListener(HB_EVENT, handler);
+  return () => window.removeEventListener(HB_EVENT, handler);
+}
