@@ -699,8 +699,8 @@ export function Methodology() {
         <Section value="corr" icon={<GitCompare className="h-4 w-4" />} title={de ? "Korrelationsmatrix" : "Correlation Matrix"}>
           <p className="text-sm text-muted-foreground">
             {de
-              ? "Paarweise Langfrist-Korrelationen, statisch hinterlegt. In Liquiditätskrisen tendieren reale Korrelationen gegen 1 – das spiegelt diese Matrix nicht wider, der Stress-Test schon."
-              : "Pairwise long-run correlations, stored statically. In liquidity crises real-world correlations rise toward 1 — this matrix does not reflect that, the stress test does."}
+              ? "Paarweise Langfrist-Korrelationen, statisch hinterlegt. Die Portfolio-Volatilität, Sharpe-Ratio, Beta, Alpha und der Tracking Error im Report werden aus genau dieser Matrix berechnet – die Diversifikationseffekte in diesen Kennzahlen entstehen durch die Off-Diagonal-Werte unter 1,0. In Liquiditätskrisen tendieren reale Korrelationen gegen 1 – das spiegelt diese Matrix nicht wider, der Stress-Test schon."
+              : "Pairwise long-run correlations, stored statically. The portfolio volatility, Sharpe, beta, alpha and tracking error on the Report are computed from this exact matrix — the diversification benefit in those figures comes from the off-diagonal cells below 1.0. In liquidity crises real-world correlations rise toward 1 — this matrix does not reflect that, the stress test does."}
           </p>
           <div className="text-xs text-muted-foreground">
             {de ? "Quelle" : "Source"}: {de ? "Empirische Schätzungen aus typischen Marktphasen 2000–2024 (MSCI, Bloomberg, FTSE Russell Index-Daten)." : "Empirical estimates from typical 2000–2024 regime data (MSCI, Bloomberg, FTSE Russell index series)."}
