@@ -1444,7 +1444,68 @@ describe("setLastAllocation / subscribeLastAllocation (cross-tab pub/sub)", () =
 // ---------------------------------------------------------------------------
 // Manual weight overrides
 // ---------------------------------------------------------------------------
-import { applyManualWeights, bucketKey } from "../src/lib/manualWeights";
+import { applyManualWeights, bucketKey, parseManualWeightInput } from "../src/lib/manualWeights";
+
+describe("manualWeights.parseManualWeightInput", () => {
+  it("accepts a plain dot decimal: '12.5' → 12.5", () => {
+    expect(parseManualWeightInput("12.5")).toBe(12.5);
+  });
+
+  it("accepts a locale comma decimal: '12,5' → 12.5 (Swiss/German/French keypad)", () => {
+    expect(parseManualWeightInput("12,5")).toBe(12.5);
+  });
+
+  it("dot and comma decimals round-trip to the same stored value", () => {
+    expect(parseManualWeightInput("12,5")).toBe(parseManualWeightInput("12.5"));
+    expect(parseManualWeightInput("0,3")).toBe(parseManualWeightInput("0.3"));
+  });
+
+  it("accepts integers", () => {
+    expect(parseManualWeightInput("40")).toBe(40);
+    expect(parseManualWeightInput("0")).toBe(0);
+    expect(parseManualWeightInput("100")).toBe(100);
+  });
+
+  it("trims surrounding whitespace", () => {
+    expect(parseManualWeightInput("  12,5  ")).toBe(12.5);
+  });
+
+  it("clamps values above 100 down to 100", () => {
+    expect(parseManualWeightInput("250")).toBe(100);
+  });
+
+  it("clamps negative values up to 0", () => {
+    expect(parseManualWeightInput("-5")).toBe(0);
+  });
+
+  it("rounds to one decimal place to match the storage convention", () => {
+    expect(parseManualWeightInput("12.34")).toBe(12.3);
+    expect(parseManualWeightInput("12,37")).toBe(12.4);
+  });
+
+  it("rejects empty / whitespace-only input as null (caller reverts to engine value)", () => {
+    expect(parseManualWeightInput("")).toBeNull();
+    expect(parseManualWeightInput("   ")).toBeNull();
+  });
+
+  it("rejects garbage so a fat-fingered keystroke does not pin a wild value", () => {
+    expect(parseManualWeightInput("abc")).toBeNull();
+    expect(parseManualWeightInput("12abc")).toBeNull();
+    expect(parseManualWeightInput("12.3.4")).toBeNull();
+    expect(parseManualWeightInput("12,3,4")).toBeNull();
+    expect(parseManualWeightInput("12 5")).toBeNull();
+  });
+
+  it("accepts mid-edit partial decimals so an accidental blur does not lose the value", () => {
+    // These are common keystroke states on a phone; if the user blurs at
+    // any of them the cell should commit a sensible number rather than
+    // reverting (or, worse, clearing an existing override).
+    expect(parseManualWeightInput("12.")).toBe(12);
+    expect(parseManualWeightInput("12,")).toBe(12);
+    expect(parseManualWeightInput(".5")).toBe(0.5);
+    expect(parseManualWeightInput(",5")).toBe(0.5);
+  });
+});
 
 describe("manualWeights.applyManualWeights", () => {
   const sumWeights = (rows: Array<{ weight: number }>) =>

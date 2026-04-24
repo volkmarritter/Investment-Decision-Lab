@@ -8,6 +8,7 @@ import {
   clearManualWeight,
   clearAllManualWeights,
   subscribeManualWeights,
+  parseManualWeightInput,
   type ManualWeights,
 } from "@/lib/manualWeights";
 import { buildAiPrompt } from "@/lib/aiPrompt";
@@ -1183,6 +1184,7 @@ function ManualWeightCell(props: {
   effective.current = displayedWeight;
   const [draft, setDraft] = useState<string>(displayedWeight.toFixed(1));
   const [focused, setFocused] = useState(false);
+  const inputRef = useRef<HTMLInputElement | null>(null);
   // Cancel/dirty flags used by the commit guard so that (a) Escape truly
   // reverts without persisting, and (b) focus + blur on an untouched cell
   // does not create a phantom override.
@@ -1208,15 +1210,21 @@ function ManualWeightCell(props: {
     }
     if (!dirty.current) return; // focus + blur with no change ⇒ no-op
     dirty.current = false;
-    const parsed = parseFloat(draft.replace(",", "."));
-    if (!Number.isFinite(parsed)) {
-      // Invalid input: revert to the engine value and clear any existing
-      // override so the row goes back to natural sizing.
-      setDraft(effective.current.toFixed(1));
-      if (isOverride) clearManualWeight(bucket);
+    const parsed = parseManualWeightInput(draft);
+    if (parsed === null) {
+      // Invalid / empty input: silently revert the draft to the engine value
+      // and DO NOT mutate the override. Mobile users routinely blur with the
+      // input mid-edit (an iOS keyboard tap, a misfired pointerdown), and
+      // wiping a pinned weight on every fumble was the worst symptom of the
+      // original bug. Clearing an override is now an explicit gesture only —
+      // via the × reset button or the global "Reset all" action.
+      setDraft(
+        isOverride && typeof pinnedValue === "number"
+          ? pinnedValue.toFixed(1)
+          : effective.current.toFixed(1),
+      );
       return;
     }
-    const clamped = Math.max(0, Math.min(100, Math.round(parsed * 10) / 10));
     // No-op guard: if the typed value matches what is already in effect
     // (the pinned value on an overridden row, or the natural displayed
     // weight on a non-overridden row), don't write to storage. This avoids
@@ -1225,25 +1233,52 @@ function ManualWeightCell(props: {
       isOverride && typeof pinnedValue === "number"
         ? pinnedValue
         : effective.current;
-    if (Math.abs(clamped - compareTo) < 0.05) {
+    if (Math.abs(parsed - compareTo) < 0.05) {
       setDraft(compareTo.toFixed(1));
       return;
     }
-    setDraft(clamped.toFixed(1));
-    setManualWeight(bucket, clamped);
+    setDraft(parsed.toFixed(1));
+    setManualWeight(bucket, parsed);
   };
+
+  // Mobile safety net: iOS Safari does not always fire `blur` before a
+  // subsequent tap (e.g. the user taps "Build Portfolio" with the keyboard
+  // still up). Capture-phase pointerdown lets us force the input to blur
+  // before the next React handler runs, which routes through onBlur → commit.
+  // Listener is only attached while the input is focused so it has zero cost
+  // the rest of the time.
+  useEffect(() => {
+    if (!focused) return;
+    const handler = (e: PointerEvent) => {
+      const node = inputRef.current;
+      if (!node) return;
+      const target = e.target as Node | null;
+      if (target && node.contains(target)) return;
+      node.blur();
+    };
+    document.addEventListener("pointerdown", handler, true);
+    return () => document.removeEventListener("pointerdown", handler, true);
+  }, [focused]);
 
   return (
     <div className="inline-flex items-center justify-end gap-1">
       <Input
-        type="number"
+        ref={inputRef}
+        type="text"
         inputMode="decimal"
-        step="0.1"
-        min={0}
-        max={100}
+        enterKeyHint="done"
+        autoComplete="off"
+        autoCorrect="off"
+        spellCheck={false}
         value={draft}
         onChange={(e) => { dirty.current = true; setDraft(e.target.value); }}
-        onFocus={() => setFocused(true)}
+        onFocus={(e) => {
+          setFocused(true);
+          // Select-all so a single tap lets the user retype the value
+          // without first having to delete the existing digits — much more
+          // forgiving on a phone keyboard.
+          e.currentTarget.select();
+        }}
         onBlur={() => { setFocused(false); commit(); }}
         onKeyDown={(e) => {
           if (e.key === "Enter") {
@@ -1257,7 +1292,7 @@ function ManualWeightCell(props: {
         }}
         title={editTitle}
         aria-label={editTitle}
-        className={`h-7 w-16 px-1.5 text-right font-mono text-xs ${isOverride ? "border-primary/60" : ""}`}
+        className={`h-8 w-[72px] px-1.5 text-right font-mono text-xs sm:h-7 sm:w-16 ${isOverride ? "border-primary/60" : ""}`}
         data-testid={`weight-input-${bucket}`}
       />
       <span className="text-muted-foreground text-xs select-none">%</span>
@@ -1265,15 +1300,15 @@ function ManualWeightCell(props: {
         <button
           type="button"
           onClick={() => clearManualWeight(bucket)}
-          title={resetTitle}
           aria-label={resetTitle}
-          className="text-muted-foreground hover:text-foreground rounded p-0.5"
+          className="text-muted-foreground hover:text-foreground rounded inline-flex items-center justify-center h-8 w-8 sm:h-5 sm:w-5"
           data-testid={`weight-reset-${bucket}`}
         >
-          <X className="h-3 w-3" />
+          <X className="h-3.5 w-3.5 sm:h-3 sm:w-3" aria-hidden="true" />
+          <span className="sr-only">{resetTitle}</span>
         </button>
       ) : (
-        <span className="w-4" />
+        <span className="w-8 sm:w-5" />
       )}
     </div>
   );

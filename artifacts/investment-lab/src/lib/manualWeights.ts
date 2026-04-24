@@ -78,6 +78,35 @@ export function clearAllManualWeights(): void {
   persist({});
 }
 
+// ---------------------------------------------------------------------------
+// Pure parser for the inline weight input. Exported (and unit-tested) because
+// `<input type="number">` silently strips locale-comma decimals on mobile
+// keyboards (Swiss / German / French), so the component now uses a plain text
+// input and routes every keystroke through here. Returns null for inputs that
+// cannot be coerced into a finite percentage in [0, 100]; the caller decides
+// what to do (revert vs clear).
+//
+// The whitelist regex deliberately allows three mobile-friendly partial forms
+// that all parse to a sensible number:
+//   - "12"           → 12       (integer)
+//   - "12.5" / "12,5"→ 12.5     (full decimal, dot or comma separator)
+//   - "12." / "12,"  → 12       (trailing separator — common mid-edit state)
+//   - ".5"  / ",5"   → 0.5      (leading separator — also a mid-edit state)
+// Anything else (empty, garbage, multiple separators, letters) returns null.
+// ---------------------------------------------------------------------------
+export function parseManualWeightInput(raw: string): number | null {
+  if (typeof raw !== "string") return null;
+  const trimmed = raw.trim();
+  if (trimmed === "") return null;
+  // Either: optional sign + digits + optional (separator + optional digits),
+  // or:     optional sign + separator + digits.
+  if (!/^[+-]?(\d+[.,]?\d*|[.,]\d+)$/.test(trimmed)) return null;
+  const parsed = parseFloat(trimmed.replace(",", "."));
+  if (!Number.isFinite(parsed)) return null;
+  const clamped = Math.max(0, Math.min(100, Math.round(parsed * 10) / 10));
+  return clamped;
+}
+
 export function subscribeManualWeights(cb: (w: ManualWeights) => void): () => void {
   if (!isBrowser()) return () => {};
   const handler = () => cb(loadManualWeights());
