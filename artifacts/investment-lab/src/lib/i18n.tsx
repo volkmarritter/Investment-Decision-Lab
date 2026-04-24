@@ -340,7 +340,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "mc.legend.p50": "Median path",
     "mc.legend.p10": "10th percentile",
     "mc.legend.p90": "90th percentile",
-    "mc.disclaimer": "Illustrative only. Assumptions are simplified, ignore correlations and fat tails, and exclude fees and taxes. Real-world outcomes can fall well outside the simulated band.",
+    "mc.disclaimer": "Illustrative only. Assumptions are simplified, ignore tail correlations and fat tails, and exclude fees and taxes. Real-world outcomes can fall well outside the simulated band.",
 
     // Disclaimer
     "disclaimer.short.title": "Important notice.",
@@ -700,7 +700,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "mc.legend.p50": "Median-Pfad",
     "mc.legend.p10": "10. Perzentil",
     "mc.legend.p90": "90. Perzentil",
-    "mc.disclaimer": "Nur illustrativ. Annahmen sind vereinfacht, ignorieren Korrelationen und Fat Tails und schließen Gebühren und Steuern aus. Tatsächliche Ergebnisse können deutlich außerhalb des simulierten Bandes liegen.",
+    "mc.disclaimer": "Nur illustrativ. Annahmen sind vereinfacht, ignorieren Tail-Korrelationen und Fat Tails und schließen Gebühren und Steuern aus. Tatsächliche Ergebnisse können deutlich außerhalb des simulierten Bandes liegen.",
 
     // Disclaimer
     "disclaimer.short.title": "Wichtiger Hinweis.",

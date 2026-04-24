@@ -805,8 +805,8 @@ export function Methodology() {
         <Section value="mc" icon={<Calculator className="h-4 w-4" />} title={de ? "Monte-Carlo-Simulation" : "Monte Carlo Simulation"}>
           <ul className="text-sm space-y-2 list-disc pl-5">
             <li>{de ? "Verteilung: log-normale jährliche Renditen pro Anlageklasse, gezogen aus der CMA-Tabelle (μ und σ wie oben)." : "Distribution: log-normal annual returns per asset class, drawn from the CMA table above (μ and σ as listed)."}</li>
-            <li>{de ? "Korrelation: vereinfachte unabhängige Ziehungen pro Anlageklasse, anschließend gewichtet aggregiert." : "Correlation: simplified independent draws per asset class, then weighted to portfolio level."}</li>
-            <li>{de ? "Pfade: 1.000 unabhängige Pfade über den Anlagehorizont des Nutzers." : "Paths: 1,000 independent paths over the user's chosen horizon."}</li>
+            <li>{de ? "Korrelation: die Portfoliovolatilität wird vorab aus der vollständigen Korrelationsmatrix der Anlageklassen berechnet (σₚ = √(ΣΣ wᵢwⱼσᵢσⱼρᵢⱼ)); anschließend wird das Portfolio als Ganzes simuliert (eine Gauß-Ziehung pro Jahr)." : "Correlation: the portfolio's volatility is computed up front from the full asset-class correlation matrix (σₚ = √(ΣΣ wᵢwⱼσᵢσⱼρᵢⱼ)); the portfolio is then simulated as a single asset (one Gaussian draw per year)."}</li>
+            <li>{de ? "Pfade: 2.000 unabhängige Pfade über den Anlagehorizont des Nutzers." : "Paths: 2,000 independent paths over the user's chosen horizon."}</li>
             <li>{de ? "Ausgewiesen: Median, P10, P90, Wahrscheinlichkeit eines Verlusts." : "Reported: median, P10, P90, probability of loss."}</li>
           </ul>
           <p className="text-xs text-muted-foreground">
