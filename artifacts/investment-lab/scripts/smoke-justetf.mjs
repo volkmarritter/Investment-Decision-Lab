@@ -35,6 +35,7 @@
 // ----------------------------------------------------------------------------
 
 import { fileURLToPath } from "node:url";
+import { writeFileSync, appendFileSync } from "node:fs";
 import {
   CORE_EXTRACTORS,
   LISTINGS_EXTRACTORS,
@@ -121,6 +122,58 @@ function checkCanary(html, canary) {
   return missing;
 }
 
+// Build the structured failure report consumed by the GitHub Actions notify
+// step (see .github/workflows/justetf-smoke.yml). It's plain Markdown so it
+// can be dropped straight into an issue body or step summary without further
+// massaging. Kept separate from main() so the unit tests / future notifiers
+// can call it without re-running the live fetches.
+function buildFailureReport(failures, totalCanaries) {
+  const lines = [];
+  lines.push("## justETF smoke check failed");
+  lines.push("");
+  lines.push(
+    `**${failures.length}/${totalCanaries} canary ISIN(s) regressed.** ` +
+      "This usually means justETF changed a `data-testid` or table structure " +
+      "on the profile page, so the production refresh job will silently keep " +
+      "the previous override values until the affected extractor is patched."
+  );
+  lines.push("");
+  lines.push("### Failing canaries");
+  lines.push("");
+  for (const f of failures) {
+    const c = f.canary;
+    const url = `https://www.justetf.com/en/etf-profile.html?isin=${c.isin}`;
+    lines.push(`- **[${c.type}] ${c.isin}** — ${c.name} ([profile](${url}))`);
+    if (f.error) {
+      lines.push(`  - fetch error: \`${f.error}\``);
+    } else if (f.missing && f.missing.length > 0) {
+      lines.push(`  - missing fields: \`${f.missing.join("`, `")}\``);
+    }
+  }
+  lines.push("");
+  lines.push("### Where to fix");
+  lines.push("");
+  lines.push(
+    "Each missing field name is `<group>.<field>` where the group maps to " +
+      "the source extractor:"
+  );
+  lines.push("");
+  lines.push(
+    "- `core.*` and `listings.*` → `artifacts/investment-lab/scripts/refresh-justetf.mjs`"
+  );
+  lines.push(
+    "- `lookthrough.*` → `artifacts/investment-lab/scripts/refresh-lookthrough.mjs`"
+  );
+  lines.push("");
+  lines.push(
+    "After patching the regex / selector, refresh the matching fixture under " +
+      "`artifacts/investment-lab/tests/fixtures/justetf/` so the unit tests " +
+      "lock in the new markup, then re-run this workflow from the Actions tab " +
+      "to confirm the canaries are green again."
+  );
+  return lines.join("\n") + "\n";
+}
+
 async function main() {
   console.log(
     `justETF smoke check — ${CANARIES.length} canary ISIN(s), ${REQUEST_DELAY_MS}ms inter-request delay`
@@ -154,6 +207,28 @@ async function main() {
         "This usually means justETF changed a data-testid or table structure. " +
         "Refresh the fixtures under artifacts/investment-lab/tests/fixtures/ and update the affected extractor in scripts/refresh-justetf.mjs or scripts/refresh-lookthrough.mjs."
     );
+
+    // Surface the structured report to the notify step (issue body) and to
+    // the workflow run summary. Both env vars are populated by GitHub Actions;
+    // outside CI they're undefined and we just skip the writes.
+    const report = buildFailureReport(failures, CANARIES.length);
+    const reportPath = process.env.SMOKE_FAILURE_REPORT;
+    if (reportPath) {
+      try {
+        writeFileSync(reportPath, report);
+      } catch (e) {
+        console.error(`Failed to write failure report to ${reportPath}: ${e.message}`);
+      }
+    }
+    const summaryPath = process.env.GITHUB_STEP_SUMMARY;
+    if (summaryPath) {
+      try {
+        appendFileSync(summaryPath, report);
+      } catch (e) {
+        console.error(`Failed to append step summary to ${summaryPath}: ${e.message}`);
+      }
+    }
+
     process.exit(1);
   }
 
@@ -170,4 +245,4 @@ if (isCli) {
   });
 }
 
-export { CANARIES, checkCanary };
+export { CANARIES, checkCanary, buildFailureReport };

@@ -27,9 +27,12 @@ on:
                          # (daily 02:00) or refresh-lookthrough.yml (1st 04:00)
   workflow_dispatch: # allow manual re-runs from the Actions tab after a fix
 
-# Read-only job — does not need contents:write because nothing is committed.
+# Read-only against the codebase, but the failure-notify step opens / comments
+# on a tracking issue so the on-call engineer learns about a layout regression
+# the same day instead of the next time someone happens to look at CI.
 permissions:
   contents: read
+  issues: write
 
 jobs:
   smoke:
@@ -49,5 +52,62 @@ jobs:
       - run: pnpm install --frozen-lockfile
 
       - name: Probe live justETF profile pages with the exported extractors
+        id: smoke
         working-directory: artifacts/investment-lab
+        env:
+          # smoke-justetf.mjs writes a structured Markdown report to this path
+          # when (and only when) it detects a regression. The next step picks
+          # it up as the GitHub Issue body. On a green run nothing is written
+          # and the notify step is skipped entirely (silent-success contract).
+          SMOKE_FAILURE_REPORT: ${{ runner.temp }}/smoke-failure.md
         run: node scripts/smoke-justetf.mjs
+
+      # Failure notification: open (or comment on) a GitHub Issue describing
+      # which canary ISIN(s) regressed and which fields are now empty. We
+      # deduplicate by issue title so a multi-day red streak appends comments
+      # to the same tracking issue instead of spamming a fresh one every
+      # morning. Successful runs skip this step (no spam on the green path).
+      - name: Open or update tracking issue on failure
+        if: failure() && steps.smoke.conclusion == 'failure'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPORT: ${{ runner.temp }}/smoke-failure.md
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          TITLE="[justetf-smoke] Layout regression detected"
+
+          # Fall back to a minimal body if the script exited before writing the
+          # report (e.g. crashed in main()'s setup) so the issue still gets
+          # opened with a link back to the run for triage.
+          if [ ! -s "$REPORT" ]; then
+            REPORT="${RUNNER_TEMP}/smoke-failure-fallback.md"
+            {
+              echo "## justETF smoke check failed"
+              echo
+              echo "The smoke job exited non-zero but did not produce a structured report."
+              echo "Inspect the workflow logs directly: $RUN_URL"
+            } > "$REPORT"
+          fi
+
+          # Append the run link so every issue / comment points back at the
+          # exact red run that produced it.
+          {
+            echo
+            echo "---"
+            echo "Workflow run: $RUN_URL"
+          } >> "$REPORT"
+
+          EXISTING=$(gh issue list \
+            --state open \
+            --search "\"$TITLE\" in:title" \
+            --json number \
+            --jq '.[0].number // empty')
+
+          if [ -n "$EXISTING" ]; then
+            echo "Re-using open tracking issue #$EXISTING"
+            gh issue comment "$EXISTING" --body-file "$REPORT"
+          else
+            echo "Opening new tracking issue"
+            gh issue create --title "$TITLE" --body-file "$REPORT"
+          fi
