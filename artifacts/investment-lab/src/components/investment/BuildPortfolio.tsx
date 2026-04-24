@@ -23,6 +23,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -239,10 +240,7 @@ export function BuildPortfolio() {
                       <FormItem>
                         <FormLabel className="flex items-center gap-2">
                           {t("build.baseCurrency.label")}
-                          <Tooltip>
-                            <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                            <TooltipContent>{t("build.baseCurrency.tooltip")}</TooltipContent>
-                          </Tooltip>
+                          <InfoHint iconClassName="h-3 w-3">{t("build.baseCurrency.tooltip")}</InfoHint>
                         </FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
@@ -267,10 +265,7 @@ export function BuildPortfolio() {
                       <FormItem>
                         <FormLabel className="flex items-center gap-2">
                           {t("build.horizon.label")}
-                          <Tooltip>
-                            <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                            <TooltipContent>{t("build.horizon.tooltip")}</TooltipContent>
-                          </Tooltip>
+                          <InfoHint iconClassName="h-3 w-3">{t("build.horizon.tooltip")}</InfoHint>
                         </FormLabel>
                         <FormControl>
                           <Input type="number" min={1} max={40} {...field} />
@@ -287,10 +282,7 @@ export function BuildPortfolio() {
                     <FormItem className="space-y-3">
                       <FormLabel className="flex items-center gap-2">
                         {t("build.riskAppetite.label")}
-                        <Tooltip>
-                          <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                          <TooltipContent>{t("build.riskAppetite.tooltip")}</TooltipContent>
-                        </Tooltip>
+                        <InfoHint iconClassName="h-3 w-3">{t("build.riskAppetite.tooltip")}</InfoHint>
                       </FormLabel>
                       <FormControl>
                         <RadioGroup
@@ -334,10 +326,7 @@ export function BuildPortfolio() {
                       <FormLabel className="flex justify-between items-center">
                         <span className="flex items-center gap-2">
                           {t("build.targetEquity.label")}
-                          <Tooltip>
-                            <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                            <TooltipContent>{t("build.targetEquity.tooltip")}</TooltipContent>
-                          </Tooltip>
+                          <InfoHint iconClassName="h-3 w-3">{t("build.targetEquity.tooltip")}</InfoHint>
                         </span>
                         <span className="text-sm font-mono">{field.value}%</span>
                       </FormLabel>
@@ -367,10 +356,7 @@ export function BuildPortfolio() {
                   <div className="space-y-2">
                     <label className="flex items-center gap-2 text-sm font-medium leading-none">
                       {t("build.numEtfs.label")}
-                      <Tooltip>
-                        <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                        <TooltipContent className="max-w-xs whitespace-pre-line">{t("build.numEtfs.tooltip")}</TooltipContent>
-                      </Tooltip>
+                      <InfoHint iconClassName="h-3 w-3" className="whitespace-pre-line"><span className="whitespace-pre-line">{t("build.numEtfs.tooltip")}</span></InfoHint>
                     </label>
                     <div className="flex items-center gap-2">
                       <Controller
@@ -410,10 +396,7 @@ export function BuildPortfolio() {
                       <FormItem>
                         <FormLabel className="flex items-center gap-2">
                           {t("build.preferredExchange.label")}
-                          <Tooltip>
-                            <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                            <TooltipContent>{t("build.preferredExchange.tooltip")}</TooltipContent>
-                          </Tooltip>
+                          <InfoHint iconClassName="h-3 w-3">{t("build.preferredExchange.tooltip")}</InfoHint>
                         </FormLabel>
                         <Select onValueChange={field.onChange} value={field.value}>
                           <FormControl>
@@ -440,10 +423,7 @@ export function BuildPortfolio() {
                     <FormItem>
                       <FormLabel className="flex items-center gap-2">
                         {t("build.thematicTilt.label")}
-                        <Tooltip>
-                          <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                          <TooltipContent>{t("build.thematicTilt.tooltip")}</TooltipContent>
-                        </Tooltip>
+                        <InfoHint iconClassName="h-3 w-3">{t("build.thematicTilt.tooltip")}</InfoHint>
                       </FormLabel>
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>

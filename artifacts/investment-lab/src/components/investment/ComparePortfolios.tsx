@@ -16,6 +16,7 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { InfoHint } from "@/components/ui/info-hint";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -171,10 +172,7 @@ export function ComparePortfolios() {
               <FormItem>
                 <FormLabel className="flex items-center gap-1.5">
                   <span>{tr("Base Currency", "Basiswährung")}</span>
-                  <Tooltip>
-                    <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                    <TooltipContent>{t("build.baseCurrency.tooltip")}</TooltipContent>
-                  </Tooltip>
+                  <InfoHint iconClassName="h-3 w-3">{t("build.baseCurrency.tooltip")}</InfoHint>
                 </FormLabel>
                 <Select onValueChange={field.onChange} value={field.value}>
                   <FormControl>
@@ -197,10 +195,7 @@ export function ComparePortfolios() {
               <FormItem>
                 <FormLabel className="flex items-center gap-1.5">
                   <span>{tr("Horizon (Years)", "Horizont (Jahre)")}</span>
-                  <Tooltip>
-                    <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                    <TooltipContent>{t("build.horizon.tooltip")}</TooltipContent>
-                  </Tooltip>
+                  <InfoHint iconClassName="h-3 w-3">{t("build.horizon.tooltip")}</InfoHint>
                 </FormLabel>
                 <FormControl><Input type="number" min={1} max={40} {...field} /></FormControl>
               </FormItem>
@@ -215,10 +210,7 @@ export function ComparePortfolios() {
             <FormItem className="space-y-3">
               <FormLabel className="flex items-center gap-1.5">
                 <span>{tr("Risk Appetite", "Risikobereitschaft")}</span>
-                <Tooltip>
-                  <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                  <TooltipContent>{t("build.riskAppetite.tooltip")}</TooltipContent>
-                </Tooltip>
+                <InfoHint iconClassName="h-3 w-3">{t("build.riskAppetite.tooltip")}</InfoHint>
               </FormLabel>
               <FormControl>
                 <RadioGroup onValueChange={field.onChange} value={field.value} className="grid grid-cols-2 gap-2">
@@ -247,10 +239,7 @@ export function ComparePortfolios() {
               <FormLabel className="flex justify-between items-center">
                 <span className="flex items-center gap-1.5">
                   <span>{tr("Target Equity Allocation", "Aktien-Zielallokation")}</span>
-                  <Tooltip>
-                    <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                    <TooltipContent>{t("build.targetEquity.tooltip")}</TooltipContent>
-                  </Tooltip>
+                  <InfoHint iconClassName="h-3 w-3">{t("build.targetEquity.tooltip")}</InfoHint>
                 </span>
                 <span className="text-sm font-mono">{field.value}%</span>
               </FormLabel>
@@ -271,10 +260,7 @@ export function ComparePortfolios() {
             <FormItem>
               <FormLabel className="flex items-center gap-1.5">
                 <span>{tr("Thematic Tilt", "Thematischer Tilt")}</span>
-                <Tooltip>
-                  <TooltipTrigger type="button"><Info className="h-3 w-3 text-muted-foreground" /></TooltipTrigger>
-                  <TooltipContent>{t("build.thematicTilt.tooltip")}</TooltipContent>
-                </Tooltip>
+                <InfoHint iconClassName="h-3 w-3">{t("build.thematicTilt.tooltip")}</InfoHint>
               </FormLabel>
               <Select onValueChange={field.onChange} value={field.value}>
                 <FormControl>
