@@ -1122,6 +1122,92 @@ describe("CMA layered overrides", () => {
     }
   });
 
+  it("home-bias overrides: increasing CHF multiplier raises Switzerland equity weight; reset restores default", async () => {
+    const settings = await import("../src/lib/settings");
+    // Use a real in-memory localStorage stub so set/get/remove all work consistently.
+    const fakeStore: Record<string, string> = {};
+    const orig = (globalThis as { window?: unknown }).window;
+    (globalThis as unknown as { window: { localStorage: Storage; dispatchEvent: () => boolean } }).window = {
+      localStorage: {
+        getItem: (k: string) => fakeStore[k] ?? null,
+        setItem: (k: string, v: string) => { fakeStore[k] = v; },
+        removeItem: (k: string) => { delete fakeStore[k]; },
+        clear: () => { for (const k of Object.keys(fakeStore)) delete fakeStore[k]; },
+        key: () => null,
+        length: 0,
+      } as Storage,
+      dispatchEvent: () => true,
+    };
+    try {
+      // Baseline (engine default factor 2.5 for CHF).
+      const baseline = buildPortfolio(baseInput({ baseCurrency: "CHF", numETFs: 12 }));
+      const baselineCH = equityWeightOf(baseline, "Switzerland");
+      // Bump CHF multiplier well above default.
+      settings.setHomeBiasOverrides({ CHF: 4.5 });
+      expect(settings.resolvedHomeBias("CHF")).toBe(4.5);
+      const tilted = buildPortfolio(baseInput({ baseCurrency: "CHF", numETFs: 12 }));
+      const tiltedCH = equityWeightOf(tilted, "Switzerland");
+      expect(tiltedCH).toBeGreaterThan(baselineCH);
+      // Out-of-bounds → clamped to [0, 5]
+      settings.setHomeBiasOverrides({ CHF: 999 });
+      expect(settings.resolvedHomeBias("CHF")).toBe(5);
+      // Reset removes user override; engine default returns.
+      settings.resetHomeBiasOverrides();
+      expect(settings.resolvedHomeBias("CHF")).toBe(2.5);
+      const restored = buildPortfolio(baseInput({ baseCurrency: "CHF", numETFs: 12 }));
+      // After reset, Switzerland weight is again equal to the baseline (within rounding).
+      expect(Math.abs(equityWeightOf(restored, "Switzerland") - baselineCH)).toBeLessThan(0.01);
+    } finally {
+      if (orig) (globalThis as unknown as { window: typeof orig }).window = orig;
+      else delete (globalThis as { window?: unknown }).window;
+    }
+  });
+
+  it("getHomeBiasOverrides drops unknown currencies and clamps out-of-bounds multipliers", async () => {
+    const { getHomeBiasOverrides } = await import("../src/lib/settings");
+    const fakeStore: Record<string, string> = {
+      "idl.homeBiasOverrides": JSON.stringify({
+        EUR: 1.8,
+        XYZ: 2.0,         // unknown currency → dropped
+        CHF: 99,          // out of bounds → clamped to 5
+        GBP: -3,          // negative → clamped to 0
+        USD: "abc",       // wrong type → dropped
+      }),
+    };
+    const orig = (globalThis as { window?: { localStorage: Storage } }).window;
+    (globalThis as unknown as { window: { localStorage: Pick<Storage, "getItem"> } }).window = {
+      localStorage: { getItem: (k: string) => fakeStore[k] ?? null },
+    };
+    try {
+      const o = getHomeBiasOverrides();
+      expect(o.EUR).toBe(1.8);
+      expect(o.CHF).toBe(5);
+      expect(o.GBP).toBe(0);
+      expect(o.USD).toBeUndefined();
+      expect((o as Record<string, unknown>).XYZ).toBeUndefined();
+    } finally {
+      if (orig) (globalThis as unknown as { window: typeof orig }).window = orig;
+      else delete (globalThis as { window?: unknown }).window;
+    }
+  });
+
+  it("Euronext is a valid preferred exchange and major ETFs expose Euronext tickers", async () => {
+    const { getETFDetails } = await import("../src/lib/etfs");
+    // PreferredExchange "Euronext" is accepted by buildPortfolio (no throw).
+    const out = buildPortfolio(baseInput({ baseCurrency: "EUR", numETFs: 12, preferredExchange: "Euronext" }));
+    expect(out.allocations.length).toBeGreaterThan(0);
+    // Spot-check a few ETFs that should now expose Euronext listings.
+    const cspx = getETFDetails("Equity-USA");
+    const eimi = getETFDetails("Equity-EM");
+    const sgld = getETFDetails("Commodities-Gold");
+    expect(cspx?.listings.Euronext?.ticker).toBe("CSPX");
+    expect(eimi?.listings.Euronext?.ticker).toBe("EMIM");
+    expect(sgld?.listings.Euronext?.ticker).toBe("SGLD");
+    // SIX-only Equity-Switzerland must NOT have a Euronext listing.
+    const ch = getETFDetails("Equity-Switzerland");
+    expect(ch?.listings.Euronext).toBeUndefined();
+  });
+
   it("getCMAOverrides discards entries with unknown keys and out-of-bounds values", async () => {
     const { getCMAOverrides } = await import("../src/lib/settings");
     // Simulate tampered localStorage by stubbing window.localStorage
