@@ -356,8 +356,12 @@ describe("refresh-lookthrough extractBreakdown", () => {
     expect(extractBreakdown("<html><body>nothing</body></html>", "sectors")).toBeUndefined();
   });
 
-  it("returns undefined when the table has fewer than 2 valid rows", () => {
-    const tooFew = `
+  it("accepts a single 100 % row (single-sector / single-country thematic ETFs)", () => {
+    // A pure-tech or single-country ETF can legitimately concentrate
+    // 100 % of weight into one bucket — the parser must keep it rather
+    // than reject it as malformed. The sum guard (95–105 %) still
+    // protects against truly empty / broken payloads.
+    const onlyOne = `
       <table data-testid="etf-holdings_sectors_table">
         <tr data-testid="etf-holdings_sectors_row">
           <td data-testid="_value_name">Only Sector</td>
@@ -365,7 +369,12 @@ describe("refresh-lookthrough extractBreakdown", () => {
         </tr>
       </table>
     `;
-    expect(extractBreakdown(tooFew, "sectors")).toBeUndefined();
+    expect(extractBreakdown(onlyOne, "sectors")).toEqual({ "Only Sector": 100 });
+  });
+
+  it("returns undefined when the table has zero valid rows", () => {
+    const empty = `<table data-testid="etf-holdings_sectors_table"></table>`;
+    expect(extractBreakdown(empty, "sectors")).toBeUndefined();
   });
 
   it("returns undefined when the rows sum well outside 95–105 % (likely matched the wrong table)", () => {

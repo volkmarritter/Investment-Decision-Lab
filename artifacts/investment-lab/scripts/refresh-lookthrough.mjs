@@ -208,7 +208,10 @@ function extractBreakdown(payload, kind) {
     out[name] = Math.round(pct * 100) / 100;
     sum += pct;
   }
-  if (Object.keys(out).length < 2) return undefined;
+  // Allow single-row 100% breakdowns (e.g. a single-sector or
+  // single-country thematic ETF where every holding maps to one bucket).
+  // The sum guard below still catches malformed / empty payloads.
+  if (Object.keys(out).length < 1) return undefined;
   if (sum < 95 || sum > 105) return undefined;
   return out;
 }
