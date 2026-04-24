@@ -1,6 +1,6 @@
 export type RiskAppetite = "Low" | "Moderate" | "High" | "Very High";
 export type BaseCurrency = "USD" | "EUR" | "CHF" | "GBP";
-export type PreferredExchange = "None" | "LSE" | "XETRA" | "SIX" | "Euronext";
+export type PreferredExchange = "None" | "LSE" | "XETRA" | "SIX";
 export type ThematicPreference = "None" | "Technology" | "Healthcare" | "Sustainability" | "Cybersecurity";
 
 export interface PortfolioInput {
