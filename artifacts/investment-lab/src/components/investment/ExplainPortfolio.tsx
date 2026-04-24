@@ -17,6 +17,7 @@ import { Separator } from "@/components/ui/separator";
 
 import { ExplainAnalysis, ExplainPosition, RiskAppetite, BaseCurrency } from "@/lib/types";
 import { analyzePortfolio } from "@/lib/explain";
+import { parseDecimalInput } from "@/lib/manualWeights";
 import { ImportCsvDialog } from "./ImportCsvDialog";
 import { ParsedPositionRow } from "@/lib/csvImport";
 import { useT } from "@/lib/i18n";
@@ -81,12 +82,17 @@ export function ExplainPortfolio() {
   };
 
   const onSubmit = (data: ExplainFormValues) => {
-    // Coerce weights to numbers
-    const parsedPositions = data.positions.map(p => ({
+    // Coerce weights to numbers via the shared decimal parser so that mobile
+    // users on Swiss/German/French keypads can type "12,5" in the weight cell
+    // and have it land as 12.5 instead of being silently dropped (the cell is
+    // a text input — see the audit comment in src/lib/manualWeights.ts).
+    // Garbage / empty values fall back to 0; the verdict banner then surfaces
+    // the resulting sum-mismatch as a coherence warning.
+    const parsedPositions = data.positions.map((p) => ({
       ...p,
-      weight: Number(p.weight)
+      weight: parseDecimalInput(String(p.weight ?? ""), { min: 0, max: 100, decimals: 2 }) ?? 0,
     }));
-    
+
     const result = analyzePortfolio(parsedPositions, data.riskAppetite, data.baseCurrency, lang);
     setAnalysis(result);
   };
@@ -237,7 +243,17 @@ export function ExplainPortfolio() {
                                   control={form.control}
                                   name={`positions.${index}.weight`}
                                   render={({ field: inputField }) => (
-                                    <Input {...inputField} type="number" className="h-8 text-sm font-mono text-right" placeholder="0" />
+                                    <Input
+                                      {...inputField}
+                                      type="text"
+                                      inputMode="decimal"
+                                      enterKeyHint="next"
+                                      autoComplete="off"
+                                      autoCorrect="off"
+                                      spellCheck={false}
+                                      className="h-8 text-sm font-mono text-right"
+                                      placeholder="0"
+                                    />
                                   )}
                                 />
                               </TableCell>

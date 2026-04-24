@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AssetAllocation } from "@/lib/types";
 import { runMonteCarlo } from "@/lib/monteCarlo";
+import { parseDecimalInput } from "@/lib/manualWeights";
 import { useT } from "@/lib/i18n";
 
 interface MonteCarloSimulationProps {
@@ -35,7 +36,16 @@ export function MonteCarloSimulation({
   hedged,
 }: MonteCarloSimulationProps) {
   const { t, lang } = useT();
-  const [investmentAmount, setInvestmentAmount] = useState<number>(100000);
+  // Raw text buffer is the source of truth so mobile users on Swiss/German/
+  // French keyboards can type "100000,50" without `<input type="number">`
+  // silently emptying the field. parseDecimalInput accepts dot *and* comma
+  // decimals; null falls back to 0 so the simulation still runs while the
+  // user is mid-edit. See the audit comment in src/lib/manualWeights.ts.
+  const [amountDraft, setAmountDraft] = useState<string>("100000");
+  const investmentAmount = useMemo(
+    () => parseDecimalInput(amountDraft, { min: 0 }) ?? 0,
+    [amountDraft],
+  );
   // Re-run the simulation whenever the user edits CMA overrides in the
   // Methodology tab. runMonteCarlo now reads μ/σ from CMA, so override
   // changes must trigger a fresh useMemo computation.
@@ -44,7 +54,7 @@ export function MonteCarloSimulation({
 
   const result = useMemo(
     () =>
-      runMonteCarlo(allocation, horizonYears, investmentAmount || 0, {
+      runMonteCarlo(allocation, horizonYears, investmentAmount, {
         hedged: !!hedged,
         baseCurrency,
       }),
@@ -112,10 +122,14 @@ export function MonteCarloSimulation({
           </Label>
           <Input
             id="mc-amount"
-            type="number"
-            min={0}
-            value={investmentAmount}
-            onChange={(e) => setInvestmentAmount(Number(e.target.value))}
+            type="text"
+            inputMode="decimal"
+            enterKeyHint="done"
+            autoComplete="off"
+            autoCorrect="off"
+            spellCheck={false}
+            value={amountDraft}
+            onChange={(e) => setAmountDraft(e.target.value)}
             className="mt-1"
           />
         </div>

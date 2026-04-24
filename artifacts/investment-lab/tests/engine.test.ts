@@ -1444,7 +1444,73 @@ describe("setLastAllocation / subscribeLastAllocation (cross-tab pub/sub)", () =
 // ---------------------------------------------------------------------------
 // Manual weight overrides
 // ---------------------------------------------------------------------------
-import { applyManualWeights, bucketKey, parseManualWeightInput } from "../src/lib/manualWeights";
+import {
+  applyManualWeights,
+  bucketKey,
+  parseManualWeightInput,
+  parseDecimalInput,
+} from "../src/lib/manualWeights";
+
+// ---------------------------------------------------------------------------
+// Generalised decimal parser used by every numeric input that may receive a
+// locale-comma decimal on mobile (Investment Amount in Fee Estimator and
+// Monte Carlo, weight cells in Explain My Portfolio, manual weight cell in
+// Build Portfolio). Same regex / mid-edit semantics as parseManualWeightInput
+// but exposes min / max / decimals so each callsite picks its own bounds.
+// ---------------------------------------------------------------------------
+describe("manualWeights.parseDecimalInput", () => {
+  it("accepts dot and comma decimals identically (the reason this exists)", () => {
+    expect(parseDecimalInput("100000.50")).toBe(100000.5);
+    expect(parseDecimalInput("100000,50")).toBe(100000.5);
+    expect(parseDecimalInput("100000,50")).toBe(parseDecimalInput("100000.50"));
+  });
+
+  it("returns the raw number when no clamps or rounding are configured", () => {
+    expect(parseDecimalInput("250")).toBe(250);
+    expect(parseDecimalInput("0,3")).toBe(0.3);
+    expect(parseDecimalInput("-5")).toBe(-5);
+  });
+
+  it("respects the min clamp (Investment Amount uses min: 0)", () => {
+    expect(parseDecimalInput("-5", { min: 0 })).toBe(0);
+    expect(parseDecimalInput("12,5", { min: 0 })).toBe(12.5);
+  });
+
+  it("respects the max clamp", () => {
+    expect(parseDecimalInput("250", { max: 100 })).toBe(100);
+    expect(parseDecimalInput("99", { max: 100 })).toBe(99);
+  });
+
+  it("rounds to the requested number of decimals before clamping", () => {
+    expect(parseDecimalInput("12,345", { decimals: 1 })).toBe(12.3);
+    expect(parseDecimalInput("12,345", { decimals: 2 })).toBe(12.35);
+    expect(parseDecimalInput("12,345", { decimals: 0 })).toBe(12);
+  });
+
+  it("rejects empty / whitespace / garbage with null", () => {
+    expect(parseDecimalInput("")).toBeNull();
+    expect(parseDecimalInput("   ")).toBeNull();
+    expect(parseDecimalInput("abc")).toBeNull();
+    expect(parseDecimalInput("12abc")).toBeNull();
+    expect(parseDecimalInput("12.3.4")).toBeNull();
+    expect(parseDecimalInput("12,3,4")).toBeNull();
+    expect(parseDecimalInput("12 5")).toBeNull();
+  });
+
+  it("accepts mid-edit partial decimals so a phone blur does not drop input", () => {
+    expect(parseDecimalInput("12.")).toBe(12);
+    expect(parseDecimalInput("12,")).toBe(12);
+    expect(parseDecimalInput(".5")).toBe(0.5);
+    expect(parseDecimalInput(",5")).toBe(0.5);
+  });
+
+  it("parseManualWeightInput is now a thin wrapper with [0,100] / 1dp", () => {
+    // Round-trip the old contract so we know nothing regressed in Task #12.
+    expect(parseManualWeightInput("12,5")).toBe(parseDecimalInput("12,5", { min: 0, max: 100, decimals: 1 }));
+    expect(parseManualWeightInput("250")).toBe(parseDecimalInput("250", { min: 0, max: 100, decimals: 1 }));
+    expect(parseManualWeightInput("-5")).toBe(parseDecimalInput("-5", { min: 0, max: 100, decimals: 1 }));
+  });
+});
 
 describe("manualWeights.parseManualWeightInput", () => {
   it("accepts a plain dot decimal: '12.5' → 12.5", () => {

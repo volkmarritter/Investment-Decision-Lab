@@ -79,12 +79,13 @@ export function clearAllManualWeights(): void {
 }
 
 // ---------------------------------------------------------------------------
-// Pure parser for the inline weight input. Exported (and unit-tested) because
-// `<input type="number">` silently strips locale-comma decimals on mobile
-// keyboards (Swiss / German / French), so the component now uses a plain text
-// input and routes every keystroke through here. Returns null for inputs that
-// cannot be coerced into a finite percentage in [0, 100]; the caller decides
-// what to do (revert vs clear).
+// Pure parser for any user-typed numeric input. Exported (and unit-tested)
+// because `<input type="number">` silently strips locale-comma decimals on
+// mobile keyboards (Swiss / German / French), so any component reading a
+// decimal value should use a plain text input + `inputMode="decimal"` and
+// route every keystroke through here. Returns null for inputs that cannot be
+// coerced into a finite number; the caller decides what to do (revert vs
+// clear vs treat as zero).
 //
 // The whitelist regex deliberately allows three mobile-friendly partial forms
 // that all parse to a sensible number:
@@ -93,8 +94,36 @@ export function clearAllManualWeights(): void {
 //   - "12." / "12,"  → 12       (trailing separator — common mid-edit state)
 //   - ".5"  / ",5"   → 0.5      (leading separator — also a mid-edit state)
 // Anything else (empty, garbage, multiple separators, letters) returns null.
+//
+// Audit (numeric inputs in the lab):
+//   FIXED to text + inputMode=decimal + parseDecimalInput:
+//     - BuildPortfolio   "ManualWeightCell"          (Task #12, baseline)
+//     - FeeEstimator     "Investment Amount"
+//     - MonteCarlo       "Investment Amount"
+//     - ExplainPortfolio "Weight %" cell (positions table)
+//   KEPT as <input type="number"> on purpose (integer-only fields where the
+//   desktop spinner is still wanted, and where a user has no reason to type a
+//   decimal at all — so the comma bug cannot fire):
+//     - BuildPortfolio   "Horizon (Years)"           (1–40, integer)
+//     - BuildPortfolio   "Target Equity Allocation"  (0–100, slider step=1)
+//     - BuildPortfolio   "Number of ETFs Min / Max"  (3–15, integer)
+//     - ComparePortfolios mirrors of the three above (same rationale)
+//     - Methodology editors (CMA μ/σ, home-bias, risk-free rate) — admin-only,
+//       outside the build/explain hot path; tracked as a follow-up sweep.
 // ---------------------------------------------------------------------------
-export function parseManualWeightInput(raw: string): number | null {
+export interface ParseDecimalInputOptions {
+  /** Lower bound (inclusive). Values below are clamped up. Default: no min. */
+  min?: number;
+  /** Upper bound (inclusive). Values above are clamped down. Default: no max. */
+  max?: number;
+  /** Round to this many decimal places before clamping. Default: no rounding. */
+  decimals?: number;
+}
+
+export function parseDecimalInput(
+  raw: string,
+  opts: ParseDecimalInputOptions = {},
+): number | null {
   if (typeof raw !== "string") return null;
   const trimmed = raw.trim();
   if (trimmed === "") return null;
@@ -103,8 +132,20 @@ export function parseManualWeightInput(raw: string): number | null {
   if (!/^[+-]?(\d+[.,]?\d*|[.,]\d+)$/.test(trimmed)) return null;
   const parsed = parseFloat(trimmed.replace(",", "."));
   if (!Number.isFinite(parsed)) return null;
-  const clamped = Math.max(0, Math.min(100, Math.round(parsed * 10) / 10));
-  return clamped;
+  let v = parsed;
+  if (typeof opts.decimals === "number" && opts.decimals >= 0) {
+    const f = Math.pow(10, opts.decimals);
+    v = Math.round(v * f) / f;
+  }
+  if (typeof opts.min === "number") v = Math.max(opts.min, v);
+  if (typeof opts.max === "number") v = Math.min(opts.max, v);
+  return v;
+}
+
+// Backward-compatible alias used by the manual ETF weight cell. Pinned weights
+// live in [0, 100] and round to 0.1% to match the storage convention.
+export function parseManualWeightInput(raw: string): number | null {
+  return parseDecimalInput(raw, { min: 0, max: 100, decimals: 1 });
 }
 
 export function subscribeManualWeights(cb: (w: ManualWeights) => void): () => void {

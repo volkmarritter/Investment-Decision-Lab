@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Coins, TrendingDown, Wallet } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
 
@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AssetAllocation } from "@/lib/types";
 import { estimateFees } from "@/lib/fees";
+import { parseDecimalInput } from "@/lib/manualWeights";
 
 interface FeeEstimatorProps {
   allocation: AssetAllocation[];
@@ -17,9 +18,18 @@ interface FeeEstimatorProps {
 }
 
 export function FeeEstimator({ allocation, horizonYears, baseCurrency, hedged }: FeeEstimatorProps) {
-  const [investmentAmount, setInvestmentAmount] = useState<number>(100000);
+  // Raw text buffer is the source of truth so mobile users on Swiss/German/
+  // French keyboards can type either "100000" or "100000,50". The numeric
+  // value used by the engine is derived via parseDecimalInput (accepts dot
+  // *and* comma decimals, returns null on garbage). See the audit comment in
+  // src/lib/manualWeights.ts for the full list of inputs touched by this fix.
+  const [amountDraft, setAmountDraft] = useState<string>("100000");
+  const investmentAmount = useMemo(
+    () => parseDecimalInput(amountDraft, { min: 0 }) ?? 0,
+    [amountDraft],
+  );
 
-  const results = estimateFees(allocation, horizonYears, investmentAmount || 0, {
+  const results = estimateFees(allocation, horizonYears, investmentAmount, {
     hedged: hedged && baseCurrency !== "USD",
   });
 
@@ -60,11 +70,15 @@ export function FeeEstimator({ allocation, horizonYears, baseCurrency, hedged }:
               </span>
               <Input
                 id="investment-amount"
-                type="number"
-                min={0}
+                type="text"
+                inputMode="decimal"
+                enterKeyHint="done"
+                autoComplete="off"
+                autoCorrect="off"
+                spellCheck={false}
                 className="pl-12 font-mono"
-                value={investmentAmount}
-                onChange={(e) => setInvestmentAmount(Number(e.target.value))}
+                value={amountDraft}
+                onChange={(e) => setAmountDraft(e.target.value)}
               />
             </div>
           </div>
