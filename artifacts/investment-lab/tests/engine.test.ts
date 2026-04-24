@@ -1224,4 +1224,35 @@ describe("CMA layered overrides", () => {
     }
   });
 
+  it("Euronext is preserved in the catalog but is never picked when the user expressed a preference (LSE/XETRA/SIX) or when a non-Euronext alternative exists", () => {
+    // (a) preferredExchange = "None": defaultExchange wins, Euronext does not appear
+    //     for ETFs that have a non-Euronext default listing (which is every catalog entry today).
+    const inNone = baseInput({ baseCurrency: "EUR", numETFs: 12, preferredExchange: "None" });
+    const cspxNone = getETFDetails("Equity", "USA", inNone);
+    const eimiNone = getETFDetails("Equity", "EM", inNone);
+    const sgldNone = getETFDetails("Commodities", "Gold", inNone);
+    expect(cspxNone.exchange).not.toBe("Euronext");
+    expect(eimiNone.exchange).not.toBe("Euronext");
+    expect(sgldNone.exchange).not.toBe("Euronext");
+
+    // (b) preferredExchange = "LSE" / "XETRA" / "SIX": that venue wins when listed,
+    //     and Euronext never wins as a fallback either.
+    const inLSE = baseInput({ baseCurrency: "EUR", numETFs: 12, preferredExchange: "LSE" });
+    expect(getETFDetails("Equity", "USA", inLSE).exchange).toBe("LSE");
+    expect(getETFDetails("Equity", "EM", inLSE).exchange).toBe("LSE");
+
+    const inXETRA = baseInput({ baseCurrency: "EUR", numETFs: 12, preferredExchange: "XETRA" });
+    expect(getETFDetails("Equity", "USA", inXETRA).exchange).toBe("XETRA");
+
+    const inSIX = baseInput({ baseCurrency: "CHF", numETFs: 12, preferredExchange: "SIX" });
+    expect(getETFDetails("Equity", "Switzerland", inSIX).exchange).toBe("SIX");
+
+    // (c) The full portfolio output must not show Euronext anywhere either, since every
+    //     catalog ETF has at least one of LSE/XETRA/SIX. (Regression guard for the
+    //     "Euronext is in data but invisible to user" contract.)
+    const out = buildPortfolio(inNone);
+    for (const impl of out.etfImplementation) {
+      expect(impl.exchange).not.toBe("Euronext");
+    }
+  });
 });
