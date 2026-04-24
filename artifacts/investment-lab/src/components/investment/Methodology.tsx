@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { CMA, BENCHMARK, buildCorrelationMatrix, getCMAConsensus, getCMASources, getCMASeed, applyCMALayers, AssetKey } from "@/lib/metrics";
 import { SCENARIOS } from "@/lib/scenarios";
-import { getRiskFreeRate, setRiskFreeRate, resetRiskFreeRate, subscribeRiskFreeRate, RF_DEFAULT_RATE, getCMAOverrides, setCMAOverrides, resetCMAOverrides, subscribeCMAOverrides, CMAUserOverrides, getHomeBiasOverrides, setHomeBiasOverrides, resetHomeBiasOverrides, subscribeHomeBiasOverrides, resolvedHomeBias, HOME_BIAS_DEFAULTS, HomeBiasCurrency } from "@/lib/settings";
+import { getRiskFreeRate, setRiskFreeRate, resetRiskFreeRate, subscribeRiskFreeRate, RF_DEFAULT_RATE, getCMAOverrides, setCMAOverrides, resetCMAOverrides, subscribeCMAOverrides, CMAUserOverrides, getHomeBiasOverrides, setHomeBiasOverrides, resetHomeBiasOverrides, subscribeHomeBiasOverrides, resolvedHomeBias, HOME_BIAS_DEFAULTS, HomeBiasCurrency, getLastAllocation, subscribeLastAllocation } from "@/lib/settings";
+import type { AssetAllocation } from "@/lib/types";
 import { useT } from "@/lib/i18n";
 
 const LAST_REVIEWED = "Q2 2026";
@@ -119,10 +120,19 @@ export function Methodology() {
     return <Badge variant="outline" className="text-[10px] px-1.5 py-0">{de ? "Engine" : "Engine"}</Badge>;
   };
 
-  // Build a representative correlation matrix using benchmark assets
-  const sampleCorr = buildCorrelationMatrix(
-    BENCHMARK.map((b) => ({ assetClass: "Equity", region: regionFromKey(b.key), weight: b.weight * 100 }))
-  );
+  // Reflect the user's last-built portfolio (published by BuildPortfolio
+  // through `setLastAllocation`) so the Methodology correlation matrix can
+  // mark which rows are actually held — same UX as PortfolioMetrics. Falls
+  // back to the BENCHMARK (equity-only ACWI proxy) when the user has not
+  // built a portfolio yet, so the matrix still renders as a pure reference.
+  const [lastAlloc, setLastAlloc] = useState<AssetAllocation[] | null>(() => getLastAllocation() as AssetAllocation[] | null);
+  useEffect(() => subscribeLastAllocation((a) => setLastAlloc(a as AssetAllocation[] | null)), []);
+
+  const corrSourceAllocation: AssetAllocation[] = (lastAlloc && lastAlloc.length > 0)
+    ? lastAlloc
+    : BENCHMARK.map((b) => ({ assetClass: "Equity", region: regionFromKey(b.key), weight: b.weight * 100 }));
+  const sampleCorr = buildCorrelationMatrix(corrSourceAllocation);
+  const corrReflectsPortfolio = !!(lastAlloc && lastAlloc.length > 0);
 
   return (
     <div className="space-y-6">
@@ -668,15 +678,27 @@ export function Methodology() {
               <TableHeader>
                 <TableRow>
                   <TableHead></TableHead>
-                  {sampleCorr.labels.map((l) => (
-                    <TableHead key={l} className="text-right text-[10px] uppercase">{l}</TableHead>
+                  {sampleCorr.labels.map((l, idx) => (
+                    <TableHead
+                      key={l}
+                      className={`text-right text-[10px] uppercase ${corrReflectsPortfolio && sampleCorr.held[idx] ? "text-foreground font-semibold" : "text-muted-foreground/70"}`}
+                    >
+                      {l}
+                    </TableHead>
                   ))}
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {sampleCorr.matrix.map((row, i) => (
-                  <TableRow key={i}>
-                    <TableCell className="font-medium text-xs">{sampleCorr.labels[i]}</TableCell>
+                  <TableRow
+                    key={i}
+                    data-held={corrReflectsPortfolio && sampleCorr.held[i] ? "true" : "false"}
+                    className={corrReflectsPortfolio && !sampleCorr.held[i] ? "opacity-60" : ""}
+                  >
+                    <TableCell className={`text-xs ${corrReflectsPortfolio && sampleCorr.held[i] ? "font-semibold" : "font-medium text-muted-foreground"}`}>
+                      {sampleCorr.labels[i]}
+                      {corrReflectsPortfolio && sampleCorr.held[i] && <span className="ml-1 text-[9px] text-primary/80 align-top">●</span>}
+                    </TableCell>
                     {row.map((v, j) => (
                       <TableCell key={j} className="text-right font-mono text-xs">{v.toFixed(2)}</TableCell>
                     ))}
@@ -685,6 +707,11 @@ export function Methodology() {
               </TableBody>
             </Table>
           </div>
+          <p className="text-[11px] text-muted-foreground">
+            {corrReflectsPortfolio
+              ? <><span className="text-primary/80">●</span> {de ? "Markierte Zeilen/Spalten sind die in Ihrem aktuellen Portfolio (Tab Build) tatsächlich gehaltenen Anlageklassen." : "Marked rows/columns are the asset classes actually held in your current portfolio (Build tab)."}</>
+              : (de ? "Hinweis: Sobald Sie im Tab Build ein Portfolio erzeugen, werden die tatsächlich gehaltenen Anlageklassen hier hervorgehoben." : "Note: once you build a portfolio in the Build tab, the asset classes actually held will be highlighted here.")}
+          </p>
         </Section>
 
         <Section value="bench" icon={<Layers className="h-4 w-4" />} title={de ? "Benchmark (MSCI ACWI Proxy)" : "Benchmark (MSCI ACWI Proxy)"}>

@@ -24,6 +24,7 @@ import { PortfolioInput, PortfolioOutput, ValidationResult } from "@/lib/types";
 import { runValidation } from "@/lib/validation";
 import { buildPortfolio, computeNaturalBucketCount } from "@/lib/portfolio";
 import { defaultExchangeFor } from "@/lib/exchange";
+import { setLastAllocation } from "@/lib/settings";
 import { StressTest } from "./StressTest";
 import { FeeEstimator } from "./FeeEstimator";
 import { MonteCarloSimulation } from "./MonteCarloSimulation";
@@ -80,9 +81,21 @@ export function BuildPortfolio() {
     if (hasGenerated && output) {
       const parsedData = form.getValues();
       setValidation(runValidation(parsedData, lang));
-      setOutput(buildPortfolio(parsedData, lang));
+      const next = buildPortfolio(parsedData, lang);
+      // Note: setOutput below will re-trigger the [output] effect which
+      // publishes setLastAllocation, so we don't need to publish here too.
+      setOutput(next);
     }
   }, [lang]);
+
+  // Single source of truth for cross-tab publishing: whenever `output`
+  // changes (built, rebuilt, cleared on reset, or cleared on validation
+  // failure), publish the new allocation (or null) so other tabs like
+  // Methodology can react — e.g. mark which rows of the static correlation
+  // matrix are actually held.
+  useEffect(() => {
+    setLastAllocation(output?.allocation ?? null);
+  }, [output]);
 
   // Auto-sync preferred exchange to base currency.
   const watchedBaseCcy = form.watch("baseCurrency");
@@ -172,6 +185,13 @@ export function BuildPortfolio() {
                           horizon: current.horizon,
                           riskAppetite: current.riskAppetite,
                         });
+                        // Clear any previously-generated portfolio so other tabs
+                        // (Methodology correlation matrix) stop showing held
+                        // markers from a now-discarded build. The output effect
+                        // will publish setLastAllocation(null) automatically.
+                        setOutput(null);
+                        setValidation(null);
+                        setHasGenerated(false);
                       }}
                       aria-label={lang === "de" ? "Auf Standardwerte zurücksetzen" : "Reset to defaults"}
                     >

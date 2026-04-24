@@ -1301,3 +1301,78 @@ describe("CMA layered overrides", () => {
     }
   });
 });
+
+// ----------------------------------------------------------------------------
+// Cross-tab last-allocation pub/sub
+// ----------------------------------------------------------------------------
+// The Build tab publishes its current portfolio's allocation through a tiny
+// in-memory pub/sub slot in src/lib/settings.ts so the Methodology tab can
+// reflect it (e.g. mark "held" rows on the static correlation matrix). The
+// store must:
+//   - return null when nothing has been published,
+//   - publish via a CustomEvent on `window`,
+//   - clone the payload (so caller mutations don't bleed into stored state),
+//   - clear back to null when called with `null` or `[]`.
+// These tests use the same window-stub pattern as the home-bias / CMA tests
+// so they work in vitest's `node` environment.
+describe("setLastAllocation / subscribeLastAllocation (cross-tab pub/sub)", () => {
+  it("round-trips an allocation through the store and dispatches a CustomEvent", async () => {
+    const orig = (globalThis as { window?: unknown }).window;
+    type Listener = (e: { detail: unknown }) => void;
+    const listeners: Listener[] = [];
+    (globalThis as unknown as { window: { addEventListener: (t: string, l: Listener) => void; removeEventListener: (t: string, l: Listener) => void; dispatchEvent: (e: { detail: unknown }) => boolean; CustomEvent: typeof CustomEvent } }).window = {
+      addEventListener: (_t, l) => { listeners.push(l); },
+      removeEventListener: (_t, l) => { const i = listeners.indexOf(l); if (i >= 0) listeners.splice(i, 1); },
+      dispatchEvent: (e) => { for (const l of [...listeners]) l(e); return true; },
+      CustomEvent: class {
+        type: string; detail: unknown;
+        constructor(type: string, init?: { detail?: unknown }) { this.type = type; this.detail = init?.detail; }
+      } as unknown as typeof CustomEvent,
+    };
+    // Also expose CustomEvent on the global so settings.ts's `new CustomEvent(...)` resolves.
+    const origCE = (globalThis as { CustomEvent?: unknown }).CustomEvent;
+    (globalThis as unknown as { CustomEvent: typeof CustomEvent }).CustomEvent = class {
+      type: string; detail: unknown;
+      constructor(type: string, init?: { detail?: unknown }) { this.type = type; this.detail = init?.detail; }
+    } as unknown as typeof CustomEvent;
+    try {
+      const settings = await import("../src/lib/settings");
+      // Start clean.
+      settings.setLastAllocation(null);
+      expect(settings.getLastAllocation()).toBe(null);
+      const received: Array<unknown> = [];
+      const unsub = settings.subscribeLastAllocation((a) => received.push(a));
+      // Publish a real allocation.
+      const alloc = [
+        { assetClass: "Equity", region: "USA", weight: 60 },
+        { assetClass: "Cash", region: "Cash", weight: 40 },
+      ];
+      settings.setLastAllocation(alloc);
+      const stored = settings.getLastAllocation();
+      expect(stored).not.toBe(null);
+      expect(stored!.length).toBe(2);
+      expect(stored![0].region).toBe("USA");
+      expect(received.length).toBe(1);
+      // Mutating the original input must not mutate stored state (deep-ish copy).
+      alloc[0].weight = 999;
+      expect(settings.getLastAllocation()![0].weight).toBe(60);
+      // Clearing publishes null.
+      settings.setLastAllocation(null);
+      expect(settings.getLastAllocation()).toBe(null);
+      expect(received[received.length - 1]).toBe(null);
+      // Empty array is treated as "cleared" (no held markers in Methodology).
+      settings.setLastAllocation([]);
+      expect(settings.getLastAllocation()).toBe(null);
+      // Unsubscribe stops further callbacks.
+      unsub();
+      const before = received.length;
+      settings.setLastAllocation([{ assetClass: "Equity", region: "USA", weight: 100 }]);
+      expect(received.length).toBe(before);
+    } finally {
+      if (orig) (globalThis as unknown as { window: typeof orig }).window = orig;
+      else delete (globalThis as { window?: unknown }).window;
+      if (origCE) (globalThis as unknown as { CustomEvent: typeof origCE }).CustomEvent = origCE;
+      else delete (globalThis as { CustomEvent?: unknown }).CustomEvent;
+    }
+  });
+});

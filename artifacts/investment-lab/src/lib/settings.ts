@@ -214,3 +214,44 @@ export function subscribeHomeBiasOverrides(cb: (o: HomeBiasOverrides) => void): 
   window.addEventListener(HB_EVENT, handler);
   return () => window.removeEventListener(HB_EVENT, handler);
 }
+
+// ----------------------------------------------------------------------------
+// Last-built portfolio allocation (shared across tabs).
+// Populated by the Build tab whenever the engine produces an output, cleared
+// when the user resets. Read by any tab (e.g. Methodology) that wants to
+// reflect the current portfolio's holdings — for example, marking which rows
+// of the static correlation matrix are actually held. Lives in-memory only;
+// not persisted to localStorage so it disappears on full page reload, which
+// is the desired behaviour (the Methodology reference matrix should not show
+// stale "held" markers from a previous session).
+// ----------------------------------------------------------------------------
+const LAST_ALLOC_EVENT = "idl-last-allocation-changed";
+type LastAllocItem = { assetClass: string; region: string; weight: number };
+let lastAllocation: LastAllocItem[] | null = null;
+
+export function setLastAllocation(allocation: LastAllocItem[] | null): void {
+  if (typeof window === "undefined") return;
+  lastAllocation = allocation && allocation.length > 0
+    ? allocation.map((a) => ({ assetClass: a.assetClass, region: a.region, weight: a.weight }))
+    : null;
+  window.dispatchEvent(new CustomEvent(LAST_ALLOC_EVENT, { detail: lastAllocation }));
+}
+
+export function getLastAllocation(): LastAllocItem[] | null {
+  // Defensive copy so external consumers cannot mutate the internal in-memory
+  // store by reference (e.g. a Methodology consumer accidentally re-sorting
+  // the array would otherwise also reorder what BuildPortfolio sees on next read).
+  return lastAllocation
+    ? lastAllocation.map((a) => ({ assetClass: a.assetClass, region: a.region, weight: a.weight }))
+    : null;
+}
+
+export function subscribeLastAllocation(cb: (a: LastAllocItem[] | null) => void): () => void {
+  if (typeof window === "undefined") return () => {};
+  const handler = (e: Event) => {
+    const detail = (e as CustomEvent).detail;
+    cb(detail ?? null);
+  };
+  window.addEventListener(LAST_ALLOC_EVENT, handler);
+  return () => window.removeEventListener(LAST_ALLOC_EVENT, handler);
+}
