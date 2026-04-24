@@ -25,6 +25,7 @@ import {
 } from "../scripts/refresh-justetf.mjs";
 import {
   extractTopHoldings,
+  extractBreakdown,
   parseEquityIsinsFromLookthroughSource,
 } from "../scripts/refresh-lookthrough.mjs";
 
@@ -268,6 +269,136 @@ describe("refresh-lookthrough extractTopHoldings", () => {
       "L'Oreal SA",
       "Berkshire Hathaway \u2014 Class B",
     ]);
+  });
+});
+
+describe("refresh-lookthrough extractBreakdown", () => {
+  // Happy-path fixtures are real Wicket Ajax responses from justETF for
+  // IE00B4L5Y983 (iShares Core MSCI World — IWDA), captured live during
+  // the endpoint discovery for task #8. They reproduce the exact wire
+  // format the refresh job sees in production: an `<ajax-response>` XML
+  // envelope with one `<component id="...">` whose `<![CDATA[...]]>`
+  // payload contains the same `<table data-testid="etf-holdings_${kind}_
+  // table">` markup that justETF also serves on the static profile page.
+  // Because the parser regex matches the table markup itself, the same
+  // function works on both surfaces.
+  const sectorsXml = fx("breakdown-iwda-sectors.xml");
+  const countriesXml = fx("breakdown-iwda-countries.xml");
+
+  it("parses the full sectors map from a Wicket Ajax response", () => {
+    const out = extractBreakdown(sectorsXml, "sectors");
+    expect(out).toBeDefined();
+    // Real IWDA snapshot has 11 sector rows + the "Other" bucket = 12.
+    expect(Object.keys(out!).length).toBeGreaterThanOrEqual(10);
+    expect(out!.Technology).toBe(26.27);
+    expect(out!.Financials).toBe(14.51);
+    // justETF uses an "Other" bucket to make every breakdown sum to 100 %.
+    expect(out!.Other).toBeGreaterThan(0);
+    const sum = Object.values(out!).reduce((a, b) => a + b, 0);
+    expect(sum).toBeGreaterThanOrEqual(95);
+    expect(sum).toBeLessThanOrEqual(105);
+  });
+
+  it("parses the full countries map from a Wicket Ajax response", () => {
+    const out = extractBreakdown(countriesXml, "countries");
+    expect(out).toBeDefined();
+    expect(Object.keys(out!).length).toBeGreaterThanOrEqual(10);
+    expect(out!["United States"]).toBe(66.27);
+    expect(out!.Japan).toBe(5.94);
+    expect(out!["United Kingdom"]).toBe(3.45);
+    const sum = Object.values(out!).reduce((a, b) => a + b, 0);
+    expect(sum).toBeGreaterThanOrEqual(95);
+    expect(sum).toBeLessThanOrEqual(105);
+  });
+
+  it("parses the same table from a static profile-HTML snippet (top-4 + Other preview)", () => {
+    // The static profile page ships only the top-4 + "Other" bucket of
+    // each breakdown table (the "Show more" link is what triggers the
+    // Wicket Ajax call). The parser must accept that surface too — the
+    // table markup is identical, only the row count differs.
+    const staticHtml = `
+      <table class="table mb-0" data-testid="etf-holdings_sectors_table">
+        <tbody>
+          <tr data-testid="etf-holdings_sectors_row">
+            <td data-testid="tl_etf-holdings_sectors_value_name">Technology</td>
+            <td><span data-testid="tl_etf-holdings_sectors_value_percentage">33.99%</span></td>
+          </tr>
+          <tr data-testid="etf-holdings_sectors_row">
+            <td data-testid="tl_etf-holdings_sectors_value_name">Financials</td>
+            <td><span data-testid="tl_etf-holdings_sectors_value_percentage">10.49%</span></td>
+          </tr>
+          <tr data-testid="etf-holdings_sectors_row">
+            <td data-testid="tl_etf-holdings_sectors_value_name">Telecommunication</td>
+            <td><span data-testid="tl_etf-holdings_sectors_value_percentage">10.27%</span></td>
+          </tr>
+          <tr data-testid="etf-holdings_sectors_row">
+            <td data-testid="tl_etf-holdings_sectors_value_name">Consumer Discretionary</td>
+            <td><span data-testid="tl_etf-holdings_sectors_value_percentage">10.05%</span></td>
+          </tr>
+          <tr data-testid="etf-holdings_sectors_row">
+            <td data-testid="tl_etf-holdings_sectors_value_name">Other</td>
+            <td><span data-testid="tl_etf-holdings_sectors_value_percentage">35.20%</span></td>
+          </tr>
+        </tbody>
+      </table>
+    `;
+    const out = extractBreakdown(staticHtml, "sectors");
+    expect(out).toBeDefined();
+    expect(out!.Technology).toBe(33.99);
+    expect(out!.Other).toBe(35.2);
+  });
+
+  it("returns undefined when the breakdown table is missing entirely", () => {
+    expect(extractBreakdown("<html><body>nothing</body></html>", "countries")).toBeUndefined();
+    expect(extractBreakdown("<html><body>nothing</body></html>", "sectors")).toBeUndefined();
+  });
+
+  it("returns undefined when the table has fewer than 2 valid rows", () => {
+    const tooFew = `
+      <table data-testid="etf-holdings_sectors_table">
+        <tr data-testid="etf-holdings_sectors_row">
+          <td data-testid="_value_name">Only Sector</td>
+          <td><span data-testid="_value_percentage">100.0%</span></td>
+        </tr>
+      </table>
+    `;
+    expect(extractBreakdown(tooFew, "sectors")).toBeUndefined();
+  });
+
+  it("returns undefined when the rows sum well outside 95–105 % (likely matched the wrong table)", () => {
+    const wrongTable = `
+      <table data-testid="etf-holdings_sectors_table">
+        <tr data-testid="etf-holdings_sectors_row">
+          <td data-testid="_value_name">Tech</td>
+          <td><span data-testid="_value_percentage">30.0%</span></td>
+        </tr>
+        <tr data-testid="etf-holdings_sectors_row">
+          <td data-testid="_value_name">Health</td>
+          <td><span data-testid="_value_percentage">15.0%</span></td>
+        </tr>
+        <tr data-testid="etf-holdings_sectors_row">
+          <td data-testid="_value_name">Industrials</td>
+          <td><span data-testid="_value_percentage">10.0%</span></td>
+        </tr>
+      </table>
+    `;
+    // 55 % is well below the 95 % floor — must be rejected.
+    expect(extractBreakdown(wrongTable, "sectors")).toBeUndefined();
+  });
+
+  it("returns undefined for unknown breakdown kinds (only 'countries' / 'sectors' supported)", () => {
+    // A future caller passing an unsupported kind name (e.g. 'currency')
+    // must not silently match an arbitrary table — guards against the
+    // currency-breakdown limitation documented in refresh-lookthrough.mjs.
+    expect(extractBreakdown("<table>any</table>", "currency" as never)).toBeUndefined();
+    expect(extractBreakdown("<table>any</table>", "" as never)).toBeUndefined();
+  });
+
+  it("returns undefined for non-string / empty payloads", () => {
+    expect(extractBreakdown(undefined as never, "sectors")).toBeUndefined();
+    expect(extractBreakdown(null as never, "sectors")).toBeUndefined();
+    expect(extractBreakdown("", "sectors")).toBeUndefined();
+    expect(extractBreakdown(42 as never, "sectors")).toBeUndefined();
   });
 });
 

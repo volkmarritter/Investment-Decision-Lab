@@ -1,9 +1,9 @@
 {
   "_meta": {
     "source": "justetf.com",
-    "lastRefreshed": "2026-04-24T13:46:36.878Z",
+    "lastRefreshed": "2026-04-24T19:30:20.470Z",
     "refreshedBy": "scripts/refresh-lookthrough.mjs",
-    "note": "ISIN -> partial LookthroughProfile overrides applied on top of the curated PROFILES in src/lib/lookthrough.ts. Populated monthly (1st of month, 04:00 UTC) by the refresh-lookthrough GitHub Action. Only the topHoldings array (and its per-ISIN topHoldingsAsOf ISO timestamp) is refreshed here. geo / sector / currency stay hand-curated because justETF Ajax-loads those tables."
+    "note": "ISIN -> partial LookthroughProfile overrides applied on top of the curated PROFILES in src/lib/lookthrough.ts. Populated monthly (1st of month, 04:00 UTC) by the refresh-lookthrough GitHub Action. Refreshed fields: topHoldings (top-10 stocks, per-ISIN topHoldingsAsOf stamp) and geo / sector breakdown maps (per-ISIN breakdownsAsOf stamp, fetched via the Wicket Ajax loadMore endpoint with a session cookie). currency stays hand-curated because justETF doesn't publish a per-ETF currency breakdown table."
   },
   "overrides": {
     "IE00B3YLTY66": {
@@ -49,7 +49,39 @@
           "pct": 1.05
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T13:46:36.878Z"
+      "topHoldingsAsOf": "2026-04-24T19:30:20.470Z",
+      "geo": {
+        "United States": 57.04,
+        "Japan": 6.05,
+        "United Kingdom": 3.25,
+        "Canada": 2.87,
+        "Taiwan": 2.73,
+        "China": 2.47,
+        "South Korea": 2.21,
+        "Switzerland": 2.17,
+        "France": 2.13,
+        "Germany": 2.04,
+        "Australia": 1.69,
+        "India": 1.46,
+        "Netherlands": 1.32,
+        "Ireland": 1.03,
+        "Other": 11.54
+      },
+      "sector": {
+        "Technology": 25.15,
+        "Financials": 14.53,
+        "Industrials": 11.98,
+        "Consumer Discretionary": 9.67,
+        "Health Care": 8.66,
+        "Telecommunication": 7.78,
+        "Consumer Staples": 4.75,
+        "Basic Materials": 4.44,
+        "Energy": 4.02,
+        "Utilities": 2.6,
+        "Real Estate": 2.24,
+        "Other": 4.19
+      },
+      "breakdownsAsOf": "2026-04-24T19:30:20.470Z"
     },
     "IE00B5BMR087": {
       "topHoldings": [
@@ -94,7 +126,27 @@
           "pct": 1.56
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T13:46:36.878Z"
+      "topHoldingsAsOf": "2026-04-24T19:30:20.470Z",
+      "geo": {
+        "United States": 95.12,
+        "Ireland": 1.47,
+        "Other": 3.41
+      },
+      "sector": {
+        "Technology": 33.99,
+        "Financials": 10.49,
+        "Telecommunication": 10.27,
+        "Consumer Discretionary": 10.05,
+        "Health Care": 9.46,
+        "Industrials": 8.47,
+        "Consumer Staples": 5.05,
+        "Energy": 3.4,
+        "Utilities": 2.44,
+        "Real Estate": 1.93,
+        "Basic Materials": 1.64,
+        "Other": 2.81
+      },
+      "breakdownsAsOf": "2026-04-24T19:30:20.470Z"
     },
     "IE00B4K48X80": {
       "topHoldings": [
@@ -139,7 +191,37 @@
           "pct": 1.32
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T13:46:36.878Z"
+      "topHoldingsAsOf": "2026-04-24T19:30:20.470Z",
+      "geo": {
+        "United Kingdom": 19.55,
+        "Switzerland": 14.47,
+        "France": 14.43,
+        "Germany": 13.94,
+        "Netherlands": 8.78,
+        "Spain": 5.41,
+        "Sweden": 4.82,
+        "Italy": 4.52,
+        "Finland": 1.55,
+        "Denmark": 1.51,
+        "Belgium": 1.31,
+        "Ireland": 1.13,
+        "Other": 8.58
+      },
+      "sector": {
+        "Financials": 22.3,
+        "Industrials": 18.51,
+        "Health Care": 11.3,
+        "Consumer Staples": 8.03,
+        "Technology": 8,
+        "Consumer Discretionary": 7.3,
+        "Utilities": 4.98,
+        "Basic Materials": 4.74,
+        "Energy": 4.28,
+        "Telecommunication": 3.72,
+        "Real Estate": 0.73,
+        "Other": 6.11
+      },
+      "breakdownsAsOf": "2026-04-24T19:30:20.470Z"
     },
     "CH0237935652": {
       "topHoldings": [
@@ -184,7 +266,25 @@
           "pct": 2.04
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T13:46:36.878Z"
+      "topHoldingsAsOf": "2026-04-24T19:30:20.470Z",
+      "geo": {
+        "Switzerland": 93.05,
+        "Other": 6.95
+      },
+      "sector": {
+        "Health Care": 34.32,
+        "Financials": 17.77,
+        "Consumer Staples": 13.55,
+        "Industrials": 12.33,
+        "Consumer Discretionary": 5.63,
+        "Basic Materials": 5.46,
+        "Real Estate": 1.72,
+        "Technology": 1.21,
+        "Telecommunication": 1.03,
+        "Utilities": 0.16,
+        "Other": 6.82
+      },
+      "breakdownsAsOf": "2026-04-24T19:30:20.470Z"
     },
     "IE00B4L5YX21": {
       "topHoldings": [
@@ -229,7 +329,26 @@
           "pct": 1.57
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T13:46:36.878Z"
+      "topHoldingsAsOf": "2026-04-24T19:30:20.470Z",
+      "geo": {
+        "Japan": 98.13,
+        "Other": 1.87
+      },
+      "sector": {
+        "Industrials": 26.04,
+        "Consumer Discretionary": 15.7,
+        "Financials": 15.43,
+        "Technology": 13.45,
+        "Health Care": 5.84,
+        "Telecommunication": 5.41,
+        "Basic Materials": 5.24,
+        "Consumer Staples": 4.91,
+        "Real Estate": 3.74,
+        "Utilities": 1.37,
+        "Energy": 1,
+        "Other": 1.87
+      },
+      "breakdownsAsOf": "2026-04-24T19:30:20.470Z"
     },
     "IE00BKM4GZ66": {
       "topHoldings": [
@@ -274,7 +393,39 @@
           "pct": 0.68
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T13:46:36.878Z"
+      "topHoldingsAsOf": "2026-04-24T19:30:20.470Z",
+      "geo": {
+        "Taiwan": 21.78,
+        "China": 19.52,
+        "South Korea": 17.98,
+        "India": 11.86,
+        "Brazil": 4,
+        "South Africa": 2.99,
+        "Saudi Arabia": 2.54,
+        "Mexico": 1.74,
+        "Malaysia": 1.33,
+        "United Arab Emirates": 1.28,
+        "Hong Kong": 1.16,
+        "Thailand": 1.15,
+        "Poland": 1.07,
+        "Indonesia": 1.01,
+        "Other": 10.59
+      },
+      "sector": {
+        "Technology": 31.48,
+        "Financials": 18.22,
+        "Consumer Discretionary": 9.59,
+        "Industrials": 7.32,
+        "Basic Materials": 7.12,
+        "Telecommunication": 6.56,
+        "Energy": 3.43,
+        "Health Care": 3.19,
+        "Consumer Staples": 3.18,
+        "Utilities": 1.98,
+        "Real Estate": 1.76,
+        "Other": 6.18
+      },
+      "breakdownsAsOf": "2026-04-24T19:30:20.470Z"
     },
     "IE00B1FZS350": {
       "topHoldings": [
@@ -319,7 +470,30 @@
           "pct": 1.78
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T13:46:36.878Z"
+      "topHoldingsAsOf": "2026-04-24T19:30:20.470Z",
+      "geo": {
+        "United States": 61.4,
+        "Japan": 8.24,
+        "Australia": 3.95,
+        "United Kingdom": 3.68,
+        "Hong Kong": 3.45,
+        "Singapore": 3.28,
+        "France": 2.12,
+        "Canada": 2.02,
+        "Germany": 1.99,
+        "Switzerland": 1.85,
+        "Belgium": 1.22,
+        "Sweden": 1.17,
+        "Other": 5.63
+      },
+      "sector": {
+        "Real Estate": 96.68,
+        "Health Care": 0.29,
+        "Consumer Discretionary": 0.03,
+        "Technology": 0.03,
+        "Other": 2.97
+      },
+      "breakdownsAsOf": "2026-04-24T19:30:20.470Z"
     },
     "IE00B3WJKG14": {
       "topHoldings": [
@@ -364,7 +538,17 @@
           "pct": 1.59
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T13:46:36.878Z"
+      "topHoldingsAsOf": "2026-04-24T19:30:20.470Z",
+      "geo": {
+        "United States": 94.94,
+        "Ireland": 1.16,
+        "Other": 3.9
+      },
+      "sector": {
+        "Technology": 96.41,
+        "Other": 3.59
+      },
+      "breakdownsAsOf": "2026-04-24T19:30:20.470Z"
     },
     "IE00BYZK4776": {
       "topHoldings": [
@@ -409,7 +593,26 @@
           "pct": 1.96
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T13:46:36.878Z"
+      "topHoldingsAsOf": "2026-04-24T19:30:20.470Z",
+      "geo": {
+        "United States": 63.1,
+        "Switzerland": 5.91,
+        "South Korea": 4.89,
+        "Japan": 3.88,
+        "United Kingdom": 2.59,
+        "Denmark": 2.39,
+        "Belgium": 2.34,
+        "Ireland": 2.15,
+        "France": 1.51,
+        "Germany": 1.02,
+        "Other": 10.22
+      },
+      "sector": {
+        "Health Care": 91.58,
+        "Technology": 1.55,
+        "Other": 6.87
+      },
+      "breakdownsAsOf": "2026-04-24T19:30:20.470Z"
     },
     "IE00B1XNHC34": {
       "topHoldings": [
@@ -454,7 +657,33 @@
           "pct": 2.15
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T13:46:36.878Z"
+      "topHoldingsAsOf": "2026-04-24T19:30:20.470Z",
+      "geo": {
+        "United States": 31.66,
+        "China": 16.36,
+        "Brazil": 8.55,
+        "Spain": 8.05,
+        "Denmark": 4.27,
+        "India": 2.96,
+        "South Korea": 2.84,
+        "Israel": 2.23,
+        "Japan": 2.22,
+        "Portugal": 2.15,
+        "Canada": 1.96,
+        "Germany": 1.29,
+        "Other": 15.46
+      },
+      "sector": {
+        "Utilities": 42.2,
+        "Industrials": 27.5,
+        "Technology": 14.65,
+        "Basic Materials": 2.14,
+        "Energy": 0.96,
+        "Consumer Discretionary": 0.23,
+        "Real Estate": 0.13,
+        "Other": 12.2
+      },
+      "breakdownsAsOf": "2026-04-24T19:30:20.470Z"
     },
     "IE00BG0J4C88": {
       "topHoldings": [
@@ -499,7 +728,26 @@
           "pct": 1.95
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T13:46:36.878Z"
+      "topHoldingsAsOf": "2026-04-24T19:30:20.470Z",
+      "geo": {
+        "United States": 65.06,
+        "Japan": 11.43,
+        "Taiwan": 4.27,
+        "Israel": 3.11,
+        "Australia": 1.85,
+        "India": 1.48,
+        "Sweden": 1.34,
+        "Ireland": 1.21,
+        "Other": 10.25
+      },
+      "sector": {
+        "Technology": 80.73,
+        "Industrials": 8.04,
+        "Real Estate": 4.7,
+        "Consumer Discretionary": 0.9,
+        "Other": 5.63
+      },
+      "breakdownsAsOf": "2026-04-24T19:30:20.470Z"
     }
   }
 }

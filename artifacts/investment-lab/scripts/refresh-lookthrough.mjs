@@ -2,26 +2,36 @@
 // ----------------------------------------------------------------------------
 // refresh-lookthrough.mjs
 // ----------------------------------------------------------------------------
-// Pulls the per-ISIN top-10 holdings from justETF and writes the result into
-// src/data/lookthrough.overrides.json. The merge layer in src/lib/lookthrough.ts
-// shallow-merges those values on top of the curated PROFILES so the engine
-// keeps working with no live network call at runtime.
+// Pulls per-ISIN look-through reference data from justETF and writes the
+// result into src/data/lookthrough.overrides.json. The merge layer in
+// src/lib/lookthrough.ts shallow-merges those values on top of the curated
+// PROFILES so the engine keeps working with no live network call at runtime.
 //
-// Only `topHoldings` is refreshed here. The geo / sector / currency
-// breakdowns stay hand-curated in src/lib/lookthrough.ts because justETF
-// loads those tables via Wicket Ajax (not present in the static HTML), so a
-// regex-based scrape can't pick them up. Their reference date stamp
-// (`LOOKTHROUGH_REFERENCE_DATE`) therefore continues to apply to those three
-// breakdowns; top-holdings carries its own per-ISIN `topHoldingsAsOf` ISO
-// timestamp written by this script on every successful refresh.
+// Two reference data sets are refreshed here:
+//   1. `topHoldings` — the top-10 stocks list parsed from the static
+//      profile HTML (etf-holdings_top-holdings_table). Per-ISIN as-of stamp:
+//      `topHoldingsAsOf`.
+//   2. `geo` and `sector` — the country and sector breakdown maps. The
+//      static profile HTML only ships the top-4 + "Other" bucket for these
+//      tables; the full breakdown is loaded by the page through Wicket Ajax
+//      (`holdingsSection-{countries|sectors}-loadMore{Countries|Sectors}`).
+//      We replay that exact Ajax POST with the session cookie captured from
+//      the initial GET, then parse the same `<table data-testid="...">`
+//      structure. Per-ISIN as-of stamp: `breakdownsAsOf`.
+//
+// Currency exposure is *not* refreshed — justETF doesn't publish a per-ETF
+// currency breakdown table at all (only a single fund-base currency in the
+// summary header). The `currency` map in PROFILES therefore stays
+// hand-curated. The Methodology page documents this explicitly.
 //
 // Usage (from artifacts/investment-lab):
 //   node scripts/refresh-lookthrough.mjs                 # refresh all ISINs
 //   node scripts/refresh-lookthrough.mjs IE00B5BMR087    # refresh one ISIN
 //   DRY_RUN=1 node scripts/refresh-lookthrough.mjs       # don't write JSON
 //
-// Politeness: 1.5 s delay between requests. Aborts cleanly if more than half
-// of the pages fail to parse instead of writing junk.
+// Politeness: 750 ms between Ajax follow-ups within the same ISIN, 1.5 s
+// between ISINs. Aborts cleanly if more than half of either the
+// top-holdings or the breakdowns fail to parse, instead of writing junk.
 // ----------------------------------------------------------------------------
 
 import { readFile, writeFile } from "node:fs/promises";
@@ -34,8 +44,17 @@ const ETFS_TS = resolve(ROOT, "src/lib/etfs.ts");
 const LOOKTHROUGH_TS = resolve(ROOT, "src/lib/lookthrough.ts");
 const OVERRIDES_JSON = resolve(ROOT, "src/data/lookthrough.overrides.json");
 const REQUEST_DELAY_MS = 1500;
+const BREAKDOWN_DELAY_MS = 750;
 const USER_AGENT =
   "InvestmentDecisionLab-DataRefresh/1.0 (+https://github.com/your-org/investment-lab; contact: ops@example.com)";
+
+// Wicket Ajax sub-resource names for the two breakdown tables. The page's
+// "Show more" link on each table fires an Ajax POST to these URLs which
+// returns the FULL table (not the static-HTML top-4 + Other preview).
+const BREAKDOWN_AJAX_PATHS = {
+  countries: "holdingsSection-countries-loadMoreCountries",
+  sectors: "holdingsSection-sectors-loadMoreSectors",
+};
 
 const TARGET_ISINS = process.argv.slice(2).filter((a) => !a.startsWith("--"));
 
@@ -140,13 +159,108 @@ function extractTopHoldings(html) {
   return trimmed;
 }
 
+// Country / sector breakdown: parses the
+// `<table data-testid="etf-holdings_${kind}_table">` block. The same parser
+// works on either the static profile HTML (top 4 + "Other" preview) or the
+// Wicket Ajax response (full table — the response wraps the same <table>
+// inside a `<![CDATA[…]]>` component, but a regex match against the table
+// markup itself is identical).
+//
+// Returns an ExposureMap (Record<name, pct>) on success, or undefined if
+// the payload is missing the table, has fewer than 2 valid rows, or sums
+// outside 95–105 % of 100. justETF normalises every breakdown table to
+// 100 % via an "Other" bucket, so a sum well outside that band almost
+// certainly means we matched the wrong table or the markup changed.
+function extractBreakdown(payload, kind) {
+  if (typeof payload !== "string" || !payload) return undefined;
+  if (kind !== "countries" && kind !== "sectors") return undefined;
+  const tableRe = new RegExp(
+    '<table[^>]*data-testid="etf-holdings_' + kind + '_table"[\\s\\S]*?<\\/table>',
+    "i"
+  );
+  const tableMatch = payload.match(tableRe);
+  if (!tableMatch) return undefined;
+  const table = tableMatch[0];
+  const rowRe = new RegExp(
+    '<tr[^>]*data-testid="etf-holdings_' + kind + '_row"[\\s\\S]*?<\\/tr>',
+    "gi"
+  );
+  const out = {};
+  let sum = 0;
+  let m;
+  while ((m = rowRe.exec(table)) !== null) {
+    const block = m[0];
+    const nameMatch = block.match(/_value_name"[^>]*>\s*([^<]+?)\s*</i);
+    const pctMatch = block.match(/_value_percentage"[^>]*>\s*([\d.,]+)\s*%/i);
+    if (!nameMatch || !pctMatch) continue;
+    const name = decodeHtmlEntities(nameMatch[1]).trim();
+    const pct = parseFloat(pctMatch[1].replace(",", "."));
+    if (!name || !Number.isFinite(pct) || pct <= 0 || pct > 100) continue;
+    if (out[name] !== undefined) continue; // dedupe defensively
+    out[name] = Math.round(pct * 100) / 100;
+    sum += pct;
+  }
+  if (Object.keys(out).length < 2) return undefined;
+  if (sum < 95 || sum > 105) return undefined;
+  return out;
+}
+
 // Pure exports for unit tests under tests/scrapers.test.ts.
-export { extractTopHoldings, parseEquityIsinsFromLookthroughSource };
+export {
+  extractTopHoldings,
+  extractBreakdown,
+  parseEquityIsinsFromLookthroughSource,
+};
+
+// True when the static profile HTML rendered a "Show more" link beneath
+// the given breakdown table — i.e. there are hidden rows that require the
+// Wicket Ajax loadMore POST to retrieve. Absent for thematic / single-
+// sector ETFs whose static table already lists every row.
+function hasLoadMoreLink(html, kind) {
+  if (typeof html !== "string") return false;
+  const re = new RegExp(`data-testid="etf-holdings_${kind}_load-more_link"`);
+  return re.test(html);
+}
+
+// Capture Set-Cookie values from a fetch response and return a single
+// `Cookie` header value. justETF's load-balancer (AWSALB / AWSALBCORS)
+// requires session affinity for the Wicket Ajax POSTs to land on the
+// backend that actually has the page state — hitting the URL without the
+// cookie 301-redirects to the unauthenticated landing page.
+function captureCookies(res) {
+  const all = res.headers.getSetCookie?.() ?? [];
+  return all.map((line) => line.split(";")[0]).join("; ");
+}
 
 async function fetchProfile(isin) {
   const url = `https://www.justetf.com/en/etf-profile.html?isin=${isin}`;
-  const res = await fetch(url, { headers: { "User-Agent": USER_AGENT, "Accept-Language": "en" } });
+  const res = await fetch(url, {
+    headers: { "User-Agent": USER_AGENT, "Accept-Language": "en" },
+  });
   if (!res.ok) throw new Error(`HTTP ${res.status} for ${isin}`);
+  const cookie = captureCookies(res);
+  const html = await res.text();
+  return { html, cookie };
+}
+
+async function fetchBreakdownAjax(isin, kind, cookie) {
+  const path = BREAKDOWN_AJAX_PATHS[kind];
+  if (!path) throw new Error(`unknown breakdown kind: ${kind}`);
+  const url =
+    `https://www.justetf.com/en/etf-profile.html?0-1.0-${path}` +
+    `&isin=${isin}&_wicket=1`;
+  const headers = {
+    "User-Agent": USER_AGENT,
+    "Accept-Language": "en",
+    "Wicket-Ajax": "true",
+    "Wicket-Ajax-BaseURL": `en/etf-profile.html?isin=${isin}`,
+    "X-Requested-With": "XMLHttpRequest",
+    Accept: "application/xml, text/xml, */*; q=0.01",
+    Referer: `https://www.justetf.com/en/etf-profile.html?isin=${isin}`,
+  };
+  if (cookie) headers.Cookie = cookie;
+  const res = await fetch(url, { method: "POST", headers });
+  if (!res.ok) throw new Error(`HTTP ${res.status} for ${isin} ${kind}`);
   return await res.text();
 }
 
@@ -171,36 +285,125 @@ async function main() {
   }
 
   const next = { ...existing };
-  let okCount = 0;
-  let failCount = 0;
+  let topOk = 0;
+  let topFail = 0;
+  let breakdownsOk = 0;
+  let breakdownsFail = 0;
   const stamp = new Date().toISOString();
 
   for (const isin of isins) {
+    let cookie = "";
+    let html;
+
+    // ---- 1) Profile page: top-10 holdings (and capture session cookie) ----
     try {
-      const html = await fetchProfile(isin);
+      const profile = await fetchProfile(isin);
+      cookie = profile.cookie;
+      html = profile.html;
       const topHoldings = extractTopHoldings(html);
       if (!topHoldings) {
-        console.warn(`  ! ${isin}: no holdings extracted (leaving previous value)`);
-        failCount++;
+        console.warn(`  ! ${isin}: no top-holdings extracted (leaving previous value)`);
+        topFail++;
       } else {
         next[isin] = {
-          ...(existing[isin] ?? {}),
+          ...(next[isin] ?? {}),
           topHoldings,
           topHoldingsAsOf: stamp,
         };
         console.log(`  \u2713 ${isin}: ${topHoldings.length} holdings (top: ${topHoldings[0].name} ${topHoldings[0].pct}%)`);
-        okCount++;
+        topOk++;
       }
     } catch (e) {
-      console.warn(`  ! ${isin}: ${e.message}`);
-      failCount++;
+      console.warn(`  ! ${isin}: profile fetch failed (${e.message})`);
+      topFail++;
     }
+
+    // ---- 2) Breakdowns: country + sector ----
+    // For each table, parse the static HTML first (always present, but
+    // truncated to top-4 + "Other" for broad ETFs). Only fall back to the
+    // Wicket Ajax loadMore POST when the static page actually rendered
+    // a "Show more" link for that table — i.e. there are hidden rows.
+    // For thematic / single-sector ETFs the static table already contains
+    // the full breakdown (e.g. "Technology 96.41% / Other 3.59%") and the
+    // Ajax endpoint returns an empty no-op response, so probing it would
+    // both waste a request and incorrectly look like a failure.
+    let geo;
+    let sector;
+    if (html) {
+      const sectorsHasMore = hasLoadMoreLink(html, "sectors");
+      const countriesHasMore = hasLoadMoreLink(html, "countries");
+
+      // Sectors: if there's no "Show more" link the static table IS the full
+      // breakdown — use it directly. If there IS a "Show more", the static
+      // markup is just a top-4 + "Other" preview; Ajax MUST succeed or we
+      // refuse to write anything (silently overwriting a curated full
+      // breakdown with a degraded top-4 stub would be a quality regression).
+      if (!sectorsHasMore) {
+        sector = extractBreakdown(html, "sectors");
+      } else if (cookie) {
+        await sleep(BREAKDOWN_DELAY_MS);
+        try {
+          const sectorsXml = await fetchBreakdownAjax(isin, "sectors", cookie);
+          sector = extractBreakdown(sectorsXml, "sectors");
+          if (!sector) console.warn(`  ! ${isin}: sectors Ajax returned no parseable rows`);
+        } catch (e) {
+          console.warn(`  ! ${isin}: sectors Ajax fetch failed (${e.message})`);
+        }
+      }
+
+      // Countries: same pattern.
+      if (!countriesHasMore) {
+        geo = extractBreakdown(html, "countries");
+      } else if (cookie) {
+        await sleep(BREAKDOWN_DELAY_MS);
+        try {
+          const countriesXml = await fetchBreakdownAjax(isin, "countries", cookie);
+          geo = extractBreakdown(countriesXml, "countries");
+          if (!geo) console.warn(`  ! ${isin}: countries Ajax returned no parseable rows`);
+        } catch (e) {
+          console.warn(`  ! ${isin}: countries Ajax fetch failed (${e.message})`);
+        }
+      }
+    }
+
+    if (geo && sector) {
+      next[isin] = {
+        ...(next[isin] ?? {}),
+        geo,
+        sector,
+        breakdownsAsOf: stamp,
+      };
+      console.log(
+        `  \u2713 ${isin}: breakdowns refreshed ` +
+          `(geo=${Object.keys(geo).length} entries, sector=${Object.keys(sector).length} entries)`
+      );
+      breakdownsOk++;
+    } else if (cookie) {
+      // Cookie was captured (so the page exists) but at least one of the
+      // two breakdown tables didn't parse — leave the existing override or
+      // curated default in place rather than half-overwriting.
+      console.warn(
+        `  ! ${isin}: breakdowns extraction failed ` +
+          `(geo=${geo ? "ok" : "missing"}, sector=${sector ? "ok" : "missing"}) — leaving previous value`
+      );
+      breakdownsFail++;
+    } else {
+      // Profile fetch already failed; not counting again.
+    }
+
     await sleep(REQUEST_DELAY_MS);
   }
 
+  const okCount = topOk + breakdownsOk;
+  const failCount = topFail + breakdownsFail;
+  const halfFailed = topFail > topOk || breakdownsFail > breakdownsOk;
+
   if (process.env.DRY_RUN) {
-    console.log("\nDRY_RUN set — not writing override file.");
-    process.exit(failCount > okCount ? 1 : 0);
+    console.log(
+      `\nDRY_RUN set — not writing override file. ` +
+        `top-holdings: ${topOk} ok / ${topFail} fail · breakdowns: ${breakdownsOk} ok / ${breakdownsFail} fail`
+    );
+    process.exit(halfFailed ? 1 : 0);
   }
 
   const payload = {
@@ -211,15 +414,20 @@ async function main() {
       note:
         "ISIN -> partial LookthroughProfile overrides applied on top of the curated PROFILES in src/lib/lookthrough.ts. " +
         "Populated monthly (1st of month, 04:00 UTC) by the refresh-lookthrough GitHub Action. " +
-        "Only the topHoldings array (and its per-ISIN topHoldingsAsOf ISO timestamp) is refreshed here. " +
-        "geo / sector / currency stay hand-curated because justETF Ajax-loads those tables.",
+        "Refreshed fields: topHoldings (top-10 stocks, per-ISIN topHoldingsAsOf stamp) and " +
+        "geo / sector breakdown maps (per-ISIN breakdownsAsOf stamp, fetched via the Wicket Ajax loadMore endpoint with a session cookie). " +
+        "currency stays hand-curated because justETF doesn't publish a per-ETF currency breakdown table.",
     },
     overrides: next,
   };
 
   await writeFile(OVERRIDES_JSON, JSON.stringify(payload, null, 2) + "\n", "utf8");
-  console.log(`\nWrote ${OVERRIDES_JSON} (${okCount} ok, ${failCount} failed).`);
-  process.exit(failCount > okCount ? 1 : 0);
+  console.log(
+    `\nWrote ${OVERRIDES_JSON} ` +
+      `(top-holdings: ${topOk} ok / ${topFail} fail · ` +
+      `breakdowns: ${breakdownsOk} ok / ${breakdownsFail} fail).`
+  );
+  process.exit(halfFailed ? 1 : 0);
 }
 
 // Only run main() when invoked directly from the CLI. When this module is

@@ -320,11 +320,20 @@ export function Methodology() {
                   : "Refreshed value: top-10 holdings with weights for each equity ETF (name, weight in %), plus a per-ISIN as-of stamp on every record. Writes to src/data/lookthrough.overrides.json. Non-equity ETFs (gold, crypto) are skipped."}
               </div>
             </div>
+            <div className="border-t pt-2">
+              <div className="font-semibold mb-0.5">{de ? "4) Monatlich — Länder- & Sektor-Aufteilung (Look-Through)" : "4) Monthly — country & sector breakdown (look-through)"}</div>
+              <div>{de ? "Am 1. des Monats, 04:00 UTC · " : "1st of month, 04:00 UTC · "}<code className="font-mono">refresh-lookthrough.mjs</code> · <code className="font-mono">.github/workflows/refresh-lookthrough.yml</code></div>
+              <div className="text-muted-foreground">
+                {de
+                  ? "Aktualisierte Werte: Länder- und Sektor-Aufteilung je Aktien-ETF, plus ein eigener ISIN-genauer Stichtag pro Datensatz (breakdownsAsOf). Zuerst wird die statische Profil-HTML geparst (das genügt bei thematischen / Einzel-Sektor-ETFs). Sobald justETF einen „Show more“-Link rendert, wird zusätzlich der Wicket-Ajax-Endpoint loadMoreCountries / loadMoreSectors mit dem Session-Cookie aus dem Profilseiten-GET abgerufen, damit die volle Tabelle statt nur der Top-4-Vorschau erfasst wird. Schreibt in dieselbe src/data/lookthrough.overrides.json wie die Top-10-Holdings."
+                  : "Refreshed values: country and sector breakdown for each equity ETF, plus a separate per-ISIN as-of stamp per record (breakdownsAsOf). The static profile HTML is parsed first (sufficient for thematic / single-sector ETFs). Whenever justETF renders a “Show more” link, the Wicket Ajax loadMoreCountries / loadMoreSectors endpoint is also called using the session cookie captured from the profile-page GET, so the full table is captured rather than just the top-4 preview. Writes into the same src/data/lookthrough.overrides.json as the top-10 holdings."}
+              </div>
+            </div>
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
             {de
-              ? "Hand-kuratiert (von keinem Snapshot überschrieben) bleiben: Default-Börse pro ETF, redaktioneller Kommentar, sowie die Geo-/Sektor-/Währungs-Aufteilung pro ISIN (Stichtag Q4 2024). Letztere lädt justETF dynamisch via Ajax — der Scraper sieht sie nicht im statischen HTML — und sie ändern sich für breite Index-ETFs ohnehin nur sehr langsam. Diese Werte werden bei jeder ETF-Aufnahme bewusst gesetzt und nur bei Bedarf manuell nachgepflegt."
-              : "Curated by hand (not overwritten by any snapshot): default exchange per ETF, editorial comment, and the geo / sector / currency breakdown per ISIN (reference date Q4 2024). justETF loads the latter dynamically via Ajax — the scraper can't see them in the static HTML — and for broad-index ETFs they only drift very slowly anyway. These values are set deliberately when an ETF is added and only edited manually when needed."}
+              ? "Hand-kuratiert (von keinem Snapshot überschrieben) bleiben: Default-Börse pro ETF, redaktioneller Kommentar, sowie die Währungs-Aufteilung pro ISIN (Stichtag Q4 2024). Letztere veröffentlicht justETF nicht als eigene Tabelle (auf der Profilseite erscheint nur die Fonds-Basiswährung) und sie ändert sich für breite Index-ETFs ohnehin nur sehr langsam. Sobald Bedarf entsteht, wird sie manuell nachgepflegt; bis dahin gilt der Q4-2024-Stichtag."
+              : "Curated by hand (not overwritten by any snapshot): default exchange per ETF, editorial comment, and the currency breakdown per ISIN (reference date Q4 2024). justETF doesn't publish the latter as its own table (only the fund's base currency appears in the profile header) and for broad-index ETFs it only drifts very slowly anyway. We refresh it manually when needed; until then the Q4 2024 reference date applies."}
           </p>
           <p className="text-xs text-muted-foreground leading-relaxed">
             {de

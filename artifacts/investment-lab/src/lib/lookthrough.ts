@@ -13,12 +13,19 @@ export interface LookthroughProfile {
   // top-holdings list for this ISIN was last refreshed from justETF. Undefined
   // when the row is still served from the curated default below.
   topHoldingsAsOf?: string;
+  // ISO timestamp written by scripts/refresh-lookthrough.mjs whenever the
+  // geo + sector breakdown maps for this ISIN were last refreshed from
+  // justETF (via the Wicket Ajax loadMore endpoint). Undefined when the
+  // maps are still served from the curated default below.
+  breakdownsAsOf?: string;
 }
 
-// Reference date for the curated geo / sector / currency breakdowns below.
-// Top-holdings carry their own per-ISIN ISO timestamp (`topHoldingsAsOf`)
-// when refreshed by the monthly justETF refresh job — see
-// scripts/refresh-lookthrough.mjs.
+// Reference date for the curated currency breakdown and any geo / sector
+// rows still served from the in-code defaults below (e.g. on a fresh
+// checkout, or for ISINs the breakdown refresh hasn't covered yet).
+// Geo + sector + top-holdings carry their own per-ISIN ISO timestamps
+// (`breakdownsAsOf` / `topHoldingsAsOf`) once the monthly justETF refresh
+// job has populated src/data/lookthrough.overrides.json.
 export const LOOKTHROUGH_REFERENCE_DATE = "Q4 2024";
 
 // Surfaced freshness metadata for the look-through override file. The UI
@@ -405,16 +412,22 @@ const HEDGED_ISINS = new Set<string>([
 
 // ----------------------------------------------------------------------------
 // Optional refresh overrides (see scripts/refresh-lookthrough.mjs).
-// The PROFILES above are the curated source of truth. The monthly refresh job
-// writes ISIN-keyed { topHoldings, topHoldingsAsOf } into
-// src/data/lookthrough.overrides.json; we merge that on top of the matching
-// profile at module load. Geo / sector / currency stay hand-curated because
-// justETF Ajax-loads those tables and they aren't reachable from the static
-// HTML the scraper sees.
+// The PROFILES above are the curated source of truth. The monthly refresh
+// job writes ISIN-keyed partial profiles into
+// src/data/lookthrough.overrides.json; we shallow-merge each present field
+// on top of the matching profile at module load. Refreshed fields:
+//   - topHoldings + topHoldingsAsOf (parsed from the static profile HTML)
+//   - geo, sector + breakdownsAsOf  (parsed from the Wicket Ajax loadMore
+//     endpoint with a session cookie — see refresh-lookthrough.mjs)
+// currency stays hand-curated because justETF doesn't publish a per-ETF
+// currency breakdown table at all.
 // ----------------------------------------------------------------------------
 type LookthroughOverride = {
   topHoldings?: Array<{ name: string; pct: number }>;
   topHoldingsAsOf?: string;
+  geo?: ExposureMap;
+  sector?: ExposureMap;
+  breakdownsAsOf?: string;
 };
 const RAW_LOOKTHROUGH_OVERRIDES =
   (lookthroughOverridesFile as { overrides?: Record<string, LookthroughOverride> }).overrides ?? {};
@@ -442,6 +455,13 @@ export function topHoldingsStampFor(isin: string): string | null {
   return profileFor(isin)?.topHoldingsAsOf ?? null;
 }
 
+// Returns the per-ISIN geo + sector breakdown as-of stamp if the monthly
+// refresh has populated it; null when those maps are still served from the
+// curated default below.
+export function breakdownsStampFor(isin: string): string | null {
+  return profileFor(isin)?.breakdownsAsOf ?? null;
+}
+
 for (const [isin, patch] of Object.entries(RAW_LOOKTHROUGH_OVERRIDES)) {
   const target = PROFILES[isin];
   if (!target || !patch) continue;
@@ -450,6 +470,15 @@ for (const [isin, patch] of Object.entries(RAW_LOOKTHROUGH_OVERRIDES)) {
   }
   if (patch.topHoldingsAsOf) {
     target.topHoldingsAsOf = patch.topHoldingsAsOf;
+  }
+  if (patch.geo && Object.keys(patch.geo).length > 0) {
+    target.geo = patch.geo;
+  }
+  if (patch.sector && Object.keys(patch.sector).length > 0) {
+    target.sector = patch.sector;
+  }
+  if (patch.breakdownsAsOf) {
+    target.breakdownsAsOf = patch.breakdownsAsOf;
   }
 }
 
