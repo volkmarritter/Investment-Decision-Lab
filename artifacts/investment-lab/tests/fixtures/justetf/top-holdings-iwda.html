@@ -49,9 +49,12 @@
       <td><a href="#" title="Eli Lilly and Co">Eli Lilly and Co</a></td>
       <td><span data-testid="row_value_percentage">0.78 %</span></td>
     </tr>
-    <!-- An 11th row to confirm the slice(0,10) cap. -->
+    <!-- An 11th row to confirm the slice(0,10) cap. The name uses HTML
+         entity encoding (&amp;, &#39;) the way justETF actually serves
+         them in the title="..." attribute, so the scraper's HTML decode
+         step is exercised by the fixture too. -->
     <tr data-testid="etf-holdings_top-holdings_row">
-      <td><a href="#" title="Berkshire Hathaway Inc Class B">Berkshire Hathaway Inc Class B</a></td>
+      <td><a href="#" title="Johnson &amp; Johnson L&#39;Oreal">Johnson &amp; Johnson L&#39;Oreal</a></td>
       <td><span data-testid="row_value_percentage">0.71 %</span></td>
     </tr>
   </tbody>

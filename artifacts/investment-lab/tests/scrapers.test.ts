@@ -213,6 +213,37 @@ describe("refresh-lookthrough extractTopHoldings", () => {
   it("returns undefined when the holdings table is missing entirely", () => {
     expect(extractTopHoldings("<html><body>nothing</body></html>")).toBeUndefined();
   });
+
+  // justETF emits holding names HTML-entity encoded inside the
+  // title="..." attribute (named entities like &amp;, numeric like &#39;,
+  // and hex like &#x2014;). The scraper must decode them before writing
+  // to the snapshot JSON, otherwise the UI panel renders raw "&amp;"
+  // artefacts (regression caught in code review of task #6).
+  it("decodes HTML entities in holding names (named, decimal and hex)", () => {
+    const encoded = `
+      <table data-testid="etf-holdings_top-holdings_table">
+        <tr data-testid="etf-holdings_top-holdings_row">
+          <td><a title="Johnson &amp; Johnson">Johnson &amp; Johnson</a></td>
+          <td><span data-testid="row_value_percentage">3.0 %</span></td>
+        </tr>
+        <tr data-testid="etf-holdings_top-holdings_row">
+          <td><a title="L&#39;Oreal SA">L&#39;Oreal SA</a></td>
+          <td><span data-testid="row_value_percentage">2.0 %</span></td>
+        </tr>
+        <tr data-testid="etf-holdings_top-holdings_row">
+          <td><a title="Berkshire Hathaway &#x2014; Class B">Berkshire Hathaway &#x2014; Class B</a></td>
+          <td><span data-testid="row_value_percentage">1.0 %</span></td>
+        </tr>
+      </table>
+    `;
+    const out = extractTopHoldings(encoded)!;
+    expect(out).toBeDefined();
+    expect(out.map((h) => h.name)).toEqual([
+      "Johnson & Johnson",
+      "L'Oreal SA",
+      "Berkshire Hathaway \u2014 Class B",
+    ]);
+  });
 });
 
 describe("refresh-lookthrough parseEquityIsinsFromLookthroughSource", () => {

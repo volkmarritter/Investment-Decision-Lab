@@ -89,6 +89,27 @@ async function extractEquityIsinsFromLookthrough() {
 //   - Weights must be monotonically non-increasing (justETF orders the
 //     "Top 10" descending by weight; an inversion suggests we matched the
 //     wrong table).
+// Holding names from justETF arrive HTML-entity encoded inside the
+// `title="..."` attribute (e.g. "Johnson &amp; Johnson", "L&#39;Oreal",
+// "Berkshire Hathaway &#x2014; Class B"). Decode the small set of named +
+// numeric entities the scraped attribute can realistically contain so the
+// snapshot JSON stores human-readable strings — otherwise the UI panel
+// renders raw "&amp;" artefacts.
+function decodeHtmlEntities(s) {
+  if (!s) return s;
+  return s
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) =>
+      String.fromCodePoint(parseInt(hex, 16))
+    )
+    .replace(/&#(\d+);/g, (_, dec) => String.fromCodePoint(parseInt(dec, 10)))
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&nbsp;/g, " ");
+}
+
 function extractTopHoldings(html) {
   const tableMatch = html.match(
     /<table[^>]*data-testid="etf-holdings_top-holdings_table"[\s\S]*?<\/table>/i
@@ -103,7 +124,7 @@ function extractTopHoldings(html) {
     const nameMatch = block.match(/title="([^"]+)"/);
     const pctMatch = block.match(/_value_percentage"[^>]*>\s*([\d.,]+)\s*%/i);
     if (!nameMatch || !pctMatch) continue;
-    const name = nameMatch[1].trim();
+    const name = decodeHtmlEntities(nameMatch[1]).trim();
     const pct = parseFloat(pctMatch[1].replace(",", "."));
     if (!name || !Number.isFinite(pct) || pct <= 0 || pct > 100) continue;
     out.push({ name, pct: Math.round(pct * 100) / 100 });
