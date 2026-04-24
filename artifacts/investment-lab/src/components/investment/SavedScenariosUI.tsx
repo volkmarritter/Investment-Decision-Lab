@@ -9,13 +9,18 @@ import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { PortfolioInput } from "@/lib/types";
 import { useSavedScenarios, saveScenario, deleteScenario, renameScenario, SavedScenario } from "@/lib/savedScenarios";
+import type { ManualWeights } from "@/lib/manualWeights";
 import { useT } from "@/lib/i18n";
 
 export interface CompareSlots {
   getInputA: () => PortfolioInput;
   getInputB: () => PortfolioInput;
-  onLoadA: (input: PortfolioInput) => void;
-  onLoadB: (input: PortfolioInput) => void;
+  /** Custom-weights snapshot currently associated with slot A (or undefined). */
+  getSnapshotA?: () => ManualWeights | undefined;
+  /** Custom-weights snapshot currently associated with slot B (or undefined). */
+  getSnapshotB?: () => ManualWeights | undefined;
+  onLoadA: (scenario: SavedScenario) => void;
+  onLoadB: (scenario: SavedScenario) => void;
   hasGeneratedA: boolean;
   hasGeneratedB: boolean;
 }
@@ -23,12 +28,15 @@ export interface CompareSlots {
 export function SavedScenariosUI({
   hasGenerated,
   getCurrentInput,
+  getCurrentManualWeights,
   onLoadScenario,
   compareSlots,
 }: {
   hasGenerated?: boolean;
   getCurrentInput?: () => PortfolioInput;
-  onLoadScenario?: (input: PortfolioInput) => void;
+  /** Active Build-tab custom weights to snapshot when the user saves. */
+  getCurrentManualWeights?: () => ManualWeights | undefined;
+  onLoadScenario?: (scenario: SavedScenario) => void;
   compareSlots?: CompareSlots;
 }) {
   const { t, lang } = useT();
@@ -47,11 +55,19 @@ export function SavedScenariosUI({
   const handleSave = () => {
     if (!saveName.trim() || isSaveOpen === false) return;
     let input: PortfolioInput | undefined;
-    if (isSaveOpen === "single" && getCurrentInput) input = getCurrentInput();
-    else if (isSaveOpen === "A" && compareSlots) input = compareSlots.getInputA();
-    else if (isSaveOpen === "B" && compareSlots) input = compareSlots.getInputB();
+    let manualWeights: ManualWeights | undefined;
+    if (isSaveOpen === "single" && getCurrentInput) {
+      input = getCurrentInput();
+      manualWeights = getCurrentManualWeights?.();
+    } else if (isSaveOpen === "A" && compareSlots) {
+      input = compareSlots.getInputA();
+      manualWeights = compareSlots.getSnapshotA?.();
+    } else if (isSaveOpen === "B" && compareSlots) {
+      input = compareSlots.getInputB();
+      manualWeights = compareSlots.getSnapshotB?.();
+    }
     if (!input) return;
-    saveScenario(saveName.trim(), input);
+    saveScenario(saveName.trim(), input, manualWeights);
     toast.success(t("saved.toast.saved"));
     setIsSaveOpen(false);
     setSaveName("");
@@ -146,25 +162,25 @@ export function SavedScenariosUI({
                   scenario={scenario}
                   onLoadSingle={
                     onLoadScenario && !compareSlots
-                      ? (input) => {
+                      ? (s) => {
                           setIsListOpen(false);
-                          onLoadScenario(input);
+                          onLoadScenario(s);
                         }
                       : undefined
                   }
                   onLoadA={
                     compareSlots
-                      ? (input) => {
+                      ? (s) => {
                           setIsListOpen(false);
-                          compareSlots.onLoadA(input);
+                          compareSlots.onLoadA(s);
                         }
                       : undefined
                   }
                   onLoadB={
                     compareSlots
-                      ? (input) => {
+                      ? (s) => {
                           setIsListOpen(false);
-                          compareSlots.onLoadB(input);
+                          compareSlots.onLoadB(s);
                         }
                       : undefined
                   }
@@ -185,9 +201,9 @@ function ScenarioItem({
   onLoadB,
 }: {
   scenario: SavedScenario;
-  onLoadSingle?: (input: PortfolioInput) => void;
-  onLoadA?: (input: PortfolioInput) => void;
-  onLoadB?: (input: PortfolioInput) => void;
+  onLoadSingle?: (scenario: SavedScenario) => void;
+  onLoadA?: (scenario: SavedScenario) => void;
+  onLoadB?: (scenario: SavedScenario) => void;
 }) {
   const { t, lang } = useT();
   const [isEditing, setIsEditing] = useState(false);
@@ -237,7 +253,7 @@ function ScenarioItem({
 
       <div className="flex items-center gap-1 shrink-0">
         {onLoadSingle && (
-          <Button variant="ghost" size="icon" onClick={() => onLoadSingle(scenario.input)} title={loadIntoLabel}>
+          <Button variant="ghost" size="icon" onClick={() => onLoadSingle(scenario)} title={loadIntoLabel}>
             <Play className="h-4 w-4 text-primary" />
           </Button>
         )}
@@ -246,7 +262,7 @@ function ScenarioItem({
             variant="outline"
             size="sm"
             className="h-7 px-2 text-xs gap-1"
-            onClick={() => onLoadA(scenario.input)}
+            onClick={() => onLoadA(scenario)}
             title={`${loadIntoLabel} Portfolio A`}
           >
             <Play className="h-3 w-3" />A
@@ -257,7 +273,7 @@ function ScenarioItem({
             variant="outline"
             size="sm"
             className="h-7 px-2 text-xs gap-1"
-            onClick={() => onLoadB(scenario.input)}
+            onClick={() => onLoadB(scenario)}
             title={`${loadIntoLabel} Portfolio B`}
           >
             <Play className="h-3 w-3" />B

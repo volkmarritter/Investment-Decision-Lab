@@ -26,6 +26,7 @@ import { runValidation } from "@/lib/validation";
 import { buildPortfolio } from "@/lib/portfolio";
 import { defaultExchangeFor } from "@/lib/exchange";
 import { diffPortfolios } from "@/lib/compare";
+import type { ManualWeights } from "@/lib/manualWeights";
 import { PortfolioMetrics } from "./PortfolioMetrics";
 import { StressTest } from "./StressTest";
 import { MonteCarloSimulation } from "./MonteCarloSimulation";
@@ -109,6 +110,14 @@ export function ComparePortfolios() {
   const [inputB, setInputB] = useState<PortfolioInput | null>(null);
   const [validationA, setValidationA] = useState<ValidationResult | null>(null);
   const [validationB, setValidationB] = useState<ValidationResult | null>(null);
+  // Per-slot snapshots of custom (pinned) ETF weights. Populated when the
+  // user loads a saved portfolio that carries a snapshot; passed to the
+  // engine so each slot's pinned values and "Custom" badges show up just
+  // like in Build today. The Compare tab itself does not provide UI to
+  // author custom weights — they are authored in Build and travel via
+  // save / load.
+  const [manualWeightsA, setManualWeightsA] = useState<ManualWeights | undefined>(undefined);
+  const [manualWeightsB, setManualWeightsB] = useState<ManualWeights | undefined>(undefined);
   const [hasGenerated, setHasGenerated] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
 
@@ -139,10 +148,10 @@ export function ComparePortfolios() {
     setValidationA(stripComplexity(valA));
     setValidationB(stripComplexity(valB));
 
-    if (valA.isValid) { setOutputA(buildPortfolio(parsedA)); setInputA(parsedA); }
+    if (valA.isValid) { setOutputA(buildPortfolio(parsedA, "en", manualWeightsA)); setInputA(parsedA); }
     else { setOutputA(null); setInputA(null); }
 
-    if (valB.isValid) { setOutputB(buildPortfolio(parsedB)); setInputB(parsedB); }
+    if (valB.isValid) { setOutputB(buildPortfolio(parsedB, "en", manualWeightsB)); setInputB(parsedB); }
     else { setOutputB(null); setInputB(null); }
 
     setHasGenerated(true);
@@ -376,12 +385,28 @@ export function ComparePortfolios() {
                     numETFsMin: Number(v.numETFsMin ?? v.numETFs),
                   };
                 },
-                onLoadA: (input) => {
-                  form.setValue("portA", { ...input }, { shouldDirty: true, shouldValidate: false });
+                getSnapshotA: () => manualWeightsA,
+                getSnapshotB: () => manualWeightsB,
+                onLoadA: (scenario) => {
+                  form.setValue("portA", { ...scenario.input }, { shouldDirty: true, shouldValidate: false });
+                  // Replace slot A's snapshot with the saved entry's (or
+                  // clear it when the saved entry has none) so the next
+                  // Generate call honours the saved custom weights for A
+                  // without leaking into B.
+                  setManualWeightsA(
+                    scenario.manualWeights && Object.keys(scenario.manualWeights).length > 0
+                      ? { ...scenario.manualWeights }
+                      : undefined,
+                  );
                   toast.success(lang === "de" ? "In Portfolio A geladen" : "Loaded into Portfolio A");
                 },
-                onLoadB: (input) => {
-                  form.setValue("portB", { ...input }, { shouldDirty: true, shouldValidate: false });
+                onLoadB: (scenario) => {
+                  form.setValue("portB", { ...scenario.input }, { shouldDirty: true, shouldValidate: false });
+                  setManualWeightsB(
+                    scenario.manualWeights && Object.keys(scenario.manualWeights).length > 0
+                      ? { ...scenario.manualWeights }
+                      : undefined,
+                  );
                   toast.success(lang === "de" ? "In Portfolio B geladen" : "Loaded into Portfolio B");
                 },
                 hasGeneratedA: !!outputA,

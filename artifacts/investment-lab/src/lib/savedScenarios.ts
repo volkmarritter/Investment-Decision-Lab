@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { PortfolioInput } from "./types";
+import type { ManualWeights } from "./manualWeights";
 
 const STORAGE_KEY = "investment-lab.savedScenarios.v1";
 
@@ -8,6 +9,14 @@ export interface SavedScenario {
   name: string;
   createdAt: number;
   input: PortfolioInput;
+  /**
+   * Optional snapshot of the user's custom (pinned) ETF weights at the time
+   * the scenario was saved. Keyed by `${assetClass} - ${region}` (the engine's
+   * `bucket` string). Older saved entries created before Task #24 do not have
+   * this field; loading them produces the natural allocation, exactly as
+   * before.
+   */
+  manualWeights?: ManualWeights;
 }
 
 export function listSaved(): SavedScenario[] {
@@ -22,13 +31,22 @@ export function listSaved(): SavedScenario[] {
   }
 }
 
-export function saveScenario(name: string, input: PortfolioInput): SavedScenario {
+export function saveScenario(
+  name: string,
+  input: PortfolioInput,
+  manualWeights?: ManualWeights,
+): SavedScenario {
   const newScenario: SavedScenario = {
     id: crypto.randomUUID(),
     name,
     createdAt: Date.now(),
     input,
   };
+  // Only attach the snapshot when the user actually has custom weights pinned;
+  // a clean save stays clean and behaves identically to pre-Task-#24 entries.
+  if (manualWeights && Object.keys(manualWeights).length > 0) {
+    newScenario.manualWeights = { ...manualWeights };
+  }
 
   try {
     const existing = listSaved();

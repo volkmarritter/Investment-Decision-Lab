@@ -273,10 +273,29 @@ export function BuildPortfolio() {
                 <SavedScenariosUI
                   hasGenerated={hasGenerated}
                   getCurrentInput={() => form.getValues()}
-                  onLoadScenario={(input) => {
-                    form.reset(input);
+                  getCurrentManualWeights={() => manualWeights}
+                  onLoadScenario={(scenario) => {
+                    form.reset(scenario.input);
                     setNumETFsMode("manual");
-                    onSubmit(input);
+                    // Restore the saved snapshot of custom weights into the
+                    // global active overrides used by Build. If the scenario
+                    // has no snapshot (older save, or saved without any
+                    // pinned rows), clear the active overrides so the load
+                    // is a clean restore.
+                    const snapshot = scenario.manualWeights;
+                    if (snapshot && Object.keys(snapshot).length > 0) {
+                      // Replace storage atomically: clear first to drop any
+                      // pre-existing pins, then write each entry from the
+                      // snapshot. The CHANGE_EVENT fired by setManualWeight
+                      // re-syncs the local state via subscribeManualWeights.
+                      clearAllManualWeights();
+                      for (const [bucket, w] of Object.entries(snapshot)) {
+                        setManualWeight(bucket, w);
+                      }
+                    } else {
+                      clearAllManualWeights();
+                    }
+                    onSubmit(scenario.input);
                   }}
                 />
               </div>

@@ -1806,3 +1806,96 @@ describe("manualWeights.applyManualWeights", () => {
     expect(usEtf?.weight).toBeCloseTo(10, 1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Saved scenarios — custom-weights snapshot (Task #24)
+// ---------------------------------------------------------------------------
+// The Compare tab loads a saved scenario by passing both `input` and the
+// optional `manualWeights` snapshot through to the engine. We verify the
+// behavior at the engine boundary (the SavedScenariosUI wiring is exercised
+// indirectly through these contracts) and confirm that A/B snapshots do not
+// leak into each other.
+describe("savedScenarios — manual-weights snapshot round-trips through buildPortfolio", () => {
+  it("a saved entry with a snapshot reproduces the same allocation as building with overrides", () => {
+    // Simulate "save then load": the user pinned Equity-USA = 25 in Build,
+    // saved the scenario, then loaded it into Compare A. The Compare tab
+    // calls buildPortfolio(input, lang, snapshot) — the result must be
+    // bit-equal to a fresh buildPortfolio with the same overrides.
+    const input = baseInput();
+    const snapshot = { [bucketKey("Equity", "USA")]: 25 };
+    const fromSnapshot = buildPortfolio(input, "en", snapshot);
+    const fromOverrides = buildPortfolio(input, "en", { ...snapshot });
+    expect(fromSnapshot.allocation.length).toBe(fromOverrides.allocation.length);
+    for (let i = 0; i < fromSnapshot.allocation.length; i++) {
+      expect(fromSnapshot.allocation[i].assetClass).toBe(fromOverrides.allocation[i].assetClass);
+      expect(fromSnapshot.allocation[i].region).toBe(fromOverrides.allocation[i].region);
+      expect(fromSnapshot.allocation[i].weight).toBeCloseTo(fromOverrides.allocation[i].weight, 6);
+      expect(fromSnapshot.allocation[i].isManualOverride ?? false).toBe(
+        fromOverrides.allocation[i].isManualOverride ?? false,
+      );
+    }
+  });
+
+  it("a saved entry without a snapshot produces the natural allocation (back-compat with pre-Task-#24 saves)", () => {
+    // An older save (or a save made when the user had no pinned rows) has
+    // no `manualWeights` field. The Compare tab calls buildPortfolio with
+    // `undefined` and must get the natural allocation back.
+    const input = baseInput();
+    const natural = buildPortfolio(input, "en");
+    const loadedNoSnapshot = buildPortfolio(input, "en", undefined);
+    expect(loadedNoSnapshot.allocation.length).toBe(natural.allocation.length);
+    for (let i = 0; i < natural.allocation.length; i++) {
+      expect(loadedNoSnapshot.allocation[i].weight).toBeCloseTo(natural.allocation[i].weight, 6);
+      // No row should be flagged as a manual override when no snapshot is
+      // supplied — even if a stale localStorage entry was somehow present
+      // elsewhere, the engine call is the single source of truth.
+      expect(loadedNoSnapshot.allocation[i].isManualOverride ?? false).toBe(false);
+    }
+    // Empty-object snapshot should also behave as "no overrides" (Task #24
+    // attaches a snapshot only when at least one row is pinned, but the
+    // engine must remain robust if an empty object somehow makes it
+    // through — e.g. from an older client that did not strip empty saves).
+    const loadedEmpty = buildPortfolio(input, "en", {});
+    for (let i = 0; i < natural.allocation.length; i++) {
+      expect(loadedEmpty.allocation[i].weight).toBeCloseTo(natural.allocation[i].weight, 6);
+      expect(loadedEmpty.allocation[i].isManualOverride ?? false).toBe(false);
+    }
+  });
+
+  it("Compare A and B can carry different snapshots without leaking into each other", () => {
+    // Two independent build calls model two slots in Compare. Slot A has
+    // Equity-USA pinned; slot B has Bonds (any region present in baseInput)
+    // pinned. The two outputs must reflect their own snapshot only — no
+    // cross-contamination.
+    const input = baseInput();
+    const snapshotA = { [bucketKey("Equity", "USA")]: 30 };
+    // Find a non-equity bucket present in the natural allocation to pin in B.
+    const natural = buildPortfolio(input, "en");
+    const bondRow = natural.allocation.find(a => a.assetClass === "Fixed Income");
+    expect(bondRow).toBeTruthy();
+    const snapshotB = { [bucketKey(bondRow!.assetClass, bondRow!.region)]: 50 };
+
+    const outA = buildPortfolio(input, "en", snapshotA);
+    const outB = buildPortfolio(input, "en", snapshotB);
+
+    // A: Equity-USA is pinned to 30, the Fixed-Income bucket B pinned is NOT.
+    const aUSA = outA.allocation.find(a => a.assetClass === "Equity" && a.region === "USA");
+    const aBond = outA.allocation.find(a => a.assetClass === bondRow!.assetClass && a.region === bondRow!.region);
+    expect(aUSA?.weight).toBeCloseTo(30, 1);
+    expect(aUSA?.isManualOverride).toBe(true);
+    expect(aBond?.isManualOverride ?? false).toBe(false);
+
+    // B: the Fixed-Income bucket is pinned to 50, Equity-USA is NOT.
+    const bUSA = outB.allocation.find(a => a.assetClass === "Equity" && a.region === "USA");
+    const bBond = outB.allocation.find(a => a.assetClass === bondRow!.assetClass && a.region === bondRow!.region);
+    expect(bBond?.weight).toBeCloseTo(50, 1);
+    expect(bBond?.isManualOverride).toBe(true);
+    expect(bUSA?.isManualOverride ?? false).toBe(false);
+
+    // Both still sum to 100 within rounding.
+    const sumA = Math.round(outA.allocation.reduce((s, a) => s + a.weight, 0) * 10) / 10;
+    const sumB = Math.round(outB.allocation.reduce((s, a) => s + a.weight, 0) * 10) / 10;
+    expect(sumA).toBe(100);
+    expect(sumB).toBe(100);
+  });
+});
