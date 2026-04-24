@@ -1,0 +1,54 @@
+name: Refresh ETF top holdings (monthly justETF look-through)
+
+# Monthly cadence for the per-ISIN top-10 holdings list. Writes to a separate
+# override file (src/data/lookthrough.overrides.json) and only touches the
+# `topHoldings` array (plus a per-ISIN `topHoldingsAsOf` ISO timestamp).
+# Geo / sector / currency breakdowns stay hand-curated (justETF Ajax-loads
+# those tables, so the regex-based scraper can't reach them).
+
+on:
+  schedule:
+    - cron: "0 4 1 * *" # 04:00 UTC on the 1st of every month
+  workflow_dispatch: # allow manual triggering from the Actions tab
+
+permissions:
+  contents: write # required to commit the refreshed JSON
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Refresh top-holdings from justETF (monthly)
+        working-directory: artifacts/investment-lab
+        run: node scripts/refresh-lookthrough.mjs
+
+      - name: Run typecheck and tests against the new snapshot
+        working-directory: artifacts/investment-lab
+        run: |
+          pnpm run typecheck
+          pnpm run test
+
+      - name: Commit & push if changed
+        run: |
+          if [[ -n "$(git status --porcelain artifacts/investment-lab/src/data/lookthrough.overrides.json)" ]]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add artifacts/investment-lab/src/data/lookthrough.overrides.json
+            git commit -m "chore(data): monthly justETF look-through snapshot $(date -u +%Y-%m-%d)"
+            git push
+          else
+            echo "No look-through changes."
+          fi

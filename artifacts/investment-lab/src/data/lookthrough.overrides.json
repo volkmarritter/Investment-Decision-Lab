@@ -1,0 +1,9 @@
+{
+  "_meta": {
+    "source": "justetf.com",
+    "lastRefreshed": null,
+    "refreshedBy": "scripts/refresh-lookthrough.mjs",
+    "note": "ISIN -> partial LookthroughProfile overrides applied on top of the curated PROFILES in src/lib/lookthrough.ts. Empty by default; populated monthly (1st of month, 04:00 UTC) by the refresh-lookthrough GitHub Action. Only the topHoldings array (and its per-ISIN topHoldingsAsOf ISO timestamp) is refreshed here. geo / sector / currency stay hand-curated because justETF Ajax-loads those tables."
+  },
+  "overrides": {}
+}

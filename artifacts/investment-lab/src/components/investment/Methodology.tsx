@@ -288,25 +288,43 @@ export function Methodology() {
           </p>
           <p className="text-sm text-muted-foreground leading-relaxed">
             {de
-              ? "Die App ist bewusst frontend-only und ruft zur Laufzeit keine fremden Server. Die Stammdaten der ETFs (TER, Fondsgröße, Auflagedatum, Ertragsverwendung, Replikationsmethode) werden stattdessen über einen wöchentlichen Snapshot-Build aktualisiert: ein Skript holt die Werte einmal pro Woche (sonntags 03:00 UTC) von justETF, schreibt sie als JSON ins Repository und der nächste Build backt den frischen Stand ins Bundle. Im Browser des Nutzers wird also weiterhin keine Live-Verbindung benötigt — er bekommt aber stets die zuletzt sonntags geprüften Werte."
-              : "The app is intentionally frontend-only and makes no remote calls at runtime. ETF reference data (TER, fund size, inception date, distribution policy, replication method) is refreshed via a weekly snapshot build instead: a script pulls the values once a week (Sundays at 03:00 UTC) from justETF, writes them as JSON into the repository, and the next build bakes the fresh snapshot into the bundle. The user's browser still never makes a live call — but it always sees the most recently Sunday-verified values."}
+              ? "Die App ist bewusst frontend-only und ruft zur Laufzeit keine fremden Server. Stattdessen aktualisieren drei automatische Snapshot-Builds die ETF-Stammdaten in unterschiedlicher Frequenz, je nachdem wie oft sich der jeweilige Wert in der Praxis bewegt. Ein Skript holt die Daten von justETF, schreibt sie als JSON ins Repository und der nächste Build backt den frischen Stand ins Bundle — im Browser des Nutzers wird also weiterhin keine Live-Verbindung benötigt, er bekommt aber stets die zuletzt geprüften Werte."
+              : "The app is intentionally frontend-only and makes no remote calls at runtime. Three automatic snapshot builds refresh the ETF reference data instead, each at a different cadence depending on how often the underlying value actually moves in practice. A script pulls the data from justETF, writes it as JSON into the repository, and the next build bakes the fresh snapshot into the bundle — the user's browser still never makes a live call, but always sees the most recently verified values."}
           </p>
-          <div className="rounded-md border bg-muted/30 p-3 text-xs leading-relaxed space-y-1">
+          <div className="rounded-md border bg-muted/30 p-3 text-xs leading-relaxed space-y-2">
             <div><span className="font-semibold">{de ? "Quelle" : "Source"}:</span> justetf.com (public ETF profile pages)</div>
-            <div><span className="font-semibold">{de ? "Skript" : "Script"}:</span> <code className="font-mono">artifacts/investment-lab/scripts/refresh-justetf.mjs</code></div>
-            <div><span className="font-semibold">{de ? "Snapshot-Datei" : "Snapshot file"}:</span> <code className="font-mono">src/data/etfs.overrides.json</code></div>
-            <div><span className="font-semibold">{de ? "Zeitplan" : "Schedule"}:</span> {de ? "wöchentlich, sonntags 03:00 UTC, via GitHub Action " : "weekly, Sundays at 03:00 UTC, via GitHub Action "}<code className="font-mono">.github/workflows/refresh-data.yml</code></div>
-            <div>
-              <span className="font-semibold">{de ? "Aktualisierte Felder" : "Refreshed fields"}:</span>{" "}
-              {de
-                ? "TER (Gesamtkostenquote in Basispunkten), Fondsgröße (Mio. EUR), Auflagedatum (ISO), Ertragsverwendung (thesaurierend / ausschüttend), Replikationsmethode (physisch / physisch (Sampling) / synthetisch)"
-                : "TER (Total Expense Ratio in basis points), fund size (EUR millions), inception date (ISO), distribution policy (accumulating / distributing), replication method (physical / physical (sampled) / synthetic)"}
+            <div className="border-t pt-2">
+              <div className="font-semibold mb-0.5">{de ? "1) Wöchentlich — Stammdaten" : "1) Weekly — core fund metadata"}</div>
+              <div>{de ? "Sonntags 03:00 UTC · " : "Sundays 03:00 UTC · "}<code className="font-mono">refresh-justetf.mjs --mode=core</code> · <code className="font-mono">.github/workflows/refresh-data.yml</code></div>
+              <div className="text-muted-foreground">
+                {de
+                  ? "Aktualisierte Felder: TER (Basispunkte), Fondsgröße (Mio. EUR), Auflagedatum (ISO), Ertragsverwendung (thesaurierend / ausschüttend), Replikationsmethode (physisch / physisch (Sampling) / synthetisch). Schreibt nach src/data/etfs.overrides.json."
+                  : "Refreshed fields: TER (basis points), fund size (EUR millions), inception date (ISO), distribution policy (accumulating / distributing), replication method (physical / physical (sampled) / synthetic). Writes to src/data/etfs.overrides.json."}
+              </div>
+            </div>
+            <div className="border-t pt-2">
+              <div className="font-semibold mb-0.5">{de ? "2) Nächtlich — Notierungen je Börse" : "2) Nightly — per-exchange listings"}</div>
+              <div>{de ? "Täglich 02:00 UTC · " : "Daily 02:00 UTC · "}<code className="font-mono">refresh-justetf.mjs --mode=listings</code> · <code className="font-mono">.github/workflows/refresh-listings.yml</code></div>
+              <div className="text-muted-foreground">
+                {de
+                  ? "Aktualisierter Wert: Ticker-Map je Börse (LSE / XETRA / SIX / Euronext). Bei mehreren Share-Klassen pro Börse wird die Notierung in der primären Fondswährung bevorzugt (z. B. an LSE der USD-Ticker statt GBX). Schreibt ebenfalls nach src/data/etfs.overrides.json."
+                  : "Refreshed value: per-exchange ticker map (LSE / XETRA / SIX / Euronext). When several share classes trade on the same venue, the listing in the fund's primary currency is preferred (e.g. on LSE the USD ticker rather than GBX). Also writes to src/data/etfs.overrides.json."}
+              </div>
+            </div>
+            <div className="border-t pt-2">
+              <div className="font-semibold mb-0.5">{de ? "3) Monatlich — Top-10 Holdings" : "3) Monthly — top-10 holdings"}</div>
+              <div>{de ? "Am 1. des Monats, 04:00 UTC · " : "1st of month, 04:00 UTC · "}<code className="font-mono">refresh-lookthrough.mjs</code> · <code className="font-mono">.github/workflows/refresh-lookthrough.yml</code></div>
+              <div className="text-muted-foreground">
+                {de
+                  ? "Aktualisierter Wert: Top-10 Einzelwerte mit Gewichten je Aktien-ETF (Name, Anteil in %), plus eine ISIN-genaue Stichtag-Markierung pro Datensatz. Schreibt nach src/data/lookthrough.overrides.json. Nicht-Aktien-ETFs (Gold, Krypto) werden übersprungen."
+                  : "Refreshed value: top-10 holdings with weights for each equity ETF (name, weight in %), plus a per-ISIN as-of stamp on every record. Writes to src/data/lookthrough.overrides.json. Non-equity ETFs (gold, crypto) are skipped."}
+              </div>
             </div>
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
             {de
-              ? "Hand-kuratiert (vom Snapshot nicht überschrieben) bleiben: Notierungen je Börse (LSE / XETRA / SIX / Euronext), Default-Börse, redaktioneller Kommentar sowie alle Look-Through-Profile (Geo-/Sektor-/Währungs-/Top-Holdings-Aufteilung pro ISIN, Stichtag Q4 2024). Diese Werte ändern sich selten und werden bei jeder ETF-Aufnahme bewusst gesetzt."
-              : "Curated by hand (not overwritten by the snapshot): per-exchange listings (LSE / XETRA / SIX / Euronext), default exchange, editorial comment, and all look-through profiles (geo / sector / currency / top-holdings breakdown per ISIN, reference date Q4 2024). These values change rarely and are set deliberately when an ETF is added."}
+              ? "Hand-kuratiert (von keinem Snapshot überschrieben) bleiben: Default-Börse pro ETF, redaktioneller Kommentar, sowie die Geo-/Sektor-/Währungs-Aufteilung pro ISIN (Stichtag Q4 2024). Letztere lädt justETF dynamisch via Ajax — der Scraper sieht sie nicht im statischen HTML — und sie ändern sich für breite Index-ETFs ohnehin nur sehr langsam. Diese Werte werden bei jeder ETF-Aufnahme bewusst gesetzt und nur bei Bedarf manuell nachgepflegt."
+              : "Curated by hand (not overwritten by any snapshot): default exchange per ETF, editorial comment, and the geo / sector / currency breakdown per ISIN (reference date Q4 2024). justETF loads the latter dynamically via Ajax — the scraper can't see them in the static HTML — and for broad-index ETFs they only drift very slowly anyway. These values are set deliberately when an ETF is added and only edited manually when needed."}
           </p>
           <p className="text-xs text-muted-foreground leading-relaxed">
             {de
@@ -315,8 +333,8 @@ export function Methodology() {
           </p>
           <p className="text-xs text-muted-foreground leading-relaxed">
             {de
-              ? "Bei Standardauslieferung ist die Snapshot-Datei leer — die App nutzt dann die im Code hinterlegten Default-Werte. Sobald das Refresh-Skript einmal lief, werden die geholten Felder per ISIN auf die Default-Werte gelegt; alles andere bleibt deterministisch."
-              : "On a fresh checkout the snapshot file is empty — the app then uses the in-code default values. Once the refresh script has run at least once, the fetched fields override the defaults per ISIN; everything else stays deterministic."}
+              ? "Bei Standardauslieferung sind beide Snapshot-Dateien leer — die App nutzt dann die im Code hinterlegten Default-Werte. Sobald die Refresh-Jobs erstmals liefen, werden die geholten Felder per ISIN auf die Default-Werte gelegt; alles andere bleibt deterministisch. Schlägt ein einzelner Scrape-Lauf fehl (z. B. justETF ändert das Markup), bleibt der zuletzt erfolgreiche Wert stehen — es wird kein Müll geschrieben."
+              : "On a fresh checkout both snapshot files are empty — the app then uses the in-code default values. Once the refresh jobs have run at least once, the fetched fields override the defaults per ISIN; everything else stays deterministic. If a single scrape run fails (e.g. justETF changes its markup), the last successful value is preserved — no junk is ever written."}
           </p>
         </Section>
 

@@ -1,4 +1,5 @@
 import { ETFImplementation } from "./types";
+import lookthroughOverridesFile from "@/data/lookthrough.overrides.json";
 
 export type ExposureMap = Record<string, number>;
 
@@ -8,10 +9,16 @@ export interface LookthroughProfile {
   sector: ExposureMap;
   currency: ExposureMap;
   topHoldings?: Array<{ name: string; pct: number }>;
+  // ISO timestamp written by scripts/refresh-lookthrough.mjs whenever the
+  // top-holdings list for this ISIN was last refreshed from justETF. Undefined
+  // when the row is still served from the curated default below.
+  topHoldingsAsOf?: string;
 }
 
-// Reference date for the look-through data set below. Surfaced in the UI so users
-// know exactly how stale the underlying weights may be relative to live factsheets.
+// Reference date for the curated geo / sector / currency breakdowns below.
+// Top-holdings carry their own per-ISIN ISO timestamp (`topHoldingsAsOf`)
+// when refreshed by the monthly justETF refresh job — see
+// scripts/refresh-lookthrough.mjs.
 export const LOOKTHROUGH_REFERENCE_DATE = "Q4 2024";
 
 const PROFILES: Record<string, LookthroughProfile> = {
@@ -384,6 +391,32 @@ const HEDGED_ISINS = new Set<string>([
   "IE00BDBRDN42",
   "IE00BDBRDP65",
 ]);
+
+// ----------------------------------------------------------------------------
+// Optional refresh overrides (see scripts/refresh-lookthrough.mjs).
+// The PROFILES above are the curated source of truth. The monthly refresh job
+// writes ISIN-keyed { topHoldings, topHoldingsAsOf } into
+// src/data/lookthrough.overrides.json; we merge that on top of the matching
+// profile at module load. Geo / sector / currency stay hand-curated because
+// justETF Ajax-loads those tables and they aren't reachable from the static
+// HTML the scraper sees.
+// ----------------------------------------------------------------------------
+type LookthroughOverride = {
+  topHoldings?: Array<{ name: string; pct: number }>;
+  topHoldingsAsOf?: string;
+};
+const RAW_LOOKTHROUGH_OVERRIDES =
+  (lookthroughOverridesFile as { overrides?: Record<string, LookthroughOverride> }).overrides ?? {};
+for (const [isin, patch] of Object.entries(RAW_LOOKTHROUGH_OVERRIDES)) {
+  const target = PROFILES[isin];
+  if (!target || !patch) continue;
+  if (patch.topHoldings && patch.topHoldings.length > 0) {
+    target.topHoldings = patch.topHoldings;
+  }
+  if (patch.topHoldingsAsOf) {
+    target.topHoldingsAsOf = patch.topHoldingsAsOf;
+  }
+}
 
 export function profileFor(isin: string): LookthroughProfile | null {
   const key = ALIAS[isin] ?? isin;

@@ -1,0 +1,61 @@
+name: Refresh ETF listings (nightly justETF snapshot)
+
+# Nightly cadence for the per-exchange ticker map (LSE / XETRA / SIX /
+# Euronext) only. Runs the same scrape script as the weekly job but in
+# `--mode=listings` so it only touches the `listings` field on each override.
+# Default exchange, editorial comment and look-through breakdowns stay
+# hand-curated.
+
+on:
+  schedule:
+    - cron: "0 2 * * *" # 02:00 UTC every day
+  workflow_dispatch: # allow manual triggering from the Actions tab
+
+# Serialise with refresh-data.yml: both jobs commit to the same
+# etfs.overrides.json. The shared concurrency group prevents push races when
+# a nightly and a weekly run overlap (e.g. after a manual workflow_dispatch).
+concurrency:
+  group: etf-overrides-write
+  cancel-in-progress: false
+
+permissions:
+  contents: write # required to commit the refreshed JSON
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Refresh listings from justETF (nightly)
+        working-directory: artifacts/investment-lab
+        run: node scripts/refresh-justetf.mjs --mode=listings
+
+      - name: Run typecheck and tests against the new snapshot
+        working-directory: artifacts/investment-lab
+        run: |
+          pnpm run typecheck
+          pnpm run test
+
+      - name: Commit & push if changed
+        run: |
+          if [[ -n "$(git status --porcelain artifacts/investment-lab/src/data/etfs.overrides.json)" ]]; then
+            git config user.name  "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add artifacts/investment-lab/src/data/etfs.overrides.json
+            git commit -m "chore(data): nightly justETF listings snapshot $(date -u +%Y-%m-%d)"
+            git push
+          else
+            echo "No listings changes."
+          fi

@@ -322,28 +322,39 @@ const CATALOG: Record<string, ETFRecord> = {
 // script writes ISIN-keyed partial records into src/data/etfs.overrides.json;
 // at module load we shallow-merge them on top of the matching CATALOG entry so
 // the engine, tests and UI continue to work unchanged when the file is empty.
-// The script currently refreshes: terBps, aumMillionsEUR, inceptionDate,
-// distribution, replication. Additional fields can be added by extending
-// EXTRACTORS in the script and widening the Pick<> below — the merge itself
-// is generic.
+//
+// Two CI cadences populate this file:
+//   - Weekly  (Sundays 03:00 UTC): terBps, aumMillionsEUR, inceptionDate,
+//             distribution, replication.
+//   - Nightly (02:00 UTC):         listings (per-exchange ticker map).
+//
+// `defaultExchange`, `comment`, `name`, `isin`, `domicile`, and `currency`
+// stay hand-curated and are intentionally NOT in the override Pick<> — they
+// reflect editorial decisions made when the ETF is added to the catalog.
+// The `listings` override merges via per-exchange spread so a partial scrape
+// (e.g. only LSE + XETRA found) never wipes out a hand-curated SIX listing.
 // ----------------------------------------------------------------------------
 type ETFOverride = Partial<
   Pick<
     ETFRecord,
     | "terBps"
-    | "name"
-    | "domicile"
-    | "currency"
     | "aumMillionsEUR"
     | "inceptionDate"
     | "distribution"
     | "replication"
   >
->;
+> & {
+  listings?: ListingMap;
+};
 const RAW_OVERRIDES = (overridesFile as { overrides?: Record<string, ETFOverride> }).overrides ?? {};
 for (const rec of Object.values(CATALOG)) {
   const patch = RAW_OVERRIDES[rec.isin];
-  if (patch) Object.assign(rec, patch);
+  if (!patch) continue;
+  const { listings: listingsPatch, ...scalarPatch } = patch;
+  Object.assign(rec, scalarPatch);
+  if (listingsPatch) {
+    rec.listings = { ...rec.listings, ...listingsPatch };
+  }
 }
 
 function placeholder(assetClass: string, region: string): ETFDetails {

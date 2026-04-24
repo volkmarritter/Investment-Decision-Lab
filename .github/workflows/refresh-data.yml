@@ -1,19 +1,28 @@
-name: Refresh ETF data (justETF snapshot)
+name: Refresh ETF core fields (weekly justETF snapshot)
 
-# Snapshot-build data pipeline (Variante 1).
+# Snapshot-build data pipeline.
 # Runs the refresh script once per week, commits any diff in the override JSON
 # and lets the normal deploy job ship the new bundle. The app stays
 # frontend-only at runtime — no live API call from the browser.
 #
-# Weekly cadence (instead of daily) keeps the load on justETF very light while
-# still capturing TER / AUM / distribution / replication / inception drift in
-# a timely manner. Trigger an out-of-band refresh manually via workflow_dispatch
-# whenever you need the snapshot updated immediately.
+# This workflow only refreshes the "core" fund metadata (TER / AUM / inception
+# / distribution / replication). The per-exchange listings map is refreshed on
+# a separate nightly schedule (see refresh-listings.yml) and the per-ISIN
+# top-holdings list is refreshed monthly (see refresh-lookthrough.yml).
+# Trigger an out-of-band refresh via workflow_dispatch whenever needed.
 
 on:
   schedule:
     - cron: "0 3 * * 0" # 03:00 UTC every Sunday
   workflow_dispatch: # allow manual triggering from the Actions tab
+
+# Serialise with refresh-listings.yml: both jobs commit to the same
+# etfs.overrides.json. The shared concurrency group prevents push races
+# (non-fast-forward failures) when a weekly and a nightly run overlap, e.g.
+# after a manual workflow_dispatch.
+concurrency:
+  group: etf-overrides-write
+  cancel-in-progress: false
 
 permissions:
   contents: write # required to commit the refreshed JSON
@@ -35,9 +44,9 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
-      - name: Refresh ETF overrides from justETF
+      - name: Refresh core ETF overrides from justETF (weekly)
         working-directory: artifacts/investment-lab
-        run: node scripts/refresh-justetf.mjs
+        run: node scripts/refresh-justetf.mjs --mode=core
 
       - name: Run typecheck and tests against the new snapshot
         working-directory: artifacts/investment-lab
@@ -51,7 +60,7 @@ jobs:
             git config user.name  "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git add artifacts/investment-lab/src/data/etfs.overrides.json
-            git commit -m "chore(data): weekly justETF snapshot $(date -u +%Y-%m-%d)"
+            git commit -m "chore(data): weekly justETF core snapshot $(date -u +%Y-%m-%d)"
             git push
           else
             echo "No data changes."
