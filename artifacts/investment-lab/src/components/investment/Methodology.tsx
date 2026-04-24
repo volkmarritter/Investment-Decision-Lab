@@ -537,6 +537,22 @@ export function Methodology() {
               ? "Langfristige erwartete Renditen und Volatilitäten je Anlageklasse. Bewusst konservativ und stabil über die Zeit. Diese Werte stammen NICHT aus Live-Daten – sie sind handgepflegte Konsens-Schätzungen aus öffentlich publizierten Long-Term Capital Market Assumptions großer Asset Manager."
               : "Long-run expected returns and volatilities per asset class. Deliberately conservative and stable over time. These values are NOT live — they are hand-curated consensus estimates drawn from publicly published Long-Term Capital Market Assumptions of major asset managers."}
           </p>
+          <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-xs space-y-1.5">
+            <div className="font-semibold uppercase tracking-wider text-[10px] text-primary/80">
+              {de ? "Wo diese Werte im Tool verwendet werden" : "Where these values are used in the tool"}
+            </div>
+            <ul className="space-y-1 list-disc pl-4 text-muted-foreground">
+              <li>{de
+                ? <><span className="font-medium text-foreground">Portfolio-Konstruktion (Build-Tab):</span> die erwartete Rendite μ jeder Anlageklasse fließt zusammen mit der Volatilität σ und dem risikofreien Zins in die Sharpe-Ratio ein, mit der die Engine Bucket-Gewichte priorisiert.</>
+                : <><span className="font-medium text-foreground">Portfolio construction (Build tab):</span> each asset class's expected return μ feeds into the Sharpe ratio (together with σ and the risk-free rate) that the engine uses to prioritise bucket weights.</>}</li>
+              <li>{de
+                ? <><span className="font-medium text-foreground">Risiko- & Performance-Kennzahlen (Report-Tab):</span> erwartete Portfolio-Rendite ist Σᵢ wᵢ·μᵢ; die Portfolio-Volatilität ist √(ΣΣ wᵢwⱼσᵢσⱼρᵢⱼ) und nutzt damit μ/σ aus dieser Tabelle plus die Korrelationsmatrix unten. Sharpe, Beta, Alpha und Tracking Error bauen auf denselben Werten auf.</>
+                : <><span className="font-medium text-foreground">Risk & Performance Metrics (Report tab):</span> expected portfolio return is Σᵢ wᵢ·μᵢ; portfolio volatility is √(ΣΣ wᵢwⱼσᵢσⱼρᵢⱼ), so it uses μ / σ from this table plus the correlation matrix below. Sharpe, beta, alpha and tracking error are derived from the same.</>}</li>
+              <li>{de
+                ? <><span className="font-medium text-foreground">Monte-Carlo-Simulation:</span> μ ist der Drift, σ jeder Anlageklasse fließt — über die Korrelationsmatrix — in die einzige Portfolio-σ ein, mit der die Pfade gezogen werden. Das FX-Hedge senkt σ Anlageklasse-spezifisch, ändert aber μ nicht.</>
+                : <><span className="font-medium text-foreground">Monte Carlo simulation:</span> μ is the drift; each asset class's σ — combined via the correlation matrix — feeds into the single portfolio σ used to draw paths. The FX-hedge option reduces σ on a per-asset-class basis but does not touch μ.</>}</li>
+            </ul>
+          </div>
           <div className="space-y-2">
             <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
               {de ? "Hauptquellen (öffentlich)" : "Primary sources (public)"}
@@ -700,9 +716,25 @@ export function Methodology() {
         <Section value="corr" icon={<GitCompare className="h-4 w-4" />} title={de ? "Korrelationsmatrix" : "Correlation Matrix"}>
           <p className="text-sm text-muted-foreground">
             {de
-              ? "Paarweise Langfrist-Korrelationen, statisch hinterlegt. Die Portfolio-Volatilität, Sharpe-Ratio, Beta, Alpha und der Tracking Error im Report werden aus genau dieser Matrix berechnet – die Diversifikationseffekte in diesen Kennzahlen entstehen durch die Off-Diagonal-Werte unter 1,0. In Liquiditätskrisen tendieren reale Korrelationen gegen 1 – das spiegelt diese Matrix nicht wider, der Stress-Test schon."
-              : "Pairwise long-run correlations, stored statically. The portfolio volatility, Sharpe, beta, alpha and tracking error on the Report are computed from this exact matrix — the diversification benefit in those figures comes from the off-diagonal cells below 1.0. In liquidity crises real-world correlations rise toward 1 — this matrix does not reflect that, the stress test does."}
+              ? "Paarweise Langfrist-Korrelationen ρᵢⱼ zwischen Anlageklassen, statisch hinterlegt. Die Diversifikationseffekte im Tool entstehen ausschließlich durch die Off-Diagonal-Werte unter 1,0. In Liquiditätskrisen tendieren reale Korrelationen gegen 1 – das spiegelt diese Matrix nicht wider, der Stress-Test schon."
+              : "Pairwise long-run correlations ρᵢⱼ between asset classes, stored statically. Every diversification effect in the tool comes from the off-diagonal cells being below 1.0. In liquidity crises real-world correlations rise toward 1 — this matrix does not reflect that, the stress test does."}
           </p>
+          <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-xs space-y-1.5">
+            <div className="font-semibold uppercase tracking-wider text-[10px] text-primary/80">
+              {de ? "Wo diese Matrix im Tool verwendet wird" : "Where this matrix is used in the tool"}
+            </div>
+            <ul className="space-y-1 list-disc pl-4 text-muted-foreground">
+              <li>{de
+                ? <><span className="font-medium text-foreground">Risiko- & Performance-Kennzahlen (Report-Tab):</span> Portfolio-Volatilität σₚ = √(ΣΣ wᵢwⱼσᵢσⱼρᵢⱼ) wird direkt aus dieser Matrix berechnet. Sharpe-Ratio, Beta gegen die Benchmark, Alpha (= Portfolio-Rendite − β·Benchmark-Rendite) und Tracking Error bauen alle auf diesem σₚ auf.</>
+                : <><span className="font-medium text-foreground">Risk & Performance Metrics (Report tab):</span> portfolio volatility σₚ = √(ΣΣ wᵢwⱼσᵢσⱼρᵢⱼ) is computed straight from this matrix. Sharpe, beta vs. the benchmark, alpha (= portfolio return − β·benchmark return) and tracking error are all derived from that σₚ.</>}</li>
+              <li>{de
+                ? <><span className="font-medium text-foreground">Monte-Carlo-Simulation:</span> dasselbe σₚ wird vorab aus dieser Matrix berechnet und dann als einzige Volatilität für die GBM-Pfade des Portfolios verwendet (eine Gauß-Ziehung pro Jahr). Ohne diese Off-Diagonal-Werte wäre σₚ überschätzt und das P10–P90-Band breiter.</>
+                : <><span className="font-medium text-foreground">Monte Carlo simulation:</span> the same σₚ is computed up front from this matrix and then used as the single portfolio volatility for the GBM paths (one Gaussian draw per year). Without these off-diagonal values σₚ would be overstated and the P10–P90 band wider.</>}</li>
+              <li>{de
+                ? <><span className="font-medium text-foreground">Was diese Matrix NICHT antreibt:</span> die Bucket-Gewichte selbst (die Construction-Engine nutzt nur μ, σ und Sharpe pro Anlageklasse), die Stress-Szenarien (eigene Schock-Tabelle) und die FX-Hedge-Option (reduziert σ pro Anlageklasse vor der σₚ-Berechnung).</>
+                : <><span className="font-medium text-foreground">What this matrix does NOT drive:</span> the bucket weights themselves (the construction engine only uses each class's μ, σ and Sharpe), the stress scenarios (own shock table), and the FX-hedge option (reduces σ per asset class before σₚ is computed).</>}</li>
+            </ul>
+          </div>
           <div className="text-xs text-muted-foreground">
             {de ? "Quelle" : "Source"}: {de ? "Empirische Schätzungen aus typischen Marktphasen 2000–2024 (MSCI, Bloomberg, FTSE Russell Index-Daten)." : "Empirical estimates from typical 2000–2024 regime data (MSCI, Bloomberg, FTSE Russell index series)."}
           </div>
