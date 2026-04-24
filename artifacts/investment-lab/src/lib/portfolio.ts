@@ -10,6 +10,37 @@ function clamp(value: number, min: number, max: number) {
 }
 
 // ---------------------------------------------------------------------------
+// Canonical asset-class display order, used everywhere allocation rows are
+// shown (Build table, ETF Implementation table, anything that consumes
+// `output.allocation` / `output.etfImplementation` in row order).
+//
+// Order: Cash → Bonds → Equities → Commodities → REITs → Crypto.
+// Within a class (e.g. multiple equity regions), rows are still sorted by
+// weight descending as a stable tiebreaker.
+// ---------------------------------------------------------------------------
+const ASSET_CLASS_ORDER: Record<string, number> = {
+  Cash: 0,
+  "Fixed Income": 1,
+  Equity: 2,
+  Commodities: 3,
+  "Real Estate": 4,
+  "Digital Assets": 5,
+};
+
+function assetClassRank(c: string): number {
+  return c in ASSET_CLASS_ORDER ? ASSET_CLASS_ORDER[c] : 99;
+}
+
+function sortAllocationCanonical(rows: AssetAllocation[]): void {
+  rows.sort((a, b) => {
+    const ra = assetClassRank(a.assetClass);
+    const rb = assetClassRank(b.assetClass);
+    if (ra !== rb) return ra - rb;
+    return b.weight - a.weight;
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Equity region weighting — principled, not fixed.
 //
 // Methodology (single source of truth = the same CMA used by metrics.ts):
@@ -260,7 +291,7 @@ export function buildPortfolio(
     allocation.push({ assetClass, region, weight: v });
   }
 
-  allocation.sort((a, b) => b.weight - a.weight);
+  sortAllocationCanonical(allocation);
 
   // ---------------------------------------------------------------------------
   // Apply user-pinned weight overrides (if any). Pinned rows keep the user's
@@ -280,9 +311,10 @@ export function buildPortfolio(
         allocation[i].isManualOverride = true;
       }
     }
-    // Re-sort by post-override weight so the largest holdings remain on top
-    // (matches the natural-allocation behavior the rest of the UI expects).
-    allocation.sort((a, b) => b.weight - a.weight);
+    // Re-apply the canonical asset-class order (Cash → Bonds → Equities →
+    // Commodities → REITs → Crypto) with weight-desc as the intra-class
+    // tiebreaker, so the table ordering stays stable across overrides.
+    sortAllocationCanonical(allocation);
   }
 
   const etfImplementation: ETFImplementation[] = [];

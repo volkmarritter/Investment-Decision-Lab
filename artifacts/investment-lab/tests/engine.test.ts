@@ -72,6 +72,70 @@ describe("buildPortfolio — invariants", () => {
     expect(sumWeights(out.allocation)).toBeCloseTo(100, 0);
   });
 
+  it("asset classes are sorted in canonical order: Cash → Bonds → Equities → Commodities → REITs → Crypto", () => {
+    // Maximum-diversity input that exercises every asset class so the
+    // canonical order is observable end-to-end on the `allocation` array.
+    const out = buildPortfolio(
+      baseInput({
+        riskAppetite: "Moderate",
+        horizon: 15,
+        includeCommodities: true,
+        includeListedRealEstate: true,
+        includeCrypto: true,
+      })
+    );
+    // Sanity gate: every weight must be a finite positive number, otherwise
+    // the monotonic-rank assertions below could pass even on a broken build.
+    expect(out.allocation.length).toBeGreaterThanOrEqual(5);
+    for (const a of out.allocation) {
+      expect(Number.isFinite(a.weight)).toBe(true);
+      expect(a.weight).toBeGreaterThan(0);
+    }
+    // The diverse input must actually exercise every class we are claiming
+    // to order; otherwise the monotonicity check below is vacuous for the
+    // missing classes.
+    const classesPresent = new Set(out.allocation.map((a) => a.assetClass));
+    for (const cls of [
+      "Cash",
+      "Fixed Income",
+      "Equity",
+      "Commodities",
+      "Real Estate",
+      "Digital Assets",
+    ]) {
+      expect(classesPresent.has(cls)).toBe(true);
+    }
+    const rank: Record<string, number> = {
+      Cash: 0,
+      "Fixed Income": 1,
+      Equity: 2,
+      Commodities: 3,
+      "Real Estate": 4,
+      "Digital Assets": 5,
+    };
+    const seen = out.allocation.map((a) => rank[a.assetClass] ?? 99);
+    for (let i = 1; i < seen.length; i++) {
+      expect(seen[i]).toBeGreaterThanOrEqual(seen[i - 1]);
+    }
+    // Within an asset class (e.g. multiple equity regions), weight-desc must
+    // remain the tiebreaker so the largest holdings stay on top.
+    for (let i = 1; i < out.allocation.length; i++) {
+      if (out.allocation[i].assetClass === out.allocation[i - 1].assetClass) {
+        expect(out.allocation[i].weight).toBeLessThanOrEqual(
+          out.allocation[i - 1].weight
+        );
+      }
+    }
+    // ETF implementation is built directly from the allocation order, so it
+    // inherits the same canonical ordering (cash row is intentionally absent).
+    const etfRanks = out.etfImplementation.map(
+      (e) => rank[e.assetClass] ?? 99
+    );
+    for (let i = 1; i < etfRanks.length; i++) {
+      expect(etfRanks[i]).toBeGreaterThanOrEqual(etfRanks[i - 1]);
+    }
+  });
+
   it("ETF implementation is produced for every non-cash bucket", () => {
     const out = buildPortfolio(baseInput());
     const nonCash = out.allocation.filter((a) => a.assetClass !== "Cash");

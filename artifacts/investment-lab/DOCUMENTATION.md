@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-04-24 (night, manual-weights)
+Last updated: 2026-04-24 (night, canonical-order)
 
 ---
 
@@ -154,6 +154,10 @@ For CHF / EUR / GBP without a pre-existing home bucket, a tilt is carved from th
 ### 4.6 Rounding
 
 Each weight is rounded to one decimal; any rounding residual is added to the largest bucket so totals sum to 100.0%.
+
+#### 4.6.1 Canonical asset-class display order
+
+After rounding (and again after any manual override pass — see §4.10), `allocation` is sorted into a fixed canonical order: **Cash → Bonds (Fixed Income) → Equities → Commodities → REITs (Real Estate) → Crypto (Digital Assets)**. Within an asset class (e.g. multiple equity regions: USA, Europe, Switzerland, Japan, EM, Thematic), rows remain sorted by weight descending as the tiebreaker. The same order propagates to `etfImplementation`, which is built by iterating `allocation` and skipping the cash row, so the Build tab's Implementation table and every downstream consumer of the row order share a single source of truth (`sortAllocationCanonical` in `src/lib/portfolio.ts`).
 
 ### 4.7 ETF implementation — catalog, mapping, and selection logic
 
@@ -602,6 +606,9 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-04-24 (night, canonical-order)
+- **Asset-class display order is now fixed: Cash → Bonds → Equities → Commodities → REITs → Crypto.** Previously the `allocation` and `etfImplementation` rows were sorted strictly by weight descending, which moved bonds above or below equities depending on risk profile and shuffled the satellites depending on the user's pinned weights. A small `sortAllocationCanonical` helper in `src/lib/portfolio.ts` (rank table `Cash:0, Fixed Income:1, Equity:2, Commodities:3, Real Estate:4, Digital Assets:5`) now drives the order both immediately after the natural allocation is built (replacing the line `allocation.sort((a, b) => b.weight - a.weight)`) and again after the manual-override reducer in §4.10 has re-shaped the weights. Within a class the tiebreaker is still weight descending so equity sub-rows (USA / Europe / Switzerland / Japan / EM / Thematic) remain ordered by size. New §4.6.1 documents the rule. One regression test added (`buildPortfolio — invariants → asset classes are sorted in canonical order …`) that exercises a maximum-diversity input (all satellites = Yes, horizon 15) and asserts both the cross-class rank monotonicity and the intra-class weight-desc tiebreaker, plus the same monotonicity on `etfImplementation`. Suite at 113 / 113 passing; typecheck clean. No engine math changed; only row order.
 
 ### 2026-04-24 (night, manual-weights)
 - **Manual ETF weight overrides on the Build tab.** Each row of the Implementation table now exposes an inline numeric input (`step=0.1`, `[0, 100]`); pinning a value writes it to a new `localStorage` slot (`investment-lab.manualWeights.v1`) keyed by bucket (`"${assetClass} - ${region}"`), persists across reloads / language switches / setting changes, and is applied **inside** `buildPortfolio` so look-through, metrics, stress-test and Monte Carlo all use the post-override weights. Pinned rows get a `Custom` / `Manuell` badge plus a small `×` reset button; a summary banner above the table shows the active count and a `Reset all` button. Two further alerts cover the edge cases: a destructive-variant warning when pinned weights sum to ≥ 100% (engine scales pinned down proportionally and zeroes non-pinned to keep the total at 100), and an info alert listing how many stored overrides do not match any current bucket (stale entries are kept and re-apply when the bucket reappears). The engine layer is a new pure module `src/lib/manualWeights.ts` with `loadManualWeights` / `setManualWeight` / `clearManualWeight` / `clearAllManualWeights` / `subscribeManualWeights` (custom event + cross-tab `storage` sync) and the pure `applyManualWeights(naturalRows, overrides)` reducer that handles redistribution, saturation, all-pinned-undershoot and one-decimal rounding-drift fixup. `AssetAllocation` and `ETFImplementation` gained an optional `isManualOverride?: boolean` flag and `buildPortfolio(input, lang, manualWeights?)` now takes the overrides as an optional third argument; `BuildPortfolio.tsx` reads them from storage on mount, subscribes to changes, and passes them in both call sites (initial submit + lang-rebuild effect). The Compare tab's `buildPortfolio` calls do **not** pass overrides, so A-vs-B comparisons stay on the natural allocation. Bilingual (EN + DE) strings added for badge, banner copy, reset, edit / reset titles, saturated and stale warnings. Documentation: new §4.10 "Manual ETF weight overrides" with the full storage / engine / UI contract. Tests: 10 new unit tests on `applyManualWeights` covering no-override, single-pin, multi-pin, saturated `> 100`, exactly-100, stale-bucket, zero-override, clamp, all-pinned-undershoot and rounding-drift cases, plus an end-to-end `buildPortfolio` regression that asserts the override is honoured on both the allocation and the implementation table — full suite green.
