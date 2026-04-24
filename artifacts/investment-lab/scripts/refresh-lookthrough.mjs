@@ -7,22 +7,30 @@
 // src/lib/lookthrough.ts shallow-merges those values on top of the curated
 // PROFILES so the engine keeps working with no live network call at runtime.
 //
-// Two reference data sets are refreshed here:
+// Three reference data sets are refreshed here:
 //   1. `topHoldings` — the top-10 stocks list parsed from the static
 //      profile HTML (etf-holdings_top-holdings_table). Per-ISIN as-of stamp:
 //      `topHoldingsAsOf`.
 //   2. `geo` and `sector` — the country and sector breakdown maps. The
-//      static profile HTML only ships the top-4 + "Other" bucket for these
-//      tables; the full breakdown is loaded by the page through Wicket Ajax
-//      (`holdingsSection-{countries|sectors}-loadMore{Countries|Sectors}`).
-//      We replay that exact Ajax POST with the session cookie captured from
-//      the initial GET, then parse the same `<table data-testid="...">`
-//      structure. Per-ISIN as-of stamp: `breakdownsAsOf`.
-//
-// Currency exposure is *not* refreshed — justETF doesn't publish a per-ETF
-// currency breakdown table at all (only a single fund-base currency in the
-// summary header). The `currency` map in PROFILES therefore stays
-// hand-curated. The Methodology page documents this explicitly.
+//      static profile HTML often ships only the top-4 + "Other" bucket of
+//      these tables and renders a "Show more" link; when the link is
+//      present we replay the same Wicket Ajax POST the browser would
+//      (`holdingsSection-{countries|sectors}-loadMore{Countries|Sectors}`)
+//      with the session cookie captured from the initial GET, and parse
+//      the full `<table data-testid="...">` payload. When the link is
+//      absent (thematic / single-sector ETFs) the static table already
+//      contains every row, so we use it directly and skip the Ajax POST.
+//      Per-ISIN as-of stamp: `breakdownsAsOf`.
+//   3. `currency` — DERIVED from the just-refreshed `geo` map by re-
+//      bucketing each country into its local listing currency
+//      (COUNTRY_TO_CURRENCY below; eurozone members → EUR, etc.).
+//      justETF doesn't publish a per-ETF currency breakdown table — only
+//      a single fund-base currency in the summary header — so this is
+//      the cleanest auto-refreshable approximation. Skipped (and the
+//      curated value left in place) for currency-hedged share classes
+//      in HEDGED_ISINS, where the post-hedging FX exposure is the
+//      share-class hedge currency rather than the underlying country
+//      mix. Shares the `breakdownsAsOf` stamp with geo and sector.
 //
 // Usage (from artifacts/investment-lab):
 //   node scripts/refresh-lookthrough.mjs                 # refresh all ISINs
@@ -431,7 +439,17 @@ async function main() {
     // both waste a request and incorrectly look like a failure.
     let geo;
     let sector;
+    // Tracks whether breakdown extraction was attempted at all for this
+    // ISIN. False only when the profile fetch itself failed earlier (in
+    // which case topFail is already counted; we don't double-count for
+    // breakdowns). True for every other path — including "needed Ajax
+    // but had no session cookie", which IS a breakdown failure (the
+    // load-more link being present means the static table is just a
+    // truncated top-4 preview, so falling back silently would be a
+    // quality regression).
+    let attemptedBreakdowns = false;
     if (html) {
+      attemptedBreakdowns = true;
       const sectorsHasMore = hasLoadMoreLink(html, "sectors");
       const countriesHasMore = hasLoadMoreLink(html, "countries");
 
@@ -451,6 +469,12 @@ async function main() {
         } catch (e) {
           console.warn(`  ! ${isin}: sectors Ajax fetch failed (${e.message})`);
         }
+      } else {
+        // Show-more link present but no session cookie was captured from
+        // the profile GET — Ajax can't be attempted, so this is a real
+        // breakdown failure (sector stays undefined, the outer guard
+        // below routes to breakdownsFail++).
+        console.warn(`  ! ${isin}: sectors needs Ajax but no session cookie was captured`);
       }
 
       // Countries: same pattern.
@@ -465,6 +489,8 @@ async function main() {
         } catch (e) {
           console.warn(`  ! ${isin}: countries Ajax fetch failed (${e.message})`);
         }
+      } else {
+        console.warn(`  ! ${isin}: countries needs Ajax but no session cookie was captured`);
       }
     }
 
@@ -501,17 +527,21 @@ async function main() {
           `)`
       );
       breakdownsOk++;
-    } else if (cookie) {
-      // Cookie was captured (so the page exists) but at least one of the
-      // two breakdown tables didn't parse — leave the existing override or
-      // curated default in place rather than half-overwriting.
+    } else if (attemptedBreakdowns) {
+      // The profile GET succeeded (so we tried) but at least one of the
+      // two breakdown tables didn't parse — either Ajax failed, returned
+      // no rows, or no session cookie was captured for a page that needs
+      // it. Leave the existing override or curated default in place
+      // rather than half-overwriting.
       console.warn(
         `  ! ${isin}: breakdowns extraction failed ` +
           `(geo=${geo ? "ok" : "missing"}, sector=${sector ? "ok" : "missing"}) — leaving previous value`
       );
       breakdownsFail++;
     } else {
-      // Profile fetch already failed; not counting again.
+      // Profile fetch already failed (no html captured). topFail is
+      // already incremented above; not counting this against breakdowns
+      // would double-penalise a single network error.
     }
 
     await sleep(REQUEST_DELAY_MS);

@@ -1,7 +1,7 @@
 {
   "_meta": {
     "source": "justetf.com",
-    "lastRefreshed": "2026-04-24T19:38:21.552Z",
+    "lastRefreshed": "2026-04-24T19:43:14.034Z",
     "refreshedBy": "scripts/refresh-lookthrough.mjs",
     "note": "ISIN -> partial LookthroughProfile overrides applied on top of the curated PROFILES in src/lib/lookthrough.ts. Populated monthly (1st of month, 04:00 UTC) by the refresh-lookthrough GitHub Action. Refreshed fields: topHoldings (top-10 stocks, per-ISIN topHoldingsAsOf stamp), geo / sector breakdown maps (per-ISIN breakdownsAsOf stamp, scraped from justETF — static profile HTML when complete, Wicket Ajax loadMore endpoint with a session cookie when justETF renders a 'Show more' link), and currency (re-bucketed from the just-refreshed geo map via a country -> local-listing-currency table — justETF doesn't publish a per-ETF currency breakdown directly; skipped for currency-hedged share classes whose curated hedge-currency map remains authoritative)."
   },
@@ -140,7 +140,7 @@
           "pct": 1.56
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T19:38:21.552Z",
+      "topHoldingsAsOf": "2026-04-24T19:43:14.034Z",
       "geo": {
         "United States": 95.12,
         "Ireland": 1.47,
@@ -160,7 +160,7 @@
         "Basic Materials": 1.64,
         "Other": 2.81
       },
-      "breakdownsAsOf": "2026-04-24T19:38:21.552Z",
+      "breakdownsAsOf": "2026-04-24T19:43:14.034Z",
       "currency": {
         "USD": 95.12,
         "EUR": 1.47,
