@@ -366,8 +366,30 @@ function PreviewEditor({
           <Input
             value={draft.key}
             onChange={(e) => set("key", e.target.value)}
+            list="catalog-key-suggestions"
+            placeholder="Equity-USA, FixedIncome-Global, …"
             data-testid="input-key"
           />
+          {/* Native HTML5 autocomplete: shows every existing catalog key
+              as a suggestion when you focus the field, but you can still
+              type a brand-new key (needed for the NEW BUCKET case). The
+              datalist itself doesn't render group headings, so we sort
+              alphabetically — that already groups by prefix
+              (Commodities-…, DigitalAssets-…, Equity-…, FixedIncome-…,
+              RealEstate-…) which is the most useful grouping in
+              practice. */}
+          <datalist id="catalog-key-suggestions">
+            {catalog
+              ? Object.keys(catalog)
+                  .sort((a, b) => a.localeCompare(b))
+                  .map((k) => <option key={k} value={k} />)
+              : null}
+          </datalist>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            Pick an existing key to <strong>replace</strong> a bucket, or
+            type a new one (e.g. <code>Equity-AI</code>) to{" "}
+            <strong>add</strong> a new bucket.
+          </p>
         </Field>
         <Field label="Name">
           <Input
