@@ -22,15 +22,27 @@ const GROUP_LABEL_KEY: Record<AllocationGroup, string> = {
 interface Props {
   allocation: ReadonlyArray<AssetAllocation>;
   testIdPrefix?: string;
+  /** "horizontal" (default) renders a 2-col / 4-col responsive grid suitable
+   *  for placement below a chart. "vertical" renders a single stacked column
+   *  suitable for placement beside a chart. */
+  orientation?: "horizontal" | "vertical";
 }
 
-export function AllocationGroupSummary({ allocation, testIdPrefix }: Props) {
+export function AllocationGroupSummary({
+  allocation,
+  testIdPrefix,
+  orientation = "horizontal",
+}: Props) {
   const { t } = useT();
   const summary = summarizeAllocationByGroup(allocation);
+  const containerClass =
+    orientation === "vertical"
+      ? "flex flex-col gap-2"
+      : "grid grid-cols-2 sm:grid-cols-4 gap-2";
 
   return (
     <div
-      className="grid grid-cols-2 sm:grid-cols-4 gap-2"
+      className={containerClass}
       role="list"
       aria-label={t("groups.summary.aria")}
       data-testid={testIdPrefix ? `${testIdPrefix}-group-summary` : "group-summary"}

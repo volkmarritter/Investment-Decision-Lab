@@ -826,35 +826,41 @@ export function BuildPortfolio() {
                     <CardDescription>{t("build.targetAllocation.desc")}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-6">
-                    <div className="h-[200px] w-full">
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={chartData}
-                            cx="50%"
-                            cy="50%"
-                            innerRadius={60}
-                            outerRadius={80}
-                            paddingAngle={2}
-                            dataKey="value"
-                            stroke="none"
-                          >
-                            {chartData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                            ))}
-                          </Pie>
-                          <RechartsTooltip 
-                            formatter={(value: number) => [`${value}%`, 'Weight']}
-                            contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }}
-                          />
-                        </PieChart>
-                      </ResponsiveContainer>
+                    {/* High-level group summary on the left, donut on the right */}
+                    <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,11rem)_minmax(0,1fr)] gap-4 items-center">
+                      {output ? (
+                        <AllocationGroupSummary
+                          allocation={output.allocation}
+                          orientation="vertical"
+                        />
+                      ) : (
+                        <div />
+                      )}
+                      <div className="h-[200px] w-full">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <PieChart>
+                            <Pie
+                              data={chartData}
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={60}
+                              outerRadius={80}
+                              paddingAngle={2}
+                              dataKey="value"
+                              stroke="none"
+                            >
+                              {chartData.map((entry, index) => (
+                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                              ))}
+                            </Pie>
+                            <RechartsTooltip
+                              formatter={(value: number) => [`${value}%`, 'Weight']}
+                              contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }}
+                            />
+                          </PieChart>
+                        </ResponsiveContainer>
+                      </div>
                     </div>
-
-                    {/* High-level group summary: Cash / Bonds / Equities / Satellites */}
-                    {output && (
-                      <AllocationGroupSummary allocation={output.allocation} />
-                    )}
 
                     {/* Horizontal Stacked Bar */}
                     <div className="h-4 w-full flex rounded-full overflow-hidden">

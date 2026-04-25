@@ -551,26 +551,30 @@ export function ComparePortfolios() {
                         <CardTitle>{title}</CardTitle>
                       </CardHeader>
                       <CardContent>
-                        <div className="h-[250px] w-full">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <PieChart>
-                              <Pie data={data} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={2} dataKey="value" stroke="none">
-                                {data.map((_entry, index) => (
-                                  <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                ))}
-                              </Pie>
-                              <RechartsTooltip formatter={(value: number) => [`${value}%`, tr("Weight", "Gewicht")]} contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }} />
-                            </PieChart>
-                          </ResponsiveContainer>
-                        </div>
-                        {allocation.length > 0 && (
-                          <div className="mt-4">
+                        {/* High-level group summary on the left, donut on the right */}
+                        <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)] gap-4 items-center">
+                          {allocation.length > 0 ? (
                             <AllocationGroupSummary
                               allocation={allocation}
                               testIdPrefix={`portfolio-${slot}`}
+                              orientation="vertical"
                             />
+                          ) : (
+                            <div />
+                          )}
+                          <div className="h-[250px] w-full">
+                            <ResponsiveContainer width="100%" height="100%">
+                              <PieChart>
+                                <Pie data={data} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={2} dataKey="value" stroke="none">
+                                  {data.map((_entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                  ))}
+                                </Pie>
+                                <RechartsTooltip formatter={(value: number) => [`${value}%`, tr("Weight", "Gewicht")]} contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }} />
+                              </PieChart>
+                            </ResponsiveContainer>
                           </div>
-                        )}
+                        </div>
                         <div className="h-4 w-full flex rounded-full overflow-hidden mt-4">
                           {data.map((d, i) => (
                             <div key={i} style={{ width: `${d.value}%`, backgroundColor: COLORS[i % COLORS.length] }} title={`${d.name}: ${d.value}%`} className="h-full" />
