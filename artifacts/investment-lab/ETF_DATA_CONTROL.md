@@ -184,13 +184,100 @@ The component `src/components/investment/SnapshotFreshness.tsx` reads this metad
 
 ---
 
-## 8. Future options (not implemented today)
+## 8. Where the files actually live (Replit ↔ GitHub ↔ Live site)
 
-If the maintenance flow gets heavier, three add-ons are easy to bolt on later:
+This is the part most people get tangled up on. There are **three places** the files exist, and they each play a different role.
 
-1. **In-app "Refresh now" button** — a small admin endpoint on the api-server that triggers a scraper run; surfaced via a hidden control in the Lab.
-2. **Manual override layer** above the scraper — a `etfs.manual.json` whose values win over the scraped overrides, so individual fields can be pinned without modifying the curated source.
-3. **Per-ETF "last verified" badge** in the ETF table itself, for finer-grained transparency than the current global freshness banner.
+```
+GitHub                       Replit workspace             Live website
+(source-of-truth repo,       (where you edit and          (.replit.app — what
+ where the scrapers run)      where the dev preview        real visitors see)
+                              runs)
+
+   ┌──────┐                      ┌──────┐                    ┌──────┐
+   │ JSON │                      │ JSON │                    │ JSON │
+   │ v1   │ ─── git sync ──►     │ v1   │ ── publish ──►     │ v1   │
+   └──────┘                      └──────┘                    └──────┘
+
+   robot scrapes
+   new data nightly
+   ▼
+   ┌──────┐
+   │ JSON │
+   │ v2   │ ─── git sync ──►     ┌──────┐                    ┌──────┐
+   └──────┘                      │ JSON │                    │ JSON │
+                                 │ v2   │                    │ v1   │  ◄── still v1!
+                                 └──────┘                    └──────┘
+                                                            (visitors still see
+                                    │                        the old data)
+                            you click Publish
+                                    │
+                                    ▼
+                                                             ┌──────┐
+                                                             │ JSON │
+                                                             │ v2   │  ◄── now visitors
+                                                             └──────┘     see the fresh data
+```
+
+### Roles in plain terms
+
+| Place | What it is | What lives here | Who can change it |
+|---|---|---|---|
+| **GitHub** (`github.com/volkmarritter/Investment-Decision-Lab`) | The off-site "factory" and backup | The whole repo + a full git history. The scheduled scrapers run *here*, on GitHub Actions runners. | The scheduled robot (auto), or anyone with repo access manually. |
+| **Replit workspace** (`/home/runner/workspace` in the container) | The "desk" where editing happens and the dev preview runs | A live working copy of the same files, plus the running dev servers (vite, the api-server, etc.). | You / the agent (via chat or the in-browser editor). |
+| **Live website** (`*.replit.app`) | The public site visitors land on | A frozen build of whatever was in the workspace at the moment of the last publish. | Only updated when you click **Publish**. |
+
+### How an ETF data refresh actually reaches users
+
+The full chain, end to end:
+
+1. **Robot scrapes (on GitHub).** A GitHub Action wakes up on schedule, scrapes justETF, writes the new numbers into `src/data/*.overrides.json`, commits and pushes back to the repo. → *GitHub now has fresh data, Replit and the live site do not.*
+2. **Sync into Replit.** Opening the Replit workspace pulls the latest commits down (or you can pull manually). → *Replit now has fresh data, the live site still does not.*
+3. **You click Publish.** Replit builds the site from the current workspace and replaces the live `.replit.app` build. → *Visitors finally see fresh data.*
+
+**Until step 3, nothing changes for real users.** The dev preview will already show the new data after step 2, but that preview is private to you.
+
+### Common misconceptions, cleared up
+
+- *"GitHub is the live site."* — No. GitHub is the source of truth and the place the scheduled jobs run. The actual website is hosted on Replit.
+- *"Editing on GitHub directly updates the site."* — No. Editing on GitHub only updates the repo. The Replit workspace then needs to pull that change in, and you still need to publish.
+- *"The dev preview is the live site."* — No. The preview is your private working copy. Real visitors only ever see the last *published* build.
+- *"Publishing happens automatically when GitHub commits."* — Not today. It's a manual click. Optional: see §10 for an auto-publish setup.
+
+---
+
+## 9. Three ways to change something — and which to pick
+
+| You want to… | Best path | Why |
+|---|---|---|
+| Tweak some text, a colour, a label | **Ask the agent in chat** *or* edit the file directly in the Replit editor | Both are fast; the agent will also run type-checks and tests for you. |
+| Add / swap / remove an ETF in the catalog | **Ask the agent** | Touches multiple files (`etfs.ts`, possibly `engine.ts`, possibly `lookthrough.ts`) and needs the scrapers to be re-run for the new ISIN — easy to miss a step manually. |
+| Change a scheduled job, the README, or a `.github/` workflow | **Edit on GitHub** is fine | These files don't affect the dev server, so editing on GitHub and pulling later works cleanly. |
+| Force fresh ETF data onto the live site right now | Pull latest from GitHub into the workspace, then click **Publish** | Step 2 + Step 3 of the chain above. |
+
+### Editing in the Replit workspace (manual path)
+
+1. Open the workspace.
+2. Open the **Files** view from the left icon strip (or press **Ctrl/Cmd + P** and type the file name — quickest way to jump straight to a file).
+3. Drill: `artifacts → investment-lab → src → lib → etfs.ts` (or whatever file you need).
+4. Edit and save. The dev preview hot-reloads in ~1 second.
+5. Replit auto-commits the change as a checkpoint and mirrors it to GitHub.
+6. To make it live, click **Publish**.
+
+### Editing via the agent (chat path)
+
+Just say what you want — *"swap the EM ETF to iShares MSCI EM ex-China"*, *"change the TER on Equity-USA to 5 bps"*. The agent finds the file, edits it, runs type-checks and tests, and confirms in the preview. You then click **Publish** when satisfied.
+
+---
+
+## 10. Future options (not implemented today)
+
+If the maintenance flow gets heavier, four add-ons are easy to bolt on later:
+
+1. **Auto-publish on data refresh** — a webhook from GitHub → Replit so that whenever the scheduled scraper commits new ETF data, the live site automatically rebuilds. Removes the manual *Publish* step from the chain in §8.
+2. **In-app "Refresh now" button** — a small admin endpoint on the api-server that triggers a scraper run; surfaced via a hidden control in the Lab.
+3. **Manual override layer** above the scraper — a `etfs.manual.json` whose values win over the scraped overrides, so individual fields can be pinned without modifying the curated source.
+4. **Per-ETF "last verified" badge** in the ETF table itself, for finer-grained transparency than the current global freshness banner.
 
 Open a request when any of these become useful.
 
@@ -198,4 +285,5 @@ Open a request when any of these become useful.
 
 ## Changelog
 
+- **2026-04-25** — Added §8 (Replit ↔ GitHub ↔ Live site flow with diagram), §9 (three ways to change something), and option 1 in §10 (auto-publish on data refresh).
 - **2026-04-25** — Initial version, extracted from chat into a standalone document.
