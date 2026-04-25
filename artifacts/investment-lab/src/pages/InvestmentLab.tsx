@@ -70,16 +70,20 @@ export default function InvestmentLab() {
             </TabsList>
           </div>
 
-          <TabsContent value="build" className="m-0 focus-visible:outline-none">
+          {/* forceMount keeps each tab panel mounted across tab switches so
+           *  the user's generated portfolio (and any in-flight form state)
+           *  is preserved when navigating away and back. Radix sets the
+           *  `hidden` attribute on inactive panels, so they take no space. */}
+          <TabsContent value="build" forceMount className="m-0 focus-visible:outline-none data-[state=inactive]:hidden">
             <BuildPortfolio />
           </TabsContent>
-          <TabsContent value="compare" className="m-0 focus-visible:outline-none">
+          <TabsContent value="compare" forceMount className="m-0 focus-visible:outline-none data-[state=inactive]:hidden">
             <ComparePortfolios />
           </TabsContent>
-          <TabsContent value="explain" className="m-0 focus-visible:outline-none">
+          <TabsContent value="explain" forceMount className="m-0 focus-visible:outline-none data-[state=inactive]:hidden">
             <ExplainPortfolio />
           </TabsContent>
-          <TabsContent value="methodology" className="m-0 focus-visible:outline-none">
+          <TabsContent value="methodology" forceMount className="m-0 focus-visible:outline-none data-[state=inactive]:hidden">
             <Methodology />
           </TabsContent>
         </Tabs>

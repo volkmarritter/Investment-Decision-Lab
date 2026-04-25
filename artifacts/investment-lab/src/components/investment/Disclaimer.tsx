@@ -13,8 +13,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useT } from "@/lib/i18n";
 
 export function DisclaimerFooter() {
-  const { t } = useT();
+  const { t, lang } = useT();
   const [open, setOpen] = useState(false);
+  // Language-aware BICon site link (German default vs English subpath).
+  const biconHref = lang === "de" ? "https://www.bicon.li" : "https://www.bicon.li/en/";
 
   return (
     <footer className="mt-12 border-t border-border bg-muted/30">
@@ -51,6 +53,29 @@ export function DisclaimerFooter() {
               </DialogContent>
             </Dialog>
           </div>
+        </div>
+
+        {/* BICon brand line + outbound link, language-aware. */}
+        <div className="border-t border-border/60 pt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-muted-foreground">
+          <p className="leading-relaxed">
+            © BICon | Business &amp; IT Consulting –{" "}
+            <span className="whitespace-nowrap">Strategy. Technology. Financial Services.</span>
+          </p>
+          <Button
+            asChild
+            variant="outline"
+            size="sm"
+            className="h-7 px-3 text-xs self-start sm:self-auto"
+          >
+            <a
+              href={biconHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="bicon-link"
+            >
+              bicon.li
+            </a>
+          </Button>
         </div>
       </div>
     </footer>
