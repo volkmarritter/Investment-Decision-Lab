@@ -21,24 +21,16 @@
 // ----------------------------------------------------------------------------
 
 import { Octokit } from "@octokit/rest";
+import { renderEntryBlock, type NewEtfEntry } from "./render-entry";
+import { findMatchingClose } from "./catalog-parser";
 
-export interface NewEtfEntry {
-  key: string;
-  name: string;
-  isin: string;
-  terBps: number;
-  domicile: string;
-  replication: "Physical" | "Physical (sampled)" | "Synthetic";
-  distribution: "Accumulating" | "Distributing";
-  currency: string;
-  comment: string;
-  defaultExchange: "LSE" | "XETRA" | "SIX" | "Euronext";
-  listings: Partial<
-    Record<"LSE" | "XETRA" | "SIX" | "Euronext", { ticker: string }>
-  >;
-  aumMillionsEUR?: number;
-  inceptionDate?: string;
-}
+// Re-exported so downstream callers (admin.ts, tests) keep importing the
+// canonical entry shape from one place. The implementation lives in
+// render-entry.ts so the renderer can be reused by the admin UI's
+// "Show generated code" disclosure without dragging octokit into the
+// test bundle.
+export type { NewEtfEntry };
+export { renderEntryBlock };
 
 export interface PrCreationContext {
   policyFit: { aumOk: boolean; terOk: boolean; notes: string[] };
@@ -131,14 +123,17 @@ export async function openAddEtfPr(
     sha: fileMeta.sha,
   });
 
-  // 5. Open the PR.
+  // 5. Open the PR. We re-render the same entry block we just inserted so
+  // the PR body shows the literal TS GitHub will see — keeps the operator
+  // and the reviewer looking at the same string.
+  const renderedBlock = renderEntryBlock(entry, "  ");
   const { data: pr } = await octokit.pulls.create({
     owner,
     repo,
     head: branch,
     base,
     title: `Add ${entry.name} (${entry.isin}) to ETF catalog`,
-    body: buildPrBody(entry, ctx),
+    body: buildPrBody(entry, ctx, renderedBlock),
   });
 
   return { url: pr.html_url, number: pr.number };
@@ -168,21 +163,11 @@ export function injectEntry(
       "Could not locate `const CATALOG: Record<string, ETFRecord> = {` in etfs.ts.",
     );
   }
-  // Find the matching closing brace by tracking depth from the opening `{`.
+  // Find the matching closing brace using the string- and comment-aware
+  // walker so a comment field containing literal `{`/`}` (which JSON
+  // doesn't escape) can't truncate the catalog and corrupt the diff.
   const openBrace = source.indexOf("{", catalogStart);
-  let depth = 0;
-  let close = -1;
-  for (let i = openBrace; i < source.length; i++) {
-    const ch = source[i];
-    if (ch === "{") depth++;
-    else if (ch === "}") {
-      depth--;
-      if (depth === 0) {
-        close = i;
-        break;
-      }
-    }
-  }
+  const close = findMatchingClose(source, openBrace);
   if (close < 0) {
     throw new Error("Unbalanced braces in etfs.ts — refusing to edit.");
   }
@@ -199,43 +184,11 @@ export function injectEntry(
   return { content, alreadyPresent: false };
 }
 
-function renderEntryBlock(entry: NewEtfEntry, indent: string): string {
-  // Defence-in-depth: even though validateEntry whitelists exchange keys,
-  // we ALSO emit them through JSON.stringify (which produces quoted
-  // identifiers) so a future validation regression can't inject raw TS
-  // tokens via a malicious listings key.
-  const listingsParts: string[] = [];
-  for (const [ex, val] of Object.entries(entry.listings)) {
-    if (!val) continue;
-    listingsParts.push(`${json(ex)}: { ticker: ${json(val.ticker)} }`);
-  }
-  const listingsLiteral = `{ ${listingsParts.join(", ")} }`;
-
-  const optionalLines: string[] = [];
-  if (entry.aumMillionsEUR !== undefined) {
-    optionalLines.push(`${indent}  aumMillionsEUR: ${entry.aumMillionsEUR},`);
-  }
-  if (entry.inceptionDate) {
-    optionalLines.push(`${indent}  inceptionDate: ${json(entry.inceptionDate)},`);
-  }
-  return [
-    `${indent}${json(entry.key)}: E({`,
-    `${indent}  name: ${json(entry.name)},`,
-    `${indent}  isin: ${json(entry.isin)},`,
-    `${indent}  terBps: ${entry.terBps},`,
-    `${indent}  domicile: ${json(entry.domicile)},`,
-    `${indent}  replication: ${json(entry.replication)},`,
-    `${indent}  distribution: ${json(entry.distribution)},`,
-    `${indent}  currency: ${json(entry.currency)},`,
-    `${indent}  comment: ${json(entry.comment)},`,
-    `${indent}  listings: ${listingsLiteral},`,
-    `${indent}  defaultExchange: ${json(entry.defaultExchange)},`,
-    ...optionalLines,
-    `${indent}}),`,
-  ].join("\n");
-}
-
-function buildPrBody(entry: NewEtfEntry, ctx: PrCreationContext): string {
+function buildPrBody(
+  entry: NewEtfEntry,
+  ctx: PrCreationContext,
+  renderedBlock: string,
+): string {
   const fitLines = [
     `- AUM > €100M: ${ctx.policyFit.aumOk ? "yes" : "no"} (${
       entry.aumMillionsEUR ?? "n/a"
@@ -253,6 +206,12 @@ function buildPrBody(entry: NewEtfEntry, ctx: PrCreationContext): string {
     "**Policy fit**",
     ...fitLines,
     "",
+    "**Generated entry**",
+    "",
+    "```ts",
+    renderedBlock,
+    "```",
+    "",
     "**Reviewer checklist**",
     "- Confirm the catalog key is in the right asset class.",
     "- Confirm `defaultExchange` matches your preferred listing.",
@@ -263,9 +222,6 @@ function buildPrBody(entry: NewEtfEntry, ctx: PrCreationContext): string {
   ].join("\n");
 }
 
-function json(v: string): string {
-  return JSON.stringify(v);
-}
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

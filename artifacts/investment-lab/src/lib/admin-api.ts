@@ -133,6 +133,27 @@ export interface AddEtfRequest {
   inceptionDate?: string;
 }
 
+// Mirrors CatalogEntrySummary from artifacts/api-server/src/lib/catalog-parser.ts.
+// Listings/aum/inception are optional in the static catalog source — the
+// renderer fills them in from the override layer at runtime.
+export interface CatalogEntrySummary {
+  key: string;
+  name: string;
+  isin: string;
+  terBps: number;
+  domicile: string;
+  replication: string;
+  distribution: string;
+  currency: string;
+  comment: string;
+  listings: Record<string, { ticker: string }>;
+  defaultExchange: string;
+  aumMillionsEUR?: number;
+  inceptionDate?: string;
+}
+
+export type CatalogSummary = Record<string, CatalogEntrySummary>;
+
 export const adminApi = {
   whoami: (token?: string) =>
     call<{ ok: boolean; githubConfigured: boolean }>("/admin/whoami", {
@@ -149,6 +170,12 @@ export const adminApi = {
     call<PreviewResponse>("/admin/preview-isin", {
       method: "POST",
       body: JSON.stringify({ isin }),
+    }),
+  catalog: () => call<{ entries: CatalogSummary }>("/admin/catalog"),
+  renderEntry: (entry: AddEtfRequest) =>
+    call<{ code: string }>("/admin/render-entry", {
+      method: "POST",
+      body: JSON.stringify({ entry }),
     }),
   addIsin: (entry: AddEtfRequest) =>
     call<{ ok: boolean; prUrl: string; prNumber: number }>("/admin/add-isin", {

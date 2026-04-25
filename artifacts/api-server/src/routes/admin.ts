@@ -22,7 +22,13 @@ import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { requireAdmin } from "../middlewares/admin-auth";
 import { dataFile } from "../lib/data-paths";
-import { githubConfigured, openAddEtfPr, type NewEtfEntry } from "../lib/github";
+import {
+  githubConfigured,
+  openAddEtfPr,
+  renderEntryBlock,
+  type NewEtfEntry,
+} from "../lib/github";
+import { findDuplicateIsinKey, loadCatalog } from "../lib/catalog-parser";
 // Cross-artifact import of the pure scraper helpers (typed via
 // src/types/justetf-scraper.d.ts). The api-server is bundled by esbuild,
 // so the .mjs is inlined into dist/index.mjs at build time and there's no
@@ -101,6 +107,46 @@ router.get("/admin/freshness", async (_req, res) => {
       "refresh-lookthrough (monthly)": "0 4 1 * *",
     },
   });
+});
+
+// --- /api/admin/catalog ------------------------------------------------------
+// Returns a summary of every entry in the static CATALOG literal. The
+// admin pane uses this to classify a draft entry as NEW / REPLACE /
+// DUPLICATE_ISIN before the operator clicks Open PR. Cached per process
+// (content-keyed) so repeated polls don't re-parse the file.
+router.get("/admin/catalog", async (_req, res) => {
+  try {
+    const entries = await loadCatalog();
+    res.json({ entries });
+  } catch (err) {
+    res.status(500).json({
+      error: "catalog_parse_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+// --- /api/admin/render-entry -------------------------------------------------
+// Returns the literal `"<key>": E({...})` TS block that would be inserted
+// into etfs.ts for the given draft. Same renderer the PR-creation flow
+// uses, so the in-app "Show generated code" disclosure is byte-identical
+// to what GitHub will see.
+router.post("/admin/render-entry", (req, res) => {
+  const entry = req.body?.entry as NewEtfEntry | undefined;
+  const validationError = validateEntry(entry);
+  if (validationError || !entry) {
+    res.status(400).json({ error: "invalid_entry", message: validationError });
+    return;
+  }
+  try {
+    const code = renderEntryBlock(entry, "  ");
+    res.json({ code });
+  } catch (err) {
+    res.status(500).json({
+      error: "render_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
 });
 
 // --- /api/admin/preview-isin -------------------------------------------------
@@ -193,6 +239,33 @@ router.post("/admin/add-isin", async (req, res) => {
       error: "github_not_configured",
       message:
         "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
+    });
+    return;
+  }
+
+  // Belt-and-braces duplicate-ISIN guard. The UI already disables the
+  // submit button when classifyDraft returns DUPLICATE_ISIN, but a stale
+  // catalog snapshot in the browser (or a direct API call bypassing the
+  // UI) could otherwise still open a PR that silently overwrites another
+  // entry's ISIN on merge. Enforce the same rule server-side using the
+  // freshest catalog source.
+  try {
+    const catalog = await loadCatalog();
+    const dupKey = findDuplicateIsinKey(catalog, entry.key, entry.isin);
+    if (dupKey) {
+      res.status(409).json({
+        error: "duplicate_isin",
+        message: `ISIN ${entry.isin} is already used by catalog key "${dupKey}". Change the ISIN, or change the catalog key to "${dupKey}" if you want to replace it.`,
+        conflictKey: dupKey,
+      });
+      return;
+    }
+  } catch (err) {
+    // If we can't load the catalog we'd rather fail closed than open a
+    // PR blind: surface the parse failure to the operator.
+    res.status(500).json({
+      error: "catalog_parse_failed",
+      message: err instanceof Error ? err.message : String(err),
     });
     return;
   }

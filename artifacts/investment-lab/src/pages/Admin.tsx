@@ -17,11 +17,13 @@ import {
   getToken,
   setToken,
   type AddEtfRequest,
+  type CatalogSummary,
   type ChangeEntry,
   type FreshnessResponse,
   type PreviewResponse,
   type RunLogRow,
 } from "@/lib/admin-api";
+import { classifyDraft, type ClassifyResult } from "@/lib/catalog-classify";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,7 +40,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { Layers, LogOut, RefreshCw } from "lucide-react";
+import { ChevronDown, ChevronRight, Layers, LogOut, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 type Replication = AddEtfRequest["replication"];
@@ -186,6 +188,18 @@ function SuggestIsinPanel({ githubConfigured }: { githubConfigured: boolean }) {
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [draft, setDraft] = useState<AddEtfRequest | null>(null);
   const [errMsg, setErrMsg] = useState<string | null>(null);
+  const [catalog, setCatalog] = useState<CatalogSummary | null>(null);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+
+  // Load the live catalog summary once on mount; the diff panel needs it
+  // to classify drafts as NEW / REPLACE / DUPLICATE_ISIN. Failure here
+  // surfaces inline so the operator knows the diff is "best effort".
+  useEffect(() => {
+    adminApi
+      .catalog()
+      .then((r) => setCatalog(r.entries))
+      .catch((e: Error) => setCatalogError(e.message));
+  }, []);
 
   async function runPreview() {
     setErrMsg(null);
@@ -257,6 +271,15 @@ function SuggestIsinPanel({ githubConfigured }: { githubConfigured: boolean }) {
             <AlertDescription>{errMsg}</AlertDescription>
           </Alert>
         )}
+        {catalogError && (
+          <Alert variant="destructive">
+            <AlertTitle>Could not load catalog</AlertTitle>
+            <AlertDescription>
+              {catalogError} — replace-vs-add diff is unavailable until this
+              clears.
+            </AlertDescription>
+          </Alert>
+        )}
         {!githubConfigured && draft && (
           <Alert>
             <AlertTitle>GitHub not configured</AlertTitle>
@@ -275,6 +298,7 @@ function SuggestIsinPanel({ githubConfigured }: { githubConfigured: boolean }) {
             onSubmit={submitPr}
             submitting={submitting}
             githubConfigured={githubConfigured}
+            catalog={catalog}
           />
         )}
       </CardContent>
@@ -289,6 +313,7 @@ function PreviewEditor({
   onSubmit,
   submitting,
   githubConfigured,
+  catalog,
 }: {
   preview: PreviewResponse;
   draft: AddEtfRequest;
@@ -296,9 +321,17 @@ function PreviewEditor({
   onSubmit: () => void;
   submitting: boolean;
   githubConfigured: boolean;
+  catalog: CatalogSummary | null;
 }) {
   const set = <K extends keyof AddEtfRequest>(k: K, v: AddEtfRequest[K]) =>
     onChange({ ...draft, [k]: v });
+
+  const classification = useMemo<ClassifyResult | null>(() => {
+    if (!catalog) return null;
+    return classifyDraft(catalog, draft.key, draft.isin);
+  }, [catalog, draft.key, draft.isin]);
+
+  const blockedByDuplicate = classification?.state === "DUPLICATE_ISIN";
 
   return (
     <div className="space-y-4 border rounded-md p-4 bg-muted/30">
@@ -467,14 +500,304 @@ function PreviewEditor({
         </div>
       </div>
 
+      <DiffPanel classification={classification} draft={draft} />
+
       <Button
         className="w-full"
         onClick={onSubmit}
-        disabled={submitting || !githubConfigured}
+        disabled={submitting || !githubConfigured || blockedByDuplicate}
         data-testid="button-submit-pr"
       >
-        {submitting ? "Opening PR…" : "Open PR to add to catalog"}
+        {submitting
+          ? "Opening PR…"
+          : blockedByDuplicate
+            ? "Resolve the ISIN clash above to continue"
+            : classification?.state === "REPLACE"
+              ? "Open PR to replace the existing entry"
+              : "Open PR to add to catalog"}
       </Button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Replace-vs-add diff panel
+// ---------------------------------------------------------------------------
+function DiffPanel({
+  classification,
+  draft,
+}: {
+  classification: ClassifyResult | null;
+  draft: AddEtfRequest;
+}) {
+  if (!classification) {
+    return (
+      <div className="text-xs text-muted-foreground" data-testid="diff-panel-loading">
+        Loading catalog…
+      </div>
+    );
+  }
+
+  if (classification.state === "DUPLICATE_ISIN") {
+    return (
+      <div
+        className="border border-destructive/40 rounded-md p-3 bg-destructive/10 space-y-2"
+        data-testid="diff-panel-duplicate"
+      >
+        <div className="flex items-center gap-2">
+          <Badge variant="destructive">Duplicate ISIN</Badge>
+          <span className="text-sm">
+            This ISIN is already used by{" "}
+            <code className="font-mono text-xs">
+              {classification.conflictKey}
+            </code>
+            .
+          </span>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Existing entry: <strong>{classification.conflict.name}</strong>{" "}
+          ({classification.conflict.isin}). Change the ISIN — or change the
+          catalog key to <code>{classification.conflictKey}</code> if you
+          want to replace it — before opening a PR.
+        </p>
+      </div>
+    );
+  }
+
+  if (classification.state === "NEW") {
+    return (
+      <div
+        className="border border-emerald-500/40 rounded-md p-3 bg-emerald-500/10 space-y-3"
+        data-testid="diff-panel-new"
+      >
+        <div className="flex items-center gap-2">
+          <Badge className="bg-emerald-600 hover:bg-emerald-600">
+            New bucket
+          </Badge>
+          <span className="text-sm">
+            <code className="font-mono text-xs">{draft.key || "(no key)"}</code>{" "}
+            doesn't exist yet — this PR will add a new entry.
+          </span>
+        </div>
+        <GeneratedCodeDisclosure draft={draft} />
+      </div>
+    );
+  }
+
+  // REPLACE
+  return (
+    <div
+      className="border border-amber-500/50 rounded-md p-3 bg-amber-500/10 space-y-3"
+      data-testid="diff-panel-replace"
+    >
+      <div className="flex items-center gap-2">
+        <Badge className="bg-amber-600 hover:bg-amber-600">
+          Replaces existing entry
+        </Badge>
+        <span className="text-sm">
+          <code className="font-mono text-xs">{draft.key}</code> already exists
+          in the catalog. Review the diff before opening a PR.
+        </span>
+      </div>
+      <SideBySideDiff existing={classification.existing} draft={draft} />
+      <GeneratedCodeDisclosure draft={draft} />
+    </div>
+  );
+}
+
+// Fixed list of fields, in the same order the renderer emits them, so the
+// table mirrors what the PR diff will look like.
+type DiffRow = {
+  label: string;
+  current: string;
+  proposed: string;
+};
+
+function buildDiffRows(
+  existing: NonNullable<Extract<ClassifyResult, { state: "REPLACE" }>>["existing"],
+  draft: AddEtfRequest,
+): DiffRow[] {
+  const fmtListings = (l: Record<string, { ticker: string }>) => {
+    const parts = Object.entries(l).map(([ex, v]) => `${ex}:${v.ticker}`);
+    return parts.length === 0 ? "—" : parts.join(", ");
+  };
+  const fmtNum = (n: number | undefined) =>
+    n === undefined ? "—" : String(n);
+  const fmtStr = (s: string | undefined) =>
+    s === undefined || s === "" ? "—" : s;
+  return [
+    { label: "name", current: existing.name, proposed: draft.name },
+    { label: "isin", current: existing.isin, proposed: draft.isin },
+    {
+      label: "terBps",
+      current: fmtNum(existing.terBps),
+      proposed: fmtNum(draft.terBps),
+    },
+    { label: "domicile", current: existing.domicile, proposed: draft.domicile },
+    {
+      label: "replication",
+      current: existing.replication,
+      proposed: draft.replication,
+    },
+    {
+      label: "distribution",
+      current: existing.distribution,
+      proposed: draft.distribution,
+    },
+    { label: "currency", current: existing.currency, proposed: draft.currency },
+    {
+      label: "comment",
+      current: fmtStr(existing.comment),
+      proposed: fmtStr(draft.comment),
+    },
+    {
+      label: "listings",
+      current: fmtListings(existing.listings),
+      proposed: fmtListings(
+        Object.fromEntries(
+          Object.entries(draft.listings).filter(([, v]) => v) as [
+            string,
+            { ticker: string },
+          ][],
+        ),
+      ),
+    },
+    {
+      label: "defaultExchange",
+      current: existing.defaultExchange,
+      proposed: draft.defaultExchange,
+    },
+    {
+      label: "aumMillionsEUR",
+      current: fmtNum(existing.aumMillionsEUR),
+      proposed: fmtNum(draft.aumMillionsEUR),
+    },
+    {
+      label: "inceptionDate",
+      current: fmtStr(existing.inceptionDate),
+      proposed: fmtStr(draft.inceptionDate),
+    },
+  ];
+}
+
+function SideBySideDiff({
+  existing,
+  draft,
+}: {
+  existing: Extract<ClassifyResult, { state: "REPLACE" }>["existing"];
+  draft: AddEtfRequest;
+}) {
+  const rows = useMemo(() => buildDiffRows(existing, draft), [existing, draft]);
+  return (
+    <div className="overflow-x-auto" data-testid="diff-table">
+      <table className="text-xs w-full border-collapse">
+        <thead>
+          <tr className="text-left border-b">
+            <th className="py-1 pr-2 font-medium w-32">Field</th>
+            <th className="py-1 pr-2 font-medium">Current (in catalog)</th>
+            <th className="py-1 pr-2 font-medium">Proposed (this PR)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const changed = r.current !== r.proposed;
+            return (
+              <tr key={r.label} className="border-b align-top">
+                <td className="py-1 pr-2 font-mono text-muted-foreground">
+                  {r.label}
+                </td>
+                <td
+                  className={`py-1 pr-2 break-words ${changed ? "bg-rose-500/10" : ""}`}
+                  data-testid={`diff-current-${r.label}`}
+                >
+                  {r.current}
+                </td>
+                <td
+                  className={`py-1 pr-2 break-words ${changed ? "bg-emerald-500/15" : ""}`}
+                  data-testid={`diff-proposed-${r.label}`}
+                >
+                  {r.proposed}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+      <p className="text-[10px] text-muted-foreground mt-1">
+        Note: <code>aumMillionsEUR</code> and <code>inceptionDate</code> live
+        in the override layer (refreshed nightly), not the static catalog —
+        the "current" column shows "—" if they weren't curated by hand.
+      </p>
+    </div>
+  );
+}
+
+// "Show generated code" disclosure — calls the api-server's render-entry
+// endpoint so the operator sees the exact TS block GitHub will receive.
+// Lazy: we only fire the request when the disclosure is opened, then
+// re-fetch (debounced) while it stays open and the draft changes.
+function GeneratedCodeDisclosure({ draft }: { draft: AddEtfRequest }) {
+  const [open, setOpen] = useState(false);
+  const [code, setCode] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    const handle = setTimeout(() => {
+      adminApi
+        .renderEntry(draft)
+        .then((r) => {
+          if (!cancelled) setCode(r.code);
+        })
+        .catch((e: Error) => {
+          if (!cancelled) setError(e.message);
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(handle);
+    };
+  }, [open, draft]);
+
+  return (
+    <div>
+      <button
+        type="button"
+        className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground"
+        onClick={() => setOpen((v) => !v)}
+        data-testid="button-show-generated-code"
+      >
+        {open ? (
+          <ChevronDown className="h-3 w-3" />
+        ) : (
+          <ChevronRight className="h-3 w-3" />
+        )}
+        {open ? "Hide generated code" : "Show generated code"}
+      </button>
+      {open && (
+        <div className="mt-2" data-testid="generated-code-block">
+          {loading && !code && (
+            <p className="text-xs text-muted-foreground">Rendering…</p>
+          )}
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+          {code && (
+            <pre className="text-[11px] bg-background border rounded p-2 overflow-x-auto whitespace-pre">
+              {code}
+            </pre>
+          )}
+        </div>
+      )}
     </div>
   );
 }

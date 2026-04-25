@@ -16,6 +16,7 @@
 import { resolve } from "node:path";
 
 const DEFAULT_REL = "../investment-lab/src/data";
+const DEFAULT_CATALOG_REL = "../investment-lab/src/lib/etfs.ts";
 
 export function dataDir(): string {
   if (process.env.INVESTMENT_LAB_DATA_DIR) {
@@ -26,4 +27,15 @@ export function dataDir(): string {
 
 export function dataFile(name: string): string {
   return resolve(dataDir(), name);
+}
+
+// Path to the canonical catalog source file. The admin pane's
+// replace-vs-add diff parses this on demand to detect whether a chosen
+// catalog key already exists. Override via INVESTMENT_LAB_CATALOG_PATH if
+// the api-server is deployed away from the rest of the monorepo.
+export function getCatalogPath(): string {
+  if (process.env.INVESTMENT_LAB_CATALOG_PATH) {
+    return resolve(process.env.INVESTMENT_LAB_CATALOG_PATH);
+  }
+  return resolve(process.cwd(), DEFAULT_CATALOG_REL);
 }
