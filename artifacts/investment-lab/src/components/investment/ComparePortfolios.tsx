@@ -222,7 +222,28 @@ export function ComparePortfolios() {
                 <InfoHint iconClassName="h-3 w-3">{t("build.riskAppetite.tooltip")}</InfoHint>
               </FormLabel>
               <FormControl>
-                <RadioGroup onValueChange={field.onChange} value={field.value} className="grid grid-cols-2 gap-2">
+                <RadioGroup
+                  onValueChange={(val) => {
+                    field.onChange(val);
+                    // Mirror the Build tab: when the user changes Risk Appetite,
+                    // jump the Target Equity Allocation slider to the canonical
+                    // anchor for that risk band so the two inputs stay coherent.
+                    const map: Record<string, number> = {
+                      Low: 20,
+                      Moderate: 40,
+                      High: 60,
+                      "Very High": 80,
+                    };
+                    if (map[val] !== undefined) {
+                      form.setValue(`${prefix}.targetEquityPct`, map[val], {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      });
+                    }
+                  }}
+                  value={field.value}
+                  className="grid grid-cols-2 gap-2"
+                >
                   {(["Low", "Moderate", "High", "Very High"] as const).map((risk) => {
                     const label = lang === "de"
                       ? ({ Low: "Niedrig", Moderate: "Moderat", High: "Hoch", "Very High": "Sehr hoch" } as const)[risk]
