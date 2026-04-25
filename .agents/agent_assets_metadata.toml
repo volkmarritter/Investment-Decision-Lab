@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "GRfYFSTISBF_9PwpWUg7R"
+uri = "file://artifacts/investment-lab/ETF_DATA_CONTROL.md"
+type = "text"
+title = "ETF Data Control Guide"
