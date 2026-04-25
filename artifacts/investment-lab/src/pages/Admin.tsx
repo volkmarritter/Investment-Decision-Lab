@@ -560,6 +560,10 @@ function DiffPanel({
           catalog key to <code>{classification.conflictKey}</code> if you
           want to replace it — before opening a PR.
         </p>
+        {/* Still expose the generated TS even while the PR is blocked,
+            so the operator can sanity-check what would have been written
+            (e.g. to compare against the existing entry shown above). */}
+        <GeneratedCodeDisclosure draft={draft} />
       </div>
     );
   }
