@@ -58,8 +58,8 @@ jobs:
         # every scheduled invocation leaves a git commit and a Trigger-tagged
         # row in src/data/refresh-runs.log.md.
         run: |
-          git add artifacts/investment-lab/src/data/lookthrough.overrides.json artifacts/investment-lab/src/data/refresh-runs.log.md || true
-          if [[ -n "$(git status --porcelain artifacts/investment-lab/src/data/lookthrough.overrides.json artifacts/investment-lab/src/data/refresh-runs.log.md)" ]]; then
+          git add artifacts/investment-lab/src/data/lookthrough.overrides.json artifacts/investment-lab/src/data/refresh-runs.log.md artifacts/investment-lab/src/data/refresh-changes.log.jsonl || true
+          if [[ -n "$(git status --porcelain artifacts/investment-lab/src/data/lookthrough.overrides.json artifacts/investment-lab/src/data/refresh-runs.log.md artifacts/investment-lab/src/data/refresh-changes.log.jsonl)" ]]; then
             git config user.name  "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
             git commit -m "chore(data): monthly justETF look-through snapshot $(date -u +%Y-%m-%d)"

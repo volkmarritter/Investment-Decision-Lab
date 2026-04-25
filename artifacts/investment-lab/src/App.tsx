@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { LanguageProvider } from "@/lib/i18n";
 import NotFound from "@/pages/not-found";
 import InvestmentLab from "@/pages/InvestmentLab";
+import Admin from "@/pages/Admin";
 
 const queryClient = new QueryClient();
 
@@ -14,6 +15,7 @@ function Router() {
   return (
     <Switch>
       <Route path="/" component={InvestmentLab} />
+      <Route path="/admin" component={Admin} />
       <Route component={NotFound} />
     </Switch>
   );

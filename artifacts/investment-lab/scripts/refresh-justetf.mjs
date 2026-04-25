@@ -43,15 +43,44 @@ import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { appendRunLogEntry } from "./lib/run-log.mjs";
+import { computeFieldChanges, appendChangeEntries } from "./lib/diff-overrides.mjs";
+// All scraping logic lives in scripts/lib/justetf-extract.mjs as a PURE
+// module so the api-server can import it without dragging this CLI
+// entrypoint (and its main()) into its esbuild bundle.
+import {
+  USER_AGENT,
+  CORE_EXTRACTORS,
+  LISTINGS_EXTRACTORS,
+  PREVIEW_EXTRACTORS,
+  ALL_EXTRACTORS,
+  VENUE_MAP,
+  parseDateLoose,
+  lastRefreshedModeFor,
+  fetchProfile,
+} from "./lib/justetf-extract.mjs";
+
+// Re-export the pure helpers so existing test imports
+// (`from "../scripts/refresh-justetf.mjs"`) continue to work after the
+// extraction into ./lib/justetf-extract.mjs.
+export {
+  USER_AGENT,
+  CORE_EXTRACTORS,
+  LISTINGS_EXTRACTORS,
+  PREVIEW_EXTRACTORS,
+  ALL_EXTRACTORS,
+  VENUE_MAP,
+  parseDateLoose,
+  lastRefreshedModeFor,
+  fetchProfile,
+};
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
 const ETFS_TS = resolve(ROOT, "src/lib/etfs.ts");
 const OVERRIDES_JSON = resolve(ROOT, "src/data/etfs.overrides.json");
 const RUN_LOG_MD = resolve(ROOT, "src/data/refresh-runs.log.md");
+const CHANGES_LOG = resolve(ROOT, "src/data/refresh-changes.log.jsonl");
 const REQUEST_DELAY_MS = 1500;
-const USER_AGENT =
-  "InvestmentDecisionLab-DataRefresh/1.0 (+https://github.com/your-org/investment-lab; contact: ops@example.com)";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -70,215 +99,10 @@ async function extractCatalogEntries() {
   return entries;
 }
 
-// --- Field extractors --------------------------------------------------------
-// Each extractor receives (html, rec) and returns either a primitive/object or
-// `undefined` (= leave catalog default). Each one must accept both English and
-// German label variants because justETF serves either depending on the cookie
-// / locale.
-const MONTHS_EN = {
-  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6,
-  jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
-};
-const MONTHS_DE = {
-  jan: 1, feb: 2, mär: 3, mar: 3, apr: 4, mai: 5, jun: 6,
-  jul: 7, aug: 8, sep: 9, okt: 10, nov: 11, dez: 12,
-};
-
-function parseDateLoose(raw) {
-  if (!raw) return undefined;
-  const trimmed = raw.trim().toLowerCase();
-  let m = trimmed.match(/^(\d{1,2})\.(\d{1,2})\.(\d{4})$/);
-  if (m) {
-    return `${m[3]}-${String(parseInt(m[2], 10)).padStart(2, "0")}-${String(parseInt(m[1], 10)).padStart(2, "0")}`;
-  }
-  m = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
-  m = trimmed.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-  if (m) {
-    return `${m[3]}-${String(parseInt(m[2], 10)).padStart(2, "0")}-${String(parseInt(m[1], 10)).padStart(2, "0")}`;
-  }
-  const s = trimmed.replace(/\./g, "").replace(/,/g, "").replace(/\s+/g, " ");
-  m = s.match(/^(\d{1,2})\s+([a-zäöü]+)\s+(\d{4})$/);
-  if (m) {
-    const monKey3 = m[2].slice(0, 3);
-    const month = MONTHS_EN[monKey3] ?? MONTHS_DE[monKey3] ?? MONTHS_DE[m[2]];
-    if (!month) return undefined;
-    return `${m[3]}-${String(month).padStart(2, "0")}-${String(parseInt(m[1], 10)).padStart(2, "0")}`;
-  }
-  return undefined;
-}
-
-const CORE_EXTRACTORS = {
-  terBps: (html) => {
-    const m =
-      html.match(/Total expense ratio[\s\S]{0,400}?(\d+(?:[.,]\d+)?)\s*%/i) ||
-      html.match(/Gesamtkostenquote[\s\S]{0,400}?(\d+(?:[.,]\d+)?)\s*%/i);
-    if (!m) return undefined;
-    const pct = parseFloat(m[1].replace(",", "."));
-    if (!Number.isFinite(pct) || pct <= 0 || pct > 3) return undefined;
-    return Math.round(pct * 100); // store as basis points (0.07 % -> 7)
-  },
-
-  aumMillionsEUR: (html) => {
-    const m =
-      html.match(/Fund size[\s\S]{0,400}?EUR\s*([\d.,]+)\s*(?:m\b|mn\b|million|Mio)/i) ||
-      html.match(/Fondsgröße[\s\S]{0,400}?EUR\s*([\d.,]+)\s*(?:Mio|m\b|Mn)/i);
-    if (!m) return undefined;
-    const raw = m[1].replace(/[.,](?=\d{3}\b)/g, "").replace(",", ".");
-    const n = parseFloat(raw);
-    if (!Number.isFinite(n) || n < 1 || n > 1_000_000) return undefined;
-    return Math.round(n);
-  },
-
-  inceptionDate: (html) => {
-    const m =
-      html.match(/Inception(?:\s*date)?[\s\S]{0,200}?([0-3]?\d[.\s\/-][A-Za-zäöüÄÖÜ.]+[.\s\/-]\d{4}|\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4})/i) ||
-      html.match(/Auflagedatum[\s\S]{0,200}?([0-3]?\d[.\s\/-][A-Za-zäöüÄÖÜ.]+[.\s\/-]\d{4}|\d{4}-\d{2}-\d{2}|\d{1,2}\/\d{1,2}\/\d{4})/i) ||
-      html.match(/Auflage(?:datum)?[\s\S]{0,200}?(\d{1,2}\.\d{1,2}\.\d{4})/i);
-    if (!m) return undefined;
-    const iso = parseDateLoose(m[1]);
-    if (!iso) return undefined;
-    const year = parseInt(iso.slice(0, 4), 10);
-    const nowYear = new Date().getUTCFullYear();
-    if (year < 1990 || year > nowYear + 1) return undefined;
-    return iso;
-  },
-
-  distribution: (html) => {
-    const m =
-      html.match(/Distribution policy[\s\S]{0,200}?(Distributing|Accumulating|Capitalisation|Capitalising)/i) ||
-      html.match(/Use of profits[\s\S]{0,200}?(Distributing|Accumulating|Capitalisation|Capitalising)/i) ||
-      html.match(/Ertragsverwendung[\s\S]{0,200}?(Aussch[üu]ttend|Thesaurierend)/i);
-    if (!m) return undefined;
-    const v = m[1].toLowerCase();
-    if (v.startsWith("distrib") || v.startsWith("aussch")) return "Distributing";
-    if (v.startsWith("accum") || v.startsWith("capital") || v.startsWith("thesaur")) return "Accumulating";
-    return undefined;
-  },
-
-  replication: (html) => {
-    const m =
-      html.match(/Replication[\s\S]{0,200}?(Physical[^<\n]{0,80}|Synthetic[^<\n]{0,80})/i) ||
-      html.match(/Replikationsmethode[\s\S]{0,200}?(Physisch[^<\n]{0,80}|Synthetisch[^<\n]{0,80})/i);
-    if (!m) return undefined;
-    const v = m[1].toLowerCase();
-    if (v.startsWith("synth")) return "Synthetic";
-    if (v.startsWith("phys")) {
-      if (/sampl/i.test(v)) return "Physical (sampled)";
-      return "Physical";
-    }
-    return undefined;
-  },
-};
-
-// justETF data-testid suffixes for each row in the listings table map to
-// concrete venues. We collapse them into the four exchange buckets the app
-// surfaces in the UI (LSE / XETRA / SIX / Euronext). Anything unmapped
-// (gettex, Borsa Italiana, Stuttgart, ...) is ignored.
-const VENUE_MAP = {
-  xlon: "LSE",
-  xetr: "XETRA",
-  vtx: "SIX",
-  swis: "SIX",
-  six: "SIX",
-  ams: "Euronext",
-  ebr: "Euronext",
-  par: "Euronext",
-  lis: "Euronext",
-  dub: "Euronext",
-};
-
-const LISTINGS_EXTRACTORS = {
-  // Per-exchange ticker map. Parses the Listings table on justETF's profile
-  // page. For each exchange bucket, prefers the share class whose trading
-  // currency matches the ETF's primary currency (catalog `currency` field) so
-  // we don't replace e.g. LSE/USD "CSPX" with the GBX-priced "CSP1".
-  listings: (html, rec) => {
-    const tableMatch = html.match(
-      /<table[^>]*data-testid="etf-trade-data-panel_table"[\s\S]*?<\/table>/i
-    );
-    if (!tableMatch) return undefined;
-    const table = tableMatch[0];
-
-    const rowRe =
-      /<tr[^>]*data-testid="etf-trade-data-panel_row-([a-z0-9_]+)"[\s\S]*?<\/tr>/gi;
-    const rows = [];
-    let m;
-    while ((m = rowRe.exec(table)) !== null) {
-      const venue = m[1];
-      const block = m[0];
-      const currMatch = block.match(/_trade-currency"[^>]*>\s*([^<\s]+)\s*</i);
-      const tickMatch = block.match(/_ticker"[^>]*>\s*([^<\s]+)\s*</i);
-      if (!currMatch || !tickMatch) continue;
-      const currency = currMatch[1].trim().toUpperCase();
-      const ticker = tickMatch[1].trim();
-      if (!ticker || ticker === "-" || ticker === "—" || ticker.length > 16) continue;
-      rows.push({ venue, currency, ticker });
-    }
-    if (rows.length === 0) return undefined;
-
-    const byExchange = {};
-    for (const row of rows) {
-      const ex = VENUE_MAP[row.venue];
-      if (!ex) continue;
-      if (!byExchange[ex]) byExchange[ex] = [];
-      byExchange[ex].push(row);
-    }
-
-    const targetCurrency = (rec?.currency ?? "USD").toUpperCase();
-    const out = {};
-    for (const [ex, candidates] of Object.entries(byExchange)) {
-      const pick =
-        candidates.find((c) => c.currency === targetCurrency) ||
-        candidates.find((c) => c.currency !== "GBX" && c.currency !== "GBP" && c.currency !== "GBp") ||
-        candidates[0];
-      out[ex] = { ticker: pick.ticker };
-    }
-
-    if (Object.keys(out).length === 0) return undefined;
-    return out;
-  },
-};
-
-const ALL_EXTRACTORS = { ...CORE_EXTRACTORS, ...LISTINGS_EXTRACTORS };
-
-// Normalises the CLI `--mode` flag into the value written to
-// `_meta.lastRefreshedMode` in etfs.overrides.json.
-//
-// The snapshot file is consumed by the UI's ETFSnapshotFreshness footer,
-// which only renders the "(last refresh job: ...)" hint when the mode is
-// exactly "core" or "listings" — the two real CI cadences. Writing "all"
-// (the default mode for a manual `node scripts/refresh-justetf.mjs` run)
-// would silently suppress that hint, leaving the user without any cue
-// about which job produced the snapshot.
-//
-// To guarantee the hint always renders, we collapse `--mode=all` to
-// "core" here: an `all` run refreshes both groups in a single pass, but
-// for labelling purposes the core fund-metadata refresh is the more
-// substantive cadence and matches what the snapshot looks like after the
-// regular weekly CI run.
-function lastRefreshedModeFor(mode) {
-  return mode === "listings" ? "listings" : "core";
-}
-
-// Pure exports for unit tests under tests/scrapers.test.ts.
-// `parseDateLoose` is included so date-parsing edge cases can be tested in
-// isolation from the network-fetching `main()` flow.
-export {
-  CORE_EXTRACTORS,
-  LISTINGS_EXTRACTORS,
-  ALL_EXTRACTORS,
-  VENUE_MAP,
-  parseDateLoose,
-  lastRefreshedModeFor,
-};
-
-async function fetchProfile(isin) {
-  const url = `https://www.justetf.com/en/etf-profile.html?isin=${isin}`;
-  const res = await fetch(url, { headers: { "User-Agent": USER_AGENT, "Accept-Language": "en" } });
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${isin}`);
-  return await res.text();
-}
+// (Field extractors, VENUE_MAP, parseDateLoose, fetchProfile, etc. live in
+// scripts/lib/justetf-extract.mjs and are imported above. Keep this file
+// focused on the CLI loop: argv parsing, override I/O, the run log, and
+// the diff-emitter wiring.)
 
 async function main() {
   const startedAt = new Date().toISOString();
@@ -324,6 +148,12 @@ async function main() {
   const next = { ...existing };
   let okCount = 0;
   let failCount = 0;
+  // Per-ISIN diff entries collected during the loop and flushed AFTER the
+  // override JSON is successfully written. Holding them in memory until then
+  // means a fatal write-failure of the override file can't leave behind a
+  // misleading "we changed X" entry in refresh-changes.log.jsonl. Skipped
+  // entirely on DRY_RUN.
+  const pendingChanges = [];
 
   for (const isin of isins) {
     const rec = catalog.get(isin);
@@ -338,12 +168,16 @@ async function main() {
         console.warn(`  ! ${isin}: no fields extracted (leaving previous value)`);
         failCount++;
       } else {
+        const fieldChanges = computeFieldChanges(existing[isin], patch);
         next[isin] = { ...(existing[isin] ?? {}), ...patch };
         const summary = Object.entries(patch)
           .map(([k, v]) => `${k}=${typeof v === "object" ? Object.keys(v).join("/") : v}`)
           .join(" ");
         console.log(`  \u2713 ${isin}: ${summary}`);
         okCount++;
+        if (fieldChanges.length > 0) {
+          pendingChanges.push({ isin, changes: fieldChanges });
+        }
       }
     } catch (e) {
       console.warn(`  ! ${isin}: ${e.message}`);
@@ -395,6 +229,21 @@ async function main() {
 
   await writeFile(OVERRIDES_JSON, JSON.stringify(payload, null, 2) + "\n", "utf8");
   console.log(`\nWrote ${OVERRIDES_JSON} (${okCount} ok, ${failCount} failed).`);
+
+  // Now that the override file is durably on disk, append the per-field
+  // changes to refresh-changes.log.jsonl so the admin pane's "Recent ETF
+  // updates" panel can show exactly what shifted in this run. Source label
+  // matches the run-log mode column for easy correlation.
+  if (pendingChanges.length > 0) {
+    const source = `justetf-${lastRefreshedModeFor(mode)}`;
+    let totalLines = 0;
+    for (const { isin, changes } of pendingChanges) {
+      await appendChangeEntries(CHANGES_LOG, { timestamp: stamp, source, isin }, changes);
+      totalLines += changes.length;
+    }
+    console.log(`Appended ${totalLines} change line(s) to refresh-changes.log.jsonl.`);
+  }
+
   await appendRunLogEntry(RUN_LOG_MD, {
     startedAt,
     script: "refresh-justetf",

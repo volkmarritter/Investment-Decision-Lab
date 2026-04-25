@@ -321,8 +321,66 @@ No — appending one row to a markdown file is microseconds. The trade-off is on
 
 ---
 
+## 12. Admin pane (`/admin`) — in-app operator UI
+
+The Investment Decision Lab artifact ships a single-operator admin pane at `/admin` (e.g. `https://your-repl.replit.app/admin`). It gives you two things from the live app, without leaving the browser:
+
+### A. Suggest an ISIN → open a PR
+
+1. Paste an ISIN.
+2. Click **Preview** — the api-server scrapes the justETF profile page once, runs the same regex extractors as the scheduled refresh, and returns a draft catalog entry (name, TER, AUM, domicile, currency, replication, distribution, inception date, listings).
+3. Edit anything that's wrong (catalog key, comment, default exchange, listings tickers).
+4. Click **Open PR** — the api-server uses the configured `GITHUB_PAT` to open a PR on `volkmarritter/Investment-Decision-Lab` that adds the entry to `src/lib/etfs.ts` on a branch `add-etf/<isin>`.
+
+You then review and merge the PR like any other change. The next scheduled refresh will populate the override layer for the new ISIN automatically.
+
+### B. Data updates panel
+
+The right column shows three live read-only panels:
+
+- **Recent data changes** — last 50 entries from `src/data/refresh-changes.log.jsonl`, grouped by ISIN. Each entry is `{ts, source, isin, field, before, after}`, appended by the scrapers whenever a field's value actually changed (not on no-op runs).
+- **Recent runs** — last 20 rows of the markdown table in `src/data/refresh-runs.log.md` (same data §11 covers).
+- **Data freshness** — the `_meta` block of each override JSON (`lastRefreshedAt`, `lastRefreshedMode`) plus the cron expression of every scheduled refresh.
+
+### Auth
+
+The admin pane is gated by a shared bearer token (single operator). On first visit you enter the token; it's stored in `sessionStorage` (cleared when the browser tab closes — slightly safer than `localStorage` for a token that unlocks PR creation).
+
+### Required environment variables (api-server)
+
+| Var | Purpose | Required for |
+|---|---|---|
+| `ADMIN_TOKEN` | The shared secret the UI sends as `Authorization: Bearer <token>`. | Read panels and preview |
+| `GITHUB_PAT` | Classic PAT with `repo` scope on the catalog repo. | Opening PRs |
+| `GITHUB_OWNER` | e.g. `volkmarritter` | Opening PRs |
+| `GITHUB_REPO` | e.g. `Investment-Decision-Lab` | Opening PRs |
+| `GITHUB_BASE_BRANCH` | Optional; defaults to `main`. | Opening PRs |
+| `INVESTMENT_LAB_DATA_DIR` | Optional override path to `src/data/` if the api-server isn't deployed alongside the investment-lab artifact. | Read panels (only if layout differs) |
+
+If `ADMIN_TOKEN` is unset the api-server returns `503 admin_not_configured` for every `/api/admin/*` route — the UI shows a clear message rather than a generic auth failure. If `GITHUB_PAT` (or owner/repo) is unset the preview still works, but the **Open PR** button is disabled and the UI explains why.
+
+### Endpoint summary
+
+All under `/api/admin/*`, all gated by `requireAdmin`:
+
+| Method | Path | What it does |
+|---|---|---|
+| GET | `/whoami` | Auth-check ping; returns `{ok, githubConfigured}`. |
+| GET | `/changes?limit=50` | Tail of `refresh-changes.log.jsonl`, newest first. |
+| GET | `/run-log?limit=20` | Parsed rows of `refresh-runs.log.md`. |
+| GET | `/freshness` | `_meta` of override JSONs + cron schedule map. |
+| POST | `/preview-isin` | Body `{isin}` → scraped fields + policy fit. |
+| POST | `/add-isin` | Body `{entry}` → opens a PR; returns `{prUrl, prNumber}`. |
+
+### Why no auto-discovery?
+
+The pane is intentionally **paste-an-ISIN only**, not "scan the universe and suggest funds". Auto-discovery would add a justETF screener scrape, a heuristic ranking step, and a UI for triaging dozens of candidates — far more surface area than a single-operator workflow needs. Pasting an ISIN you've already vetted on justETF keeps the operator-in-the-loop story honest.
+
+---
+
 ## Changelog
 
+- **2026-04-25** — Added §12 (admin pane `/admin`): in-app paste-an-ISIN flow that previews scraped fields and opens a GitHub PR adding the entry to `src/lib/etfs.ts`, plus three read-only panels (recent changes, recent runs, freshness). Gated by `ADMIN_TOKEN`; PR creation requires `GITHUB_PAT`/`GITHUB_OWNER`/`GITHUB_REPO`. Scrapers now also write per-field diffs to `src/data/refresh-changes.log.jsonl` so the pane can surface "what changed last night".
 - **2026-04-25** — Added §11 (run log file): scrapers now append a row to `src/data/refresh-runs.log.md` on every invocation (success, no-op, or fail), and the workflows always commit it — so even no-op scheduled runs leave a visible commit and row.
 - **2026-04-25** — Added §8 (Replit ↔ GitHub ↔ Live site flow with diagram), §9 (three ways to change something), and option 1 in §10 (auto-publish on data refresh).
 - **2026-04-25** — Initial version, extracted from chat into a standalone document.

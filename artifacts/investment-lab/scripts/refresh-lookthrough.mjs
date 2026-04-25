@@ -46,6 +46,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { appendRunLogEntry } from "./lib/run-log.mjs";
+import { computeFieldChanges, appendChangeEntries } from "./lib/diff-overrides.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
@@ -53,6 +54,12 @@ const ETFS_TS = resolve(ROOT, "src/lib/etfs.ts");
 const LOOKTHROUGH_TS = resolve(ROOT, "src/lib/lookthrough.ts");
 const OVERRIDES_JSON = resolve(ROOT, "src/data/lookthrough.overrides.json");
 const RUN_LOG_MD = resolve(ROOT, "src/data/refresh-runs.log.md");
+const CHANGES_LOG = resolve(ROOT, "src/data/refresh-changes.log.jsonl");
+// Per-ISIN fields that are timestamps refreshed on every successful run by
+// design. Excluded from the change-log diff so the admin pane's "Recent
+// data changes" panel only surfaces real content shifts (a new top
+// holding, a TER cut), not stamp updates that happen on every cron tick.
+const STAMP_FIELDS = new Set(["topHoldingsAsOf", "breakdownsAsOf"]);
 const REQUEST_DELAY_MS = 1500;
 const BREAKDOWN_DELAY_MS = 750;
 const USER_AGENT =
@@ -447,8 +454,17 @@ async function main() {
   let breakdownsOk = 0;
   let breakdownsFail = 0;
   const stamp = new Date().toISOString();
+  // Per-ISIN diff entries collected during the loop and flushed AFTER the
+  // override JSON is successfully written. Stamp fields (topHoldingsAsOf,
+  // breakdownsAsOf) are excluded so the admin "Recent data changes" panel
+  // only surfaces real content shifts.
+  const pendingChanges = [];
 
   for (const isin of isins) {
+    // Snapshot of this ISIN's previous override-entry, taken before any of
+    // the in-loop mutations to next[isin]. Used as the "before" half of
+    // the per-ISIN diff computed at the bottom of this iteration.
+    const beforeEntry = existing[isin];
     let cookie = "";
     let html;
 
@@ -591,6 +607,31 @@ async function main() {
       // would double-penalise a single network error.
     }
 
+    // Per-ISIN diff: only the fields that actually changed between the
+    // pre-loop snapshot (beforeEntry) and the post-loop entry (next[isin]).
+    // Stamp fields are filtered out so the admin pane doesn't show a row
+    // for "topHoldingsAsOf changed" on every cron tick. The diff is
+    // queued; flushed to disk only after the override JSON write succeeds.
+    const afterEntry = next[isin];
+    if (afterEntry && afterEntry !== beforeEntry) {
+      // Build a "patch-like" object containing only the fields the loop
+      // actually wrote on this iteration. We recompute it from afterEntry
+      // by selecting the keys we know the loop touches when successful.
+      const patch = {};
+      for (const k of ["topHoldings", "geo", "sector", "currency"]) {
+        if (afterEntry[k] !== undefined && (!beforeEntry || afterEntry[k] !== beforeEntry[k])) {
+          patch[k] = afterEntry[k];
+        }
+      }
+      // Drop stamp fields defensively — they should never enter `patch`
+      // here, but the guard makes the contract explicit for maintainers.
+      for (const k of STAMP_FIELDS) delete patch[k];
+      const fieldChanges = computeFieldChanges(beforeEntry, patch);
+      if (fieldChanges.length > 0) {
+        pendingChanges.push({ isin, changes: fieldChanges });
+      }
+    }
+
     await sleep(REQUEST_DELAY_MS);
   }
 
@@ -635,6 +676,23 @@ async function main() {
       `(top-holdings: ${topOk} ok / ${topFail} fail · ` +
       `breakdowns: ${breakdownsOk} ok / ${breakdownsFail} fail).`
   );
+
+  // Now that the override file is durably on disk, append the per-field
+  // changes to refresh-changes.log.jsonl so the admin pane's "Recent ETF
+  // updates" panel can show exactly what shifted in this run.
+  if (pendingChanges.length > 0) {
+    let totalLines = 0;
+    for (const { isin, changes } of pendingChanges) {
+      await appendChangeEntries(
+        CHANGES_LOG,
+        { timestamp: stamp, source: "lookthrough", isin },
+        changes
+      );
+      totalLines += changes.length;
+    }
+    console.log(`Appended ${totalLines} change line(s) to refresh-changes.log.jsonl.`);
+  }
+
   await appendRunLogEntry(RUN_LOG_MD, {
     startedAt,
     script: "refresh-lookthrough",
