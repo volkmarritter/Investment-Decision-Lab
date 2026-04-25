@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { SavedScenariosUI } from "./SavedScenariosUI";
 import { GeoExposureMap } from "./GeoExposureMap";
+import { AllocationGroupSummary } from "./AllocationGroupSummary";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -542,9 +543,9 @@ export function ComparePortfolios() {
                 {/* Side by side charts */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   {([
-                    { title: tr("Portfolio A Allocation", "Allokation Portfolio A"), data: chartDataA, slot: "A" as const },
-                    { title: tr("Portfolio B Allocation", "Allokation Portfolio B"), data: chartDataB, slot: "B" as const },
-                  ] as const).map(({ title, data, slot }) => (
+                    { title: tr("Portfolio A Allocation", "Allokation Portfolio A"), data: chartDataA, slot: "A" as const, allocation: outputA?.allocation ?? [] },
+                    { title: tr("Portfolio B Allocation", "Allokation Portfolio B"), data: chartDataB, slot: "B" as const, allocation: outputB?.allocation ?? [] },
+                  ] as const).map(({ title, data, slot, allocation }) => (
                     <Card key={title}>
                       <CardHeader>
                         <CardTitle>{title}</CardTitle>
@@ -562,6 +563,14 @@ export function ComparePortfolios() {
                             </PieChart>
                           </ResponsiveContainer>
                         </div>
+                        {allocation.length > 0 && (
+                          <div className="mt-4">
+                            <AllocationGroupSummary
+                              allocation={allocation}
+                              testIdPrefix={`portfolio-${slot}`}
+                            />
+                          </div>
+                        )}
                         <div className="h-4 w-full flex rounded-full overflow-hidden mt-4">
                           {data.map((d, i) => (
                             <div key={i} style={{ width: `${d.value}%`, backgroundColor: COLORS[i % COLORS.length] }} title={`${d.name}: ${d.value}%`} className="h-full" />

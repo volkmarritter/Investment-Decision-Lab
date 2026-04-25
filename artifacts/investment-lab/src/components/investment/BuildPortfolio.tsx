@@ -13,6 +13,7 @@ import {
   type ManualWeights,
 } from "@/lib/manualWeights";
 import { buildAiPrompt } from "@/lib/aiPrompt";
+import { AllocationGroupSummary } from "./AllocationGroupSummary";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -849,7 +850,12 @@ export function BuildPortfolio() {
                         </PieChart>
                       </ResponsiveContainer>
                     </div>
-                    
+
+                    {/* High-level group summary: Cash / Bonds / Equities / Satellites */}
+                    {output && (
+                      <AllocationGroupSummary allocation={output.allocation} />
+                    )}
+
                     {/* Horizontal Stacked Bar */}
                     <div className="h-4 w-full flex rounded-full overflow-hidden">
                       {chartData.map((d, i) => (
