@@ -622,15 +622,15 @@ export function ComparePortfolios() {
                   </div>
                 )}
 
-                {/* Per-portfolio deep dives: Risk Metrics, Stress Test, Monte Carlo */}
+                {/* Per-portfolio deep dives: Monte Carlo, Risk Metrics, Stress Test */}
                 {inputA && inputB && (
                   <Card>
                     <CardHeader>
                       <CardTitle>{lang === "de" ? "Detailanalyse je Portfolio" : "Per-Portfolio Deep Dive"}</CardTitle>
                       <CardDescription>
                         {lang === "de"
-                          ? "Risiko-Kennzahlen, Szenario-Stresstests und Monte-Carlo-Simulation für jedes Portfolio."
-                          : "Risk metrics, scenario stress tests and Monte Carlo simulation for each portfolio."}
+                          ? "Monte-Carlo-Simulation, Risiko-Kennzahlen und Szenario-Stresstests für jedes Portfolio."
+                          : "Monte Carlo simulation, risk metrics and scenario stress tests for each portfolio."}
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
@@ -642,24 +642,24 @@ export function ComparePortfolios() {
                             <TabsTrigger value="B">Portfolio B</TabsTrigger>
                           </TabsList>
                           <TabsContent value="A" className="space-y-0 mt-4">
-                            <PortfolioMetrics allocation={outputA!.allocation} />
-                            <StressTest allocation={outputA!.allocation} />
                             <MonteCarloSimulation
                               allocation={outputA!.allocation}
                               horizonYears={inputA.horizon}
                               baseCurrency={inputA.baseCurrency}
                               hedged={inputA.includeCurrencyHedging}
                             />
+                            <PortfolioMetrics allocation={outputA!.allocation} />
+                            <StressTest allocation={outputA!.allocation} />
                           </TabsContent>
                           <TabsContent value="B" className="space-y-0 mt-4">
-                            <PortfolioMetrics allocation={outputB!.allocation} />
-                            <StressTest allocation={outputB!.allocation} />
                             <MonteCarloSimulation
                               allocation={outputB!.allocation}
                               horizonYears={inputB.horizon}
                               baseCurrency={inputB.baseCurrency}
                               hedged={inputB.includeCurrencyHedging}
                             />
+                            <PortfolioMetrics allocation={outputB!.allocation} />
+                            <StressTest allocation={outputB!.allocation} />
                           </TabsContent>
                         </Tabs>
                       </div>
@@ -668,25 +668,25 @@ export function ComparePortfolios() {
                       <div className="hidden md:grid md:grid-cols-2 md:gap-6">
                         <div className="space-y-0 min-w-0">
                           <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio A</h3>
-                          <PortfolioMetrics allocation={outputA!.allocation} />
-                          <StressTest allocation={outputA!.allocation} />
                           <MonteCarloSimulation
                             allocation={outputA!.allocation}
                             horizonYears={inputA.horizon}
                             baseCurrency={inputA.baseCurrency}
                             hedged={inputA.includeCurrencyHedging}
                           />
+                          <PortfolioMetrics allocation={outputA!.allocation} />
+                          <StressTest allocation={outputA!.allocation} />
                         </div>
                         <div className="space-y-0 min-w-0">
                           <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio B</h3>
-                          <PortfolioMetrics allocation={outputB!.allocation} />
-                          <StressTest allocation={outputB!.allocation} />
                           <MonteCarloSimulation
                             allocation={outputB!.allocation}
                             horizonYears={inputB.horizon}
                             baseCurrency={inputB.baseCurrency}
                             hedged={inputB.includeCurrencyHedging}
                           />
+                          <PortfolioMetrics allocation={outputB!.allocation} />
+                          <StressTest allocation={outputB!.allocation} />
                         </div>
                       </div>
                     </CardContent>

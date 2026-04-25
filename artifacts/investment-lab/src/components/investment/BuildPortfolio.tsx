@@ -1062,19 +1062,21 @@ export function BuildPortfolio() {
                   </>
                 )}
 
-                {/* Risk & Performance Metrics (Sharpe, Beta, Alpha, TE, Max DD, Frontier, Correlation) */}
-                <PortfolioMetrics allocation={output.allocation} />
-
-                {/* Scenario Stress Test (moved up: directly after Look-Through Analysis) */}
-                <StressTest allocation={output.allocation} />
-
-                {/* Monte Carlo Simulation (moved up: directly after Stress Test) */}
+                {/* Monte Carlo Simulation (placed before Risk Metrics so the
+                 *  forward-looking distribution frames the backward-looking
+                 *  risk/return statistics that follow). */}
                 <MonteCarloSimulation
                   allocation={output.allocation}
                   horizonYears={form.getValues().horizon}
                   baseCurrency={form.getValues().baseCurrency}
                   hedged={form.getValues().includeCurrencyHedging}
                 />
+
+                {/* Risk & Performance Metrics (Sharpe, Beta, Alpha, TE, Max DD, Frontier, Correlation) */}
+                <PortfolioMetrics allocation={output.allocation} />
+
+                {/* Scenario Stress Test */}
+                <StressTest allocation={output.allocation} />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Section 4: Portfolio Rationale */}
