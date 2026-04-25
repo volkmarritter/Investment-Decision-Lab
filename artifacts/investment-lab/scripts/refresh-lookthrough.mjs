@@ -45,12 +45,14 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { appendRunLogEntry } from "./lib/run-log.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
 const ETFS_TS = resolve(ROOT, "src/lib/etfs.ts");
 const LOOKTHROUGH_TS = resolve(ROOT, "src/lib/lookthrough.ts");
 const OVERRIDES_JSON = resolve(ROOT, "src/data/lookthrough.overrides.json");
+const RUN_LOG_MD = resolve(ROOT, "src/data/refresh-runs.log.md");
 const REQUEST_DELAY_MS = 1500;
 const BREAKDOWN_DELAY_MS = 750;
 const USER_AGENT =
@@ -395,6 +397,7 @@ async function fetchBreakdownAjax(isin, kind, cookie) {
 }
 
 async function main() {
+  const startedAt = new Date().toISOString();
   const allIsins = await extractIsinsFromCatalog();
   const lookthroughSrc = await readFile(LOOKTHROUGH_TS, "utf8");
   const equityIsins = parseEquityIsinsFromLookthroughSource(lookthroughSrc);
@@ -600,6 +603,14 @@ async function main() {
       `\nDRY_RUN set — not writing override file. ` +
         `top-holdings: ${topOk} ok / ${topFail} fail · breakdowns: ${breakdownsOk} ok / ${breakdownsFail} fail`
     );
+    await appendRunLogEntry(RUN_LOG_MD, {
+      startedAt,
+      script: "refresh-lookthrough",
+      isinCount: isins.length,
+      okCount,
+      failCount,
+      dryRun: true,
+    });
     process.exit(halfFailed ? 1 : 0);
   }
 
@@ -624,6 +635,13 @@ async function main() {
       `(top-holdings: ${topOk} ok / ${topFail} fail · ` +
       `breakdowns: ${breakdownsOk} ok / ${breakdownsFail} fail).`
   );
+  await appendRunLogEntry(RUN_LOG_MD, {
+    startedAt,
+    script: "refresh-lookthrough",
+    isinCount: isins.length,
+    okCount,
+    failCount,
+  });
   process.exit(halfFailed ? 1 : 0);
 }
 
@@ -632,8 +650,20 @@ async function main() {
 // auto-execute.
 const isCli = process.argv[1] === fileURLToPath(import.meta.url);
 if (isCli) {
-  main().catch((e) => {
+  const fatalStartedAt = new Date().toISOString();
+  main().catch(async (e) => {
     console.error("Fatal:", e);
+    // Best-effort: record the fatal in the run log so a crashed scheduled
+    // run still appears in the history. Swallow log-write errors so the
+    // original failure surfaces unobscured.
+    try {
+      await appendRunLogEntry(RUN_LOG_MD, {
+        startedAt: fatalStartedAt,
+        script: "refresh-lookthrough",
+        outcome: "fail",
+        error: e?.message ?? String(e),
+      });
+    } catch {}
     process.exit(2);
   });
 }

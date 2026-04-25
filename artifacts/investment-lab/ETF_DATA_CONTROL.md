@@ -283,7 +283,46 @@ Open a request when any of these become useful.
 
 ---
 
+## 11. Where to see whether last night's job actually ran
+
+Before this run-log existed, "scheduled but no-op" and "did not run at all" looked identical — the workflows only committed when override data changed, so a successful no-op left no trace.
+
+There are now **three ways** to confirm a scheduled scraper actually executed, ordered from easiest to most authoritative:
+
+### A. The run log file (in the repo) — easiest
+
+Open `artifacts/investment-lab/src/data/refresh-runs.log.md`. Every scraper invocation appends one row at the bottom — successes, no-ops, and failures alike. Each row shows:
+
+- **Started (UTC)** — when the script began
+- **Script** + **Mode** — which job ran (`refresh-justetf` core/listings, or `refresh-lookthrough`)
+- **ISINs / OK / Fail** — how many ISINs were processed and how they fared
+- **Duration** — total runtime
+- **Outcome** — `ok`, `partial`, `fail`, or `dry-run`
+- **Trigger** — `schedule` (cron), `manual` (workflow_dispatch), or `local` (CLI)
+- **CI run** — clickable link to the GitHub Actions run
+
+Because this file is committed even when no override data changed, **every scheduled run leaves a visible commit and a row** — the absence of a row for last night means the schedule itself didn't fire.
+
+### B. Git history of the data folder
+
+```bash
+git log --since="2 days ago" -- artifacts/investment-lab/src/data/
+```
+
+The bot commits as `github-actions[bot]` with messages like `chore(data): nightly justETF listings snapshot 2026-04-25`. One commit per scheduled run.
+
+### C. GitHub Actions tab — most authoritative
+
+`github.com/<your-repo>/actions` shows every workflow invocation regardless of whether it produced any output, including failed runs that crashed before reaching the commit step. Use this when you suspect the workflow never started (e.g. cron mis-configured, repo inactive for 60 days, etc.).
+
+### Does the run log slow anything down?
+
+No — appending one row to a markdown file is microseconds. The trade-off is one extra commit per scheduled run (instead of zero on no-op nights), which makes the git history louder but also makes "did the job actually run?" answerable without leaving the repo.
+
+---
+
 ## Changelog
 
+- **2026-04-25** — Added §11 (run log file): scrapers now append a row to `src/data/refresh-runs.log.md` on every invocation (success, no-op, or fail), and the workflows always commit it — so even no-op scheduled runs leave a visible commit and row.
 - **2026-04-25** — Added §8 (Replit ↔ GitHub ↔ Live site flow with diagram), §9 (three ways to change something), and option 1 in §10 (auto-publish on data refresh).
 - **2026-04-25** — Initial version, extracted from chat into a standalone document.

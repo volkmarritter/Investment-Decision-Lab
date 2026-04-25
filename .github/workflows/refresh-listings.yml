@@ -49,13 +49,21 @@ jobs:
           pnpm run test
 
       - name: Commit & push if changed
+        # The run-log file is always touched by the script (one row per run,
+        # success or fail), so this nightly commit step always has something
+        # to push — even when no listing tickers changed. That guarantees
+        # every scheduled invocation leaves a git commit and a Trigger-tagged
+        # row in src/data/refresh-runs.log.md.
         run: |
-          if [[ -n "$(git status --porcelain artifacts/investment-lab/src/data/etfs.overrides.json)" ]]; then
+          git add artifacts/investment-lab/src/data/etfs.overrides.json artifacts/investment-lab/src/data/refresh-runs.log.md || true
+          if [[ -n "$(git status --porcelain artifacts/investment-lab/src/data/etfs.overrides.json artifacts/investment-lab/src/data/refresh-runs.log.md)" ]]; then
             git config user.name  "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add artifacts/investment-lab/src/data/etfs.overrides.json
             git commit -m "chore(data): nightly justETF listings snapshot $(date -u +%Y-%m-%d)"
-            git push
+            # Retry push once on non-fast-forward (e.g. a human commit landed
+            # while this job was running). The concurrency group prevents
+            # bot-vs-bot races; this guards bot-vs-human.
+            git push || (git pull --rebase --autostash && git push)
           else
-            echo "No listings changes."
+            echo "No file changes (unexpected — run log should always be updated)."
           fi

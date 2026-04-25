@@ -42,11 +42,13 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
+import { appendRunLogEntry } from "./lib/run-log.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
 const ETFS_TS = resolve(ROOT, "src/lib/etfs.ts");
 const OVERRIDES_JSON = resolve(ROOT, "src/data/etfs.overrides.json");
+const RUN_LOG_MD = resolve(ROOT, "src/data/refresh-runs.log.md");
 const REQUEST_DELAY_MS = 1500;
 const USER_AGENT =
   "InvestmentDecisionLab-DataRefresh/1.0 (+https://github.com/your-org/investment-lab; contact: ops@example.com)";
@@ -279,13 +281,23 @@ async function fetchProfile(isin) {
 }
 
 async function main() {
+  const startedAt = new Date().toISOString();
   const args = process.argv.slice(2);
-  const mode = (() => {
+  const mode = await (async () => {
     const flag = args.find((a) => a.startsWith("--mode="));
     if (!flag) return "all";
     const v = flag.slice("--mode=".length);
     if (!["core", "listings", "all"].includes(v)) {
       console.error(`Unknown --mode=${v}. Expected core|listings|all.`);
+      // Bad-CLI exit: still record it in the run log so a misconfigured
+      // workflow shows up as a failed run instead of disappearing silently.
+      await appendRunLogEntry(RUN_LOG_MD, {
+        startedAt,
+        script: "refresh-justetf",
+        mode: v,
+        outcome: "fail",
+        error: `Unknown --mode=${v}`,
+      });
       process.exit(2);
     }
     return v;
@@ -342,6 +354,15 @@ async function main() {
 
   if (process.env.DRY_RUN) {
     console.log("\nDRY_RUN set — not writing override file.");
+    await appendRunLogEntry(RUN_LOG_MD, {
+      startedAt,
+      script: "refresh-justetf",
+      mode,
+      isinCount: isins.length,
+      okCount,
+      failCount,
+      dryRun: true,
+    });
     process.exit(failCount > okCount ? 1 : 0);
   }
 
@@ -374,6 +395,14 @@ async function main() {
 
   await writeFile(OVERRIDES_JSON, JSON.stringify(payload, null, 2) + "\n", "utf8");
   console.log(`\nWrote ${OVERRIDES_JSON} (${okCount} ok, ${failCount} failed).`);
+  await appendRunLogEntry(RUN_LOG_MD, {
+    startedAt,
+    script: "refresh-justetf",
+    mode,
+    isinCount: isins.length,
+    okCount,
+    failCount,
+  });
   process.exit(failCount > okCount ? 1 : 0);
 }
 
@@ -382,8 +411,20 @@ async function main() {
 // auto-execute.
 const isCli = process.argv[1] === fileURLToPath(import.meta.url);
 if (isCli) {
-  main().catch((e) => {
+  const fatalStartedAt = new Date().toISOString();
+  main().catch(async (e) => {
     console.error("Fatal:", e);
+    // Best-effort: record the fatal in the run log so a crashed scheduled
+    // run still appears in the history. If the log write itself fails we
+    // swallow that error — the original failure is what matters.
+    try {
+      await appendRunLogEntry(RUN_LOG_MD, {
+        startedAt: fatalStartedAt,
+        script: "refresh-justetf",
+        outcome: "fail",
+        error: e?.message ?? String(e),
+      });
+    } catch {}
     process.exit(2);
   });
 }
