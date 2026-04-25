@@ -704,31 +704,56 @@ export function ComparePortfolios() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      {/* Mobile: tabs (one portfolio at a time) */}
-                      <div className="md:hidden">
-                        <Tabs defaultValue="A" className="w-full">
+                      {/* Mobile: each sub-section gets its own independent A/B toggle. */}
+                      <div className="md:hidden space-y-6">
+                        {/* Monte Carlo */}
+                        <Tabs defaultValue="A" className="w-full" data-testid="deepdive-mc-toggle">
                           <TabsList className="grid w-full max-w-xs grid-cols-2">
                             <TabsTrigger value="A">Portfolio A</TabsTrigger>
                             <TabsTrigger value="B">Portfolio B</TabsTrigger>
                           </TabsList>
-                          <TabsContent value="A" className="space-y-0 mt-4">
+                          <TabsContent value="A" className="mt-4">
                             <MonteCarloSimulation
                               allocation={outputA!.allocation}
                               horizonYears={inputA.horizon}
                               baseCurrency={inputA.baseCurrency}
                               hedged={inputA.includeCurrencyHedging}
                             />
-                            <PortfolioMetrics allocation={outputA!.allocation} />
-                            <StressTest allocation={outputA!.allocation} />
                           </TabsContent>
-                          <TabsContent value="B" className="space-y-0 mt-4">
+                          <TabsContent value="B" className="mt-4">
                             <MonteCarloSimulation
                               allocation={outputB!.allocation}
                               horizonYears={inputB.horizon}
                               baseCurrency={inputB.baseCurrency}
                               hedged={inputB.includeCurrencyHedging}
                             />
+                          </TabsContent>
+                        </Tabs>
+
+                        {/* Risk Metrics */}
+                        <Tabs defaultValue="A" className="w-full" data-testid="deepdive-risk-toggle">
+                          <TabsList className="grid w-full max-w-xs grid-cols-2">
+                            <TabsTrigger value="A">Portfolio A</TabsTrigger>
+                            <TabsTrigger value="B">Portfolio B</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="A" className="mt-4">
+                            <PortfolioMetrics allocation={outputA!.allocation} />
+                          </TabsContent>
+                          <TabsContent value="B" className="mt-4">
                             <PortfolioMetrics allocation={outputB!.allocation} />
+                          </TabsContent>
+                        </Tabs>
+
+                        {/* Stress Test */}
+                        <Tabs defaultValue="A" className="w-full" data-testid="deepdive-stress-toggle">
+                          <TabsList className="grid w-full max-w-xs grid-cols-2">
+                            <TabsTrigger value="A">Portfolio A</TabsTrigger>
+                            <TabsTrigger value="B">Portfolio B</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="A" className="mt-4">
+                            <StressTest allocation={outputA!.allocation} />
+                          </TabsContent>
+                          <TabsContent value="B" className="mt-4">
                             <StressTest allocation={outputB!.allocation} />
                           </TabsContent>
                         </Tabs>
