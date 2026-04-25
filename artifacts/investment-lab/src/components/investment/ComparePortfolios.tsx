@@ -561,23 +561,27 @@ export function ComparePortfolios() {
                   </CardContent>
                 </Card>
 
-                {/* Side by side charts */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  {([
+                {/* Side by side allocation cards.
+                 *  Mobile: per-section A/B toggle (one card visible at a time).
+                 *  Desktop (md+): both cards side-by-side. */}
+                {(() => {
+                  const allocCards = [
                     { title: tr("Portfolio A Allocation", "Allokation Portfolio A"), data: chartDataA, slot: "A" as const, allocation: outputA?.allocation ?? [] },
                     { title: tr("Portfolio B Allocation", "Allokation Portfolio B"), data: chartDataB, slot: "B" as const, allocation: outputB?.allocation ?? [] },
-                  ] as const).map(({ title, data, slot, allocation }) => (
-                    <Card key={title}>
+                  ] as const;
+
+                  const renderAllocCard = (item: (typeof allocCards)[number]) => (
+                    <Card key={item.title}>
                       <CardHeader>
-                        <CardTitle>{title}</CardTitle>
+                        <CardTitle>{item.title}</CardTitle>
                       </CardHeader>
                       <CardContent>
                         {/* High-level group summary on the left, donut on the right */}
                         <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)] gap-4 items-center">
-                          {allocation.length > 0 ? (
+                          {item.allocation.length > 0 ? (
                             <AllocationGroupSummary
-                              allocation={allocation}
-                              testIdPrefix={`portfolio-${slot}`}
+                              allocation={item.allocation}
+                              testIdPrefix={`portfolio-${item.slot}`}
                               orientation="vertical"
                             />
                           ) : (
@@ -586,8 +590,8 @@ export function ComparePortfolios() {
                           <div className="h-[250px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
                               <PieChart>
-                                <Pie data={data} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={2} dataKey="value" stroke="none">
-                                  {data.map((_entry, index) => (
+                                <Pie data={item.data} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={2} dataKey="value" stroke="none">
+                                  {item.data.map((_entry, index) => (
                                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                   ))}
                                 </Pie>
@@ -597,16 +601,16 @@ export function ComparePortfolios() {
                           </div>
                         </div>
                         <div className="h-4 w-full flex rounded-full overflow-hidden mt-4">
-                          {data.map((d, i) => (
+                          {item.data.map((d, i) => (
                             <div key={i} style={{ width: `${d.value}%`, backgroundColor: COLORS[i % COLORS.length] }} title={`${d.name}: ${d.value}%`} className="h-full" />
                           ))}
                         </div>
                         <ul
                           className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs"
                           aria-label={lang === "de" ? "Legende" : "Legend"}
-                          data-testid={`legend-${slot}`}
+                          data-testid={`legend-${item.slot}`}
                         >
-                          {data.map((d, i) => (
+                          {item.data.map((d, i) => (
                             <li key={i} className="flex items-center gap-2 min-w-0">
                               <span
                                 className="inline-block h-2.5 w-2.5 rounded-sm shrink-0"
@@ -620,27 +624,72 @@ export function ComparePortfolios() {
                         </ul>
                       </CardContent>
                     </Card>
-                  ))}
-                </div>
+                  );
 
-                {/* Effective geographic equity allocation per portfolio */}
+                  return (
+                    <>
+                      {/* Mobile: A/B toggle */}
+                      <div className="md:hidden">
+                        <Tabs defaultValue="A" className="w-full" data-testid="alloc-mobile-toggle">
+                          <TabsList className="grid w-full max-w-xs grid-cols-2">
+                            <TabsTrigger value="A">Portfolio A</TabsTrigger>
+                            <TabsTrigger value="B">Portfolio B</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="A" className="mt-4">{renderAllocCard(allocCards[0])}</TabsContent>
+                          <TabsContent value="B" className="mt-4">{renderAllocCard(allocCards[1])}</TabsContent>
+                        </Tabs>
+                      </div>
+                      {/* Desktop: side-by-side */}
+                      <div className="hidden md:grid md:grid-cols-2 md:gap-8">
+                        {allocCards.map(renderAllocCard)}
+                      </div>
+                    </>
+                  );
+                })()}
+
+                {/* Effective geographic equity allocation per portfolio.
+                 *  Mobile: per-section A/B toggle. Desktop: side-by-side. */}
                 {inputA && inputB && outputA && outputB && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="min-w-0">
-                      <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio A</h3>
-                      <GeoExposureMap
-                        etfs={outputA.etfImplementation}
-                        baseCurrency={inputA.baseCurrency}
-                      />
+                  <>
+                    <div className="md:hidden">
+                      <Tabs defaultValue="A" className="w-full" data-testid="geo-mobile-toggle">
+                        <TabsList className="grid w-full max-w-xs grid-cols-2">
+                          <TabsTrigger value="A">Portfolio A</TabsTrigger>
+                          <TabsTrigger value="B">Portfolio B</TabsTrigger>
+                        </TabsList>
+                        <TabsContent value="A" className="mt-4 min-w-0">
+                          <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio A</h3>
+                          <GeoExposureMap
+                            etfs={outputA.etfImplementation}
+                            baseCurrency={inputA.baseCurrency}
+                          />
+                        </TabsContent>
+                        <TabsContent value="B" className="mt-4 min-w-0">
+                          <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio B</h3>
+                          <GeoExposureMap
+                            etfs={outputB.etfImplementation}
+                            baseCurrency={inputB.baseCurrency}
+                          />
+                        </TabsContent>
+                      </Tabs>
                     </div>
-                    <div className="min-w-0">
-                      <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio B</h3>
-                      <GeoExposureMap
-                        etfs={outputB.etfImplementation}
-                        baseCurrency={inputB.baseCurrency}
-                      />
+                    <div className="hidden md:grid md:grid-cols-2 md:gap-6">
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio A</h3>
+                        <GeoExposureMap
+                          etfs={outputA.etfImplementation}
+                          baseCurrency={inputA.baseCurrency}
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio B</h3>
+                        <GeoExposureMap
+                          etfs={outputB.etfImplementation}
+                          baseCurrency={inputB.baseCurrency}
+                        />
+                      </div>
                     </div>
-                  </div>
+                  </>
                 )}
 
                 {/* Per-portfolio deep dives: Monte Carlo, Risk Metrics, Stress Test */}
