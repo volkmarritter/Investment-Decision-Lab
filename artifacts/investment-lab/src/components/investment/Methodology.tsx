@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, Database, Calculator, AlertTriangle, ExternalLink, RotateCcw, ShieldQuestion, Layers, Activity, GitCompare, Building2, RefreshCw, Pencil, Replace } from "lucide-react";
+import { BookOpen, Database, Calculator, AlertTriangle, ExternalLink, RotateCcw, ShieldQuestion, Layers, Activity, GitCompare, Building2, RefreshCw, Pencil, Replace, Coins } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -899,6 +899,45 @@ export function Methodology() {
               ? "Limitierung: ohne Tail-Korrelationen, ohne Inflations-/Steuermodell, ohne Sequence-of-Returns-Pfade über Cash-Flows."
               : "Limitations: no tail correlations, no inflation/tax model, no cash-flow sequence-of-returns modelling."}
           </p>
+        </Section>
+
+        <Section value="hedging" icon={<Coins className="h-4 w-4" />} title={de ? "Währungs-Hedging — was der Schalter wirklich tut" : "Currency Hedging — what the toggle actually does"}>
+          <p className="text-sm text-muted-foreground">
+            {de
+              ? "Der Hedging-Schalter im Portfolio-Builder greift an vier Stellen gleichzeitig in die Berechnung ein. Er wirkt nur, wenn die Basiswährung nicht USD ist (USD-Anleger gelten in US-Equity per Definition als „home“)."
+              : "The hedging toggle in the portfolio builder feeds four downstream calculations at once. It only fires when the base currency is non-USD (a USD investor in US equity is by definition already \"home\")."}
+          </p>
+          <ul className="text-sm space-y-2 list-disc pl-5">
+            <li>
+              {de
+                ? <><span className="font-medium text-foreground">Monte-Carlo-Simulation:</span> für Aktien-Buckets, deren Region nicht der Basiswährung entspricht, wird σ um −3 Prozentpunkte gesenkt (Emerging Markets: −2 pp), mit Untergrenze 5 %. μ bleibt unverändert. Effekt: schmalerer Fan, niedrigeres VaR/MaxDD, gleicher Median. Bonds, Gold, REITs und Crypto bleiben in der MC unangetastet — die σ-Reduktion gilt nur für equity_*-Buckets.</>
+                : <><span className="font-medium text-foreground">Monte Carlo simulation:</span> for equity buckets whose region differs from the base currency, σ is cut by 3 percentage points (emerging markets: 2 pp), with a 5% floor. μ stays unchanged. Effect: tighter fan, lower VaR/MaxDD, same median. Bonds, gold, REITs and crypto are not touched in the MC — the σ cut only applies to equity_* buckets.</>}
+            </li>
+            <li>
+              {de
+                ? <><span className="font-medium text-foreground">Gebühren-Schätzer:</span> +15 Basispunkte TER pauschal auf jede hedgebare Anlageklasse (Equity, Fixed Income, Real Estate). Cash, Commodities und Digital Assets bekommen keinen Aufschlag. Diese Mehrkosten erscheinen direkt im Fee-Estimator und in der Rendite-nach-Kosten-Projektion.</>
+                : <><span className="font-medium text-foreground">Fee estimator:</span> a flat +15 bps TER is added to every hedgeable asset class (Equity, Fixed Income, Real Estate). Cash, commodities and digital assets get no surcharge. The extra cost shows up directly in the fee estimator and in the after-fee return projection.</>}
+            </li>
+            <li>
+              {de
+                ? <><span className="font-medium text-foreground">ETF-Empfehlungen:</span> die Bucket→ETF-Logik schwenkt auf hedged Share Classes um — z. B. iShares S&P 500 EUR Hedged statt der unhedged USD-Variante, oder iShares Global Aggregate Bond CHF Hedged statt der unhedged Global-Aggregate. Die Logik nutzt explizit die Bucket-Schlüssel Equity-USA-EUR/CHF/GBP und FixedIncome-Global-EUR/CHF/GBP, fällt aber sauber auf die unhedged Variante zurück, falls für eine Basiswährung keine hedged Anteilsklasse im Katalog ist.</>
+                : <><span className="font-medium text-foreground">ETF recommendations:</span> the bucket→ETF mapping switches to hedged share classes — e.g. \"iShares S&P 500 EUR Hedged\" instead of the unhedged USD version, or \"iShares Global Aggregate Bond CHF Hedged\" instead of the unhedged Global Aggregate. It explicitly looks up the bucket keys Equity-USA-EUR/CHF/GBP and FixedIncome-Global-EUR/CHF/GBP, but falls back cleanly to the unhedged variant if a hedged share class is not in the catalog for the chosen base currency.</>}
+            </li>
+            <li>
+              {de
+                ? <><span className="font-medium text-foreground">Risiko-/Diversifikations-Hinweise:</span> der Warntext „Currency Risk: Unhedged foreign equity exposure…" und der Diversifikations-Hinweis „Unhedged equities can act as a diversifier…" werden ausgeblendet, sobald Hedging an ist — beide werden durch den Schalter gegenstandslos.</>
+                : <><span className="font-medium text-foreground">Risk / diversification copy:</span> the \"Currency Risk: Unhedged foreign equity exposure…\" warning and the \"Unhedged equities can act as a diversifier…\" hint both disappear once hedging is on — the toggle makes both points moot.</>}
+            </li>
+          </ul>
+          <p className="text-sm text-muted-foreground pt-2">
+            {de ? "Was der Schalter bewusst NICHT tut:" : "What the toggle deliberately does NOT do:"}
+          </p>
+          <ul className="text-sm space-y-1 list-disc pl-5 text-muted-foreground">
+            <li>{de ? "μ (Erwartungsrendite) wird nicht reduziert — die Hedging-Kosten schlagen ausschließlich über die +15-bp-TER durch, nicht über eine niedrigere CMA-Annahme." : "μ (expected return) is not reduced — the hedging cost only flows through the +15 bp TER, not through a lower CMA assumption."}</li>
+            <li>{de ? "Korrelationen werden nicht angepasst (nur die Diagonal-Vola der betroffenen Equity-Buckets)." : "Correlations are not adjusted (only the diagonal vol of the affected equity buckets)."}</li>
+            <li>{de ? "Bei Basiswährung USD passiert nichts — der Schalter wird wirkungslos." : "When the base currency is USD, the toggle is a no-op."}</li>
+            <li>{de ? "Look-Through-Daten ändern sich nicht (gleicher Underlying-Basket; nur die FX-Exposition der hedged Anteilsklassen wird in der Look-Through-Währungstabelle bewusst auf die Anteilsklassen-Währung gemappt — siehe Abschnitt zur Look-Through-Datenpflege)." : "Look-through data does not change (same underlying basket; only the FX exposure of hedged share classes is intentionally mapped to the share-class currency in the look-through currency table — see the look-through data maintenance section)."}</li>
+          </ul>
         </Section>
 
         <Section value="formulas" icon={<Calculator className="h-4 w-4" />} title={de ? "Formeln" : "Formulas"}>
