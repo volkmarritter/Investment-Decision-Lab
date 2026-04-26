@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { CMA, BENCHMARK, buildCorrelationMatrix, getCMAConsensus, getCMASources, getCMASeed, applyCMALayers, AssetKey } from "@/lib/metrics";
 import { SCENARIOS } from "@/lib/scenarios";
-import { getRiskFreeRate, setRiskFreeRate, resetRiskFreeRate, subscribeRiskFreeRate, RF_DEFAULT_RATE, getCMAOverrides, setCMAOverrides, resetCMAOverrides, subscribeCMAOverrides, CMAUserOverrides, getHomeBiasOverrides, setHomeBiasOverrides, resetHomeBiasOverrides, subscribeHomeBiasOverrides, resolvedHomeBias, HOME_BIAS_DEFAULTS, HomeBiasCurrency, getLastAllocation, subscribeLastAllocation } from "@/lib/settings";
+import { getRiskFreeRates, getRiskFreeRateOverrides, setRiskFreeRate, resetRiskFreeRate, subscribeRiskFreeRate, RF_DEFAULTS, RFCurrency, getCMAOverrides, setCMAOverrides, resetCMAOverrides, subscribeCMAOverrides, CMAUserOverrides, getHomeBiasOverrides, setHomeBiasOverrides, resetHomeBiasOverrides, subscribeHomeBiasOverrides, resolvedHomeBias, HOME_BIAS_DEFAULTS, HomeBiasCurrency, getLastAllocation, subscribeLastAllocation } from "@/lib/settings";
 import type { AssetAllocation } from "@/lib/types";
 import { useT } from "@/lib/i18n";
 import { parseDecimalInput } from "@/lib/manualWeights";
@@ -36,17 +36,33 @@ export function Methodology() {
   const { lang } = useT();
   const de = lang === "de";
 
-  const [rf, setRf] = useState<number>(() => getRiskFreeRate());
-  const [rfInput, setRfInput] = useState<string>(() => (getRiskFreeRate() * 100).toFixed(2));
-  useEffect(() => subscribeRiskFreeRate((v) => { setRf(v); setRfInput((v * 100).toFixed(2)); }), []);
+  // Per-currency RF (Task #32, 2026-04-26). Each base currency keeps its own
+  // money-market rate because USD T-Bills, EUR ESTR, GBP SONIA and CHF SARON
+  // diverge meaningfully. The four-row table below is the editor; the
+  // construction overlay table further down displays the currently-shown
+  // currency's RF in its Sharpe-tilt row.
+  const RF_CURRENCIES: RFCurrency[] = ["USD", "EUR", "GBP", "CHF"];
+  const buildRfDraft = (): Record<RFCurrency, string> => {
+    const all = getRiskFreeRates();
+    return {
+      USD: (all.USD * 100).toFixed(2),
+      EUR: (all.EUR * 100).toFixed(2),
+      GBP: (all.GBP * 100).toFixed(2),
+      CHF: (all.CHF * 100).toFixed(2),
+    };
+  };
+  const [rfRates, setRfRates] = useState<Record<RFCurrency, number>>(() => getRiskFreeRates());
+  const [rfDraft, setRfDraft] = useState<Record<RFCurrency, string>>(() => buildRfDraft());
+  useEffect(() => subscribeRiskFreeRate((all) => { setRfRates(all); setRfDraft(buildRfDraft()); }), []);
 
-  const applyRf = () => {
+  const applyRf = (ccy: RFCurrency) => {
     // Locale-comma safe: route the user's draft string through the shared
     // parser so "2,5" on a CH/DE/FR phone keypad parses the same as "2.5"
     // (Task #14 — extended to Methodology by Task #19).
-    const v = parseDecimalInput(rfInput);
-    if (v !== null && v >= 0 && v <= 20) setRiskFreeRate(v / 100);
+    const v = parseDecimalInput(rfDraft[ccy]);
+    if (v !== null && v >= 0 && v <= 20) setRiskFreeRate(ccy, v / 100);
   };
+  const rfOverrides = getRiskFreeRateOverrides();
 
   // ---------------------------------------------------------------- CMA editor
   // Local working buffer of user inputs. Persisted on "Apply".
@@ -255,12 +271,12 @@ export function Methodology() {
               <li className="flex items-start gap-2">
                 <Pencil className="h-3 w-3 mt-0.5 text-primary shrink-0" />
                 <span>
-                  <span className="font-semibold">{de ? "Risikofreier Zinssatz" : "Risk-Free Rate"}</span>
+                  <span className="font-semibold">{de ? "Risikofreier Zinssatz (je Basiswährung)" : "Risk-Free Rate (per base currency)"}</span>
                   {" — "}
                   <span className="text-muted-foreground">
                     {de
-                      ? "Sharpe-Ratio und Alpha. Default 2,50 %."
-                      : "Sharpe Ratio and Alpha. Default 2.50%."}
+                      ? "Sharpe-Ratio, Alpha und Aktien-Sharpe-Tilt. Defaults: USD 4,25 % / EUR 2,50 % / GBP 4,00 % / CHF 0,50 %."
+                      : "Sharpe Ratio, Alpha and equity Sharpe-tilt. Defaults: USD 4.25% / EUR 2.50% / GBP 4.00% / CHF 0.50%."}
                   </span>
                 </span>
               </li>
@@ -297,43 +313,98 @@ export function Methodology() {
         <Section
           value="rf"
           icon={<Activity className="h-4 w-4" />}
-          title={de ? "Risikofreier Zinssatz" : "Risk-Free Rate"}
+          title={de ? "Risikofreier Zinssatz (je Basiswährung)" : "Risk-Free Rate (per base currency)"}
           editable
           editableLabel={de ? "Editierbar" : "Editable"}
         >
           <p className="text-sm text-muted-foreground">
             {de
-              ? "Dies ist die einzige Eingabe, die sich nach aktuellen Marktbedingungen richtet. Sie fließt in Sharpe-Ratio und Alpha ein. Standard 2,50 % entspricht einem typischen Korridor für kurzlaufende EUR/USD-Geldmarktsätze nach 2024."
-              : "This is the one input tied to current market conditions. It feeds into Sharpe Ratio and Alpha. Default 2.50% reflects a typical post-2024 short-term EUR/USD money market envelope."}
+              ? "Pro Basiswährung ein eigener risikofreier Zinssatz, weil die kurzfristigen Geldmarkt-Renditen je Region deutlich auseinanderlaufen (USD T-Bills, EUR ESTR, GBP SONIA, CHF SARON). Der Wert der jeweiligen Basiswährung des Portfolios fließt in Sharpe-Ratio, Alpha und in den Sharpe-Tilt-Schritt der Aktienregion-Konstruktion ein."
+              : "One risk-free rate per base currency, because short-term money-market yields diverge meaningfully by region (USD T-Bills, EUR ESTR, GBP SONIA, CHF SARON). The value matching the portfolio's base currency feeds into Sharpe ratio, Alpha, and the Sharpe-tilt step of equity-region construction."}
           </p>
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="space-y-1">
-              <Label htmlFor="rf-input" className="text-xs">{de ? "Aktueller Wert (%)" : "Current value (%)"}</Label>
-              <Input
-                id="rf-input"
-                type="text"
-                inputMode="decimal"
-                value={rfInput}
-                onChange={(e) => setRfInput(e.target.value)}
-                onBlur={applyRf}
-                onKeyDown={(e) => { if (e.key === "Enter") applyRf(); }}
-                className="w-32 font-mono"
-              />
+          <div className="rounded-md border bg-muted/30 p-3 space-y-3" data-testid="rf-editor">
+            <div className="flex flex-wrap items-center gap-2">
+              <Activity className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-semibold">
+                {de ? "Risikofreie Zinssätze" : "Risk-free rates"}
+              </span>
+              <Badge variant="outline" className="text-[10px]">
+                {de ? "Bereich 0,00 – 20,00 %" : "range 0.00 – 20.00%"}
+              </Badge>
             </div>
-            <Button onClick={applyRf} size="sm">{de ? "Übernehmen" : "Apply"}</Button>
-            <Button variant="outline" size="sm" onClick={() => resetRiskFreeRate()}>
-              <RotateCcw className="h-3.5 w-3.5 mr-1" />
-              {de ? "Zurücksetzen" : "Reset to default"} ({(RF_DEFAULT_RATE * 100).toFixed(2)}%)
-            </Button>
-            <div className="text-xs text-muted-foreground">
-              {de ? "Aktuell verwendet" : "Currently used"}: <span className="font-mono font-semibold text-foreground">{(rf * 100).toFixed(2)}%</span>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[120px]">{de ? "Währung" : "Currency"}</TableHead>
+                    <TableHead className="w-[180px]">{de ? "Wert (%)" : "Value (%)"}</TableHead>
+                    <TableHead className="text-right">{de ? "Default" : "Default"}</TableHead>
+                    <TableHead className="text-right">{de ? "Status" : "Status"}</TableHead>
+                    <TableHead className="text-right w-[120px]">{de ? "Aktion" : "Action"}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {RF_CURRENCIES.map((c) => {
+                    const isOverride = rfOverrides[c] !== undefined;
+                    const def = RF_DEFAULTS[c];
+                    return (
+                      <TableRow key={`rf-${c}`}>
+                        <TableCell className="font-mono text-xs font-semibold">{c}</TableCell>
+                        <TableCell>
+                          <Input
+                            id={`rf-${c}`}
+                            type="text"
+                            inputMode="decimal"
+                            value={rfDraft[c]}
+                            onChange={(e) => setRfDraft((d) => ({ ...d, [c]: e.target.value }))}
+                            onBlur={() => applyRf(c)}
+                            onKeyDown={(e) => { if (e.key === "Enter") applyRf(c); }}
+                            className="h-8 w-28 font-mono text-sm"
+                            data-testid={`input-rf-${c}`}
+                          />
+                        </TableCell>
+                        <TableCell className="text-right text-xs text-muted-foreground font-mono">
+                          {(def * 100).toFixed(2)}%
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {isOverride
+                            ? <Badge variant="default" className="text-[10px] px-1.5 py-0">{de ? "Eigene" : "Custom"}</Badge>
+                            : <Badge variant="outline" className="text-[10px] px-1.5 py-0">{de ? "Default" : "Default"}</Badge>}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2"
+                            onClick={() => resetRiskFreeRate(c)}
+                            disabled={!isOverride}
+                            data-testid={`button-rf-reset-${c}`}
+                          >
+                            <RotateCcw className="h-3 w-3 mr-1" />
+                            {de ? "Reset" : "Reset"}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
             </div>
+            <p className="text-[10px] text-muted-foreground leading-relaxed">
+              {de
+                ? "Tipp: Sie können hier die Rendite einer kurzlaufenden Staatsanleihe / eines Geldmarktsatzes Ihrer Basiswährung eingeben (z. B. SARON für CHF, ESTR/EZB für EUR, SONIA für GBP, T-Bills für USD)."
+                : "Tip: enter the yield of a short-term government bill / money-market rate in your base currency (e.g. SARON for CHF, ESTR/ECB for EUR, SONIA for GBP, T-Bills for USD)."}
+            </p>
           </div>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            {de
-              ? "Tipp: Sie können hier die Rendite einer 3-Monats-Staatsanleihe Ihrer Basiswährung eingeben (z. B. SARON für CHF, ESTR/EZB für EUR, T-Bills für USD)."
-              : "Tip: enter the yield of a 3-month government bill in your base currency (e.g. SARON for CHF, ESTR/ECB for EUR, T-Bills for USD)."}
-          </p>
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>{de ? "Bekannte Einschränkung" : "Known limitation"}</AlertTitle>
+            <AlertDescription className="text-xs leading-relaxed">
+              {de
+                ? "Der RF wird je Basiswährung gewählt, aber die Kapitalmarkt-Annahmen (μ je Anlageklasse, siehe Abschnitt CMAs) sind währungs-nominal und werden nicht in die Basiswährung umgerechnet. In der Praxis ist die FX-Translation kleiner als die Streuung zwischen den LTCMA-Anbietern; bei größeren RF-Spreads (z. B. CHF gegen USD) führt das jedoch zu leicht unterschiedlichen Sharpe-Werten als bei einer streng FX-konsistenten Berechnung."
+                : "RF is selected per base currency, but the capital-market assumptions (μ per asset class — see CMAs section) are currency-nominal and are not FX-translated into the base currency. In practice the FX translation is smaller than the dispersion across LTCMA providers; with larger RF spreads (e.g. CHF vs. USD) this still produces slightly different Sharpe values than a strictly FX-consistent calculation would."}
+            </AlertDescription>
+          </Alert>
         </Section>
 
         <Section
@@ -505,14 +576,18 @@ export function Methodology() {
                 <TableRow><TableCell className="text-xs">{de ? "Konzentrationsgrenze pro Region" : "Concentration cap per region"}</TableCell><TableCell className="text-right font-mono text-xs">≤ 65%</TableCell></TableRow>
                 <TableRow>
                   <TableCell className="text-xs">
-                    {de ? "Risikofreier Zins (Sharpe-Tilt)" : "Risk-free rate (Sharpe tilt)"}
+                    {de ? "Risikofreier Zins (Sharpe-Tilt, je Basiswährung)" : "Risk-free rate (Sharpe tilt, per base currency)"}
                     <div className="text-[10px] text-muted-foreground font-normal mt-0.5">
                       {de
-                        ? "Verwendet denselben oben editierbaren RF wie Report-Kennzahlen. Eine Änderung verschiebt die Bucket-Gewichte beim nächsten Klick auf „Portfolio generieren\u201C."
-                        : "Uses the same editable RF as report metrics. Changing it shifts the bucket weights on the next \"Generate Portfolio\" click."}
+                        ? "Verwendet je Basiswährung denselben oben editierbaren RF wie die Report-Kennzahlen. Eine Änderung verschiebt die Bucket-Gewichte beim nächsten Klick auf „Portfolio generieren\u201C."
+                        : "Uses, per base currency, the same editable RF as the report metrics. Changing it shifts the bucket weights on the next \"Generate Portfolio\" click."}
                     </div>
                   </TableCell>
-                  <TableCell className="text-right font-mono text-xs align-top">{(rf * 100).toFixed(2)}%</TableCell>
+                  <TableCell className="text-right font-mono text-xs align-top">
+                    {RF_CURRENCIES.map((c) => (
+                      <div key={`construction-rf-${c}`}>{c} {(rfRates[c] * 100).toFixed(2)}%</div>
+                    ))}
+                  </TableCell>
                 </TableRow>
               </TableBody>
             </Table>

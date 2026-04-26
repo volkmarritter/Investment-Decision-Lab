@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { buildPortfolio, computeNaturalBucketCount } from "../src/lib/portfolio";
 import { defaultExchangeFor, DEFAULT_EXCHANGE_FOR_CURRENCY } from "../src/lib/exchange";
 import { runValidation } from "../src/lib/validation";
@@ -17,6 +17,7 @@ import {
   portfolioReturn,
   portfolioVol,
 } from "../src/lib/metrics";
+import type { AssetAllocation } from "../src/lib/types";
 import { diffPortfolios } from "../src/lib/compare";
 import { analyzePortfolio } from "../src/lib/explain";
 
@@ -1359,7 +1360,7 @@ describe("CMA layered overrides", () => {
     }
   });
 
-  it("risk-free rate override: changing RF shifts equity bucket weights; reset restores baseline", async () => {
+  it("per-currency risk-free rate: changing USD RF shifts USD bucket weights; reset restores baseline", async () => {
     const settings = await import("../src/lib/settings");
     const eqW = (out: ReturnType<typeof buildPortfolio>, region: string) =>
       out.allocation
@@ -1379,15 +1380,15 @@ describe("CMA layered overrides", () => {
       dispatchEvent: () => true,
     };
     try {
-      // Baseline at default RF (2.50%).
+      // Baseline at default USD RF (4.25%).
       const baseline = buildPortfolio(baseInput({ baseCurrency: "USD", numETFs: 12 }));
       const baselineUS = eqW(baseline, "USA");
       const baselineEM = eqW(baseline, "EM");
-      // Raise RF to 6%. With CMA expReturns roughly in [4–9%], higher RF
+      // Raise USD RF to 8%. With CMA expReturns roughly in [4–9%], higher RF
       // compresses Sharpe across the board AND shifts the relative ranking
       // toward higher-expReturn / higher-vol regions (EM) vs developed (USA).
-      settings.setRiskFreeRate(0.06);
-      expect(settings.getRiskFreeRate()).toBeCloseTo(0.06, 6);
+      settings.setRiskFreeRate("USD", 0.08);
+      expect(settings.getRiskFreeRate("USD")).toBeCloseTo(0.08, 6);
       const tilted = buildPortfolio(baseInput({ baseCurrency: "USD", numETFs: 12 }));
       const tiltedUS = eqW(tilted, "USA");
       const tiltedEM = eqW(tilted, "EM");
@@ -1397,14 +1398,145 @@ describe("CMA layered overrides", () => {
       const emShift = Math.abs(tiltedEM - baselineEM);
       expect(usaShift + emShift).toBeGreaterThan(0.5);
       // Reset → baseline restored within rounding.
-      settings.resetRiskFreeRate();
-      expect(settings.getRiskFreeRate()).toBeCloseTo(0.025, 6);
+      settings.resetRiskFreeRate("USD");
+      expect(settings.getRiskFreeRate("USD")).toBeCloseTo(0.0425, 6);
       const restored = buildPortfolio(baseInput({ baseCurrency: "USD", numETFs: 12 }));
       expect(Math.abs(eqW(restored, "USA") - baselineUS)).toBeLessThan(0.01);
       expect(Math.abs(eqW(restored, "EM") - baselineEM)).toBeLessThan(0.01);
     } finally {
       if (orig) (globalThis as unknown as { window: typeof orig }).window = orig;
       else delete (globalThis as { window?: unknown }).window;
+    }
+  });
+
+  it("per-currency RF defaults: USD/EUR/GBP/CHF return their own seeded values", async () => {
+    const settings = await import("../src/lib/settings");
+    const orig = (globalThis as { window?: unknown }).window;
+    delete (globalThis as { window?: unknown }).window;
+    try {
+      // No window → defaults must be returned by getRiskFreeRate(ccy).
+      expect(settings.getRiskFreeRate("USD")).toBeCloseTo(0.0425, 6);
+      expect(settings.getRiskFreeRate("EUR")).toBeCloseTo(0.0250, 6);
+      expect(settings.getRiskFreeRate("GBP")).toBeCloseTo(0.0400, 6);
+      expect(settings.getRiskFreeRate("CHF")).toBeCloseTo(0.0050, 6);
+      expect(settings.RF_DEFAULTS).toEqual({ USD: 0.0425, EUR: 0.0250, GBP: 0.0400, CHF: 0.0050 });
+    } finally {
+      if (orig) (globalThis as unknown as { window: typeof orig }).window = orig;
+    }
+  });
+
+  it("per-currency RF: editing one currency leaves the other three on their defaults (cross-currency isolation)", async () => {
+    const settings = await import("../src/lib/settings");
+    const fakeStore: Record<string, string> = {};
+    const orig = (globalThis as { window?: unknown }).window;
+    (globalThis as unknown as { window: { localStorage: Storage; dispatchEvent: () => boolean } }).window = {
+      localStorage: {
+        getItem: (k: string) => fakeStore[k] ?? null,
+        setItem: (k: string, v: string) => { fakeStore[k] = v; },
+        removeItem: (k: string) => { delete fakeStore[k]; },
+        clear: () => { for (const k of Object.keys(fakeStore)) delete fakeStore[k]; },
+        key: () => null,
+        length: 0,
+      } as Storage,
+      dispatchEvent: () => true,
+    };
+    try {
+      // Override CHF only; USD / EUR / GBP must stay on their defaults.
+      settings.setRiskFreeRate("CHF", 0.012);
+      expect(settings.getRiskFreeRate("CHF")).toBeCloseTo(0.012, 6);
+      expect(settings.getRiskFreeRate("USD")).toBeCloseTo(0.0425, 6);
+      expect(settings.getRiskFreeRate("EUR")).toBeCloseTo(0.0250, 6);
+      expect(settings.getRiskFreeRate("GBP")).toBeCloseTo(0.0400, 6);
+      // Reset CHF brings it back to its default; others still untouched.
+      settings.resetRiskFreeRate("CHF");
+      expect(settings.getRiskFreeRate("CHF")).toBeCloseTo(0.0050, 6);
+      expect(settings.getRiskFreeRate("USD")).toBeCloseTo(0.0425, 6);
+      // After the only override is reset, the storage key is removed so
+      // getRiskFreeRateOverrides() returns {}.
+      expect(settings.getRiskFreeRateOverrides()).toEqual({});
+    } finally {
+      if (orig) (globalThis as unknown as { window: typeof orig }).window = orig;
+      else delete (globalThis as { window?: unknown }).window;
+    }
+  });
+
+  it("per-currency RF: getRiskFreeRates sanitization drops unknown currencies and clamps out-of-bounds values", async () => {
+    const { getRiskFreeRates, getRiskFreeRateOverrides } = await import("../src/lib/settings");
+    const fakeStore: Record<string, string> = {
+      "idl.riskFreeRates": JSON.stringify({
+        USD: 0.05,
+        XYZ: 0.03,        // unknown currency → dropped
+        EUR: 99,          // out of bounds → clamped to 0.2
+        GBP: -1,          // negative → clamped to 0
+        CHF: "abc",       // wrong type → dropped → falls back to default
+      }),
+    };
+    const orig = (globalThis as { window?: unknown }).window;
+    (globalThis as unknown as { window: { localStorage: Pick<Storage, "getItem"> } }).window = {
+      localStorage: { getItem: (k: string) => fakeStore[k] ?? null },
+    };
+    try {
+      const rates = getRiskFreeRates();
+      expect(rates.USD).toBeCloseTo(0.05, 6);
+      expect(rates.EUR).toBeCloseTo(0.20, 6);   // clamped to upper bound
+      expect(rates.GBP).toBeCloseTo(0, 6);      // clamped to lower bound
+      expect(rates.CHF).toBeCloseTo(0.0050, 6); // wrong type → falls through to default
+      const ov = getRiskFreeRateOverrides();
+      // overrides view should NOT include unknown currencies or wrong-type ones
+      expect(Object.keys(ov).sort()).toEqual(["EUR", "GBP", "USD"]);
+      expect((ov as Record<string, unknown>).XYZ).toBeUndefined();
+      expect(ov.CHF).toBeUndefined();
+    } finally {
+      if (orig) (globalThis as unknown as { window: typeof orig }).window = orig;
+      else delete (globalThis as { window?: unknown }).window;
+    }
+  });
+
+  it("per-currency RF: computeMetrics uses the requested currency's RF (USD vs CHF Sharpe differ)", async () => {
+    const { computeMetrics } = await import("../src/lib/metrics");
+    const orig = (globalThis as { window?: unknown }).window;
+    // No window → both currencies fall back to their per-currency default.
+    delete (globalThis as { window?: unknown }).window;
+    try {
+      // Same allocation, same μ, same σ; only the RF differs by base currency.
+      const alloc: AssetAllocation[] = [
+        { assetClass: "Equity", region: "USA", weight: 60 },
+        { assetClass: "Fixed Income", region: "Global", weight: 40 },
+      ];
+      const usd = computeMetrics(alloc, "USD"); // RF = 0.0425
+      const chf = computeMetrics(alloc, "CHF"); // RF = 0.0050
+      // Lower CHF RF → higher Sharpe for the same expReturn / vol.
+      expect(chf.sharpe).toBeGreaterThan(usd.sharpe);
+      // Numbers must differ by a meaningful amount, not just rounding noise.
+      expect(chf.sharpe - usd.sharpe).toBeGreaterThan(0.05);
+    } finally {
+      if (orig) (globalThis as unknown as { window: typeof orig }).window = orig;
+    }
+  });
+
+  it("per-currency RF: legacy `idl.riskFreeRate` key is removed on module load (no value migration)", async () => {
+    const fakeStore: Record<string, string> = {
+      "idl.riskFreeRate": "0.06", // pretend this old key existed
+    };
+    const removed: string[] = [];
+    const orig = (globalThis as { window?: unknown }).window;
+    (globalThis as unknown as { window: { localStorage: Pick<Storage, "getItem" | "removeItem"> } }).window = {
+      localStorage: {
+        getItem: (k: string) => fakeStore[k] ?? null,
+        removeItem: (k: string) => { removed.push(k); delete fakeStore[k]; },
+      },
+    };
+    try {
+      // Force a fresh module evaluation so the top-level legacy-key cleanup
+      // runs against this stubbed window.
+      vi.resetModules();
+      await import("../src/lib/settings");
+      expect(removed).toContain("idl.riskFreeRate");
+      expect(fakeStore["idl.riskFreeRate"]).toBeUndefined();
+    } finally {
+      if (orig) (globalThis as unknown as { window: typeof orig }).window = orig;
+      else delete (globalThis as { window?: unknown }).window;
+      vi.resetModules();
     }
   });
 

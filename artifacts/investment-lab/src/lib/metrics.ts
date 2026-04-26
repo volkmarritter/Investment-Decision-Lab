@@ -1,5 +1,5 @@
-import { AssetAllocation } from "./types";
-import { getRiskFreeRate, getCMAOverrides } from "./settings";
+import { AssetAllocation, BaseCurrency } from "./types";
+import { getRiskFreeRate, getCMAOverrides, type RFCurrency } from "./settings";
 import consensusFile from "@/data/cmas.consensus.json";
 
 export type AssetKey =
@@ -156,9 +156,6 @@ export function getCMASeed(key: AssetKey): { expReturn: number; vol: number } {
   return { expReturn: CMA_SEED[key].expReturn, vol: CMA_SEED[key].vol };
 }
 
-export const RISK_FREE_RATE_DEFAULT = 0.025;
-export const RISK_FREE_RATE = RISK_FREE_RATE_DEFAULT;
-
 const C: Partial<Record<AssetKey, Partial<Record<AssetKey, number>>>> = {
   equity_us: { equity_eu: 0.82, equity_ch: 0.70, equity_jp: 0.70, equity_em: 0.72, equity_thematic: 0.85, bonds: 0.10, cash: 0.00, gold: 0.05, reits: 0.70, crypto: 0.30 },
   equity_eu: { equity_ch: 0.78, equity_jp: 0.65, equity_em: 0.72, equity_thematic: 0.78, bonds: 0.10, cash: 0.00, gold: 0.05, reits: 0.70, crypto: 0.28 },
@@ -263,8 +260,8 @@ export interface PortfolioMetricsResult {
   benchmarkVol: number;
 }
 
-export function computeMetrics(allocation: AssetAllocation[]): PortfolioMetricsResult {
-  const rf = getRiskFreeRate();
+export function computeMetrics(allocation: AssetAllocation[], baseCurrency: BaseCurrency): PortfolioMetricsResult {
+  const rf = getRiskFreeRate(baseCurrency as RFCurrency);
   const exp = mapAllocationToAssets(allocation);
   const r = portfolioReturn(exp);
   const v = portfolioVol(exp);
@@ -310,7 +307,8 @@ export interface FrontierPoint {
   isCurrent?: boolean;
 }
 
-export function computeFrontier(allocation: AssetAllocation[]): { points: FrontierPoint[]; current: FrontierPoint } {
+export function computeFrontier(allocation: AssetAllocation[], baseCurrency: BaseCurrency): { points: FrontierPoint[]; current: FrontierPoint } {
+  const rf = getRiskFreeRate(baseCurrency as RFCurrency);
   const exp = mapAllocationToAssets(allocation);
   const equityKeys: AssetKey[] = ["equity_us", "equity_eu", "equity_ch", "equity_jp", "equity_em", "equity_thematic", "reits", "crypto"];
   const isEq = (k: AssetKey) => equityKeys.includes(k);
@@ -337,7 +335,6 @@ export function computeFrontier(allocation: AssetAllocation[]): { points: Fronti
     ];
     const r = portfolioReturn(blended);
     const v = portfolioVol(blended);
-    const rf = getRiskFreeRate();
     points.push({
       equityPct: pct,
       vol: v,
@@ -349,12 +346,11 @@ export function computeFrontier(allocation: AssetAllocation[]): { points: Fronti
   const currentEqPct = Math.round(eqWeightSum * 100);
   const r = portfolioReturn(exp);
   const v = portfolioVol(exp);
-  const rf2 = getRiskFreeRate();
   const current: FrontierPoint = {
     equityPct: currentEqPct,
     vol: v,
     ret: r,
-    sharpe: v > 0 ? (r - rf2) / v : 0,
+    sharpe: v > 0 ? (r - rf) / v : 0,
     isCurrent: true,
   };
   return { points, current };

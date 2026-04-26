@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-04-24 (night, canonical-order)
+Last updated: 2026-04-26 (per-base-currency-risk-free-rates — Task #32)
 
 ---
 
@@ -65,9 +65,9 @@ Defined in `src/lib/types.ts`:
 | `includeListedRealEstate` | `boolean` | Adds ~6% global REITs. |
 | `includeCommodities` | `boolean` | Adds up to 5% gold (carved from bonds). |
 
-User-editable global setting (`src/lib/settings.ts`, persisted in `localStorage` under `idl.riskFreeRate`):
+User-editable global settings (`src/lib/settings.ts`, persisted in `localStorage` under `idl.riskFreeRates`):
 
-- **Risk-free rate** — used by Sharpe / Sortino / efficient frontier. Default `2.5%`.
+- **Risk-free rate (per base currency)** — used by Sharpe / Sortino / efficient frontier and by the Sharpe-tilt step of equity-region construction. The rate looked up at calculation time matches the portfolio's `baseCurrency`. Defaults: USD `4.25%`, EUR `2.50%`, GBP `4.00%`, CHF `0.50%`. Each row can be overridden independently in the Methodology tab; the legacy single-rate key `idl.riskFreeRate` is dropped on module load (no value migration).
 
 ---
 
@@ -120,7 +120,7 @@ raw_i = anchor_i
 | Long-horizon EM tilt (h ≥ 10) | × 1.3 |
 | Sustainability theme on USA | × 0.85 |
 | Concentration cap per region | 65% of equity sleeve |
-| Reference risk-free for Sharpe overlay | 2.5% (decoupled from user's risk-free setting so portfolio shape is reproducible) |
+| Risk-free for Sharpe overlay | User-editable per base currency (USD `4.25%` / EUR `2.50%` / GBP `4.00%` / CHF `0.50%` defaults). Looked up at build time via `getRiskFreeRate(input.baseCurrency)`. |
 
 Why this design:
 
@@ -535,7 +535,7 @@ All persistence is `localStorage`-only:
 | Key | Owner | Purpose |
 |-----|-------|---------|
 | `investment-lab.lang.v1` | `i18n.tsx` | Language preference. |
-| `idl.riskFreeRate` | `settings.ts` | User-editable risk-free rate. |
+| `idl.riskFreeRates` | `settings.ts` | Per-base-currency user-editable risk-free rates (`USD\|EUR\|GBP\|CHF` → number, range `[0, 0.20]`); sanitized on read (currency whitelist + value clamp). The legacy single-rate key `idl.riskFreeRate` is removed on module load (no value migration). |
 | `idl.cmaOverrides` | `settings.ts` | Per-asset-class μ/σ overrides set in the Methodology tab; sanitized on read (key whitelist + value bounds). |
 | `idl.homeBiasOverrides` | `settings.ts` | Per-base-currency home-bias multipliers (`USD\|EUR\|GBP\|CHF` → number, range `[0, 5]`); sanitized on read (currency whitelist + value clamp). Read by `computeEquityRegionWeights` at portfolio-build time via `resolvedHomeBias()`. |
 | `investment-lab.savedScenarios.v1` | `savedScenarios.ts` | List of named scenarios. |
@@ -618,6 +618,15 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-04-26 (per-base-currency-risk-free-rates — Task #32)
+- **The single global risk-free rate is replaced by four independent per-base-currency RFs (USD `4.25%`, EUR `2.50%`, GBP `4.00%`, CHF `0.50%`).** Sharpe / Sortino / efficient-frontier metrics and the Sharpe-tilt step of equity-region construction now look up the rate that matches the portfolio's `baseCurrency`, so a CHF investor no longer sees their Sharpe ratio computed against a USD-style RF.
+  - **`src/lib/settings.ts`** rewritten around a per-currency API: `RFCurrency`, `RF_DEFAULTS` (the four numbers above), `getRiskFreeRates()`, `getRiskFreeRateOverrides()`, `getRiskFreeRate(ccy)`, `setRiskFreeRate(ccy, rate)`, `resetRiskFreeRate(ccy)`, `resetAllRiskFreeRates()`, `subscribeRiskFreeRate(cb)`. Persistence key changed from `idl.riskFreeRate` (single number) to `idl.riskFreeRates` (object keyed by currency, range-clamped `[0, 0.20]`, unknown keys dropped on read). The legacy key is **removed** from `localStorage` on module load — no value migration (deliberate: the old single value would be wrong for at least three of the four base currencies).
+  - **`src/lib/metrics.ts`** — `computeMetrics(...)` and `computeFrontier(...)` now take a required `baseCurrency` argument and resolve their RF via `getRiskFreeRate(baseCurrency)` instead of the old global getter.
+  - **`src/lib/portfolio.ts`** — `computeEquityRegionWeights` now reads `getRiskFreeRate(input.baseCurrency)` once per build for the `(Sharpe / 0.25)^0.4` damped tilt; the dead path that used a single global RF is gone.
+  - **`PortfolioMetrics.tsx`** takes `baseCurrency` as a prop and threads it into `computeMetrics` / `computeFrontier`. All five call sites in `BuildPortfolio.tsx` and `ComparePortfolios.tsx` updated.
+  - **Methodology tab** — RF section is now a 4-row editor table (one input per currency, Default / Custom badge, per-row reset). The Construction overlay table now lists all four RFs inline at their live values. A new known-limitation alert (EN/DE) flags that the CMAs themselves remain currency-nominal — only the RF subtraction is base-currency-aware. The editable-overview blurb mentions per-currency defaults.
+  - **Tests** — the previous single-RF regression test in `tests/engine.test.ts` was rewritten for the per-currency API; five new tests added: defaults match `RF_DEFAULTS`, cross-currency isolation (setting USD does not move EUR / GBP / CHF), sanitization + clamping of unknown keys and out-of-bounds values, `computeMetrics` Sharpe differs between USD and CHF for the same input portfolio, and the legacy `idl.riskFreeRate` key is wiped from `localStorage` on module load. Suite now at 255 / 255 passing; typecheck clean; both Playwright e2e specs still green.
 
 ### 2026-04-26 (construction-rf-unified-with-user-rf)
 - **The portfolio engine now uses the user-editable risk-free rate for the Sharpe-tilt step of equity-region construction**, replacing the previously hard-wired `RISK_FREE_FOR_CONSTRUCTION = 0.025` constant in `src/lib/portfolio.ts`. There is now exactly one RF in the system: `getRiskFreeRate()` from `settings.ts` (default 2.50 %, persisted in `localStorage` under `idl.riskFreeRate`).

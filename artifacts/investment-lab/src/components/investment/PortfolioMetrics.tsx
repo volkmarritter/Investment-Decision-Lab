@@ -5,24 +5,28 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { InfoHint } from "@/components/ui/info-hint";
-import { AssetAllocation } from "@/lib/types";
+import { AssetAllocation, BaseCurrency } from "@/lib/types";
 import { computeMetrics, computeFrontier, buildCorrelationMatrix, mapAllocationToAssets, CMA } from "@/lib/metrics";
-import { getRiskFreeRate, subscribeRiskFreeRate, subscribeCMAOverrides } from "@/lib/settings";
+import { getRiskFreeRate, subscribeRiskFreeRate, subscribeCMAOverrides, type RFCurrency } from "@/lib/settings";
 import { applyCMALayers } from "@/lib/metrics";
 import { useT } from "@/lib/i18n";
 
-export function PortfolioMetrics({ allocation }: { allocation: AssetAllocation[] }) {
+export function PortfolioMetrics({ allocation, baseCurrency }: { allocation: AssetAllocation[]; baseCurrency: BaseCurrency }) {
   const { t, lang } = useT();
   const de = lang === "de";
   const [expanded, setExpanded] = useState(false);
-  const [rf, setRf] = useState<number>(() => getRiskFreeRate());
-  useEffect(() => subscribeRiskFreeRate(setRf), []);
+  const [rf, setRf] = useState<number>(() => getRiskFreeRate(baseCurrency as RFCurrency));
+  useEffect(() => subscribeRiskFreeRate((all) => setRf(all[baseCurrency as RFCurrency])), [baseCurrency]);
+  // Re-read RF whenever the active base currency changes (Sharpe / Alpha must
+  // re-render with the new currency's RF immediately, even before the user
+  // re-builds the portfolio).
+  useEffect(() => { setRf(getRiskFreeRate(baseCurrency as RFCurrency)); }, [baseCurrency]);
   // Re-render whenever the user edits CMA overrides in the Methodology tab.
   const [cmaVersion, setCmaVersion] = useState(0);
   useEffect(() => subscribeCMAOverrides(() => { applyCMALayers(); setCmaVersion((v) => v + 1); }), []);
 
-  const m = useMemo(() => computeMetrics(allocation), [allocation, rf, cmaVersion]);
-  const frontier = useMemo(() => computeFrontier(allocation), [allocation, rf, cmaVersion]);
+  const m = useMemo(() => computeMetrics(allocation, baseCurrency), [allocation, baseCurrency, rf, cmaVersion]);
+  const frontier = useMemo(() => computeFrontier(allocation, baseCurrency), [allocation, baseCurrency, rf, cmaVersion]);
   const correlation = useMemo(() => buildCorrelationMatrix(allocation), [allocation]);
   const exposures = useMemo(() => mapAllocationToAssets(allocation), [allocation]);
 

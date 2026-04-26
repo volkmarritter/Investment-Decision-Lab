@@ -1,40 +1,131 @@
-const RF_KEY = "idl.riskFreeRate";
+// ----------------------------------------------------------------------------
+// Risk-free rate — per base currency.
+// ----------------------------------------------------------------------------
+// Replaces the previous single global RF (Task #32, 2026-04-26). Each base
+// currency keeps its own RF because money-market yields diverge meaningfully
+// across regions (CHF SARON ≈ 0.5%, EUR ESTR ≈ 2.5%, GBP SONIA ≈ 4.0%, USD
+// T-Bills ≈ 4.25%). Sharpe, Alpha and the Sharpe-tilt step of equity
+// construction all now thread `baseCurrency` so the appropriate RF is used
+// in every calculation.
+//
+// Storage layout: a single JSON object under `idl.riskFreeRates` keyed by
+// currency. Sanitized on every read (currency whitelist + value bounds).
+// The old `idl.riskFreeRate` key (single global value) is dropped on module
+// load — no value migration; new defaults take over.
+
+export type RFCurrency = "USD" | "EUR" | "GBP" | "CHF";
+
+export const RF_DEFAULTS: Record<RFCurrency, number> = {
+  USD: 0.0425,
+  EUR: 0.0250,
+  GBP: 0.0400,
+  CHF: 0.0050,
+};
+
+export type RFOverrides = Partial<Record<RFCurrency, number>>;
+
+const RF_KEY = "idl.riskFreeRates";
+const RF_LEGACY_KEY = "idl.riskFreeRate"; // dropped on module load
 const RF_EVENT = "idl-rf-changed";
-const RF_DEFAULT = 0.025;
+const RF_VALID_KEYS = new Set<RFCurrency>(["USD", "EUR", "GBP", "CHF"]);
+// Money-market yields realistically live in [0%, 20%]; clamp on read AND write.
+const RF_MIN = 0;
+const RF_MAX = 0.2;
 
-export function getRiskFreeRate(): number {
-  if (typeof window === "undefined") return RF_DEFAULT;
+function sanitizeRfValue(v: unknown): number | undefined {
+  if (typeof v !== "number" || !Number.isFinite(v)) return undefined;
+  return Math.max(RF_MIN, Math.min(RF_MAX, v));
+}
+
+// One-time cleanup of the legacy single-global key. Runs at module load only;
+// the value is intentionally NOT migrated — the new per-currency defaults
+// (USD 4.25 / EUR 2.50 / GBP 4.00 / CHF 0.50) take over.
+if (typeof window !== "undefined") {
+  try { window.localStorage.removeItem(RF_LEGACY_KEY); } catch { /* ignore */ }
+}
+
+export function getRiskFreeRates(): Record<RFCurrency, number> {
+  const out = { ...RF_DEFAULTS };
+  if (typeof window === "undefined") return out;
   const raw = window.localStorage.getItem(RF_KEY);
-  if (raw === null) return RF_DEFAULT;
-  const v = parseFloat(raw);
-  if (!Number.isFinite(v) || v < 0 || v > 0.2) return RF_DEFAULT;
-  return v;
+  if (!raw) return out;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return out;
+    for (const [k, v] of Object.entries(parsed)) {
+      if (!RF_VALID_KEYS.has(k as RFCurrency)) continue;
+      const s = sanitizeRfValue(v);
+      if (s !== undefined) out[k as RFCurrency] = s;
+    }
+    return out;
+  } catch {
+    return out;
+  }
 }
 
-export function setRiskFreeRate(rate: number) {
+export function getRiskFreeRateOverrides(): RFOverrides {
+  if (typeof window === "undefined") return {};
+  const raw = window.localStorage.getItem(RF_KEY);
+  if (!raw) return {};
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return {};
+    const out: RFOverrides = {};
+    for (const [k, v] of Object.entries(parsed)) {
+      if (!RF_VALID_KEYS.has(k as RFCurrency)) continue;
+      const s = sanitizeRfValue(v);
+      if (s !== undefined) out[k as RFCurrency] = s;
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+export function getRiskFreeRate(ccy: RFCurrency): number {
+  const all = getRiskFreeRates();
+  return all[ccy];
+}
+
+export function setRiskFreeRate(ccy: RFCurrency, rate: number) {
   if (typeof window === "undefined") return;
-  const clamped = Math.max(0, Math.min(0.2, rate));
-  window.localStorage.setItem(RF_KEY, String(clamped));
-  window.dispatchEvent(new CustomEvent(RF_EVENT, { detail: clamped }));
+  if (!RF_VALID_KEYS.has(ccy)) return;
+  const s = sanitizeRfValue(rate);
+  if (s === undefined) return;
+  const current = getRiskFreeRateOverrides();
+  current[ccy] = s;
+  window.localStorage.setItem(RF_KEY, JSON.stringify(current));
+  window.dispatchEvent(new CustomEvent(RF_EVENT, { detail: getRiskFreeRates() }));
 }
 
-export function resetRiskFreeRate() {
+export function resetRiskFreeRate(ccy: RFCurrency) {
+  if (typeof window === "undefined") return;
+  if (!RF_VALID_KEYS.has(ccy)) return;
+  const current = getRiskFreeRateOverrides();
+  delete current[ccy];
+  if (Object.keys(current).length === 0) {
+    window.localStorage.removeItem(RF_KEY);
+  } else {
+    window.localStorage.setItem(RF_KEY, JSON.stringify(current));
+  }
+  window.dispatchEvent(new CustomEvent(RF_EVENT, { detail: getRiskFreeRates() }));
+}
+
+export function resetAllRiskFreeRates() {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(RF_KEY);
-  window.dispatchEvent(new CustomEvent(RF_EVENT, { detail: RF_DEFAULT }));
+  window.dispatchEvent(new CustomEvent(RF_EVENT, { detail: getRiskFreeRates() }));
 }
 
-export function subscribeRiskFreeRate(cb: (rate: number) => void): () => void {
+export function subscribeRiskFreeRate(cb: (rates: Record<RFCurrency, number>) => void): () => void {
   if (typeof window === "undefined") return () => {};
   const handler = (e: Event) => {
     const detail = (e as CustomEvent).detail;
-    if (typeof detail === "number") cb(detail);
+    if (detail && typeof detail === "object") cb(detail as Record<RFCurrency, number>);
   };
   window.addEventListener(RF_EVENT, handler);
   return () => window.removeEventListener(RF_EVENT, handler);
 }
-
-export const RF_DEFAULT_RATE = RF_DEFAULT;
 
 // ----------------------------------------------------------------------------
 // CMA user overrides (per-asset-class μ / σ).
