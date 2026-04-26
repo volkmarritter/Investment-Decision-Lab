@@ -5,7 +5,7 @@ import { runValidation } from "../src/lib/validation";
 import { PortfolioInput, BaseCurrency, RiskAppetite } from "../src/lib/types";
 import { profileFor, buildLookthrough } from "../src/lib/lookthrough";
 import { getETFDetails } from "../src/lib/etfs";
-import { runStressTest, SCENARIOS } from "../src/lib/scenarios";
+import { runStressTest, runReverseStressTest, SCENARIOS } from "../src/lib/scenarios";
 import { estimateFees, getETFTer } from "../src/lib/fees";
 import { buildAiPrompt } from "../src/lib/aiPrompt";
 import {
@@ -2286,5 +2286,107 @@ describe("savedScenarios — manual-weights snapshot round-trips through buildPo
     const sumB = Math.round(outB.allocation.reduce((s, a) => s + a.weight, 0) * 10) / 10;
     expect(sumA).toBe(100);
     expect(sumB).toBe(100);
+  });
+});
+
+// =============================================================================
+// Welle 1 — CFA-level methodology upgrades
+// =============================================================================
+
+describe("runMonteCarlo — CVaR / Expected Shortfall", () => {
+  it("CVaR(95) and CVaR(99) are populated, ordered, and ≤ P10 in monetary terms", async () => {
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    const allocation = [
+      { assetClass: "Equity", region: "USA", weight: 100 },
+    ];
+    const r = runMonteCarlo(allocation, 10, 100_000, { paths: 5_000, seed: 12345 });
+    // Sanity: all four CVaR fields exist and are numeric.
+    expect(Number.isFinite(r.cvar95Final)).toBe(true);
+    expect(Number.isFinite(r.cvar99Final)).toBe(true);
+    expect(Number.isFinite(r.cvar95Return)).toBe(true);
+    expect(Number.isFinite(r.cvar99Return)).toBe(true);
+    // CVaR(99) is in a deeper tail than CVaR(95), so its average final wealth
+    // must be ≤ CVaR(95)'s, and both ≤ the P10 threshold.
+    expect(r.cvar99Final).toBeLessThanOrEqual(r.cvar95Final);
+    expect(r.cvar95Final).toBeLessThanOrEqual(r.finalP10);
+    // CVaR returns are negative for a -EV / vol-heavy single equity sleeve.
+    expect(r.cvar99Return).toBeLessThanOrEqual(r.cvar95Return);
+  });
+});
+
+describe("CMA building blocks", () => {
+  it("every asset has components that sum within 50bps of the seed expected return", async () => {
+    const { CMA, CMA_BUILDING_BLOCKS, sumBuildingBlocks, getCMASeed } = await import("../src/lib/metrics");
+    (Object.keys(CMA) as (keyof typeof CMA)[]).forEach((k) => {
+      const seed = getCMASeed(k);
+      const sum = sumBuildingBlocks(k);
+      expect(Math.abs(sum - seed.expReturn)).toBeLessThanOrEqual(0.005);
+      // Each component carries a stable i18n key and a finite contribution.
+      CMA_BUILDING_BLOCKS[k].components.forEach((c) => {
+        expect(typeof c.key).toBe("string");
+        expect(c.key.startsWith("bb.")).toBe(true);
+        expect(Number.isFinite(c.value)).toBe(true);
+      });
+      expect(typeof CMA_BUILDING_BLOCKS[k].source).toBe("string");
+      expect(CMA_BUILDING_BLOCKS[k].source.startsWith("bb.src.")).toBe(true);
+    });
+  });
+});
+
+describe("runReverseStressTest", () => {
+  it("equity-heavy 60/40 needs λ < ~1 vs GFC at -30% target", () => {
+    const allocation = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Bond", region: "Global", weight: 40 },
+    ];
+    const r = runReverseStressTest(allocation, -30);
+    expect(r.targetLoss).toBe(-30);
+    const gfc = r.scenarios.find((s) => s.scenarioId === "gfc");
+    expect(gfc).toBeDefined();
+    // Baseline GFC for 60/40 is well negative; multiplier should be finite.
+    expect(gfc!.baselineTotal).toBeLessThan(0);
+    expect(gfc!.multiplier).not.toBeNull();
+    // Sanity check: multiplier × baseline should land within rounding of -30.
+    const reconstructed = (gfc!.multiplier ?? 0) * gfc!.baselineTotal;
+    expect(Math.abs(reconstructed - -30)).toBeLessThanOrEqual(0.5);
+  });
+
+  it("equity-only uniform shock = target / equity-weight share", () => {
+    const allocation = [
+      { assetClass: "Equity", region: "USA", weight: 50 },
+      { assetClass: "Bond", region: "Global", weight: 50 },
+    ];
+    const r = runReverseStressTest(allocation, -20);
+    expect(r.equityOnly.equityWeightTotal).toBeCloseTo(50, 1);
+    // -20 / 0.5 = -40
+    expect(r.equityOnly.uniformEquityShock).toBeCloseTo(-40, 1);
+  });
+
+  it("bonds-only allocation reports null equity-only shock", () => {
+    const allocation = [{ assetClass: "Bond", region: "Global", weight: 100 }];
+    const r = runReverseStressTest(allocation, -25);
+    expect(r.equityOnly.uniformEquityShock).toBeNull();
+    expect(r.equityOnly.equityWeightTotal).toBe(0);
+  });
+
+  it("scenarios with non-negative baseline return null multiplier (no positive λ can cause a loss)", () => {
+    // 100% cash never produces a negative scenario total → multiplier null.
+    const allocation = [{ assetClass: "Cash", region: "Global", weight: 100 }];
+    const r = runReverseStressTest(allocation, -10);
+    r.scenarios.forEach((s) => {
+      if (s.baselineTotal >= 0) expect(s.multiplier).toBeNull();
+    });
+  });
+
+  it("alreadyExceeds flag set iff scenario alone is worse than the target", () => {
+    // A 100% equity allocation against a deep historical scenario at a lenient
+    // -10 % pain threshold should already exceed at λ < 1.
+    const allocation = [{ assetClass: "Equity", region: "USA", weight: 100 }];
+    const r = runReverseStressTest(allocation, -10);
+    const gfc = r.scenarios.find((s) => s.scenarioId === "gfc");
+    expect(gfc).toBeDefined();
+    if (gfc!.multiplier !== null) {
+      expect(gfc!.alreadyExceeds).toBe(gfc!.multiplier < 1);
+    }
   });
 });

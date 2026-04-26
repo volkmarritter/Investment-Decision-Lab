@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { subscribeCMAOverrides } from "@/lib/settings";
 import { applyCMALayers } from "@/lib/metrics";
-import { Activity, TrendingUp, TrendingDown, Target } from "lucide-react";
+import { Activity, TrendingUp, TrendingDown, Target, Flame } from "lucide-react";
 import {
   Area,
   Line,
@@ -172,6 +172,46 @@ export function MonteCarloSimulation({
               <div className="text-base font-semibold mt-1">{formatCurrency(result.finalP90)}</div>
             </div>
           </div>
+        </div>
+
+        {/* Tail-risk row: Conditional VaR (Expected Shortfall) at 95 % and 99 %.
+            Shows the *average* horizon outcome in the worst 5 % / 1 % of paths,
+            both as a monetary value and as a horizon return. CVaR is a stricter
+            risk measure than P10 (which is the threshold) — it reports what the
+            tail actually looks like once you are inside it. Standard in CFA and
+            Solvency-II reports. */}
+        <div className="rounded-md border border-destructive/30 bg-destructive/5 p-3" data-testid="mc-tail-risk">
+          <div className="flex items-center gap-2 mb-2 text-[11px] font-semibold uppercase tracking-wide text-destructive">
+            <Flame className="h-3 w-3" />
+            {t("mc.tail.title")}
+          </div>
+          <div className="grid grid-cols-2 gap-4 text-center">
+            <div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                {t("mc.tail.cvar95")}
+              </div>
+              <div className="text-base font-semibold mt-1" data-testid="mc-cvar95-final">
+                {formatCurrency(result.cvar95Final)}
+              </div>
+              <div className="text-[10px] text-destructive font-mono mt-0.5">
+                {(result.cvar95Return * 100).toFixed(1)}%
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                {t("mc.tail.cvar99")}
+              </div>
+              <div className="text-base font-semibold mt-1" data-testid="mc-cvar99-final">
+                {formatCurrency(result.cvar99Final)}
+              </div>
+              <div className="text-[10px] text-destructive font-mono mt-0.5">
+                {(result.cvar99Return * 100).toFixed(1)}%
+              </div>
+            </div>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-2 leading-snug">
+            {t("mc.tail.desc")}
+          </p>
         </div>
 
         <div className="h-72 w-full">

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { CMA, BENCHMARK, buildCorrelationMatrix, getCMAConsensus, getCMASources, getCMASeed, applyCMALayers, AssetKey } from "@/lib/metrics";
+import { CMA, BENCHMARK, buildCorrelationMatrix, getCMAConsensus, getCMASources, getCMASeed, applyCMALayers, AssetKey, CMA_BUILDING_BLOCKS, sumBuildingBlocks } from "@/lib/metrics";
 import { SCENARIOS } from "@/lib/scenarios";
 import { getRiskFreeRates, getRiskFreeRateOverrides, setRiskFreeRate, resetRiskFreeRate, subscribeRiskFreeRate, RF_DEFAULTS, RFCurrency, getCMAOverrides, setCMAOverrides, resetCMAOverrides, subscribeCMAOverrides, CMAUserOverrides, getHomeBiasOverrides, setHomeBiasOverrides, resetHomeBiasOverrides, subscribeHomeBiasOverrides, resolvedHomeBias, HOME_BIAS_DEFAULTS, HomeBiasCurrency, getLastAllocation, subscribeLastAllocation } from "@/lib/settings";
 import type { AssetAllocation } from "@/lib/types";
@@ -33,7 +33,7 @@ import type { CatalogSummary, CatalogEntrySummary } from "@/lib/admin-api";
 const LAST_REVIEWED = "Q2 2026";
 
 export function Methodology() {
-  const { lang } = useT();
+  const { lang, t } = useT();
   const de = lang === "de";
 
   // Per-currency RF (Task #32, 2026-04-26). Each base currency keeps its own
@@ -847,6 +847,68 @@ export function Methodology() {
                       ))}
                     </TableBody>
                   </Table>
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+
+            {/* ---------- Building-Block decomposition (CMA transparency) ---------- */}
+            <AccordionItem value="cma-building-blocks">
+              <AccordionTrigger className="text-xs" data-testid="bb-trigger">
+                {t("bb.section.title")}
+              </AccordionTrigger>
+              <AccordionContent>
+                <p className="text-xs text-muted-foreground mb-3 leading-relaxed">
+                  {t("bb.section.desc")}
+                </p>
+                <div className="space-y-4" data-testid="bb-section">
+                  {(Object.keys(CMA) as AssetKey[]).map((k) => {
+                    const bb = CMA_BUILDING_BLOCKS[k];
+                    const seed = getCMASeed(k);
+                    const sum = sumBuildingBlocks(k);
+                    const delta = sum - seed.expReturn;
+                    return (
+                      <div key={k} className="rounded-md border p-3 bg-muted/20" data-testid={`bb-row-${k}`}>
+                        <div className="flex items-baseline justify-between gap-2 mb-2">
+                          <div className="text-xs font-semibold">{CMA[k].label}</div>
+                          <div className="text-[10px] text-muted-foreground font-mono">
+                            {t("bb.col.seed")}: {fmtPct(seed.expReturn)}%
+                          </div>
+                        </div>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="text-[10px] uppercase tracking-wide">{t("bb.col.component")}</TableHead>
+                              <TableHead className="text-[10px] uppercase tracking-wide text-right">{t("bb.col.value")}</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {bb.components.map((c) => (
+                              <TableRow key={c.key}>
+                                <TableCell className="text-xs py-1">{t(c.key)}</TableCell>
+                                <TableCell className={`text-xs py-1 text-right font-mono ${c.value < 0 ? "text-destructive" : ""}`} data-testid={`bb-${k}-${c.key.replace(/\./g, "-")}`}>
+                                  {c.value > 0 ? "+" : ""}{(c.value * 100).toFixed(2)}%
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                            <TableRow className="border-t-2">
+                              <TableCell className="text-xs py-1 font-semibold">{t("bb.col.sum")}</TableCell>
+                              <TableCell className="text-xs py-1 text-right font-mono font-semibold" data-testid={`bb-sum-${k}`}>
+                                {(sum * 100).toFixed(2)}%
+                                {Math.abs(delta) > 0.0005 && (
+                                  <span className="text-[10px] text-muted-foreground ml-1">
+                                    ({t("bb.col.delta")} {delta > 0 ? "+" : ""}{(delta * 100).toFixed(2)}%)
+                                  </span>
+                                )}
+                              </TableCell>
+                            </TableRow>
+                          </TableBody>
+                        </Table>
+                        <p className="text-[10px] text-muted-foreground mt-2 italic leading-snug">
+                          {t(bb.source)}
+                        </p>
+                      </div>
+                    );
+                  })}
                 </div>
               </AccordionContent>
             </AccordionItem>

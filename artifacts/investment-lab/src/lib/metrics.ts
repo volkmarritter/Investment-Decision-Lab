@@ -158,6 +158,165 @@ export function getCMASeed(key: AssetKey): { expReturn: number; vol: number } {
   return { expReturn: CMA_SEED[key].expReturn, vol: CMA_SEED[key].vol };
 }
 
+// ----------------------------------------------------------------------------
+// Building-Block decomposition for the seed expReturn (transparency layer).
+// ----------------------------------------------------------------------------
+// Standard institutional practice (JPM LTCMA, BlackRock, Research Affiliates,
+// GMO etc.) is NOT to publish a single equity-return number but to decompose
+// it into observable building blocks so an analyst can audit, challenge, and
+// re-flex any component independently:
+//
+//   Equity      = Dividend Yield + Net Buyback Yield + Real EPS Growth
+//                 + Inflation + Valuation Drift
+//   Bonds       = Yield-to-Maturity + Roll-down − Expected Credit Loss
+//   Cash        = Short-term policy / money-market rate
+//   Gold        = Real return + Inflation hedge premium
+//   Real Estate = Net Income Yield + Real NOI Growth + Inflation
+//                 (often modelled as listed REITs; ignores private-RE smoothing)
+//   Crypto      = Pure speculative drift (no fundamental anchor)
+//
+// The components below are illustrative defaults that sum (within rounding)
+// to the seed expReturn shipped in CMA_SEED. They are READ-ONLY documentation
+// — the engine continues to consume CMA[k].expReturn directly. Editing the
+// CMA in the UI does not retro-fit the components; the components describe
+// the seed only and are presented in the Methodology tab so the user can
+// see the *reasoning* behind each default and decide whether it fits their
+// own market view.
+export interface BuildingBlock {
+  /** Stable token used as a translation key (en/de). */
+  key: string;
+  /** Contribution to the expected return, in decimals (0.012 = 1.2 %). */
+  value: number;
+}
+export interface BuildingBlocks {
+  /** Short label for the family of decomposition (e.g. "Equity (DDM)"). */
+  family: string;
+  components: BuildingBlock[];
+  /** One-sentence source / reasoning shown beneath the table. */
+  source: string;
+}
+export const CMA_BUILDING_BLOCKS: Record<AssetKey, BuildingBlocks> = {
+  equity_us: {
+    family: "equity_ddm",
+    components: [
+      { key: "bb.equity.div", value: 0.014 },
+      { key: "bb.equity.buyback", value: 0.018 },
+      { key: "bb.equity.realGrowth", value: 0.020 },
+      { key: "bb.equity.inflation", value: 0.022 },
+      { key: "bb.equity.valuationDrift", value: -0.004 },
+    ],
+    source: "bb.src.equity_us",
+  },
+  equity_eu: {
+    family: "equity_ddm",
+    components: [
+      { key: "bb.equity.div", value: 0.032 },
+      { key: "bb.equity.buyback", value: 0.008 },
+      { key: "bb.equity.realGrowth", value: 0.014 },
+      { key: "bb.equity.inflation", value: 0.020 },
+      { key: "bb.equity.valuationDrift", value: 0.001 },
+    ],
+    source: "bb.src.equity_eu",
+  },
+  equity_uk: {
+    family: "equity_ddm",
+    components: [
+      { key: "bb.equity.div", value: 0.039 },
+      { key: "bb.equity.buyback", value: 0.010 },
+      { key: "bb.equity.realGrowth", value: 0.005 },
+      { key: "bb.equity.inflation", value: 0.022 },
+      { key: "bb.equity.valuationDrift", value: -0.011 },
+    ],
+    source: "bb.src.equity_uk",
+  },
+  equity_ch: {
+    family: "equity_ddm",
+    components: [
+      { key: "bb.equity.div", value: 0.029 },
+      { key: "bb.equity.buyback", value: 0.005 },
+      { key: "bb.equity.realGrowth", value: 0.018 },
+      { key: "bb.equity.inflation", value: 0.010 },
+      { key: "bb.equity.valuationDrift", value: -0.002 },
+    ],
+    source: "bb.src.equity_ch",
+  },
+  equity_jp: {
+    family: "equity_ddm",
+    components: [
+      { key: "bb.equity.div", value: 0.024 },
+      { key: "bb.equity.buyback", value: 0.012 },
+      { key: "bb.equity.realGrowth", value: 0.010 },
+      { key: "bb.equity.inflation", value: 0.015 },
+      { key: "bb.equity.valuationDrift", value: -0.001 },
+    ],
+    source: "bb.src.equity_jp",
+  },
+  equity_em: {
+    family: "equity_ddm",
+    components: [
+      { key: "bb.equity.div", value: 0.028 },
+      { key: "bb.equity.buyback", value: 0.002 },
+      { key: "bb.equity.realGrowth", value: 0.030 },
+      { key: "bb.equity.inflation", value: 0.030 },
+      { key: "bb.equity.valuationDrift", value: -0.005 },
+    ],
+    source: "bb.src.equity_em",
+  },
+  equity_thematic: {
+    family: "equity_ddm",
+    components: [
+      { key: "bb.equity.div", value: 0.010 },
+      { key: "bb.equity.buyback", value: 0.005 },
+      { key: "bb.equity.realGrowth", value: 0.045 },
+      { key: "bb.equity.inflation", value: 0.022 },
+      { key: "bb.equity.valuationDrift", value: -0.002 },
+    ],
+    source: "bb.src.equity_thematic",
+  },
+  bonds: {
+    family: "bonds_ytm",
+    components: [
+      { key: "bb.bonds.ytm", value: 0.040 },
+      { key: "bb.bonds.roll", value: 0.000 },
+      { key: "bb.bonds.creditLoss", value: -0.005 },
+    ],
+    source: "bb.src.bonds",
+  },
+  cash: {
+    family: "cash_rate",
+    components: [{ key: "bb.cash.rate", value: 0.030 }],
+    source: "bb.src.cash",
+  },
+  gold: {
+    family: "gold_real",
+    components: [
+      { key: "bb.gold.real", value: 0.010 },
+      { key: "bb.gold.inflation", value: 0.022 },
+      { key: "bb.gold.hedge", value: 0.008 },
+    ],
+    source: "bb.src.gold",
+  },
+  reits: {
+    family: "reits_income",
+    components: [
+      { key: "bb.reits.income", value: 0.040 },
+      { key: "bb.reits.realGrowth", value: 0.005 },
+      { key: "bb.reits.inflation", value: 0.020 },
+    ],
+    source: "bb.src.reits",
+  },
+  crypto: {
+    family: "crypto_drift",
+    components: [{ key: "bb.crypto.drift", value: 0.120 }],
+    source: "bb.src.crypto",
+  },
+};
+
+/** Sum of all building-block components — should be within ~50 bps of the seed. */
+export function sumBuildingBlocks(key: AssetKey): number {
+  return CMA_BUILDING_BLOCKS[key].components.reduce((s, c) => s + c.value, 0);
+}
+
 const C: Partial<Record<AssetKey, Partial<Record<AssetKey, number>>>> = {
   equity_us: { equity_eu: 0.82, equity_uk: 0.78, equity_ch: 0.70, equity_jp: 0.70, equity_em: 0.72, equity_thematic: 0.85, bonds: 0.10, cash: 0.00, gold: 0.05, reits: 0.70, crypto: 0.30 },
   equity_eu: { equity_uk: 0.85, equity_ch: 0.78, equity_jp: 0.65, equity_em: 0.72, equity_thematic: 0.78, bonds: 0.10, cash: 0.00, gold: 0.05, reits: 0.70, crypto: 0.28 },

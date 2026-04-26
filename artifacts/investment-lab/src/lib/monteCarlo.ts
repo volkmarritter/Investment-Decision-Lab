@@ -40,6 +40,19 @@ export interface MonteCarloResult {
   probLoss: number;
   probDoubled: number;
   initial: number;
+  // Tail-risk measures: average outcome in the worst (1 - q) tail of the
+  // simulated paths at the horizon. Convention follows institutional usage:
+  // - cvarXXFinal: monetary value (currency, average over the worst tail)
+  // - cvarXXReturn: cumulative return over the horizon vs. `initial`
+  //   (e.g. -0.45 means the average path in the worst tail loses 45 %).
+  // Reported at 95 % and 99 % confidence levels — both are common in CFA-
+  // and Solvency-II-style risk reports. CVaR (Expected Shortfall) is a
+  // strict generalisation of VaR: it tells you what the loss looks like
+  // *given* you are already in the tail, not just the threshold itself.
+  cvar95Final: number;
+  cvar95Return: number;
+  cvar99Final: number;
+  cvar99Return: number;
 }
 
 function bucketAssumption(
@@ -180,6 +193,23 @@ export function runMonteCarlo(
   const probLoss = finals.filter((v) => v < initial).length / finals.length;
   const probDoubled = finals.filter((v) => v >= initial * 2).length / finals.length;
 
+  // Conditional-VaR (Expected Shortfall) at 95 % and 99 %. We average the
+  // bottom (1 - q) fraction of `sortedFinals`. With the default 2 000 paths
+  // that's the worst 100 paths for 95 % and the worst 20 paths for 99 % —
+  // small enough to be visibly noisier than P10 (intentional) but big
+  // enough to be stable under reseed. We always include at least 1 path so
+  // the helper is well-defined for tiny path counts in tests.
+  const cvarTail = (q: number): number => {
+    const k = Math.max(1, Math.floor(sortedFinals.length * (1 - q)));
+    let sum = 0;
+    for (let i = 0; i < k; i++) sum += sortedFinals[i];
+    return sum / k;
+  };
+  const cvar95Final = cvarTail(0.95);
+  const cvar99Final = cvarTail(0.99);
+  const cvar95Return = initial > 0 ? cvar95Final / initial - 1 : 0;
+  const cvar99Return = initial > 0 ? cvar99Final / initial - 1 : 0;
+
   return {
     expectedReturn: portfolioMu,
     expectedVol: portfolioSigma,
@@ -190,5 +220,9 @@ export function runMonteCarlo(
     probLoss,
     probDoubled,
     initial,
+    cvar95Final,
+    cvar95Return,
+    cvar99Final,
+    cvar99Return,
   };
 }
