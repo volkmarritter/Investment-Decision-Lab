@@ -619,6 +619,19 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+### 2026-04-26 (methodology-redundancy-cleanup)
+- **Methodology tab — copy/text de-duplication, no behaviour change.** Audit of `Methodology.tsx` surfaced several spots where the same fact was repeated 2–4 times across sections. Cleaned up so each fact lives in one canonical place; cross-references replace duplicated content. No engine, settings, or data changes.
+  - Portfolio-volatility formula `σₚ = √(ΣΣ wᵢwⱼσᵢσⱼρᵢⱼ)` was inlined in 4 places (CMA "where used", Correlation "where used", Monte-Carlo bullet, Formulas section). Now lives only in the Formulas section; the other three carry a one-line cross-reference.
+  - "Sharpe / Beta / Alpha / Tracking Error" enumeration appeared in both the CMA and Correlation "where used" callouts in nearly identical wording. Consolidated to a single concise mention in the CMA callout, with the Correlation callout focusing on what the matrix uniquely drives (off-diagonal diversification effect on σₚ).
+  - FX-hedging `σ`-reduction explanation appeared in three sections (CMA callout, Correlation "NICHT-antreibt" list, dedicated Hedging section). Hedging section is the canonical source; the other two now just point to it.
+  - Construction overlay constants (Home-Bias defaults, EM × 1.3, Sustainability × 0.85, cap 65 %) were duplicated in both prose and the constants table directly below. Prose now describes the *concept* of each tilt; the table holds the values.
+  - "Stored locally in your browser (localStorage)" sentence was repeated 4× (top editable-overview box, RF tip, Home-Bias editor, ETF override panel). Kept only in the top overview box where it covers all editable inputs at once.
+  - "Live editierbar / live editable" header text was repeated on top of inline editor blocks even though the section header already carries an Editable badge. Removed from inline blocks.
+  - "Last reviewed Q2 2026" appeared in both the page-header badge and the ETF section's "Last editorial review" line. Kept only the header badge; the constant `LAST_REVIEWED` still drives that single label.
+  - Construction section title trimmed from "Portfolio-Konstruktion (regelbasiert, nicht starr)" to "Portfolio-Konstruktion" (the rule-based-not-AI message is already carried by the two top alerts and the "What this app does NOT do" section).
+  - **Clarification, not removal:** the Construction overlay table row "Reference risk-free rate (construction only) 2.50 %" stays — it correctly discloses that `RISK_FREE_FOR_CONSTRUCTION = 0.025` in `portfolio.ts` is independent of the user's editable RF (which only affects report metrics). Added a small footnote under the row label so users no longer have to dig into the source to see why two different RF values can be on screen at once.
+  - All 254 unit tests still green; typecheck clean. Pure copy edit — no formulas, constants, settings or persistence keys touched.
+
 ### 2026-04-24 (comma-decimal-sweep)
 - **Locale-comma decimals now accepted across every decimal numeric input — the same mobile-keyboard fix from Task #12 (manual ETF weight cell) extended to the rest of the app.** A user on a Swiss / German / French phone keypad who typed `100000,50` into Investment Amount, or `12,5` into a position weight, used to silently get an empty field because `<input type="number">` strips comma decimals on mobile. The fix generalises the existing parser:
   - `src/lib/manualWeights.ts` now exports a public `parseDecimalInput(raw, { min?, max?, decimals? })` that wraps the same regex / mid-edit semantics (`"12."` → 12, `",5"` → 0.5, garbage → null) and exposes per-callsite bounds. The original `parseManualWeightInput` is now a thin wrapper (`min: 0, max: 100, decimals: 1`) — its public contract and tests are unchanged.

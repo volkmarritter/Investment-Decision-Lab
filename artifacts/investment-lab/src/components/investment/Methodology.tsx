@@ -331,8 +331,8 @@ export function Methodology() {
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">
             {de
-              ? "Tipp: Sie können hier die Rendite einer 3-Monats-Staatsanleihe Ihrer Basiswährung eingeben (z. B. SARON für CHF, ESTR/EZB für EUR, T-Bills für USD). Der Wert wird lokal gespeichert."
-              : "Tip: enter the yield of a 3-month government bill in your base currency (e.g. SARON for CHF, ESTR/ECB for EUR, T-Bills for USD). The value is stored locally on your device."}
+              ? "Tipp: Sie können hier die Rendite einer 3-Monats-Staatsanleihe Ihrer Basiswährung eingeben (z. B. SARON für CHF, ESTR/EZB für EUR, T-Bills für USD)."
+              : "Tip: enter the yield of a 3-month government bill in your base currency (e.g. SARON for CHF, ESTR/ECB for EUR, T-Bills for USD)."}
           </p>
         </Section>
 
@@ -410,7 +410,7 @@ export function Methodology() {
         <Section
           value="construction"
           icon={<Layers className="h-4 w-4" />}
-          title={de ? "Portfolio-Konstruktion (regelbasiert, nicht starr)" : "Portfolio Construction (rule-based, not fixed)"}
+          title={de ? "Portfolio-Konstruktion" : "Portfolio Construction"}
           editable
           editableLabel={de ? "Home-Bias editierbar" : "Home-bias editable"}
         >
@@ -451,22 +451,22 @@ export function Methodology() {
                 : "Multiplier (Sharpe / 0.25)^0.4 favours markets with better risk-adjusted expected return without overriding the anchor allocation."}
             </li>
             <li>
-              <span className="font-semibold">{de ? "Heimatmarkt-Bias (live editierbar)" : "Home-bias overlay (live editable)"}</span>{" — "}
+              <span className="font-semibold">{de ? "Heimatmarkt-Bias" : "Home-bias overlay"}</span>{" — "}
               {de
-                ? `Defaults: EUR/GBP ×${HOME_BIAS_DEFAULTS.EUR.toFixed(1)} auf Europa, CHF ×${HOME_BIAS_DEFAULTS.CHF.toFixed(1)} auf die Schweiz, USD ×${HOME_BIAS_DEFAULTS.USD.toFixed(1)} (USA-Anker bereits dominant). Multiplikatoren unten je Währung anpassbar; Änderungen wirken beim nächsten Klick auf „Portfolio generieren“.`
-                : `Defaults: EUR/GBP ×${HOME_BIAS_DEFAULTS.EUR.toFixed(1)} on Europe, CHF ×${HOME_BIAS_DEFAULTS.CHF.toFixed(1)} on Switzerland, USD ×${HOME_BIAS_DEFAULTS.USD.toFixed(1)} (USA anchor already dominant). Multipliers can be edited per currency below; changes take effect the next time you click "Generate Portfolio".`}
+                ? "Verstärkt die heimische Aktien-Region je Basiswährung. Multiplikatoren in der Tabelle unten, je Währung live editierbar; Änderungen wirken beim nächsten Klick auf „Portfolio generieren“."
+                : "Amplifies the home equity region per base currency. Multipliers in the table below, live-editable per currency; changes take effect the next time you click \"Generate Portfolio\"."}
             </li>
             <li>
               <span className="font-semibold">{de ? "Horizont- & Themen-Tilts" : "Horizon & theme tilts"}</span>{" — "}
               {de
-                ? "Anlagehorizont ≥ 10 Jahre erhöht EM um Faktor 1,3. Nachhaltigkeits-Thema dämpft USA um Faktor 0,85."
-                : "Horizon ≥ 10 years lifts EM by ×1.3. Sustainability theme dampens USA by ×0.85."}
+                ? "Lange Anlagehorizonte erhöhen EM, das Nachhaltigkeits-Thema dämpft USA (exakte Faktoren in der Tabelle unten)."
+                : "Long horizons lift EM, the sustainability theme dampens USA (exact factors in the table below)."}
             </li>
             <li>
               <span className="font-semibold">{de ? "Konzentrationsgrenze" : "Concentration cap"}</span>{" — "}
               {de
-                ? "Keine Aktien-Region darf 65 % des Aktien-Sleeves überschreiten. Überschuss wird proportional auf die übrigen Regionen verteilt."
-                : "No equity region may exceed 65% of the equity sleeve. Excess is redistributed proportionally to the other regions."}
+                ? "Pro Aktien-Region greift eine Obergrenze; Überschuss wird proportional auf die übrigen Regionen verteilt."
+                : "A per-region cap applies on the equity sleeve; excess is redistributed proportionally to the other regions."}
             </li>
           </ol>
           <Formula
@@ -503,7 +503,17 @@ export function Methodology() {
                 <TableRow><TableCell className="text-xs">Long-horizon EM tilt (h ≥ 10)</TableCell><TableCell className="text-right font-mono text-xs">× 1.3</TableCell></TableRow>
                 <TableRow><TableCell className="text-xs">Sustainability theme on USA</TableCell><TableCell className="text-right font-mono text-xs">× 0.85</TableCell></TableRow>
                 <TableRow><TableCell className="text-xs">{de ? "Konzentrationsgrenze pro Region" : "Concentration cap per region"}</TableCell><TableCell className="text-right font-mono text-xs">≤ 65%</TableCell></TableRow>
-                <TableRow><TableCell className="text-xs">{de ? "Referenz-Risikofreier Zins (nur Konstruktion)" : "Reference risk-free rate (construction only)"}</TableCell><TableCell className="text-right font-mono text-xs">2.50%</TableCell></TableRow>
+                <TableRow>
+                  <TableCell className="text-xs">
+                    {de ? "Referenz-Risikofreier Zins (nur Konstruktion)" : "Reference risk-free rate (construction only)"}
+                    <div className="text-[10px] text-muted-foreground font-normal mt-0.5">
+                      {de
+                        ? "Fester Wert für die Sharpe-Tilt-Berechnung der Engine — unabhängig vom oben editierbaren RF (der nur Report-Kennzahlen betrifft)."
+                        : "Fixed for the engine's Sharpe-tilt calculation — independent of the editable RF above (which only affects report metrics)."}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-xs align-top">2.50%</TableCell>
+                </TableRow>
               </TableBody>
             </Table>
           </div>
@@ -518,7 +528,7 @@ export function Methodology() {
             <div className="flex flex-wrap items-center gap-2">
               <Layers className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm font-semibold">
-                {de ? "Home-Bias-Multiplikatoren (live editierbar)" : "Home-bias multipliers (live editable)"}
+                {de ? "Home-Bias-Multiplikatoren" : "Home-bias multipliers"}
               </span>
               <Badge variant="outline" className="text-[10px]">
                 {de ? "Bereich 0,0 – 5,0" : "range 0.0 – 5.0"}
@@ -526,8 +536,8 @@ export function Methodology() {
             </div>
             <p className="text-xs text-muted-foreground">
               {de
-                ? "Pro Basiswährung den Verstärkungsfaktor auf die heimische Aktien-Region setzen. Werte werden lokal in Ihrem Browser gespeichert; Änderungen wirken beim nächsten Klick auf „Portfolio generieren“."
-                : "Set the amplification factor on the home equity region per base currency. Values are stored locally in your browser; changes take effect the next time you click \"Generate Portfolio\"."}
+                ? "Pro Basiswährung den Verstärkungsfaktor auf die heimische Aktien-Region setzen. Änderungen wirken beim nächsten Klick auf „Portfolio generieren“."
+                : "Set the amplification factor on the home equity region per base currency. Changes take effect the next time you click \"Generate Portfolio\"."}
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
               {HB_CURRENCIES.map((c) => {
@@ -596,14 +606,14 @@ export function Methodology() {
             </div>
             <ul className="space-y-1 list-disc pl-4 text-muted-foreground">
               <li>{de
-                ? <><span className="font-medium text-foreground">Portfolio-Konstruktion (Build-Tab):</span> die erwartete Rendite μ jeder Anlageklasse fließt zusammen mit der Volatilität σ und dem risikofreien Zins in die Sharpe-Ratio ein, mit der die Engine Bucket-Gewichte priorisiert.</>
-                : <><span className="font-medium text-foreground">Portfolio construction (Build tab):</span> each asset class's expected return μ feeds into the Sharpe ratio (together with σ and the risk-free rate) that the engine uses to prioritise bucket weights.</>}</li>
+                ? <><span className="font-medium text-foreground">Portfolio-Konstruktion (Build-Tab):</span> μ und σ jeder Anlageklasse speisen die Sharpe-Ratio, mit der die Engine Bucket-Gewichte priorisiert.</>
+                : <><span className="font-medium text-foreground">Portfolio construction (Build tab):</span> each asset class's μ and σ feed the Sharpe ratio that the engine uses to prioritise bucket weights.</>}</li>
               <li>{de
-                ? <><span className="font-medium text-foreground">Risiko- & Performance-Kennzahlen (Report-Tab):</span> erwartete Portfolio-Rendite ist Σᵢ wᵢ·μᵢ; die Portfolio-Volatilität ist √(ΣΣ wᵢwⱼσᵢσⱼρᵢⱼ) und nutzt damit μ/σ aus dieser Tabelle plus die Korrelationsmatrix unten. Sharpe, Beta, Alpha und Tracking Error bauen auf denselben Werten auf.</>
-                : <><span className="font-medium text-foreground">Risk & Performance Metrics (Report tab):</span> expected portfolio return is Σᵢ wᵢ·μᵢ; portfolio volatility is √(ΣΣ wᵢwⱼσᵢσⱼρᵢⱼ), so it uses μ / σ from this table plus the correlation matrix below. Sharpe, beta, alpha and tracking error are derived from the same.</>}</li>
+                ? <><span className="font-medium text-foreground">Risiko- & Performance-Kennzahlen (Report-Tab):</span> erwartete Portfolio-Rendite Σᵢ wᵢ·μᵢ und alle σₚ-abgeleiteten Kennzahlen (Sharpe, Beta, Alpha, Tracking Error) — vollständige Formeln im Abschnitt „Formeln“ weiter unten.</>
+                : <><span className="font-medium text-foreground">Risk & Performance Metrics (Report tab):</span> expected portfolio return Σᵢ wᵢ·μᵢ and every σₚ-derived metric (Sharpe, beta, alpha, tracking error) — full formulas in the "Formulas" section below.</>}</li>
               <li>{de
-                ? <><span className="font-medium text-foreground">Monte-Carlo-Simulation:</span> μ ist der Drift, σ jeder Anlageklasse fließt — über die Korrelationsmatrix — in die einzige Portfolio-σ ein, mit der die Pfade gezogen werden. Das FX-Hedge senkt σ Anlageklasse-spezifisch, ändert aber μ nicht.</>
-                : <><span className="font-medium text-foreground">Monte Carlo simulation:</span> μ is the drift; each asset class's σ — combined via the correlation matrix — feeds into the single portfolio σ used to draw paths. The FX-hedge option reduces σ on a per-asset-class basis but does not touch μ.</>}</li>
+                ? <><span className="font-medium text-foreground">Monte-Carlo-Simulation:</span> μ ist der Drift, σ fließt — über die Korrelationsmatrix — in die Portfolio-σₚ. FX-Hedging beeinflusst σ separat (Details: Abschnitt „Währungs-Hedging“).</>
+                : <><span className="font-medium text-foreground">Monte Carlo simulation:</span> μ is the drift; σ feeds — via the correlation matrix — the portfolio σₚ. FX hedging affects σ separately (details: "Currency Hedging" section).</>}</li>
             </ul>
           </div>
           <div className="space-y-2">
@@ -778,14 +788,11 @@ export function Methodology() {
             </div>
             <ul className="space-y-1 list-disc pl-4 text-muted-foreground">
               <li>{de
-                ? <><span className="font-medium text-foreground">Risiko- & Performance-Kennzahlen (Report-Tab):</span> Portfolio-Volatilität σₚ = √(ΣΣ wᵢwⱼσᵢσⱼρᵢⱼ) wird direkt aus dieser Matrix berechnet. Sharpe-Ratio, Beta gegen die Benchmark, Alpha (= Portfolio-Rendite − β·Benchmark-Rendite) und Tracking Error bauen alle auf diesem σₚ auf.</>
-                : <><span className="font-medium text-foreground">Risk & Performance Metrics (Report tab):</span> portfolio volatility σₚ = √(ΣΣ wᵢwⱼσᵢσⱼρᵢⱼ) is computed straight from this matrix. Sharpe, beta vs. the benchmark, alpha (= portfolio return − β·benchmark return) and tracking error are all derived from that σₚ.</>}</li>
+                ? <><span className="font-medium text-foreground">Report-Tab & Monte-Carlo:</span> die Off-Diagonal-Werte unter 1,0 sind die einzige Quelle des Diversifikationseffekts. Sie speisen σₚ und damit jede σₚ-abgeleitete Kennzahl sowie die GBM-Pfade (Formel im Abschnitt „Formeln“).</>
+                : <><span className="font-medium text-foreground">Report tab & Monte Carlo:</span> the off-diagonal values below 1.0 are the sole source of the diversification effect. They feed σₚ — and therefore every σₚ-derived metric and the GBM paths (formula in the "Formulas" section).</>}</li>
               <li>{de
-                ? <><span className="font-medium text-foreground">Monte-Carlo-Simulation:</span> dasselbe σₚ wird vorab aus dieser Matrix berechnet und dann als einzige Volatilität für die GBM-Pfade des Portfolios verwendet (eine Gauß-Ziehung pro Jahr). Ohne diese Off-Diagonal-Werte wäre σₚ überschätzt und das P10–P90-Band breiter.</>
-                : <><span className="font-medium text-foreground">Monte Carlo simulation:</span> the same σₚ is computed up front from this matrix and then used as the single portfolio volatility for the GBM paths (one Gaussian draw per year). Without these off-diagonal values σₚ would be overstated and the P10–P90 band wider.</>}</li>
-              <li>{de
-                ? <><span className="font-medium text-foreground">Was diese Matrix NICHT antreibt:</span> die Bucket-Gewichte selbst (die Construction-Engine nutzt nur μ, σ und Sharpe pro Anlageklasse), die Stress-Szenarien (eigene Schock-Tabelle) und die FX-Hedge-Option (reduziert σ pro Anlageklasse vor der σₚ-Berechnung).</>
-                : <><span className="font-medium text-foreground">What this matrix does NOT drive:</span> the bucket weights themselves (the construction engine only uses each class's μ, σ and Sharpe), the stress scenarios (own shock table), and the FX-hedge option (reduces σ per asset class before σₚ is computed).</>}</li>
+                ? <><span className="font-medium text-foreground">Was diese Matrix NICHT antreibt:</span> die Bucket-Gewichte selbst (Construction-Engine nutzt nur μ, σ, Sharpe), die Stress-Szenarien (eigene Schock-Tabelle) und die FX-Hedge-Option (eigene Sektion).</>
+                : <><span className="font-medium text-foreground">What this matrix does NOT drive:</span> the bucket weights themselves (the construction engine only uses each class's μ, σ and Sharpe), the stress scenarios (own shock table), and the FX-hedge option (own section).</>}</li>
             </ul>
           </div>
           <div className="text-xs text-muted-foreground">
@@ -890,7 +897,7 @@ export function Methodology() {
         <Section value="mc" icon={<Calculator className="h-4 w-4" />} title={de ? "Monte-Carlo-Simulation" : "Monte Carlo Simulation"}>
           <ul className="text-sm space-y-2 list-disc pl-5">
             <li>{de ? "Verteilung: log-normale jährliche Renditen pro Anlageklasse, gezogen aus der CMA-Tabelle (μ und σ wie oben)." : "Distribution: log-normal annual returns per asset class, drawn from the CMA table above (μ and σ as listed)."}</li>
-            <li>{de ? "Korrelation: die Portfoliovolatilität wird vorab aus der vollständigen Korrelationsmatrix der Anlageklassen berechnet (σₚ = √(ΣΣ wᵢwⱼσᵢσⱼρᵢⱼ)); anschließend wird das Portfolio als Ganzes simuliert (eine Gauß-Ziehung pro Jahr)." : "Correlation: the portfolio's volatility is computed up front from the full asset-class correlation matrix (σₚ = √(ΣΣ wᵢwⱼσᵢσⱼρᵢⱼ)); the portfolio is then simulated as a single asset (one Gaussian draw per year)."}</li>
+            <li>{de ? "Korrelation: die Portfolio-Volatilität σₚ wird vorab aus der vollständigen Korrelationsmatrix berechnet (Formel im Abschnitt „Formeln“); anschließend wird das Portfolio als Ganzes simuliert (eine Gauß-Ziehung pro Jahr)." : "Correlation: portfolio volatility σₚ is computed up front from the full correlation matrix (formula in the \"Formulas\" section); the portfolio is then simulated as a single asset (one Gaussian draw per year)."}</li>
             <li>{de ? "Pfade: 2.000 unabhängige Pfade über den Anlagehorizont des Nutzers." : "Paths: 2,000 independent paths over the user's chosen horizon."}</li>
             <li>{de ? "Ausgewiesen: Median, P10, P90, Wahrscheinlichkeit eines Verlusts." : "Reported: median, P10, P90, probability of loss."}</li>
           </ul>
@@ -971,7 +978,6 @@ export function Methodology() {
           </p>
           <div className="text-xs text-muted-foreground space-y-1">
             <div>{de ? "Quelle" : "Source"}: {de ? "Offizielle Emittenten-Factsheets (für die kuratierten Felder) und justETF (für alle automatisch aktualisierten Felder; öffentlich, indikativ)." : "Issuer official factsheets (for the curated fields) and justETF (for every automatically refreshed field; public, indicative)."}</div>
-            <div>{de ? "Zuletzt redaktionell geprüft" : "Last editorial review"}: {LAST_REVIEWED}</div>
             <div className="text-amber-700 dark:text-amber-400">
               {de
                 ? "Wichtig: Auch die automatischen Snapshots sind nur so frisch wie der letzte erfolgreiche Refresh-Lauf. Vor jedem Kauf bitte die Live-Daten beim Emittenten oder Broker prüfen — insbesondere TER, Listings und Verfügbarkeit in Ihrer Jurisdiktion."
@@ -1014,8 +1020,8 @@ export function Methodology() {
             </div>
             <p className="text-xs text-muted-foreground">
               {de
-                ? "Overrides werden nur in Ihrem Browser (localStorage) gespeichert — keine Server-Übermittlung, keine Auswirkung auf andere Nutzer. Vor jedem realen Kauf bitte ISIN, TER und Verfügbarkeit beim Broker verifizieren."
-                : "Overrides are kept in your browser only (localStorage) — never sent to the server, never visible to other users. Always re-verify ISIN, TER and broker availability before any real-world purchase."}
+                ? "Vor jedem realen Kauf bitte ISIN, TER und Verfügbarkeit beim Broker verifizieren."
+                : "Always re-verify ISIN, TER and broker availability before any real-world purchase."}
             </p>
             <BucketTree
               groups={bucketGroups}
