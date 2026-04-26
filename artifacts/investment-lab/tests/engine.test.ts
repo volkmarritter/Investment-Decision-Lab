@@ -1517,6 +1517,65 @@ describe("CMA layered overrides", () => {
     }
   });
 
+  it("per-currency RF: computeFrontier uses the requested currency's RF (USD vs CHF Sharpe differ at every point and at the max)", async () => {
+    const { computeFrontier } = await import("../src/lib/metrics");
+    const orig = (globalThis as { window?: unknown }).window;
+    // No window → both currencies fall back to their per-currency default.
+    delete (globalThis as { window?: unknown }).window;
+    try {
+      // Same allocation, same μ, same σ; only the RF differs by base currency.
+      // Mixed equity + bonds + cash so the sweep produces a non-degenerate
+      // Sharpe-optimal point that depends on the risk-free rate.
+      const alloc: AssetAllocation[] = [
+        { assetClass: "Equity", region: "USA", weight: 50 },
+        { assetClass: "Equity", region: "EM", weight: 10 },
+        { assetClass: "Fixed Income", region: "Global", weight: 35 },
+        { assetClass: "Cash", region: "USD", weight: 5 },
+      ];
+      const usd = computeFrontier(alloc, "USD"); // RF = 0.0425
+      const chf = computeFrontier(alloc, "CHF"); // RF = 0.0050
+
+      // Both sweeps must produce the same 21-point grid so a 1:1 comparison
+      // is meaningful.
+      expect(usd.points.length).toBe(21);
+      expect(chf.points.length).toBe(usd.points.length);
+
+      // ret/vol are RF-independent — they must match exactly at every point,
+      // proving the only thing changing across currencies is the Sharpe.
+      for (let i = 0; i < usd.points.length; i++) {
+        expect(chf.points[i].equityPct).toBe(usd.points[i].equityPct);
+        expect(chf.points[i].ret).toBeCloseTo(usd.points[i].ret, 12);
+        expect(chf.points[i].vol).toBeCloseTo(usd.points[i].vol, 12);
+      }
+
+      // Sharpe must differ at *every* point (lower CHF RF → higher Sharpe for
+      // the same return/vol), with a margin large enough to rule out rounding.
+      // The expected gap is (RF_USD - RF_CHF) / vol = 0.0375 / vol; even at
+      // the highest-vol equity-only point (~0.16) that is ≈0.23.
+      for (let i = 0; i < usd.points.length; i++) {
+        expect(chf.points[i].sharpe).toBeGreaterThan(usd.points[i].sharpe);
+        expect(chf.points[i].sharpe - usd.points[i].sharpe).toBeGreaterThan(0.05);
+      }
+
+      // Sharpe-maximising portfolio: the *value* at the max must differ by a
+      // meaningful margin. (The optimal equityPct may or may not shift; what
+      // matters for the chart is the Sharpe-optimal point being computed
+      // against the right RF.)
+      const maxSharpe = (pts: typeof usd.points) =>
+        pts.reduce((m, p) => (p.sharpe > m ? p.sharpe : m), -Infinity);
+      const usdMax = maxSharpe(usd.points);
+      const chfMax = maxSharpe(chf.points);
+      expect(chfMax).toBeGreaterThan(usdMax);
+      expect(chfMax - usdMax).toBeGreaterThan(0.1);
+
+      // The `current` portfolio Sharpe must follow the same per-currency rule.
+      expect(chf.current.sharpe).toBeGreaterThan(usd.current.sharpe);
+      expect(chf.current.sharpe - usd.current.sharpe).toBeGreaterThan(0.05);
+    } finally {
+      if (orig) (globalThis as unknown as { window: typeof orig }).window = orig;
+    }
+  });
+
   it("per-currency RF: legacy `idl.riskFreeRate` key is removed on module load (no value migration)", async () => {
     const fakeStore: Record<string, string> = {
       "idl.riskFreeRate": "0.06", // pretend this old key existed
