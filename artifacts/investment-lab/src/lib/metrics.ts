@@ -1,5 +1,5 @@
 import { AssetAllocation, BaseCurrency } from "./types";
-import { getRiskFreeRate, getCMAOverrides, type RFCurrency } from "./settings";
+import { getRiskFreeRate, getCMAOverrides } from "./settings";
 import consensusFile from "@/data/cmas.consensus.json";
 
 export type AssetKey =
@@ -261,7 +261,7 @@ export interface PortfolioMetricsResult {
 }
 
 export function computeMetrics(allocation: AssetAllocation[], baseCurrency: BaseCurrency): PortfolioMetricsResult {
-  const rf = getRiskFreeRate(baseCurrency as RFCurrency);
+  const rf = getRiskFreeRate(baseCurrency);
   const exp = mapAllocationToAssets(allocation);
   const r = portfolioReturn(exp);
   const v = portfolioVol(exp);
@@ -308,7 +308,7 @@ export interface FrontierPoint {
 }
 
 export function computeFrontier(allocation: AssetAllocation[], baseCurrency: BaseCurrency): { points: FrontierPoint[]; current: FrontierPoint } {
-  const rf = getRiskFreeRate(baseCurrency as RFCurrency);
+  const rf = getRiskFreeRate(baseCurrency);
   const exp = mapAllocationToAssets(allocation);
   const equityKeys: AssetKey[] = ["equity_us", "equity_eu", "equity_ch", "equity_jp", "equity_em", "equity_thematic", "reits", "crypto"];
   const isEq = (k: AssetKey) => equityKeys.includes(k);

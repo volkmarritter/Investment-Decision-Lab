@@ -2,7 +2,7 @@ import { PortfolioInput, AssetAllocation, PortfolioOutput, ETFImplementation, Ba
 import { getETFDetails } from "./etfs";
 import { Lang } from "./i18n";
 import { CMA, AssetKey } from "./metrics";
-import { resolvedHomeBias, HomeBiasCurrency, getRiskFreeRate, type RFCurrency } from "./settings";
+import { resolvedHomeBias, getRiskFreeRate } from "./settings";
 import { applyManualWeights, bucketKey, type ManualWeights } from "./manualWeights";
 
 function clamp(value: number, min: number, max: number) {
@@ -106,7 +106,7 @@ export function computeEquityRegionWeights(input: PortfolioInput): Record<string
   // RF is read once per build call so all regions see a consistent value, even
   // if a CustomEvent fires mid-iteration. Same RF as report metrics — see the
   // header comment block above for the rationale.
-  const rf = getRiskFreeRate(input.baseCurrency as RFCurrency);
+  const rf = getRiskFreeRate(input.baseCurrency);
   const raw: Record<string, number> = {};
   for (const r of regions) {
     const c = CMA[REGION_TO_CMA[r]];
@@ -116,7 +116,7 @@ export function computeEquityRegionWeights(input: PortfolioInput): Record<string
   }
 
   const homeRegion = HOME_TILT_REGION[input.baseCurrency];
-  const homeFactor = resolvedHomeBias(input.baseCurrency as HomeBiasCurrency);
+  const homeFactor = resolvedHomeBias(input.baseCurrency);
   if (raw[homeRegion] !== undefined) raw[homeRegion] *= homeFactor;
 
   if (input.horizon >= 10) raw["EM"] *= 1.3;

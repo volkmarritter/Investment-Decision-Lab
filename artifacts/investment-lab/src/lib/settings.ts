@@ -12,10 +12,19 @@
 // currency. Sanitized on every read (currency whitelist + value bounds).
 // The old `idl.riskFreeRate` key (single global value) is dropped on module
 // load — no value migration; new defaults take over.
+//
+// Type unification (Task #34, 2026-04-26): `RFCurrency` and `HomeBiasCurrency`
+// are now type aliases of the canonical `BaseCurrency` from ./types. Typing
+// `RF_DEFAULTS` / `HOME_BIAS_DEFAULTS` as `Record<BaseCurrency, number>`
+// means TypeScript will refuse to compile if a new base currency (e.g. JPY)
+// is added without supplying matching defaults here — closing the silent
+// fallthrough hole that the previous hand-aligned literal unions allowed.
 
-export type RFCurrency = "USD" | "EUR" | "GBP" | "CHF";
+import type { BaseCurrency } from "./types";
 
-export const RF_DEFAULTS: Record<RFCurrency, number> = {
+export type RFCurrency = BaseCurrency;
+
+export const RF_DEFAULTS: Record<BaseCurrency, number> = {
   USD: 0.0425,
   EUR: 0.0250,
   GBP: 0.0400,
@@ -27,7 +36,10 @@ export type RFOverrides = Partial<Record<RFCurrency, number>>;
 const RF_KEY = "idl.riskFreeRates";
 const RF_LEGACY_KEY = "idl.riskFreeRate"; // dropped on module load
 const RF_EVENT = "idl-rf-changed";
-const RF_VALID_KEYS = new Set<RFCurrency>(["USD", "EUR", "GBP", "CHF"]);
+// Derived from RF_DEFAULTS so the runtime whitelist can never drift from the
+// compile-time type — adding a currency to BaseCurrency forces a new RF
+// default which is then automatically allowed through the sanitiser.
+const RF_VALID_KEYS = new Set<RFCurrency>(Object.keys(RF_DEFAULTS) as RFCurrency[]);
 // Money-market yields realistically live in [0%, 20%]; clamp on read AND write.
 const RF_MIN = 0;
 const RF_MAX = 0.2;
@@ -231,17 +243,19 @@ export function subscribeCMAOverrides(cb: (o: CMAUserOverrides) => void): () => 
 const HB_KEY = "idl.homeBiasOverrides";
 const HB_EVENT = "idl-homebias-changed";
 
-export type HomeBiasCurrency = "USD" | "EUR" | "GBP" | "CHF";
+export type HomeBiasCurrency = BaseCurrency;
 export type HomeBiasOverrides = Partial<Record<HomeBiasCurrency, number>>;
 
-export const HOME_BIAS_DEFAULTS: Record<HomeBiasCurrency, number> = {
+export const HOME_BIAS_DEFAULTS: Record<BaseCurrency, number> = {
   USD: 1.0,
   EUR: 1.5,
   GBP: 1.5,
   CHF: 2.5,
 };
 
-const HB_VALID_KEYS = new Set<HomeBiasCurrency>(["USD", "EUR", "GBP", "CHF"]);
+// Derived from HOME_BIAS_DEFAULTS so the runtime whitelist can never drift
+// from the compile-time type — see RF_VALID_KEYS for the same pattern.
+const HB_VALID_KEYS = new Set<HomeBiasCurrency>(Object.keys(HOME_BIAS_DEFAULTS) as HomeBiasCurrency[]);
 // Sanity bounds: a multiplier ≤ 0 would zero-out the home region; > 5 is
 // economically unreasonable. Both ends matter — clamp on read AND on write.
 const HB_MIN = 0;

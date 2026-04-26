@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { InfoHint } from "@/components/ui/info-hint";
 import { AssetAllocation, BaseCurrency } from "@/lib/types";
 import { computeMetrics, computeFrontier, buildCorrelationMatrix, mapAllocationToAssets, CMA } from "@/lib/metrics";
-import { getRiskFreeRate, subscribeRiskFreeRate, subscribeCMAOverrides, type RFCurrency } from "@/lib/settings";
+import { getRiskFreeRate, subscribeRiskFreeRate, subscribeCMAOverrides } from "@/lib/settings";
 import { applyCMALayers } from "@/lib/metrics";
 import { useT } from "@/lib/i18n";
 
@@ -15,12 +15,12 @@ export function PortfolioMetrics({ allocation, baseCurrency }: { allocation: Ass
   const { t, lang } = useT();
   const de = lang === "de";
   const [expanded, setExpanded] = useState(false);
-  const [rf, setRf] = useState<number>(() => getRiskFreeRate(baseCurrency as RFCurrency));
-  useEffect(() => subscribeRiskFreeRate((all) => setRf(all[baseCurrency as RFCurrency])), [baseCurrency]);
+  const [rf, setRf] = useState<number>(() => getRiskFreeRate(baseCurrency));
+  useEffect(() => subscribeRiskFreeRate((all) => setRf(all[baseCurrency])), [baseCurrency]);
   // Re-read RF whenever the active base currency changes (Sharpe / Alpha must
   // re-render with the new currency's RF immediately, even before the user
   // re-builds the portfolio).
-  useEffect(() => { setRf(getRiskFreeRate(baseCurrency as RFCurrency)); }, [baseCurrency]);
+  useEffect(() => { setRf(getRiskFreeRate(baseCurrency)); }, [baseCurrency]);
   // Re-render whenever the user edits CMA overrides in the Methodology tab.
   const [cmaVersion, setCmaVersion] = useState(0);
   useEffect(() => subscribeCMAOverrides(() => { applyCMALayers(); setCmaVersion((v) => v + 1); }), []);
