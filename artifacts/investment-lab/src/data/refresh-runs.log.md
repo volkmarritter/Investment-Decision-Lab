@@ -23,3 +23,4 @@ Newest entries are at the bottom. The file is never rewritten or trimmed.
 
 | Started (UTC) | Script | Mode | ISINs | OK | Fail | Duration | Outcome | Trigger | CI run |
 |---|---|---|---:|---:|---:|---:|---|---|---|
+| 2026-04-26T08:46:46.908Z | refresh-justetf | listings | 20 | 16 | 4 | 38.4s | partial | manual | [run](https://github.com/volkmarritter/Investment-Decision-Lab/actions/runs/24952568525) |

@@ -1,64 +1,189 @@
 {
   "_meta": {
     "source": "justetf.com",
-    "lastRefreshed": "2026-04-24T08:04:32.368Z",
-    "lastRefreshedMode": "core",
+    "lastRefreshed": "2026-04-26T08:47:25.311Z",
+    "lastRefreshedMode": "listings",
     "lastCoreRefresh": "2026-04-24T08:04:32.368Z",
-    "lastListingsRefresh": null,
+    "lastListingsRefresh": "2026-04-26T08:47:25.311Z",
     "refreshedBy": "scripts/refresh-justetf.mjs",
     "note": "ISIN -> partial ETFRecord overrides applied on top of the in-code CATALOG in src/lib/etfs.ts. Populated by two CI cadences: weekly (Sundays 03:00 UTC) for core fund metadata and nightly (02:00 UTC) for the per-exchange listings map. Only fields present in this file override the catalog defaults; everything else stays as defined in code."
   },
   "overrides": {
     "IE00B3YLTY66": {
-      "terBps": 17
+      "terBps": 17,
+      "listings": {
+        "LSE": {
+          "ticker": "IMID"
+        },
+        "XETRA": {
+          "ticker": "SPYI"
+        }
+      }
     },
     "IE00B5BMR087": {
-      "terBps": 7
+      "terBps": 7,
+      "listings": {
+        "LSE": {
+          "ticker": "CSPX"
+        },
+        "XETRA": {
+          "ticker": "SXR8"
+        }
+      }
     },
     "IE00B3YCGJ38": {
-      "terBps": 5
+      "terBps": 5,
+      "listings": {
+        "LSE": {
+          "ticker": "SPXS"
+        },
+        "XETRA": {
+          "ticker": "P500"
+        }
+      }
     },
     "IE00B4K48X80": {
-      "terBps": 12
+      "terBps": 12,
+      "listings": {
+        "LSE": {
+          "ticker": "IMEA"
+        },
+        "XETRA": {
+          "ticker": "EUNK"
+        }
+      }
     },
     "CH0237935652": {
       "terBps": 10
     },
     "IE00B4L5YX21": {
-      "terBps": 12
+      "terBps": 12,
+      "listings": {
+        "LSE": {
+          "ticker": "IJPA"
+        },
+        "XETRA": {
+          "ticker": "EUNN"
+        }
+      }
     },
     "IE00BKM4GZ66": {
-      "terBps": 18
+      "terBps": 18,
+      "listings": {
+        "LSE": {
+          "ticker": "EIMI"
+        },
+        "XETRA": {
+          "ticker": "IS3N"
+        }
+      }
     },
     "IE00B3ZW0K18": {
-      "terBps": 20
+      "terBps": 20,
+      "listings": {
+        "LSE": {
+          "ticker": "IUSE"
+        },
+        "XETRA": {
+          "ticker": "IBCF"
+        }
+      }
     },
     "IE00B3F81409": {
-      "terBps": 10
+      "terBps": 10,
+      "listings": {
+        "LSE": {
+          "ticker": "AGGG"
+        },
+        "XETRA": {
+          "ticker": "EUNU"
+        }
+      }
     },
     "IE00BDBRDM35": {
-      "terBps": 10
+      "terBps": 10,
+      "listings": {
+        "XETRA": {
+          "ticker": "EUNA"
+        }
+      }
     },
     "IE00B579F325": {
-      "terBps": 12
+      "terBps": 12,
+      "listings": {
+        "LSE": {
+          "ticker": "SGLD"
+        },
+        "XETRA": {
+          "ticker": "8PSG"
+        }
+      }
     },
     "IE00B1FZS350": {
-      "terBps": 59
+      "terBps": 59,
+      "listings": {
+        "LSE": {
+          "ticker": "IDWP"
+        },
+        "XETRA": {
+          "ticker": "IQQ6"
+        }
+      }
     },
     "GB00BLD4ZL17": {
-      "terBps": 15
+      "terBps": 15,
+      "listings": {
+        "LSE": {
+          "ticker": "BITC"
+        },
+        "XETRA": {
+          "ticker": "BITC"
+        }
+      }
     },
     "IE00B3WJKG14": {
-      "terBps": 15
+      "terBps": 15,
+      "listings": {
+        "LSE": {
+          "ticker": "IUIT"
+        },
+        "XETRA": {
+          "ticker": "QDVE"
+        }
+      }
     },
     "IE00BYZK4776": {
-      "terBps": 40
+      "terBps": 40,
+      "listings": {
+        "LSE": {
+          "ticker": "HEAL"
+        },
+        "XETRA": {
+          "ticker": "2B78"
+        }
+      }
     },
     "IE00B1XNHC34": {
-      "terBps": 65
+      "terBps": 65,
+      "listings": {
+        "LSE": {
+          "ticker": "INRG"
+        },
+        "XETRA": {
+          "ticker": "IQQH"
+        }
+      }
     },
     "IE00BG0J4C88": {
-      "terBps": 40
+      "terBps": 40,
+      "listings": {
+        "LSE": {
+          "ticker": "LOCK"
+        },
+        "XETRA": {
+          "ticker": "L0CK"
+        }
+      }
     }
   }
 }
