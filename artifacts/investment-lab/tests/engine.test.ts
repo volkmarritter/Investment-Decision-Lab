@@ -610,7 +610,7 @@ describe("equity-region construction (principled, not fixed)", () => {
     for (const inp of inputs) {
       const out = buildPortfolio(inp);
       const eq = equityTotal(out);
-      const regions = ["USA", "Europe", "Switzerland", "Japan", "EM"];
+      const regions = ["USA", "Europe", "UK", "Switzerland", "Japan", "EM"];
       for (const r of regions) {
         const w = equityWeightOf(out, r);
         if (w > 0) expect(w).toBeLessThanOrEqual(eq * 0.65 + 0.5);
@@ -626,7 +626,9 @@ describe("equity-region construction (principled, not fixed)", () => {
 
     expect(equityWeightOf(usd, "USA")).toBeGreaterThan(equityWeightOf(eur, "USA"));
     expect(equityWeightOf(eur, "Europe")).toBeGreaterThan(equityWeightOf(usd, "Europe"));
-    expect(equityWeightOf(gbp, "Europe")).toBeGreaterThan(equityWeightOf(usd, "Europe"));
+    expect(equityWeightOf(gbp, "UK")).toBeGreaterThan(0);
+    expect(equityWeightOf(usd, "UK")).toBe(0);
+    expect(equityWeightOf(eur, "UK")).toBe(0);
     expect(equityWeightOf(chf, "Switzerland")).toBeGreaterThan(0);
     expect(equityWeightOf(usd, "Switzerland")).toBe(0);
   });
@@ -646,6 +648,30 @@ describe("equity-region construction (principled, not fixed)", () => {
     // satellites: none included by default in baseInput -> equityPct = targetEquityPct (60)
     expect(eq).toBeGreaterThan(55);
     expect(eq).toBeLessThan(65);
+  });
+
+  it("GBP base produces an Equity-UK bucket and routes the home tilt to it (mirrors CHF / Switzerland)", () => {
+    const gbp = buildPortfolio(baseInput({ baseCurrency: "GBP", numETFs: 12, preferredExchange: "LSE" }));
+    const usd = buildPortfolio(baseInput({ baseCurrency: "USD", numETFs: 12 }));
+    const eur = buildPortfolio(baseInput({ baseCurrency: "EUR", numETFs: 12, preferredExchange: "XETRA" }));
+
+    // GBP must have a UK equity row; USD / EUR must not.
+    const gbpUk = gbp.allocation.find((a) => a.assetClass === "Equity" && a.region === "UK");
+    expect(gbpUk).toBeDefined();
+    expect(gbpUk!.weight).toBeGreaterThan(0);
+    expect(usd.allocation.find((a) => a.region === "UK")).toBeUndefined();
+    expect(eur.allocation.find((a) => a.region === "UK")).toBeUndefined();
+
+    // The home-bias × 2.5 multiplier must lift UK above the 4 % anchor's neutral
+    // share of the equity sleeve. Sleeve totals to ~60 % equity in baseInput, so
+    // a "raw" 4 % anchor share would be ~2.4 % of the portfolio; with the tilt
+    // we expect at least double that, comfortably > 4 % of total weight.
+    expect(gbpUk!.weight).toBeGreaterThan(4);
+
+    // The picked ETF should be the FTSE-100 tracker (the Equity-UK catalog slot).
+    const gbpUkEtf = gbp.etfImplementation.find((e) => e.bucket === "Equity - UK");
+    expect(gbpUkEtf).toBeDefined();
+    expect(gbpUkEtf!.isin).toBe("IE00B53HP851");
   });
 });
 
@@ -785,7 +811,8 @@ describe("metrics", () => {
   it("benchmark portfolio has beta ≈ 1 and tracking error ≈ 0", () => {
     const benchAlloc = [
       { assetClass: "Equity", region: "USA", weight: 60 },
-      { assetClass: "Equity", region: "Europe", weight: 18 },
+      { assetClass: "Equity", region: "Europe", weight: 14 },
+      { assetClass: "Equity", region: "UK", weight: 4 },
       { assetClass: "Equity", region: "Switzerland", weight: 4 },
       { assetClass: "Equity", region: "Japan", weight: 4 },
       { assetClass: "Equity", region: "EM", weight: 14 },

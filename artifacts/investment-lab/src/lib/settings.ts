@@ -249,7 +249,7 @@ export type HomeBiasOverrides = Partial<Record<HomeBiasCurrency, number>>;
 export const HOME_BIAS_DEFAULTS: Record<BaseCurrency, number> = {
   USD: 1.0,
   EUR: 1.5,
-  GBP: 1.5,
+  GBP: 2.5, // small UK anchor (~4%) → larger multiplier, mirrors the CHF case
   CHF: 2.5,
 };
 

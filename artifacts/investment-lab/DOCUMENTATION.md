@@ -88,15 +88,16 @@ Replaces the previous fixed regional bases. Implemented by `computeEquityRegionW
 
 **Step 1 — Market-cap anchor** (the canonical "neutral" portfolio in modern portfolio theory; approximate MSCI ACWI regional shares):
 
-| Region | Anchor (USD/EUR/GBP base) | Anchor (CHF base) |
-|---|---:|---:|
-| USA | 0.60 | 0.60 |
-| Europe | 0.13 | 0.10 |
-| Switzerland | — | 0.04 |
-| Japan | 0.05 | 0.05 |
-| Emerging Markets | 0.11 | 0.11 |
+| Region | Anchor (USD/EUR base) | Anchor (GBP base) | Anchor (CHF base) |
+|---|---:|---:|---:|
+| USA | 0.60 | 0.60 | 0.60 |
+| Europe | 0.13 | 0.10 | 0.10 |
+| United Kingdom | — | 0.04 | — |
+| Switzerland | — | — | 0.04 |
+| Japan | 0.05 | 0.05 | 0.05 |
+| Emerging Markets | 0.11 | 0.11 | 0.11 |
 
-For CHF base, the Switzerland anchor is carved out of Europe so total developed-Europe exposure is preserved.
+For CHF and GBP bases, the home market (Switzerland or United Kingdom respectively) is carved out of Europe into its own anchor slot so the home equity bucket is first-class — it gets its own home-bias multiplier, its own ETF (`Equity-Switzerland` / `Equity-UK`), its own row in the consolidation home-key map (§4.5), and its own slice of the ACWI benchmark (§7).
 
 **Step 2 — Apply documented overlays** to each anchor:
 
@@ -115,7 +116,7 @@ raw_i = anchor_i
 |---|---|
 | Home tilt (USD → USA) | × 1.0 (anchor already dominant) |
 | Home tilt (EUR → Europe) | × 1.5 |
-| Home tilt (GBP → Europe) | × 1.5 |
+| Home tilt (GBP → United Kingdom) | × 2.5 |
 | Home tilt (CHF → Switzerland) | × 2.5 |
 | Long-horizon EM tilt (h ≥ 10) | × 1.3 |
 | Sustainability theme on USA | × 0.85 |
@@ -147,9 +148,9 @@ If `numETFs ≤ 5`, the smallest satellite sleeves (REIT, Crypto, Thematic, Comm
 If, after the above, the number of non-zero buckets still exceeds `numETFs` AND ≥3 distinct equity regions are present, the engine collapses regional equity into:
 
 - **Equity-Global** — MSCI ACWI IMI (`SPYI` / `IE00B3YLTY66`).
-- **Equity-Home** — home-market tilt based on `baseCurrency` (USD → USA, CHF → CH, EUR/GBP → Europe).
+- **Equity-Home** — home-market tilt based on `baseCurrency` (USD → USA, CHF → CH, GBP → UK, EUR → Europe).
 
-For CHF / EUR / GBP without a pre-existing home bucket, a tilt is carved from the global pool (CHF: 8%, EUR/GBP: 12%) so the home bias survives consolidation. Total equity exposure is preserved exactly.
+For EUR (and the rare CHF / GBP path with no pre-existing home bucket left after compaction), a tilt is carved from the global pool (CHF: 8%, EUR/GBP: 12%) so the home bias survives consolidation. With the GBP / CHF carve-outs in §4.2 the home bucket normally already carries weight, so this fallback only fires in edge cases. Total equity exposure is preserved exactly.
 
 ### 4.6 Rounding
 
@@ -618,6 +619,16 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-04-26 (gbp-uk-equity-carve-out)
+- **GBP base now treats UK equity as a first-class bucket, mirroring the existing CHF → Switzerland carve-out.** The home market for a GBP investor (FTSE-100 / MSCI UK) gets its own market-cap anchor slot, its own home-bias multiplier, its own ETF (`Equity-UK`, `IE00B53HP851` — already in the catalog), its own row in the consolidation home-key map, and its own slice of the ACWI benchmark. Previously the GBP home tilt routed into the broad `Equity-Europe` bucket with a × 1.5 multiplier — too small to express a meaningful UK overweight given the UK's ~3.5 % share of global cap.
+  - **`src/lib/portfolio.ts`** — added `MCAP_ANCHOR_GBP = { USA 0.60, Europe 0.10, UK 0.04, Japan 0.05, EM 0.11 }` (structurally identical to `MCAP_ANCHOR_CHF`, only the carved-out region differs). Replaced the inline `baseCurrency === "CHF" ? CHF : DEFAULT` ternary with an `ANCHOR_BY_BASE: Record<BaseCurrency, …>` lookup table so the per-currency anchor selection scales cleanly. `HOME_TILT_REGION.GBP` flipped from `"Europe"` → `"UK"`. `REGION_TO_CMA` gained `UK → equity_uk`. The §4.5 consolidation `equityRegionKeys` and `homeMap.GBP` updated to include / point at `Equity_UK`.
+  - **`src/lib/metrics.ts`** — new `equity_uk` `AssetKey` with seed CMA `(μ 6.5 %, σ 15 %)` (FTSE 100: dividend-heavy, slightly lower expected return than broad-Europe but lower vol; sits between CH and EU on both axes). New correlation row in `C` — UK / EU 0.85 (highly co-moving developed European markets), UK / US 0.78, UK / CH 0.72, UK / JP 0.55, UK / EM 0.62, UK / thematic 0.65, UK / bonds 0.10, UK / gold 0.10, UK / REITs 0.65, UK / crypto 0.25. `mapAllocationToAssets` recognises `region === "UK"` (or `"United Kingdom"`); `CORR_DISPLAY_ORDER` and the frontier `equityKeys` include `equity_uk`. **`BENCHMARK` rebalanced** to `{ US 60, EU 14, UK 4, CH 4, JP 4, EM 14 }` so the ACWI proxy carves UK out of broad-Europe (was `{ US 60, EU 18, CH 4, JP 4, EM 14 }`). Total still 100 %.
+  - **`src/lib/settings.ts`** — `HOME_BIAS_DEFAULTS.GBP` raised from `1.5` → `2.5` (mirrors CHF: a small home anchor needs a larger multiplier to produce a meaningful tilt).
+  - **`src/lib/monteCarlo.ts`** — `bucketKey` recognises UK regions; `bucketAssumption.homeKey` map gained `GBP → equity_uk` so a GBP investor holding a hedged UK sleeve no longer gets the foreign-equity FX-hedge sigma cut applied to it.
+  - **Methodology tab** — anchor table grew from 3 columns (USD/EUR/GBP | CHF) to 4 (USD/EUR | GBP | CHF) with a UK row; the surrounding prose now reads "For CHF and GBP portfolios, the home market is carved out of Europe into its own bucket". The CMA "where used" helpers (`noteFor`, `regionFromKey`, `regionLabel`) gained `equity_uk` rows; the Europe label updated from "Europe (ex CH)" → "Europe (ex CH/UK)".
+  - **DOCUMENTATION.md** — §4.2 anchor table now has a GBP column and a UK row; §4.5 home-key map text mentions `GBP → UK`; the home-tilt constants table shows `GBP → United Kingdom × 2.5`.
+  - **Tests** — the existing concentration-cap test gained `"UK"` to its swept regions list. The home-bias-overlay test changed its GBP assertion from `gbp.Europe > usd.Europe` to `gbp.UK > 0 ∧ usd.UK == 0 ∧ eur.UK == 0` (mirrors the existing CHF / Switzerland assertion). The `benchAlloc` reference in the β ≈ 1 test was updated to the new BENCHMARK shape (added a UK 4 % row, dropped Europe 18 → 14). New regression test (`buildPortfolio — GBP base produces an Equity-UK bucket and routes the home tilt to it`) asserts the GBP allocation contains an Equity-UK row, and the same input under USD does not. Suite still green.
 
 ### 2026-04-26 (per-base-currency-risk-free-rates — Task #32)
 - **The single global risk-free rate is replaced by four independent per-base-currency RFs (USD `4.25%`, EUR `2.50%`, GBP `4.00%`, CHF `0.50%`).** Sharpe / Sortino / efficient-frontier metrics and the Sharpe-tilt step of equity-region construction now look up the rate that matches the portfolio's `baseCurrency`, so a CHF investor no longer sees their Sharpe ratio computed against a USD-style RF.

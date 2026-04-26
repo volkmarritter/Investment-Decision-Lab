@@ -495,16 +495,18 @@ export function Methodology() {
               <TableHeader>
                 <TableRow>
                   <TableHead>{de ? "Region" : "Region"}</TableHead>
-                  <TableHead className="text-right">{de ? "Anker (USD/EUR/GBP)" : "Anchor (USD/EUR/GBP)"}</TableHead>
+                  <TableHead className="text-right">{de ? "Anker (USD/EUR)" : "Anchor (USD/EUR)"}</TableHead>
+                  <TableHead className="text-right">{de ? "Anker (GBP)" : "Anchor (GBP)"}</TableHead>
                   <TableHead className="text-right">{de ? "Anker (CHF)" : "Anchor (CHF)"}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                <TableRow><TableCell className="text-xs">USA</TableCell><TableCell className="text-right font-mono text-xs">60%</TableCell><TableCell className="text-right font-mono text-xs">60%</TableCell></TableRow>
-                <TableRow><TableCell className="text-xs">{de ? "Europa" : "Europe"}</TableCell><TableCell className="text-right font-mono text-xs">13%</TableCell><TableCell className="text-right font-mono text-xs">10%</TableCell></TableRow>
-                <TableRow><TableCell className="text-xs">{de ? "Schweiz" : "Switzerland"}</TableCell><TableCell className="text-right font-mono text-xs">—</TableCell><TableCell className="text-right font-mono text-xs">4%</TableCell></TableRow>
-                <TableRow><TableCell className="text-xs">Japan</TableCell><TableCell className="text-right font-mono text-xs">5%</TableCell><TableCell className="text-right font-mono text-xs">5%</TableCell></TableRow>
-                <TableRow><TableCell className="text-xs">{de ? "Schwellenländer" : "Emerging Markets"}</TableCell><TableCell className="text-right font-mono text-xs">11%</TableCell><TableCell className="text-right font-mono text-xs">11%</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">USA</TableCell><TableCell className="text-right font-mono text-xs">60%</TableCell><TableCell className="text-right font-mono text-xs">60%</TableCell><TableCell className="text-right font-mono text-xs">60%</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">{de ? "Europa" : "Europe"}</TableCell><TableCell className="text-right font-mono text-xs">13%</TableCell><TableCell className="text-right font-mono text-xs">10%</TableCell><TableCell className="text-right font-mono text-xs">10%</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">{de ? "Vereinigtes Königreich" : "United Kingdom"}</TableCell><TableCell className="text-right font-mono text-xs">—</TableCell><TableCell className="text-right font-mono text-xs">4%</TableCell><TableCell className="text-right font-mono text-xs">—</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">{de ? "Schweiz" : "Switzerland"}</TableCell><TableCell className="text-right font-mono text-xs">—</TableCell><TableCell className="text-right font-mono text-xs">—</TableCell><TableCell className="text-right font-mono text-xs">4%</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">Japan</TableCell><TableCell className="text-right font-mono text-xs">5%</TableCell><TableCell className="text-right font-mono text-xs">5%</TableCell><TableCell className="text-right font-mono text-xs">5%</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">{de ? "Schwellenländer" : "Emerging Markets"}</TableCell><TableCell className="text-right font-mono text-xs">11%</TableCell><TableCell className="text-right font-mono text-xs">11%</TableCell><TableCell className="text-right font-mono text-xs">11%</TableCell></TableRow>
               </TableBody>
             </Table>
           </div>
@@ -512,8 +514,8 @@ export function Methodology() {
             <li>
               <span className="font-semibold">{de ? "Marktkapitalisierungs-Anker" : "Market-cap anchor"}</span>{" — "}
               {de
-                ? "Ausgangsgewichte folgen dem globalen Marktportfolio (MSCI-ACWI-Proxy oben). In CHF-Portfolios wird der Schweiz-Anteil aus Europa herausgelöst."
-                : "Starting weights follow the global market portfolio (MSCI ACWI proxy above). For CHF portfolios, the Switzerland share is carved out of Europe."}
+                ? "Ausgangsgewichte folgen dem globalen Marktportfolio (MSCI-ACWI-Proxy oben). In CHF- und GBP-Portfolios wird der heimische Markt (Schweiz bzw. Vereinigtes Königreich) als eigener Eimer aus Europa herausgelöst."
+                : "Starting weights follow the global market portfolio (MSCI ACWI proxy above). For CHF and GBP portfolios, the home market (Switzerland or United Kingdom respectively) is carved out of Europe into its own bucket."}
             </li>
             <li>
               <span className="font-semibold">{de ? "Sharpe-Tilt (gedämpft)" : "Sharpe tilt (damped)"}</span>{" — "}
@@ -1213,6 +1215,7 @@ function noteFor(k: string, de: boolean): string {
   const en: Record<string, string> = {
     equity_us: "S&P 500 / MSCI USA proxy",
     equity_eu: "MSCI Europe proxy",
+    equity_uk: "FTSE 100 / MSCI UK proxy",
     equity_ch: "SPI / MSCI Switzerland proxy",
     equity_jp: "MSCI Japan proxy",
     equity_em: "MSCI Emerging Markets proxy",
@@ -1226,6 +1229,7 @@ function noteFor(k: string, de: boolean): string {
   const dee: Record<string, string> = {
     equity_us: "S&P 500 / MSCI USA-Proxy",
     equity_eu: "MSCI Europe-Proxy",
+    equity_uk: "FTSE 100 / MSCI UK-Proxy",
     equity_ch: "SPI / MSCI Schweiz-Proxy",
     equity_jp: "MSCI Japan-Proxy",
     equity_em: "MSCI Emerging Markets-Proxy",
@@ -1242,6 +1246,7 @@ function noteFor(k: string, de: boolean): string {
 function regionFromKey(k: string): string {
   if (k === "equity_us") return "USA";
   if (k === "equity_eu") return "Europe";
+  if (k === "equity_uk") return "UK";
   if (k === "equity_ch") return "Switzerland";
   if (k === "equity_jp") return "Japan";
   if (k === "equity_em") return "EM";
@@ -1250,7 +1255,8 @@ function regionFromKey(k: string): string {
 
 function regionLabel(k: string, de: boolean): string {
   if (k === "equity_us") return de ? "USA" : "United States";
-  if (k === "equity_eu") return de ? "Europa (ex CH)" : "Europe (ex CH)";
+  if (k === "equity_eu") return de ? "Europa (ex CH/UK)" : "Europe (ex CH/UK)";
+  if (k === "equity_uk") return de ? "Vereinigtes Königreich" : "United Kingdom";
   if (k === "equity_ch") return de ? "Schweiz" : "Switzerland";
   if (k === "equity_jp") return de ? "Japan" : "Japan";
   if (k === "equity_em") return de ? "Schwellenländer" : "Emerging Markets";

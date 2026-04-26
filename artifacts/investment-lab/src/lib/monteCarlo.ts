@@ -16,6 +16,7 @@ function bucketKey(assetClass: string, region: string): AssetKey {
   if (ac.includes("equity")) {
     if (rg.includes("usa")) return "equity_us";
     if (rg.includes("switzer")) return "equity_ch";
+    if (rg === "uk" || rg.includes("united kingdom")) return "equity_uk";
     if (rg.includes("europ")) return "equity_eu";
     if (rg.includes("japan")) return "equity_jp";
     if (rg.includes("em")) return "equity_em";
@@ -57,7 +58,7 @@ function bucketAssumption(
   // ~3pp of total sigma for developed markets, ~2pp for EM. Keep a floor.
   if (key.startsWith("equity_") && hedged) {
     const homeKey: Record<string, AssetKey | undefined> = {
-      USD: "equity_us", EUR: "equity_eu", CHF: "equity_ch",
+      USD: "equity_us", EUR: "equity_eu", GBP: "equity_uk", CHF: "equity_ch",
     };
     const isForeignEquity = homeKey[baseCurrency] !== key;
     if (isForeignEquity) {

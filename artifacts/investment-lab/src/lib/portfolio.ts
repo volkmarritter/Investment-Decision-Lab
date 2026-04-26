@@ -63,8 +63,11 @@ function sortAllocationCanonical(rows: AssetAllocation[]): void {
 // ---------------------------------------------------------------------------
 const EQUITY_REGION_CAP = 65;
 
-// Approximate MSCI ACWI regional weights, USD base.
-// CHF-base variant carves Switzerland out of Europe so total exposure is preserved.
+// Approximate MSCI ACWI regional weights, USD/EUR base.
+// The CHF and GBP variants carve a small slice (Switzerland / UK respectively)
+// out of broad-Europe so the home market gets its own anchor slot. The two
+// special-case anchors are otherwise structurally identical to the default —
+// they only differ in which sub-region is broken out.
 const MCAP_ANCHOR_DEFAULT: Record<string, number> = {
   USA: 0.60,
   Europe: 0.13,
@@ -78,6 +81,19 @@ const MCAP_ANCHOR_CHF: Record<string, number> = {
   Japan: 0.05,
   EM: 0.11,
 };
+const MCAP_ANCHOR_GBP: Record<string, number> = {
+  USA: 0.60,
+  Europe: 0.10,
+  UK: 0.04,
+  Japan: 0.05,
+  EM: 0.11,
+};
+const ANCHOR_BY_BASE: Record<BaseCurrency, Record<string, number>> = {
+  USD: MCAP_ANCHOR_DEFAULT,
+  EUR: MCAP_ANCHOR_DEFAULT,
+  GBP: MCAP_ANCHOR_GBP,
+  CHF: MCAP_ANCHOR_CHF,
+};
 
 // Home-bias overlay region per base currency. The numeric factor is now
 // LIVE-EDITABLE via the Methodology tab — see settings.resolvedHomeBias.
@@ -87,20 +103,21 @@ const MCAP_ANCHOR_CHF: Record<string, number> = {
 const HOME_TILT_REGION: Record<BaseCurrency, string> = {
   USD: "USA",          // already dominant via anchor (default factor 1.0)
   EUR: "Europe",
-  GBP: "Europe",
+  GBP: "UK",           // UK anchor is small, default factor 2.5
   CHF: "Switzerland",  // Swiss anchor is small, default factor 2.5
 };
 
 const REGION_TO_CMA: Record<string, AssetKey> = {
   USA: "equity_us",
   Europe: "equity_eu",
+  UK: "equity_uk",
   Switzerland: "equity_ch",
   Japan: "equity_jp",
   EM: "equity_em",
 };
 
 export function computeEquityRegionWeights(input: PortfolioInput): Record<string, number> {
-  const anchor = input.baseCurrency === "CHF" ? MCAP_ANCHOR_CHF : MCAP_ANCHOR_DEFAULT;
+  const anchor = ANCHOR_BY_BASE[input.baseCurrency];
   const regions: string[] = Object.keys(anchor);
 
   // RF is read once per build call so all regions see a consistent value, even
@@ -241,13 +258,13 @@ export function buildPortfolio(
   // If the ETF budget (numETFs) is too small to give every equity region its
   // own slot, collapse equity into a global core + a home tilt. This preserves
   // total equity exposure and the home-currency bias while honouring the cap.
-  const equityRegionKeys = ["Equity_USA", "Equity_Europe", "Equity_Switzerland", "Equity_Japan", "Equity_EM"];
+  const equityRegionKeys = ["Equity_USA", "Equity_Europe", "Equity_UK", "Equity_Switzerland", "Equity_Japan", "Equity_EM"];
   const presentEquity = equityRegionKeys.filter(k => (weights[k] || 0) > 0);
   if (Object.keys(weights).filter(k => (weights[k] || 0) > 0).length > input.numETFs && presentEquity.length >= 3) {
     const homeMap: Record<string, string> = {
       USD: "Equity_USA",
       EUR: "Equity_Europe",
-      GBP: "Equity_Europe",
+      GBP: "Equity_UK",
       CHF: "Equity_Switzerland",
     };
     const homeKey = homeMap[input.baseCurrency];

@@ -5,6 +5,7 @@ import consensusFile from "@/data/cmas.consensus.json";
 export type AssetKey =
   | "equity_us"
   | "equity_eu"
+  | "equity_uk"
   | "equity_ch"
   | "equity_jp"
   | "equity_em"
@@ -32,6 +33,7 @@ export interface AssetCMA {
 const CMA_SEED: Record<AssetKey, AssetCMA> = {
   equity_us:        { key: "equity_us",        label: "US Equity",         expReturn: 0.070, vol: 0.16 },
   equity_eu:        { key: "equity_eu",        label: "Europe Equity",     expReturn: 0.075, vol: 0.17 },
+  equity_uk:        { key: "equity_uk",        label: "UK Equity",         expReturn: 0.065, vol: 0.15 },
   equity_ch:        { key: "equity_ch",        label: "Swiss Equity",      expReturn: 0.060, vol: 0.13 },
   equity_jp:        { key: "equity_jp",        label: "Japan Equity",      expReturn: 0.060, vol: 0.16 },
   equity_em:        { key: "equity_em",        label: "EM Equity",         expReturn: 0.085, vol: 0.22 },
@@ -157,8 +159,9 @@ export function getCMASeed(key: AssetKey): { expReturn: number; vol: number } {
 }
 
 const C: Partial<Record<AssetKey, Partial<Record<AssetKey, number>>>> = {
-  equity_us: { equity_eu: 0.82, equity_ch: 0.70, equity_jp: 0.70, equity_em: 0.72, equity_thematic: 0.85, bonds: 0.10, cash: 0.00, gold: 0.05, reits: 0.70, crypto: 0.30 },
-  equity_eu: { equity_ch: 0.78, equity_jp: 0.65, equity_em: 0.72, equity_thematic: 0.78, bonds: 0.10, cash: 0.00, gold: 0.05, reits: 0.70, crypto: 0.28 },
+  equity_us: { equity_eu: 0.82, equity_uk: 0.78, equity_ch: 0.70, equity_jp: 0.70, equity_em: 0.72, equity_thematic: 0.85, bonds: 0.10, cash: 0.00, gold: 0.05, reits: 0.70, crypto: 0.30 },
+  equity_eu: { equity_uk: 0.85, equity_ch: 0.78, equity_jp: 0.65, equity_em: 0.72, equity_thematic: 0.78, bonds: 0.10, cash: 0.00, gold: 0.05, reits: 0.70, crypto: 0.28 },
+  equity_uk: { equity_ch: 0.72, equity_jp: 0.55, equity_em: 0.62, equity_thematic: 0.65, bonds: 0.10, cash: 0.00, gold: 0.10, reits: 0.65, crypto: 0.25 },
   equity_ch: { equity_jp: 0.55, equity_em: 0.60, equity_thematic: 0.65, bonds: 0.15, cash: 0.00, gold: 0.10, reits: 0.62, crypto: 0.20 },
   equity_jp: { equity_em: 0.60, equity_thematic: 0.65, bonds: 0.10, cash: 0.00, gold: 0.05, reits: 0.55, crypto: 0.22 },
   equity_em: { equity_thematic: 0.75, bonds: 0.05, cash: 0.00, gold: 0.15, reits: 0.65, crypto: 0.40 },
@@ -185,7 +188,7 @@ export interface AssetExposure {
 
 export function mapAllocationToAssets(allocation: AssetAllocation[]): AssetExposure[] {
   const map: Record<AssetKey, number> = {
-    equity_us: 0, equity_eu: 0, equity_ch: 0, equity_jp: 0, equity_em: 0,
+    equity_us: 0, equity_eu: 0, equity_uk: 0, equity_ch: 0, equity_jp: 0, equity_em: 0,
     equity_thematic: 0, bonds: 0, cash: 0, gold: 0, reits: 0, crypto: 0,
   };
   for (const a of allocation) {
@@ -199,6 +202,7 @@ export function mapAllocationToAssets(allocation: AssetAllocation[]): AssetExpos
       const r = a.region;
       if (r === "USA") map.equity_us += w;
       else if (r === "Europe") map.equity_eu += w;
+      else if (r === "UK" || r === "United Kingdom") map.equity_uk += w;
       else if (r === "Switzerland") map.equity_ch += w;
       else if (r === "Japan") map.equity_jp += w;
       else if (r === "EM") map.equity_em += w;
@@ -238,10 +242,13 @@ export function covariance(a: AssetExposure[], b: AssetExposure[]): number {
   return cov;
 }
 
-// Benchmark: MSCI ACWI proxy (60/18/4/4/14 across US/EU/CH/JP/EM)
+// Benchmark: MSCI ACWI proxy (60/14/4/4/4/14 across US / EU-ex-UK / UK / CH / JP / EM).
+// UK is broken out from the broad-Europe slice so a GBP investor's home market
+// has its own benchmark slot, mirroring the existing CH carve-out.
 export const BENCHMARK: AssetExposure[] = [
   { key: "equity_us", weight: 0.60 },
-  { key: "equity_eu", weight: 0.18 },
+  { key: "equity_eu", weight: 0.14 },
+  { key: "equity_uk", weight: 0.04 },
   { key: "equity_ch", weight: 0.04 },
   { key: "equity_jp", weight: 0.04 },
   { key: "equity_em", weight: 0.14 },
@@ -310,7 +317,7 @@ export interface FrontierPoint {
 export function computeFrontier(allocation: AssetAllocation[], baseCurrency: BaseCurrency): { points: FrontierPoint[]; current: FrontierPoint } {
   const rf = getRiskFreeRate(baseCurrency);
   const exp = mapAllocationToAssets(allocation);
-  const equityKeys: AssetKey[] = ["equity_us", "equity_eu", "equity_ch", "equity_jp", "equity_em", "equity_thematic", "reits", "crypto"];
+  const equityKeys: AssetKey[] = ["equity_us", "equity_eu", "equity_uk", "equity_ch", "equity_jp", "equity_em", "equity_thematic", "reits", "crypto"];
   const isEq = (k: AssetKey) => equityKeys.includes(k);
 
   const eqExp = exp.filter((e) => isEq(e.key));
@@ -367,7 +374,7 @@ export interface CorrelationCell {
 // finishing with crypto. Matches the visual grouping used in §4 of
 // the Methodology tab.
 const CORR_DISPLAY_ORDER: AssetKey[] = [
-  "equity_us", "equity_eu", "equity_ch", "equity_jp", "equity_em", "equity_thematic",
+  "equity_us", "equity_eu", "equity_uk", "equity_ch", "equity_jp", "equity_em", "equity_thematic",
   "bonds", "cash",
   "gold", "reits", "crypto",
 ];
