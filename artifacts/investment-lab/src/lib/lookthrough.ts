@@ -475,6 +475,22 @@ type LookthroughOverride = {
 const RAW_LOOKTHROUGH_OVERRIDES =
   (lookthroughOverridesFile as { overrides?: Record<string, LookthroughOverride> }).overrides ?? {};
 
+// Bucket-agnostic look-through profiles added via the admin "Look-through
+// data pool" UI. These are FULL profiles (not patches): the admin endpoint
+// scrapes the ETF page and writes topHoldings + geo + sector + currency
+// in one shot. They are folded into PROFILES below so that
+// `profileFor(isin)` returns a complete entry — which makes the ETF
+// override dialog's amber "data missing" warning auto-clear once an
+// operator has added the ISIN here.
+//
+// Pool entries are not bucket-bound: they don't appear in any bucket's
+// implementations list and are only consumed when the user picks the ISIN
+// as a Methodology override. They are picked up by the monthly refresh job
+// (scripts/refresh-lookthrough.mjs) the same way as `overrides` ISINs, but
+// the script writes refreshed data BACK into pool[isin], not overrides[isin].
+const RAW_LOOKTHROUGH_POOL =
+  (lookthroughOverridesFile as { pool?: Record<string, LookthroughOverride> }).pool ?? {};
+
 // Snapshot freshness metadata written by scripts/refresh-lookthrough.mjs.
 // Per-ISIN top-holdings stamps live on each profile (`topHoldingsAsOf`); this
 // file-level value is the timestamp of the last refresh job run, used as a
@@ -540,6 +556,41 @@ for (const [isin, patch] of Object.entries(RAW_LOOKTHROUGH_OVERRIDES)) {
   if (patch.breakdownsAsOf) {
     target.breakdownsAsOf = patch.breakdownsAsOf;
   }
+}
+
+// Fold pool entries (added via the admin "Look-through data pool" UI)
+// into PROFILES as brand-new entries. We require topHoldings AND geo AND
+// sector to be present, otherwise the look-through math would silently
+// produce zeroed buckets. Currency falls back to deriveCurrencyFromGeo
+// at the source (api-server scrape lib), so it should always be there
+// too — but if a future writer omits it we leave isEquity:true and an
+// empty map rather than crash.
+//
+// Pool entries are assumed to be equity (`isEquity:true`) — that matches
+// every Methodology bucket the override dialog operates on today. If a
+// bond ETF is ever added here, the bucket math still works (geo + sector
+// + currency are derived per-asset-class downstream) but the EQUITY flag
+// would mislabel it; revisit when bond bucket overrides are exposed.
+for (const [isin, entry] of Object.entries(RAW_LOOKTHROUGH_POOL)) {
+  if (!entry) continue;
+  if (PROFILES[isin]) continue; // a curated profile takes precedence
+  const hasMinimum =
+    entry.topHoldings &&
+    entry.topHoldings.length > 0 &&
+    entry.geo &&
+    Object.keys(entry.geo).length > 0 &&
+    entry.sector &&
+    Object.keys(entry.sector).length > 0;
+  if (!hasMinimum) continue;
+  PROFILES[isin] = {
+    isEquity: true,
+    geo: entry.geo!,
+    sector: entry.sector!,
+    currency: entry.currency ?? {},
+    topHoldings: entry.topHoldings,
+    topHoldingsAsOf: entry.topHoldingsAsOf,
+    breakdownsAsOf: entry.breakdownsAsOf,
+  };
 }
 
 // Surface orphan overrides (ISINs the refresh job is still writing for, but

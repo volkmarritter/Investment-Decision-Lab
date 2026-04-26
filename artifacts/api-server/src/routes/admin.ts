@@ -18,7 +18,7 @@
 // ----------------------------------------------------------------------------
 
 import { Router, type IRouter } from "express";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { requireAdmin } from "../middlewares/admin-auth";
 import { dataFile } from "../lib/data-paths";
@@ -29,7 +29,8 @@ import {
   type NewEtfEntry,
 } from "../lib/github";
 import { findDuplicateIsinKey, loadCatalog } from "../lib/catalog-parser";
-import { scrapePreview, PreviewError } from "../lib/etf-scrape";
+import { scrapePreview, PreviewError, normalizeIsin } from "../lib/etf-scrape";
+import { scrapeLookthrough } from "../lib/lookthrough-scrape";
 
 const router: IRouter = Router();
 
