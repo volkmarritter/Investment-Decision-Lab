@@ -1076,7 +1076,7 @@ export function BuildPortfolio() {
                 <PortfolioMetrics allocation={output.allocation} baseCurrency={form.getValues().baseCurrency} />
 
                 {/* Scenario Stress Test */}
-                <StressTest allocation={output.allocation} />
+                <StressTest allocation={output.allocation} baseCurrency={watchedBaseCcy} />
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Section 4: Portfolio Rationale */}

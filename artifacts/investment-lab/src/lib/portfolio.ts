@@ -103,8 +103,8 @@ const ANCHOR_BY_BASE: Record<BaseCurrency, Record<string, number>> = {
 const HOME_TILT_REGION: Record<BaseCurrency, string> = {
   USD: "USA",          // already dominant via anchor (default factor 1.0)
   EUR: "Europe",
-  GBP: "UK",           // UK anchor is small, default factor 2.5
-  CHF: "Switzerland",  // Swiss anchor is small, default factor 2.5
+  GBP: "UK",           // UK anchor is small (~4%), default factor 1.5
+  CHF: "Switzerland",  // Swiss anchor is small (~4%), default factor 2.5
 };
 
 const REGION_TO_CMA: Record<string, AssetKey> = {

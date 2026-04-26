@@ -751,10 +751,10 @@ export function ComparePortfolios() {
                             <TabsTrigger value="B">Portfolio B</TabsTrigger>
                           </TabsList>
                           <TabsContent value="A" className="mt-4">
-                            <StressTest allocation={outputA!.allocation} />
+                            <StressTest allocation={outputA!.allocation} baseCurrency={inputA.baseCurrency} />
                           </TabsContent>
                           <TabsContent value="B" className="mt-4">
-                            <StressTest allocation={outputB!.allocation} />
+                            <StressTest allocation={outputB!.allocation} baseCurrency={inputB.baseCurrency} />
                           </TabsContent>
                         </Tabs>
                       </div>
@@ -770,7 +770,7 @@ export function ComparePortfolios() {
                             hedged={inputA.includeCurrencyHedging}
                           />
                           <PortfolioMetrics allocation={outputA!.allocation} baseCurrency={inputA.baseCurrency} />
-                          <StressTest allocation={outputA!.allocation} />
+                          <StressTest allocation={outputA!.allocation} baseCurrency={inputA.baseCurrency} />
                         </div>
                         <div className="space-y-0 min-w-0">
                           <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio B</h3>
@@ -781,7 +781,7 @@ export function ComparePortfolios() {
                             hedged={inputB.includeCurrencyHedging}
                           />
                           <PortfolioMetrics allocation={outputB!.allocation} baseCurrency={inputB.baseCurrency} />
-                          <StressTest allocation={outputB!.allocation} />
+                          <StressTest allocation={outputB!.allocation} baseCurrency={inputB.baseCurrency} />
                         </div>
                       </div>
                     </CardContent>

@@ -114,13 +114,13 @@ export function Methodology() {
   const HB_REGION_LABEL: Record<HomeBiasCurrency, string> = {
     USD: "USA",
     EUR: "Europe",
-    GBP: "Europe",
+    GBP: "United Kingdom",
     CHF: "Switzerland",
   };
   const HB_REGION_LABEL_DE: Record<HomeBiasCurrency, string> = {
     USD: "USA",
     EUR: "Europa",
-    GBP: "Europa",
+    GBP: "Vereinigtes Königreich",
     CHF: "Schweiz",
   };
   const buildHbDraft = (): Record<HomeBiasCurrency, string> => {

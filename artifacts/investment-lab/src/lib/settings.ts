@@ -156,7 +156,7 @@ export type CMAUserOverrides = Record<string, CMAUserOverride>;
 // Asset keys that user overrides may target. Anything outside this whitelist
 // (typo, stale entry, tampering) is silently dropped on read.
 const CMA_VALID_KEYS = new Set<string>([
-  "equity_us", "equity_eu", "equity_ch", "equity_jp", "equity_em",
+  "equity_us", "equity_eu", "equity_uk", "equity_ch", "equity_jp", "equity_em",
   "equity_thematic", "bonds", "cash", "gold", "reits", "crypto",
 ]);
 
@@ -235,7 +235,7 @@ export function subscribeCMAOverrides(cb: (o: CMAUserOverrides) => void): () => 
 // base-currency-specific factor (see portfolio.ts → HOME_TILT). Defaults are:
 //   USD → 1.0 (USA already dominant)
 //   EUR → 1.5 (Europe)
-//   GBP → 1.5 (Europe)
+//   GBP → 1.5 (United Kingdom — UK is carved out of Europe in MCAP_ANCHOR_GBP)
 //   CHF → 2.5 (Switzerland anchor is small, needs more tilt)
 // User can override these per currency at runtime. Stored in localStorage; a
 // custom event lets components re-build their portfolio.
@@ -249,7 +249,7 @@ export type HomeBiasOverrides = Partial<Record<HomeBiasCurrency, number>>;
 export const HOME_BIAS_DEFAULTS: Record<BaseCurrency, number> = {
   USD: 1.0,
   EUR: 1.5,
-  GBP: 2.5, // small UK anchor (~4%) → larger multiplier, mirrors the CHF case
+  GBP: 1.5,
   CHF: 2.5,
 };
 

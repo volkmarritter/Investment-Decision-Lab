@@ -15,6 +15,7 @@ export const SCENARIOS: Scenario[] = [
     shocks: {
       "Equity_USA": -37,
       "Equity_Europe": -45,
+      "Equity_UK": -41,
       "Equity_Switzerland": -34,
       "Equity_Japan": -42,
       "Equity_EM": -53,
@@ -35,6 +36,7 @@ export const SCENARIOS: Scenario[] = [
     shocks: {
       "Equity_USA": -20,
       "Equity_Europe": -23,
+      "Equity_UK": -25,
       "Equity_Switzerland": -12,
       "Equity_Japan": -18,
       "Equity_EM": -24,
@@ -55,6 +57,7 @@ export const SCENARIOS: Scenario[] = [
     shocks: {
       "Equity_USA": -19,
       "Equity_Europe": -12,
+      "Equity_UK": -2,
       "Equity_Switzerland": -16,
       "Equity_Japan": -5,
       "Equity_EM": -20,
@@ -85,15 +88,35 @@ export interface StressTestResult {
   contributions: Contribution[];
 }
 
-function getShock(assetClass: string, region: string, shocks: Record<string, number>): number {
+// Map a base currency to the shock-key its `region === "Home"` compaction
+// row should pick up. Mirrors the home-equity routing in portfolio.ts §4.5
+// so a compacted GBP portfolio uses Equity_UK shocks (not Equity_USA), a
+// compacted CHF portfolio uses Equity_Switzerland, etc.
+const HOME_SHOCK_KEY: Record<string, string> = {
+  USD: "Equity_USA",
+  EUR: "Equity_Europe",
+  GBP: "Equity_UK",
+  CHF: "Equity_Switzerland",
+};
+
+function getShock(
+  assetClass: string,
+  region: string,
+  shocks: Record<string, number>,
+  baseCurrency?: string
+): number {
   if (assetClass === "Equity") {
     if (region === "USA") return shocks["Equity_USA"] ?? shocks["Equity_Global"];
     if (region === "Europe") return shocks["Equity_Europe"] ?? shocks["Equity_Global"];
     if (region === "Switzerland") return shocks["Equity_Switzerland"] ?? shocks["Equity_Global"];
+    if (region === "UK" || region === "United Kingdom") return shocks["Equity_UK"] ?? shocks["Equity_Europe"] ?? shocks["Equity_Global"];
     if (region === "Japan") return shocks["Equity_Japan"] ?? shocks["Equity_Global"];
     if (region === "EM" || region === "EM_Japan" || region === "Emerging Markets") return shocks["Equity_EM"] ?? shocks["Equity_Global"];
     if (region === "Global") return shocks["Equity_Global"] ?? -30;
-    if (region === "Home") return shocks["Equity_USA"] ?? shocks["Equity_Global"] ?? -30;
+    if (region === "Home") {
+      const key = (baseCurrency && HOME_SHOCK_KEY[baseCurrency]) || "Equity_USA";
+      return shocks[key] ?? shocks["Equity_Global"] ?? -30;
+    }
     return shocks["Equity_Global"] ?? -30;
   }
   
@@ -104,13 +127,16 @@ function getShock(assetClass: string, region: string, shocks: Record<string, num
   return 0;
 }
 
-export function runStressTest(allocation: AssetAllocation[]): StressTestResult[] {
+export function runStressTest(
+  allocation: AssetAllocation[],
+  baseCurrency?: string
+): StressTestResult[] {
   return SCENARIOS.map(scenario => {
     let total = 0;
     const contributions: Contribution[] = [];
 
     allocation.forEach(alloc => {
-      const shock = getShock(alloc.assetClass, alloc.region, scenario.shocks);
+      const shock = getShock(alloc.assetClass, alloc.region, scenario.shocks, baseCurrency);
       const contribution = (alloc.weight / 100) * shock;
       total += contribution;
       

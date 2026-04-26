@@ -650,7 +650,7 @@ describe("equity-region construction (principled, not fixed)", () => {
     expect(eq).toBeLessThan(65);
   });
 
-  it("GBP base produces an Equity-UK bucket and routes the home tilt to it (mirrors CHF / Switzerland)", () => {
+  it("GBP base produces a separate Equity-UK bucket and ETF (mirrors CHF / Switzerland)", () => {
     const gbp = buildPortfolio(baseInput({ baseCurrency: "GBP", numETFs: 12, preferredExchange: "LSE" }));
     const usd = buildPortfolio(baseInput({ baseCurrency: "USD", numETFs: 12 }));
     const eur = buildPortfolio(baseInput({ baseCurrency: "EUR", numETFs: 12, preferredExchange: "XETRA" }));
@@ -662,13 +662,8 @@ describe("equity-region construction (principled, not fixed)", () => {
     expect(usd.allocation.find((a) => a.region === "UK")).toBeUndefined();
     expect(eur.allocation.find((a) => a.region === "UK")).toBeUndefined();
 
-    // The home-bias × 2.5 multiplier must lift UK above the 4 % anchor's neutral
-    // share of the equity sleeve. Sleeve totals to ~60 % equity in baseInput, so
-    // a "raw" 4 % anchor share would be ~2.4 % of the portfolio; with the tilt
-    // we expect at least double that, comfortably > 4 % of total weight.
-    expect(gbpUk!.weight).toBeGreaterThan(4);
-
-    // The picked ETF should be the FTSE-100 tracker (the Equity-UK catalog slot).
+    // The picked ETF must be the FTSE-100 tracker (the Equity-UK catalog slot)
+    // — i.e. UK gets its own ETF implementation row, not a roll-up into Europe.
     const gbpUkEtf = gbp.etfImplementation.find((e) => e.bucket === "Equity - UK");
     expect(gbpUkEtf).toBeDefined();
     expect(gbpUkEtf!.isin).toBe("IE00B53HP851");
@@ -727,6 +722,51 @@ describe("runStressTest", () => {
         Math.abs(gfc.contributions[i].contribution)
       );
     }
+  });
+
+  it("compacted Home equity row picks up the home-currency shock (GBP→Equity_UK, CHF→Equity_Switzerland)", () => {
+    const alloc = [
+      { assetClass: "Equity", region: "Home", weight: 50 },
+      { assetClass: "Equity", region: "Global", weight: 30 },
+      { assetClass: "Cash", region: "Global", weight: 20 },
+    ];
+    for (const sc of SCENARIOS) {
+      // No baseCurrency → backward-compat fallback to USA shock.
+      const usFallback = runStressTest(alloc).find((r) => r.id === sc.id)!;
+      const homeUsd = usFallback.contributions.find((c) => c.key === "Equity - Home")!;
+      expect(homeUsd.shock).toBe(sc.shocks["Equity_USA"]);
+      // GBP base → Equity_UK shock.
+      const gbp = runStressTest(alloc, "GBP").find((r) => r.id === sc.id)!;
+      const homeGbp = gbp.contributions.find((c) => c.key === "Equity - Home")!;
+      expect(homeGbp.shock).toBe(sc.shocks["Equity_UK"]);
+      // CHF base → Equity_Switzerland shock.
+      const chf = runStressTest(alloc, "CHF").find((r) => r.id === sc.id)!;
+      const homeChf = chf.contributions.find((c) => c.key === "Equity - Home")!;
+      expect(homeChf.shock).toBe(sc.shocks["Equity_Switzerland"]);
+      // EUR base → Equity_Europe shock.
+      const eur = runStressTest(alloc, "EUR").find((r) => r.id === sc.id)!;
+      const homeEur = eur.contributions.find((c) => c.key === "Equity - Home")!;
+      expect(homeEur.shock).toBe(sc.shocks["Equity_Europe"]);
+    }
+  });
+
+  it("UK equity sleeve picks up the dedicated Equity_UK shock for a GBP portfolio", () => {
+    const alloc = [
+      { assetClass: "Equity", region: "UK", weight: 10 },
+      { assetClass: "Equity", region: "USA", weight: 50 },
+      { assetClass: "Cash", region: "Global", weight: 40 },
+    ];
+    for (const sc of SCENARIOS) {
+      const r = runStressTest(alloc).find((x) => x.id === sc.id)!;
+      const uk = r.contributions.find((c) => c.key === "Equity - UK")!;
+      // Must use the Equity_UK shock from the scenario, not the Equity_Global fallback.
+      expect(uk.shock).toBe(sc.shocks["Equity_UK"]);
+      // And it must differ from Equity_Global at least once across the three
+      // scenarios — proves the dedicated key actually flows through.
+    }
+    const ukShocks = SCENARIOS.map((s) => s.shocks["Equity_UK"]);
+    const globalShocks = SCENARIOS.map((s) => s.shocks["Equity_Global"]);
+    expect(ukShocks.some((s, i) => s !== globalShocks[i])).toBe(true);
   });
 });
 
@@ -850,7 +890,7 @@ describe("metrics", () => {
     }
   });
 
-  it("correlation matrix always shows all 11 asset classes regardless of holdings", () => {
+  it("correlation matrix always shows all 12 asset classes regardless of holdings", () => {
     // 100% equity portfolio (no bonds, cash, gold, reits, crypto held)
     const out = buildPortfolio(baseInput({
       riskAppetite: "Very High",
@@ -860,15 +900,15 @@ describe("metrics", () => {
       includeCrypto: false,
     }));
     const { keys, labels, matrix, held } = buildCorrelationMatrix(out.allocation);
-    // Always 11 rows/cols
+    // Always 12 rows/cols (added equity_uk for the GBP carve-out)
     expect(keys).toEqual([
-      "equity_us", "equity_eu", "equity_ch", "equity_jp", "equity_em", "equity_thematic",
+      "equity_us", "equity_eu", "equity_uk", "equity_ch", "equity_jp", "equity_em", "equity_thematic",
       "bonds", "cash", "gold", "reits", "crypto",
     ]);
-    expect(labels.length).toBe(11);
-    expect(matrix.length).toBe(11);
-    expect(matrix.every((r) => r.length === 11)).toBe(true);
-    expect(held.length).toBe(11);
+    expect(labels.length).toBe(12);
+    expect(matrix.length).toBe(12);
+    expect(matrix.every((r) => r.length === 12)).toBe(true);
+    expect(held.length).toBe(12);
     // At least one equity row is held; bonds/cash/gold/reits/crypto are not
     expect(held.some((h, i) => h && keys[i].startsWith("equity_"))).toBe(true);
     expect(held[keys.indexOf("bonds")]).toBe(false);
@@ -1063,12 +1103,25 @@ describe("AI Prompt builder (buildAiPrompt)", () => {
     const chf = buildAiPrompt(baseInput({ baseCurrency: "CHF" }));
     expect(chf).toContain("Switzerland (CH)");
     expect(chf).toContain("Europe ex-CH");
-    for (const cur of ["USD", "EUR", "GBP"] as const) {
-      const p = buildAiPrompt(baseInput({ baseCurrency: cur, preferredExchange: cur === "EUR" ? "XETRA" : cur === "GBP" ? "LSE" : "None" }));
+    for (const cur of ["USD", "EUR"] as const) {
+      const p = buildAiPrompt(baseInput({ baseCurrency: cur, preferredExchange: cur === "EUR" ? "XETRA" : "None" }));
       expect(p).not.toContain("Switzerland (CH)");
       expect(p).not.toContain("Europe ex-CH");
+      expect(p).not.toContain("United Kingdom (UK)");
+      expect(p).not.toContain("Europe ex-UK");
       expect(p).toContain("USA, Europe, Japan, and Emerging Markets");
     }
+  });
+
+  it("lists United Kingdom as a separate equity region only for GBP base currency (mirror of CHF carve-out)", () => {
+    const gbp = buildAiPrompt(baseInput({ baseCurrency: "GBP", preferredExchange: "LSE" }));
+    expect(gbp).toContain("United Kingdom (UK)");
+    expect(gbp).toContain("Europe ex-UK");
+    expect(gbp).not.toContain("Switzerland (CH)");
+    // German variant
+    const gbpDe = buildAiPrompt(baseInput({ baseCurrency: "GBP", preferredExchange: "LSE" }), "de");
+    expect(gbpDe).toContain("Vereinigtes Koenigreich (UK)");
+    expect(gbpDe).toContain("Europa ex-UK");
   });
 
   it("produces a German prompt when lang='de' is passed", () => {
@@ -1336,6 +1389,30 @@ describe("CMA layered overrides", () => {
       expect(o.crypto?.expReturn).toBe(1); // clamped to upper bound
       expect(o.crypto?.vol).toBe(2);       // clamped to upper bound
       expect(o.bonds).toBeUndefined();     // wrong type → entry dropped
+    } finally {
+      if (orig) (globalThis as unknown as { window: typeof orig }).window = orig;
+      else delete (globalThis as { window?: unknown }).window;
+    }
+  });
+
+  it("CMA whitelist accepts equity_uk overrides (regression — keeps GBP-base parity with CHF / EUR / etc.)", async () => {
+    const { getCMAOverrides } = await import("../src/lib/settings");
+    const fakeStore: Record<string, string> = {
+      "idl.cmaOverrides": JSON.stringify({
+        equity_uk: { expReturn: 0.07, vol: 0.16 },
+        equity_ch: { expReturn: 0.06, vol: 0.14 },
+      }),
+    };
+    const orig = (globalThis as { window?: { localStorage: Storage } }).window;
+    (globalThis as unknown as { window: { localStorage: Pick<Storage, "getItem"> } }).window = {
+      localStorage: { getItem: (k: string) => fakeStore[k] ?? null },
+    };
+    try {
+      const o = getCMAOverrides();
+      // Both home-carve-out buckets must survive the whitelist filter — they
+      // are first-class equity buckets and the UI lets users override their CMA.
+      expect(o.equity_uk).toEqual({ expReturn: 0.07, vol: 0.16 });
+      expect(o.equity_ch).toEqual({ expReturn: 0.06, vol: 0.14 });
     } finally {
       if (orig) (globalThis as unknown as { window: typeof orig }).window = orig;
       else delete (globalThis as { window?: unknown }).window;

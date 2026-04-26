@@ -105,6 +105,8 @@ function buildPromptEn(input: PortfolioInput): string {
     "- Bonds",
     input.baseCurrency === "CHF"
       ? "- Equities by region: USA, Europe ex-CH, Switzerland (CH), Japan, and Emerging Markets"
+      : input.baseCurrency === "GBP"
+      ? "- Equities by region: USA, Europe ex-UK, United Kingdom (UK), Japan, and Emerging Markets"
       : "- Equities by region: USA, Europe, Japan, and Emerging Markets",
   ].join("\n");
 
@@ -220,6 +222,8 @@ function buildPromptDe(input: PortfolioInput): string {
     "- Anleihen",
     input.baseCurrency === "CHF"
       ? "- Aktien nach Region: USA, Europa ex-CH, Schweiz (CH), Japan und Schwellenlaender"
+      : input.baseCurrency === "GBP"
+      ? "- Aktien nach Region: USA, Europa ex-UK, Vereinigtes Koenigreich (UK), Japan und Schwellenlaender"
       : "- Aktien nach Region: USA, Europa, Japan und Schwellenlaender",
   ].join("\n");
 

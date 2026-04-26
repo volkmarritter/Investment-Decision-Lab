@@ -2,11 +2,17 @@ import { AlertTriangle, TrendingDown } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, Cell, CartesianGrid } from "recharts";
-import { AssetAllocation } from "@/lib/types";
+import { AssetAllocation, BaseCurrency } from "@/lib/types";
 import { runStressTest } from "@/lib/scenarios";
 
-export function StressTest({ allocation }: { allocation: AssetAllocation[] }) {
-  const results = runStressTest(allocation);
+export function StressTest({
+  allocation,
+  baseCurrency,
+}: {
+  allocation: AssetAllocation[];
+  baseCurrency?: BaseCurrency;
+}) {
+  const results = runStressTest(allocation, baseCurrency);
 
   const chartData = results.map(r => ({
     name: r.name.replace(/^\d{4}\s/, ""),
