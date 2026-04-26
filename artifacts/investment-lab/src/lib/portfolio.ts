@@ -2,7 +2,7 @@ import { PortfolioInput, AssetAllocation, PortfolioOutput, ETFImplementation, Ba
 import { getETFDetails } from "./etfs";
 import { Lang } from "./i18n";
 import { CMA, AssetKey } from "./metrics";
-import { resolvedHomeBias, HomeBiasCurrency } from "./settings";
+import { resolvedHomeBias, HomeBiasCurrency, getRiskFreeRate } from "./settings";
 import { applyManualWeights, bucketKey, type ManualWeights } from "./manualWeights";
 
 function clamp(value: number, min: number, max: number) {
@@ -48,6 +48,10 @@ function sortAllocationCanonical(rows: AssetAllocation[]): void {
 //                              MSCI-ACWI-style approximation).
 //   2. Sharpe overlay:         × (Sharpe / 0.25)^0.4 (damped tilt to better
 //                              risk-adjusted-return, never dominates).
+//                              Sharpe uses the user-editable risk-free rate
+//                              from settings (same RF as report metrics) —
+//                              changing RF therefore moves bucket weights on
+//                              the next "Generate Portfolio" click.
 //   3. Home-bias overlay:      × home_factor on home region.
 //   4. Long-horizon EM tilt:   × 1.3 on EM if horizon ≥ 10 years.
 //   5. Sustainability theme:   × 0.85 on USA (theme reduces home-market tilt).
@@ -57,7 +61,6 @@ function sortAllocationCanonical(rows: AssetAllocation[]): void {
 // The market-cap anchor is the canonical "neutral" portfolio in modern
 // portfolio theory (Sharpe 1964); overlays are documented active tilts.
 // ---------------------------------------------------------------------------
-const RISK_FREE_FOR_CONSTRUCTION = 0.025;
 const EQUITY_REGION_CAP = 65;
 
 // Approximate MSCI ACWI regional weights, USD base.
@@ -100,10 +103,14 @@ export function computeEquityRegionWeights(input: PortfolioInput): Record<string
   const anchor = input.baseCurrency === "CHF" ? MCAP_ANCHOR_CHF : MCAP_ANCHOR_DEFAULT;
   const regions: string[] = Object.keys(anchor);
 
+  // RF is read once per build call so all regions see a consistent value, even
+  // if a CustomEvent fires mid-iteration. Same RF as report metrics — see the
+  // header comment block above for the rationale.
+  const rf = getRiskFreeRate();
   const raw: Record<string, number> = {};
   for (const r of regions) {
     const c = CMA[REGION_TO_CMA[r]];
-    const sharpe = (c.expReturn - RISK_FREE_FOR_CONSTRUCTION) / c.vol;
+    const sharpe = (c.expReturn - rf) / c.vol;
     const sharpeMultiplier = Math.pow(Math.max(sharpe, 0.05) / 0.25, 0.4);
     raw[r] = anchor[r] * sharpeMultiplier;
   }

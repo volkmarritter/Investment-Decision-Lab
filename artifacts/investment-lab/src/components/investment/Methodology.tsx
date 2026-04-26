@@ -505,14 +505,14 @@ export function Methodology() {
                 <TableRow><TableCell className="text-xs">{de ? "Konzentrationsgrenze pro Region" : "Concentration cap per region"}</TableCell><TableCell className="text-right font-mono text-xs">≤ 65%</TableCell></TableRow>
                 <TableRow>
                   <TableCell className="text-xs">
-                    {de ? "Referenz-Risikofreier Zins (nur Konstruktion)" : "Reference risk-free rate (construction only)"}
+                    {de ? "Risikofreier Zins (Sharpe-Tilt)" : "Risk-free rate (Sharpe tilt)"}
                     <div className="text-[10px] text-muted-foreground font-normal mt-0.5">
                       {de
-                        ? "Fester Wert für die Sharpe-Tilt-Berechnung der Engine — unabhängig vom oben editierbaren RF (der nur Report-Kennzahlen betrifft)."
-                        : "Fixed for the engine's Sharpe-tilt calculation — independent of the editable RF above (which only affects report metrics)."}
+                        ? "Verwendet denselben oben editierbaren RF wie Report-Kennzahlen. Eine Änderung verschiebt die Bucket-Gewichte beim nächsten Klick auf „Portfolio generieren\u201C."
+                        : "Uses the same editable RF as report metrics. Changing it shifts the bucket weights on the next \"Generate Portfolio\" click."}
                     </div>
                   </TableCell>
-                  <TableCell className="text-right font-mono text-xs align-top">2.50%</TableCell>
+                  <TableCell className="text-right font-mono text-xs align-top">{(rf * 100).toFixed(2)}%</TableCell>
                 </TableRow>
               </TableBody>
             </Table>

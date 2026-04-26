@@ -1359,6 +1359,55 @@ describe("CMA layered overrides", () => {
     }
   });
 
+  it("risk-free rate override: changing RF shifts equity bucket weights; reset restores baseline", async () => {
+    const settings = await import("../src/lib/settings");
+    const eqW = (out: ReturnType<typeof buildPortfolio>, region: string) =>
+      out.allocation
+        .filter((a) => a.assetClass === "Equity" && a.region === region)
+        .reduce((s, a) => s + a.weight, 0);
+    const fakeStore: Record<string, string> = {};
+    const orig = (globalThis as { window?: unknown }).window;
+    (globalThis as unknown as { window: { localStorage: Storage; dispatchEvent: () => boolean } }).window = {
+      localStorage: {
+        getItem: (k: string) => fakeStore[k] ?? null,
+        setItem: (k: string, v: string) => { fakeStore[k] = v; },
+        removeItem: (k: string) => { delete fakeStore[k]; },
+        clear: () => { for (const k of Object.keys(fakeStore)) delete fakeStore[k]; },
+        key: () => null,
+        length: 0,
+      } as Storage,
+      dispatchEvent: () => true,
+    };
+    try {
+      // Baseline at default RF (2.50%).
+      const baseline = buildPortfolio(baseInput({ baseCurrency: "USD", numETFs: 12 }));
+      const baselineUS = eqW(baseline, "USA");
+      const baselineEM = eqW(baseline, "EM");
+      // Raise RF to 6%. With CMA expReturns roughly in [4–9%], higher RF
+      // compresses Sharpe across the board AND shifts the relative ranking
+      // toward higher-expReturn / higher-vol regions (EM) vs developed (USA).
+      settings.setRiskFreeRate(0.06);
+      expect(settings.getRiskFreeRate()).toBeCloseTo(0.06, 6);
+      const tilted = buildPortfolio(baseInput({ baseCurrency: "USD", numETFs: 12 }));
+      const tiltedUS = eqW(tilted, "USA");
+      const tiltedEM = eqW(tilted, "EM");
+      // Bucket weights must move (the whole point of this change). At least
+      // one developed region must shift by a measurable amount.
+      const usaShift = Math.abs(tiltedUS - baselineUS);
+      const emShift = Math.abs(tiltedEM - baselineEM);
+      expect(usaShift + emShift).toBeGreaterThan(0.5);
+      // Reset → baseline restored within rounding.
+      settings.resetRiskFreeRate();
+      expect(settings.getRiskFreeRate()).toBeCloseTo(0.025, 6);
+      const restored = buildPortfolio(baseInput({ baseCurrency: "USD", numETFs: 12 }));
+      expect(Math.abs(eqW(restored, "USA") - baselineUS)).toBeLessThan(0.01);
+      expect(Math.abs(eqW(restored, "EM") - baselineEM)).toBeLessThan(0.01);
+    } finally {
+      if (orig) (globalThis as unknown as { window: typeof orig }).window = orig;
+      else delete (globalThis as { window?: unknown }).window;
+    }
+  });
+
   it("getHomeBiasOverrides drops unknown currencies and clamps out-of-bounds multipliers", async () => {
     const { getHomeBiasOverrides } = await import("../src/lib/settings");
     const fakeStore: Record<string, string> = {
