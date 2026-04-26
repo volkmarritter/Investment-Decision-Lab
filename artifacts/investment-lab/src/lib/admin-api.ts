@@ -182,4 +182,28 @@ export const adminApi = {
       method: "POST",
       body: JSON.stringify({ entry }),
     }),
+  lookthroughPool: () =>
+    call<{ entries: LookthroughPoolEntry[] }>("/admin/lookthrough-pool"),
+  addLookthroughPoolIsin: (isin: string) =>
+    call<{
+      ok: boolean;
+      isin: string;
+      topHoldingCount: number;
+      geoCount: number;
+      sectorCount: number;
+      asOf: string;
+      sourceUrl: string;
+      note: string;
+    }>(`/admin/lookthrough-pool/${encodeURIComponent(isin)}`, {
+      method: "POST",
+    }),
 };
+
+export interface LookthroughPoolEntry {
+  isin: string;
+  topHoldingsAsOf: string | null;
+  breakdownsAsOf: string | null;
+  topHoldingCount: number;
+  geoCount: number;
+  sectorCount: number;
+}

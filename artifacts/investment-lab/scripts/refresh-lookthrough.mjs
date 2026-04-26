@@ -409,22 +409,40 @@ async function main() {
   const lookthroughSrc = await readFile(LOOKTHROUGH_TS, "utf8");
   const equityIsins = parseEquityIsinsFromLookthroughSource(lookthroughSrc);
   const allProfileIsins = parseAllProfileIsinsFromLookthroughSource(lookthroughSrc);
-  const isins = (TARGET_ISINS.length ? TARGET_ISINS : allIsins).filter((isin) =>
-    equityIsins.has(isin)
-  );
-  const skipped = (TARGET_ISINS.length ? TARGET_ISINS : allIsins).length - isins.length;
-  console.log(
-    `Refreshing top-holdings for ${isins.length} equity ISIN(s) from justETF` +
-      (skipped > 0 ? ` (skipped ${skipped} non-equity / no-profile ISIN(s))` : "")
-  );
 
+  // Pool ISINs are added bucket-agnostically via the admin "Look-through
+  // data pool" UI. They live under `pool[isin]` in the same JSON file but
+  // are NOT in PROFILES (they're folded in at runtime by lookthrough.ts).
+  // On a full refresh (no CLI args) we include them so they get the same
+  // monthly justETF re-scrape as the curated catalog. On an explicit-arg
+  // run we behave exactly as today; the operator selects what to refresh.
   let existing = {};
+  let existingPool = {};
   try {
     const raw = JSON.parse(await readFile(OVERRIDES_JSON, "utf8"));
     existing = raw.overrides ?? {};
+    existingPool = raw.pool ?? {};
   } catch {
-    // first run — leave empty
+    // first run — leave both empty
   }
+  const poolIsinSet = new Set(Object.keys(existingPool));
+  const isPoolIsin = (isin) => poolIsinSet.has(isin);
+
+  const requested = TARGET_ISINS.length ? TARGET_ISINS : allIsins;
+  // Equity filter only applies to catalog ISINs; pool ISINs bypass it
+  // (they were vetted at admin-add time and are assumed equity — see the
+  // pool-merge note in lookthrough.ts).
+  const equityFiltered = requested.filter((isin) => equityIsins.has(isin));
+  const isins = TARGET_ISINS.length
+    ? requested.filter((isin) => equityIsins.has(isin) || isPoolIsin(isin))
+    : [...new Set([...equityFiltered, ...poolIsinSet])];
+  const skipped = requested.length - equityFiltered.length;
+  const poolCount = isins.filter(isPoolIsin).length;
+  console.log(
+    `Refreshing top-holdings for ${isins.length} equity ISIN(s) from justETF` +
+      (poolCount > 0 ? ` (incl. ${poolCount} bucket-agnostic pool ISIN(s))` : "") +
+      (skipped > 0 ? ` (skipped ${skipped} non-equity / no-profile ISIN(s))` : "")
+  );
 
   // Detect orphan overrides up front: ISIN keys in the existing JSON file
   // (or about-to-be-written `next`, since `next = { ...existing }`) that
@@ -449,6 +467,12 @@ async function main() {
   }
 
   const next = { ...existing };
+  const nextPool = { ...existingPool };
+  // Helper: route per-ISIN reads/writes to the correct map. Pool ISINs
+  // were tagged at the top of main(); everything else is a regular
+  // override.
+  const tableFor = (isin) => (isPoolIsin(isin) ? nextPool : next);
+  const existingFor = (isin) => (isPoolIsin(isin) ? existingPool : existing);
   let topOk = 0;
   let topFail = 0;
   let breakdownsOk = 0;
@@ -462,9 +486,10 @@ async function main() {
 
   for (const isin of isins) {
     // Snapshot of this ISIN's previous override-entry, taken before any of
-    // the in-loop mutations to next[isin]. Used as the "before" half of
-    // the per-ISIN diff computed at the bottom of this iteration.
-    const beforeEntry = existing[isin];
+    // the in-loop mutations. Reads from the pool map for pool ISINs, the
+    // overrides map otherwise (existingFor handles the routing).
+    const beforeEntry = existingFor(isin)[isin];
+    const targetMap = tableFor(isin);
     let cookie = "";
     let html;
 
@@ -478,8 +503,8 @@ async function main() {
         console.warn(`  ! ${isin}: no top-holdings extracted (leaving previous value)`);
         topFail++;
       } else {
-        next[isin] = {
-          ...(next[isin] ?? {}),
+        targetMap[isin] = {
+          ...(targetMap[isin] ?? {}),
           topHoldings,
           topHoldingsAsOf: stamp,
         };
@@ -575,13 +600,13 @@ async function main() {
       }
 
       const patch = {
-        ...(next[isin] ?? {}),
+        ...(targetMap[isin] ?? {}),
         geo,
         sector,
         breakdownsAsOf: stamp,
       };
       if (currency) patch.currency = currency;
-      next[isin] = patch;
+      targetMap[isin] = patch;
 
       console.log(
         `  \u2713 ${isin}: breakdowns refreshed ` +
@@ -612,7 +637,7 @@ async function main() {
     // Stamp fields are filtered out so the admin pane doesn't show a row
     // for "topHoldingsAsOf changed" on every cron tick. The diff is
     // queued; flushed to disk only after the override JSON write succeeds.
-    const afterEntry = next[isin];
+    const afterEntry = targetMap[isin];
     if (afterEntry && afterEntry !== beforeEntry) {
       // Build a "patch-like" object containing only the fields the loop
       // actually wrote on this iteration. We recompute it from afterEntry
@@ -665,9 +690,11 @@ async function main() {
         "Populated monthly (1st of month, 04:00 UTC) by the refresh-lookthrough GitHub Action. " +
         "Refreshed fields: topHoldings (top-10 stocks, per-ISIN topHoldingsAsOf stamp), " +
         "geo / sector breakdown maps (per-ISIN breakdownsAsOf stamp, scraped from justETF — static profile HTML when complete, Wicket Ajax loadMore endpoint with a session cookie when justETF renders a 'Show more' link), " +
-        "and currency (re-bucketed from the just-refreshed geo map via a country -> local-listing-currency table — justETF doesn't publish a per-ETF currency breakdown directly; skipped for currency-hedged share classes whose curated hedge-currency map remains authoritative).",
+        "and currency (re-bucketed from the just-refreshed geo map via a country -> local-listing-currency table — justETF doesn't publish a per-ETF currency breakdown directly; skipped for currency-hedged share classes whose curated hedge-currency map remains authoritative). " +
+        "The `pool` map holds bucket-agnostic look-through profiles added via the admin /api/admin/lookthrough-pool endpoint; the same monthly job re-scrapes them so admin-added ISINs stay fresh alongside the catalog.",
     },
     overrides: next,
+    pool: nextPool,
   };
 
   await writeFile(OVERRIDES_JSON, JSON.stringify(payload, null, 2) + "\n", "utf8");

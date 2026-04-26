@@ -20,6 +20,7 @@ import {
   type CatalogSummary,
   type ChangeEntry,
   type FreshnessResponse,
+  type LookthroughPoolEntry,
   type PreviewResponse,
   type RunLogRow,
 } from "@/lib/admin-api";
@@ -151,6 +152,7 @@ export default function Admin() {
           />
           <DataUpdatesColumn />
         </div>
+        <LookthroughPoolPanel />
       </main>
     </div>
   );
@@ -1087,6 +1089,147 @@ function normalizeDistribution(v: unknown): Distribution {
 // ---------------------------------------------------------------------------
 // Right pane — recent changes / runs / freshness
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Look-through-Datenpool — bucket-agnostic ISIN allowlist
+// ---------------------------------------------------------------------------
+// Lets the operator add ISINs whose look-through data (top-10 holdings,
+// country & sector breakdowns) should be available for Methodology
+// overrides without binding the ISIN to any particular bucket. The amber
+// "data missing" warning in the override dialog auto-clears for any ISIN
+// added here once the app is rebuilt (the merge happens at module load).
+//
+// Add-only on purpose — see the chat: pool entries are picked up by the
+// monthly refresh job, so there's no per-row "Refresh now" button. To
+// remove an entry, edit lookthrough.overrides.json directly.
+function LookthroughPoolPanel() {
+  const [isin, setIsin] = useState("");
+  const [entries, setEntries] = useState<LookthroughPoolEntry[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
+
+  async function load() {
+    setLoading(true);
+    setErrMsg(null);
+    try {
+      const r = await adminApi.lookthroughPool();
+      setEntries(r.entries);
+    } catch (e: unknown) {
+      setErrMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    void load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function add() {
+    const trimmed = isin.trim().toUpperCase();
+    if (!trimmed) return;
+    setSubmitting(true);
+    setErrMsg(null);
+    try {
+      const r = await adminApi.addLookthroughPoolIsin(trimmed);
+      toast.success(`${r.isin} aufgenommen`, {
+        description: `${r.topHoldingCount} Holdings · ${r.geoCount} Länder · ${r.sectorCount} Sektoren — ${r.note}`,
+      });
+      setIsin("");
+      await load();
+    } catch (e: unknown) {
+      setErrMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Look-through-Datenpool</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          ISINs hier sind <em>bucket-unabhängig</em> für Methodology-Overrides
+          verfügbar. Beim Hinzufügen werden Top-Holdings sowie Länder- und
+          Sektor-Aufteilung von justETF gescraped; der monatliche Refresh-Job
+          aktualisiert die Daten automatisch mit. Ein App-Neustart ist nötig,
+          damit das Frontend eine neu aufgenommene ISIN sieht.
+        </p>
+        <div className="flex gap-2">
+          <Input
+            placeholder="z. B. IE00B5BMR087"
+            value={isin}
+            onChange={(e) => setIsin(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && isin.trim()) void add();
+            }}
+            disabled={submitting}
+            data-testid="input-pool-isin"
+          />
+          <Button
+            onClick={() => void add()}
+            disabled={submitting || !isin.trim()}
+            data-testid="button-pool-add"
+          >
+            {submitting ? (
+              <RefreshCw className="h-4 w-4 animate-spin" />
+            ) : (
+              "Aufnehmen"
+            )}
+          </Button>
+        </div>
+        {errMsg && (
+          <Alert variant="destructive">
+            <AlertTitle>Fehler</AlertTitle>
+            <AlertDescription>{errMsg}</AlertDescription>
+          </Alert>
+        )}
+        <div data-testid="lookthrough-pool-list">
+          {loading && (
+            <p className="text-sm text-muted-foreground">Lade …</p>
+          )}
+          {!loading && entries && entries.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              Noch keine ISINs im Datenpool.
+            </p>
+          )}
+          {!loading && entries && entries.length > 0 && (
+            <div className="overflow-auto max-h-80 border rounded">
+              <table className="text-xs w-full">
+                <thead className="bg-muted/40">
+                  <tr className="text-left">
+                    <th className="px-2 py-1 font-medium">ISIN</th>
+                    <th className="px-2 py-1 font-medium">Holdings</th>
+                    <th className="px-2 py-1 font-medium">Länder</th>
+                    <th className="px-2 py-1 font-medium">Sektoren</th>
+                    <th className="px-2 py-1 font-medium">As-of</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {entries.map((e) => (
+                    <tr key={e.isin} className="border-t">
+                      <td className="px-2 py-1 font-mono">{e.isin}</td>
+                      <td className="px-2 py-1">{e.topHoldingCount}</td>
+                      <td className="px-2 py-1">{e.geoCount}</td>
+                      <td className="px-2 py-1">{e.sectorCount}</td>
+                      <td className="px-2 py-1 text-muted-foreground">
+                        {e.topHoldingsAsOf?.slice(0, 10) ?? "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function DataUpdatesColumn() {
   const [changes, setChanges] = useState<ChangeEntry[]>([]);
   const [runs, setRuns] = useState<RunLogRow[]>([]);

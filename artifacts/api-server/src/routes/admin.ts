@@ -228,6 +228,163 @@ router.post("/admin/add-isin", async (req, res) => {
   }
 });
 
+// --- /api/admin/lookthrough-pool --------------------------------------------
+// Bucket-agnostic look-through profiles. The Methodology override dialog
+// reads `profileFor(isin)` to decide whether to render the look-through
+// section or show the amber "data missing" warning. Adding an ISIN here
+// scrapes its top-10 holdings + country/sector breakdowns from justETF
+// and persists them under `pool[isin]` in lookthrough.overrides.json so
+// the next dialog open finds full data.
+//
+// Read endpoint: GET /admin/lookthrough-pool — returns the current pool
+// map (ISIN -> { topHoldingsAsOf, breakdownsAsOf }) for the UI to render
+// a list of what's already in.
+router.get("/admin/lookthrough-pool", async (_req, res) => {
+  try {
+    const pool = await readLookthroughPool();
+    const entries = Object.entries(pool).map(([isin, p]) => ({
+      isin,
+      topHoldingsAsOf: p.topHoldingsAsOf ?? null,
+      breakdownsAsOf: p.breakdownsAsOf ?? null,
+      topHoldingCount: p.topHoldings?.length ?? 0,
+      geoCount: p.geo ? Object.keys(p.geo).length : 0,
+      sectorCount: p.sector ? Object.keys(p.sector).length : 0,
+    }));
+    entries.sort((a, b) => a.isin.localeCompare(b.isin));
+    res.json({ entries });
+  } catch (err) {
+    res.status(500).json({
+      error: "internal",
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+// Write endpoint: POST /admin/lookthrough-pool/:isin — scrape & persist.
+// Returns 409 when the ISIN is already in the pool (so the operator can't
+// silently overwrite a curated pool entry by re-submitting). The refresh
+// script handles updating existing entries on its monthly cron.
+router.post("/admin/lookthrough-pool/:isin", async (req, res) => {
+  let isin: string;
+  try {
+    isin = normalizeIsin(req.params.isin);
+  } catch (err) {
+    res.status(400).json({
+      error: "invalid_isin",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+
+  try {
+    const existing = await readLookthroughPool();
+    if (existing[isin]) {
+      res.status(409).json({
+        error: "already_in_pool",
+        message: `ISIN ${isin} ist bereits im Datenpool. Der monatliche Refresh-Job aktualisiert die Daten automatisch.`,
+      });
+      return;
+    }
+
+    const scraped = await scrapeLookthrough(isin);
+    if (
+      (!scraped.topHoldings || scraped.topHoldings.length === 0) &&
+      (!scraped.geo || Object.keys(scraped.geo).length === 0)
+    ) {
+      res.status(422).json({
+        error: "no_lookthrough_data",
+        message: `justETF lieferte keine Top-Holdings oder Länderaufteilung für ${isin} — die ISIN kann nicht in den Datenpool aufgenommen werden.`,
+      });
+      return;
+    }
+    if (
+      !scraped.topHoldings ||
+      scraped.topHoldings.length === 0 ||
+      !scraped.geo ||
+      Object.keys(scraped.geo).length === 0 ||
+      !scraped.sector ||
+      Object.keys(scraped.sector).length === 0
+    ) {
+      res.status(422).json({
+        error: "incomplete_lookthrough_data",
+        message: `Daten unvollständig für ${isin}: ${[
+          (!scraped.topHoldings || scraped.topHoldings.length === 0) &&
+            "Top-Holdings",
+          (!scraped.geo || Object.keys(scraped.geo).length === 0) && "Geo",
+          (!scraped.sector || Object.keys(scraped.sector).length === 0) &&
+            "Sektor",
+        ]
+          .filter(Boolean)
+          .join(", ")} fehlen. Methodology-Overrides brauchen alle drei.`,
+      });
+      return;
+    }
+
+    const path = dataFile("lookthrough.overrides.json");
+    const file = JSON.parse(await readFile(path, "utf8")) as Record<
+      string,
+      unknown
+    >;
+    const pool = (file.pool ?? {}) as Record<string, unknown>;
+    pool[isin] = {
+      topHoldings: scraped.topHoldings,
+      topHoldingsAsOf: scraped.asOf,
+      geo: scraped.geo,
+      sector: scraped.sector,
+      currency: scraped.currency,
+      breakdownsAsOf: scraped.asOf,
+      _source: scraped.sourceUrl,
+      _addedAt: scraped.asOf,
+      _addedVia: "admin/lookthrough-pool",
+    };
+    file.pool = pool;
+    await writeFile(path, JSON.stringify(file, null, 2) + "\n", "utf8");
+
+    res.status(201).json({
+      ok: true,
+      isin,
+      topHoldingCount: scraped.topHoldings.length,
+      geoCount: Object.keys(scraped.geo).length,
+      sectorCount: Object.keys(scraped.sector).length,
+      asOf: scraped.asOf,
+      sourceUrl: scraped.sourceUrl,
+      note: "App-Build muss neu gestartet werden, damit das Frontend die neue ISIN sieht.",
+    });
+  } catch (err) {
+    if (err instanceof PreviewError) {
+      res.status(err.status).json({ error: err.code, message: err.message });
+      return;
+    }
+    res.status(500).json({
+      error: "internal",
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+async function readLookthroughPool(): Promise<
+  Record<
+    string,
+    {
+      topHoldings?: Array<{ name: string; pct: number }>;
+      topHoldingsAsOf?: string;
+      geo?: Record<string, number>;
+      sector?: Record<string, number>;
+      currency?: Record<string, number>;
+      breakdownsAsOf?: string;
+    }
+  >
+> {
+  try {
+    const raw = JSON.parse(
+      await readFile(dataFile("lookthrough.overrides.json"), "utf8"),
+    );
+    return (raw?.pool ?? {}) as Record<string, never>;
+  } catch {
+    return {};
+  }
+}
+
 // --- helpers -----------------------------------------------------------------
 
 function clampLimit(raw: unknown, fallback: number, max: number): number {
