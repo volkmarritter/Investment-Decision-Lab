@@ -15,8 +15,8 @@
 // the tree leaf itself, not in this dialog.
 // ----------------------------------------------------------------------------
 
-import { useState } from "react";
-import { Loader2, AlertCircle } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Loader2, AlertCircle, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -43,6 +43,7 @@ import {
   setETFOverride,
 } from "@/lib/etfOverrides";
 import type { ETFRecord, ExchangeCode, ListingMap } from "@/lib/etfs";
+import { profileFor } from "@/lib/lookthrough";
 
 interface Props {
   open: boolean;
@@ -172,6 +173,18 @@ export function EtfOverrideDialog({
     handleOpenChange(false);
   };
 
+  // Look-through warning: only fire when the bucket *currently* has a
+  // curated/refreshed look-through profile (i.e. the user is used to seeing
+  // it broken down by holdings/country/sector) but the candidate ISIN does
+  // not. For non-equity buckets that never had a profile (gold, bonds, crypto)
+  // we stay silent so users aren't spammed with irrelevant warnings.
+  const lookthroughWarning = useMemo(() => {
+    if (!candidate) return null;
+    const currentHas = profileFor(current.isin) !== null;
+    const candidateHas = profileFor(candidate.isin) !== null;
+    return currentHas && !candidateHas;
+  }, [candidate, current.isin]);
+
   // Diff helper: returns true when the candidate's value differs from the
   // current value for the same field. Drives the row-highlight style.
   const isDiff = (a: unknown, b: unknown) => {
@@ -287,6 +300,20 @@ export function EtfOverrideDialog({
             <Alert variant="destructive" data-testid="alert-override-error">
               <AlertCircle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+          {candidate && lookthroughWarning && (
+            <Alert
+              className="border-amber-500/50 text-amber-900 dark:text-amber-200 [&>svg]:text-amber-600"
+              data-testid="alert-lookthrough-missing"
+            >
+              <AlertTriangle className="h-4 w-4" />
+              <AlertDescription className="text-xs">
+                {de
+                  ? "Für diese ISIN sind keine Look-through-Daten hinterlegt (Top-10-Holdings, Länder- und Sektor-Aufschlüsselung). Der Tausch funktioniert; in der Holdings- und Konzentrations-Auswertung wird der ETF aber als nicht zugeordnet behandelt, bis ein Admin die Look-through-Daten für diese ISIN aktualisiert."
+                  : "No look-through data is on file for this ISIN (top-10 holdings, country / sector breakdowns). The override still works; the ETF will simply be treated as unmapped in the holdings and concentration views until an admin refreshes look-through data for this ISIN."}
+              </AlertDescription>
             </Alert>
           )}
 
