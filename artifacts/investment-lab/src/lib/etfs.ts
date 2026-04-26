@@ -107,6 +107,19 @@ const CATALOG: Record<string, ETFRecord> = {
     listings: { SIX: { ticker: "CHSPI" } },
     defaultExchange: "SIX",
   }),
+  "Equity-UK": E({
+    name: "iShares Core FTSE 100 UCITS",
+    isin: "IE00B53HP851",
+    terBps: 7,
+    domicile: "Ireland",
+    replication: "Physical",
+    distribution: "Accumulating",
+    currency: "GBP",
+    comment:
+      "FTSE 100 large-cap UK equity used as the GBP home-bias core sleeve; very low TER and deep LSE liquidity.",
+    listings: { LSE: { ticker: "CUKX" } },
+    defaultExchange: "LSE",
+  }),
   "Equity-Japan": E({
     name: "iShares Core MSCI Japan IMI UCITS",
     isin: "IE00B4L5YX21",
@@ -475,6 +488,7 @@ function lookupKey(assetClass: string, region: string, input: PortfolioInput): s
         return "Equity-USA";
       }
       if (base === "CHF") return "Equity-Switzerland";
+      if (base === "GBP") return "Equity-UK";
       return "Equity-Europe";
     }
     if (region.includes("USA")) {
@@ -487,6 +501,7 @@ function lookupKey(assetClass: string, region: string, input: PortfolioInput): s
     }
     if (region.includes("Europe")) return "Equity-Europe";
     if (region.includes("Switzerland")) return "Equity-Switzerland";
+    if (region.includes("UK") || region.includes("United Kingdom")) return "Equity-UK";
     if (region.includes("Japan")) return "Equity-Japan";
     if (region.includes("EM")) return "Equity-EM";
     if (region === "Technology") return "Equity-Technology";
