@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { BookOpen, Database, Calculator, AlertTriangle, ExternalLink, RotateCcw, ShieldQuestion, Layers, Activity, GitCompare, Building2, RefreshCw, Pencil } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { BookOpen, Database, Calculator, AlertTriangle, ExternalLink, RotateCcw, ShieldQuestion, Layers, Activity, GitCompare, Building2, RefreshCw, Pencil, Replace } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -14,6 +14,21 @@ import { getRiskFreeRate, setRiskFreeRate, resetRiskFreeRate, subscribeRiskFreeR
 import type { AssetAllocation } from "@/lib/types";
 import { useT } from "@/lib/i18n";
 import { parseDecimalInput } from "@/lib/manualWeights";
+import {
+  BucketTree,
+  BucketTreeBulkToggle,
+  groupCatalogByAssetClass,
+  type BucketLeaf,
+} from "@/components/BucketTree";
+import { EtfOverrideDialog } from "@/components/EtfOverrideDialog";
+import { getCatalog, type ETFRecord } from "@/lib/etfs";
+import {
+  getETFOverrides,
+  clearETFOverride,
+  clearAllETFOverrides,
+  subscribeETFOverrides,
+} from "@/lib/etfOverrides";
+import type { CatalogSummary, CatalogEntrySummary } from "@/lib/admin-api";
 
 const LAST_REVIEWED = "Q2 2026";
 
@@ -142,6 +157,44 @@ export function Methodology() {
     : BENCHMARK.map((b) => ({ assetClass: "Equity", region: regionFromKey(b.key), weight: b.weight * 100 }));
   const sampleCorr = buildCorrelationMatrix(corrSourceAllocation);
   const corrReflectsPortfolio = !!(lastAlloc && lastAlloc.length > 0);
+
+  // ------------------------------------------------------ ETF bucket browser
+  // The shared BucketTree expects a `CatalogSummary` (Record<key, entry>).
+  // The local catalog from etfs.ts is shaped as Record<key, ETFRecord>; we
+  // adapt it once on mount so the tree, the override-dialog "current" pane
+  // and the per-leaf reset action all read from the same in-memory source
+  // (no /api/admin/catalog roundtrip needed for the canonical view).
+  const catalogSummary = useMemo<CatalogSummary>(() => {
+    const cat = getCatalog();
+    const out: CatalogSummary = {};
+    for (const [k, v] of Object.entries(cat)) {
+      out[k] = { ...v, key: k } as CatalogEntrySummary;
+    }
+    return out;
+  }, []);
+  const bucketGroups = useMemo(
+    () => groupCatalogByAssetClass(catalogSummary),
+    [catalogSummary],
+  );
+  const [bucketsExpanded, setBucketsExpanded] = useState<Set<string>>(
+    () => new Set(),
+  );
+  const [etfOverrides, setEtfOverrides] = useState<Record<string, ETFRecord>>(
+    () => getETFOverrides(),
+  );
+  // Subscribe so the badge / reset button re-render the moment the dialog
+  // writes a new override (no manual refresh needed).
+  useEffect(() => subscribeETFOverrides((all) => setEtfOverrides(all)), []);
+  const etfOverrideCount = Object.keys(etfOverrides).length;
+  const [dialogBucket, setDialogBucket] = useState<{ key: string; current: ETFRecord } | null>(
+    null,
+  );
+
+  const openOverrideDialog = (leaf: BucketLeaf) => {
+    const current = getCatalog()[leaf.key];
+    if (!current) return;
+    setDialogBucket({ key: leaf.key, current: etfOverrides[leaf.key] ?? current });
+  };
 
   return (
     <div className="space-y-6">
@@ -882,6 +935,105 @@ export function Methodology() {
           </div>
         </Section>
 
+        <Section
+          value="etf-buckets"
+          icon={<Replace className="h-4 w-4" />}
+          title={de ? "ETF-Buckets durchsuchen & lokal ersetzen" : "Browse ETF buckets & override locally"}
+          editable
+          editableLabel={de ? "Lokal überschreibbar" : "Locally overridable"}
+        >
+          <p className="text-sm text-muted-foreground">
+            {de
+              ? "Vollständige Übersicht aller Allokations-Buckets der Engine, gruppiert nach Anlageklasse. Pro Bucket zeigt der Baum den aktuell hinterlegten ETF (Name + Katalog-Schlüssel). Über „Ersetzen“ können Sie eine eigene ISIN eintragen, mit den Live-Daten von justETF vergleichen und den Bucket lokal in Ihrem Browser umstellen — alle Folgeflächen (Empfehlungen, Gebühren, Monte-Carlo, Look-Through) übernehmen den Wechsel sofort."
+              : "Full view of every allocation bucket the engine knows about, grouped by asset class. Each leaf shows the currently selected ETF (name + catalog key). The Override button lets you type a new ISIN, compare it side-by-side with the live justETF data and swap the bucket locally in your browser — every downstream surface (recommendations, fees, Monte Carlo, look-through) reflects the change immediately."}
+          </p>
+          <div className="rounded-md border bg-muted/30 p-3 space-y-3" data-testid="etf-buckets-panel">
+            <div className="flex flex-wrap items-center gap-2">
+              <Replace className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-semibold">
+                {de ? "Bucket-Baum" : "Bucket tree"}
+              </span>
+              {etfOverrideCount > 0 && (
+                <Badge variant="default" className="text-[10px]" data-testid="badge-override-count">
+                  {etfOverrideCount} {de ? "Override(s) aktiv" : "override(s) active"}
+                </Badge>
+              )}
+              <div className="ml-auto flex items-center gap-2">
+                <BucketTreeBulkToggle
+                  groups={bucketGroups}
+                  expanded={bucketsExpanded}
+                  onChange={setBucketsExpanded}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => clearAllETFOverrides()}
+                  disabled={etfOverrideCount === 0}
+                  data-testid="button-reset-all-overrides"
+                >
+                  <RotateCcw className="h-3 w-3 mr-1" />
+                  {de ? "Alle zurücksetzen" : "Reset all"}
+                </Button>
+              </div>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {de
+                ? "Overrides werden nur in Ihrem Browser (localStorage) gespeichert — keine Server-Übermittlung, keine Auswirkung auf andere Nutzer. Vor jedem realen Kauf bitte ISIN, TER und Verfügbarkeit beim Broker verifizieren."
+                : "Overrides are kept in your browser only (localStorage) — never sent to the server, never visible to other users. Always re-verify ISIN, TER and broker availability before any real-world purchase."}
+            </p>
+            <BucketTree
+              groups={bucketGroups}
+              expanded={bucketsExpanded}
+              onToggleClass={(ac) =>
+                setBucketsExpanded((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(ac)) {
+                    next.delete(ac);
+                  } else {
+                    next.add(ac);
+                  }
+                  return next;
+                })
+              }
+              renderLeafBadge={(leaf) =>
+                etfOverrides[leaf.key] ? (
+                  <Badge
+                    variant="default"
+                    className="ml-2 text-[10px] px-1.5 py-0"
+                    data-testid={`badge-overridden-${leaf.key}`}
+                  >
+                    {de ? "Eigene" : "Overridden"}
+                  </Badge>
+                ) : null
+              }
+              renderLeafAction={(leaf) => (
+                <span className="flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 px-2 text-[11px]"
+                    onClick={() => openOverrideDialog(leaf)}
+                    data-testid={`button-override-${leaf.key}`}
+                  >
+                    {de ? "Ersetzen" : "Override"}
+                  </Button>
+                  {etfOverrides[leaf.key] && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-2 text-[11px]"
+                      onClick={() => clearETFOverride(leaf.key)}
+                      data-testid={`button-reset-${leaf.key}`}
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                    </Button>
+                  )}
+                </span>
+              )}
+            />
+          </div>
+        </Section>
+
         <Section value="limits" icon={<AlertTriangle className="h-4 w-4" />} title={de ? "Was diese App NICHT tut" : "What this app does NOT do"}>
           <ul className="text-sm space-y-2 list-disc pl-5">
             <li>{de ? "Kein Live-Marktdaten-Feed (Kurse, NAVs, Renditen, Volatilitäten)." : "No live market data feed (prices, NAVs, yields, volatilities)."}</li>
@@ -891,6 +1043,18 @@ export function Methodology() {
           </ul>
         </Section>
       </Accordion>
+
+      {dialogBucket && (
+        <EtfOverrideDialog
+          open={!!dialogBucket}
+          onOpenChange={(o) => {
+            if (!o) setDialogBucket(null);
+          }}
+          bucketKey={dialogBucket.key}
+          current={dialogBucket.current}
+          de={de}
+        />
+      )}
     </div>
   );
 }

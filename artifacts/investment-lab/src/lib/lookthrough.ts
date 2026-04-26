@@ -212,6 +212,41 @@ const PROFILES: Record<string, LookthroughProfile> = {
       { name: "Sika", pct: 2.5 },
     ],
   },
+  // FTSE 100 — UK large-cap (used by the Equity-UK bucket: GBP base
+  // home-bias routing). Highly concentrated in financials, energy,
+  // consumer staples and pharma; very international revenue mix despite
+  // the UK domicile of the underlyings.
+  "IE00B53HP851": {
+    isEquity: true,
+    geo: { "United Kingdom": 100 },
+    sector: {
+      "Financials": 22,
+      "Cons. Staples": 17,
+      "Energy": 13,
+      "Health Care": 12,
+      "Industrials": 10,
+      "Materials": 8,
+      "Cons. Discretionary": 7,
+      "Communication Svcs": 5,
+      "Utilities": 4,
+      "Real Estate": 1,
+      "Technology": 1,
+    },
+    currency: { GBP: 100 },
+    topHoldings: [
+      { name: "AstraZeneca", pct: 8.0 },
+      { name: "Shell", pct: 7.0 },
+      { name: "HSBC", pct: 6.5 },
+      { name: "Unilever", pct: 5.0 },
+      { name: "BP", pct: 3.8 },
+      { name: "GSK", pct: 3.5 },
+      { name: "RELX", pct: 3.0 },
+      { name: "Diageo", pct: 2.8 },
+      { name: "BAT (British American Tobacco)", pct: 2.6 },
+      { name: "Rio Tinto", pct: 2.4 },
+      { name: "Glencore", pct: 2.2 },
+    ],
+  },
   // MSCI Japan IMI
   "IE00B4L5YX21": {
     isEquity: true,

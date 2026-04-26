@@ -1,5 +1,6 @@
 import { PortfolioInput } from "./types";
 import overridesFile from "@/data/etfs.overrides.json";
+import { getUserETFOverride } from "./etfOverrides";
 
 export interface ETFDetails {
   name: string;
@@ -18,10 +19,10 @@ export interface ETFDetails {
   inceptionDate?: string; // ISO YYYY-MM-DD
 }
 
-type ExchangeCode = "LSE" | "XETRA" | "SIX" | "Euronext";
-type ListingMap = Partial<Record<ExchangeCode, { ticker: string }>>;
+export type ExchangeCode = "LSE" | "XETRA" | "SIX" | "Euronext";
+export type ListingMap = Partial<Record<ExchangeCode, { ticker: string }>>;
 
-interface ETFRecord {
+export interface ETFRecord {
   name: string;
   isin: string;
   terBps: number;
@@ -512,6 +513,17 @@ function lookupKey(assetClass: string, region: string, input: PortfolioInput): s
   return null;
 }
 
+// Look up the canonical bucket entry. Exposed for the override / browse
+// UI on the Methodology tab — those flows want to inspect the curated
+// record (name, listings, etc.) before deciding to swap it.
+export function getCatalogEntry(key: string): ETFRecord | undefined {
+  return CATALOG[key];
+}
+
+export function getCatalog(): Readonly<Record<string, ETFRecord>> {
+  return CATALOG;
+}
+
 export function getETFDetails(
   assetClass: string,
   region: string,
@@ -519,7 +531,10 @@ export function getETFDetails(
 ): ETFDetails {
   const key = lookupKey(assetClass, region, input);
   if (!key) return placeholder(assetClass, region);
-  const rec = CATALOG[key];
+  // User overrides take precedence over the curated catalog so the
+  // Methodology "swap ETF" flow flows through every downstream surface
+  // (recommendations, fee table, Monte-Carlo cost basis, etc.).
+  const rec = getUserETFOverride(key) ?? CATALOG[key];
   const { ticker, exchange } = pickListing(rec, input.preferredExchange);
   return {
     name: rec.name,

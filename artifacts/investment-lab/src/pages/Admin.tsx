@@ -42,6 +42,11 @@ import {
 import { ThemeToggle } from "@/components/theme-toggle";
 import { ChevronDown, ChevronRight, Layers, LogOut, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import {
+  BucketTree,
+  BucketTreeBulkToggle,
+  groupCatalogByAssetClass,
+} from "@/components/BucketTree";
 
 type Replication = AddEtfRequest["replication"];
 type Distribution = AddEtfRequest["distribution"];
@@ -337,6 +342,7 @@ function BrowseBucketsPanel({
                 groups={groups}
                 expanded={expandedClasses}
                 onToggleClass={toggleClass}
+                onLeafClick={(leaf) => copyBucketKey(leaf.key)}
               />
             </>
           )}
@@ -344,142 +350,6 @@ function BrowseBucketsPanel({
       )}
     </Card>
   );
-}
-
-// Tree-view body: one row per asset class (toggleable), revealing the
-// child buckets when expanded. Visual cues: chevron + connector lines so
-// the parent/child relationship reads at a glance even without colour.
-function BucketTree({
-  groups,
-  expanded,
-  onToggleClass,
-}: {
-  groups: BucketGroup[];
-  expanded: Set<string>;
-  onToggleClass: (assetClass: string) => void;
-}) {
-  return (
-    <ul className="space-y-1" role="tree">
-      {groups.map((g) => {
-        const isOpen = expanded.has(g.assetClass);
-        return (
-          <li key={g.assetClass} role="treeitem" aria-expanded={isOpen}>
-            <button
-              type="button"
-              onClick={() => onToggleClass(g.assetClass)}
-              className="flex w-full items-center gap-2 rounded px-2 py-1 text-sm hover:bg-muted/50 focus:outline-none focus:ring-2 focus:ring-primary/40"
-              data-testid={`tree-class-${g.assetClass}`}
-            >
-              {isOpen ? (
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              ) : (
-                <ChevronRight className="h-4 w-4 text-muted-foreground" />
-              )}
-              <span className="font-medium">{g.label}</span>
-              <span className="text-xs text-muted-foreground">
-                {g.entries.length} bucket{g.entries.length === 1 ? "" : "s"}
-              </span>
-            </button>
-            {isOpen && (
-              <ul
-                role="group"
-                className="ml-3 mt-1 mb-2 border-l border-border pl-4 space-y-0.5"
-              >
-                {g.entries.map((e) => (
-                  <li
-                    key={e.key}
-                    role="treeitem"
-                    className="text-sm leading-snug"
-                    data-testid={`bucket-row-${e.key}`}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => copyBucketKey(e.key)}
-                      className="text-left rounded px-1.5 py-0.5 hover:bg-muted/60 focus:outline-none focus:ring-2 focus:ring-primary/40"
-                      title="Click to copy this catalog key"
-                    >
-                      <span className="font-mono text-xs text-primary">
-                        {e.key}
-                      </span>
-                      <span className="text-muted-foreground"> — </span>
-                      <span>{e.name}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </li>
-        );
-      })}
-    </ul>
-  );
-}
-
-// Small helper above the tree: lets the operator expand or collapse all
-// asset-class nodes at once instead of clicking through each chevron.
-function BucketTreeBulkToggle({
-  groups,
-  expanded,
-  onChange,
-}: {
-  groups: BucketGroup[];
-  expanded: Set<string>;
-  onChange: (next: Set<string>) => void;
-}) {
-  const allOpen = groups.length > 0 && expanded.size === groups.length;
-  const handle = () => {
-    if (allOpen) {
-      onChange(new Set());
-    } else {
-      onChange(new Set(groups.map((g) => g.assetClass)));
-    }
-  };
-  return (
-    <button
-      type="button"
-      onClick={handle}
-      className="text-xs text-primary hover:underline whitespace-nowrap"
-      data-testid="button-tree-bulk-toggle"
-    >
-      {allOpen ? "Collapse all" : "Expand all"}
-    </button>
-  );
-}
-
-interface BucketGroup {
-  assetClass: string;
-  label: string;
-  entries: { key: string; name: string }[];
-}
-
-// Splits each catalog key on the first "-" and groups by the prefix.
-// Within each group, entries are sorted alphabetically by full key — this
-// naturally clusters variants together (e.g. Equity-USA, Equity-USA-CHF,
-// Equity-USA-EUR, Equity-USA-Synthetic). Asset-class labels are humanised
-// by inserting spaces before internal capitals (DigitalAssets → "Digital
-// Assets", FixedIncome → "Fixed Income", RealEstate → "Real Estate").
-function groupCatalogByAssetClass(
-  catalog: CatalogSummary | null,
-): BucketGroup[] {
-  if (!catalog) return [];
-  const byClass = new Map<string, { key: string; name: string }[]>();
-  for (const [key, entry] of Object.entries(catalog)) {
-    const assetClass = key.split("-")[0] || "Other";
-    const list = byClass.get(assetClass) ?? [];
-    list.push({ key, name: entry.name });
-    byClass.set(assetClass, list);
-  }
-  const groups: BucketGroup[] = [];
-  for (const [assetClass, entries] of byClass) {
-    entries.sort((a, b) => a.key.localeCompare(b.key));
-    groups.push({
-      assetClass,
-      label: assetClass.replace(/([a-z])([A-Z])/g, "$1 $2"),
-      entries,
-    });
-  }
-  groups.sort((a, b) => a.label.localeCompare(b.label));
-  return groups;
 }
 
 function copyBucketKey(key: string) {
