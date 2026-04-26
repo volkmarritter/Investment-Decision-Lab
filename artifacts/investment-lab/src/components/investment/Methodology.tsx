@@ -913,7 +913,13 @@ export function Methodology() {
           </div>
         </Section>
 
-        <Section value="etfs" icon={<Building2 className="h-4 w-4" />} title={de ? "ETF-Katalog" : "ETF Catalog"}>
+        <Section
+          value="etfs"
+          icon={<Building2 className="h-4 w-4" />}
+          title={de ? "ETF-Katalog" : "ETF Catalog"}
+          editable
+          editableLabel={de ? "Lokal überschreibbar" : "Locally overridable"}
+        >
           <p className="text-sm text-muted-foreground">
             {de
               ? "Reale UCITS-ETFs der Emittenten iShares, SPDR, Invesco, UBS und CoinShares mit ISIN, Tickern je Börse, Domizil, Replikationsmethode, Ausschüttungspolitik, Fondswährung, TER, Fondsvolumen, Auflagedatum und einer kurzen redaktionellen Auswahlbegründung."
@@ -933,16 +939,7 @@ export function Methodology() {
                 : "Important: even the automatic snapshots are only as fresh as the last successful refresh run. Always verify live data with the issuer or broker before any purchase — especially TER, listings and availability in your jurisdiction."}
             </div>
           </div>
-        </Section>
-
-        <Section
-          value="etf-buckets"
-          icon={<Replace className="h-4 w-4" />}
-          title={de ? "ETF-Buckets durchsuchen & lokal ersetzen" : "Browse ETF buckets & override locally"}
-          editable
-          editableLabel={de ? "Lokal überschreibbar" : "Locally overridable"}
-        >
-          <p className="text-sm text-muted-foreground">
+          <p className="text-sm text-muted-foreground pt-2">
             {de
               ? "Vollständige Übersicht aller Allokations-Buckets der Engine, gruppiert nach Anlageklasse. Pro Bucket zeigt der Baum den aktuell hinterlegten ETF (Name + Katalog-Schlüssel). Über „Ersetzen“ können Sie eine eigene ISIN eintragen, mit den Live-Daten von justETF vergleichen und den Bucket lokal in Ihrem Browser umstellen — alle Folgeflächen (Empfehlungen, Gebühren, Monte-Carlo, Look-Through) übernehmen den Wechsel sofort."
               : "Full view of every allocation bucket the engine knows about, grouped by asset class. Each leaf shows the currently selected ETF (name + catalog key). The Override button lets you type a new ISIN, compare it side-by-side with the live justETF data and swap the bucket locally in your browser — every downstream surface (recommendations, fees, Monte Carlo, look-through) reflects the change immediately."}
