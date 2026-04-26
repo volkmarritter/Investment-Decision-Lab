@@ -1,0 +1,32 @@
+Commodities
+•	Commodities-Gold — Invesco Physical Gold ETC
+Digital Assets
+•	DigitalAssets-BroadCrypto — CoinShares Physical Bitcoin
+Equity (Aktien)
+Broad / regional
+•	Equity-Global — SPDR MSCI ACWI IMI UCITS (developed + emerging, single-fund)
+•	Equity-USA — iShares Core S&P 500 UCITS
+•	Equity-USA-Synthetic — Invesco S&P 500 UCITS (Synthetic, swap-based)
+•	Equity-Europe — iShares Core MSCI Europe UCITS
+•	Equity-Switzerland — iShares Core SPI
+•	Equity-Japan — iShares Core MSCI Japan IMI UCITS
+•	Equity-EM — iShares Core MSCI EM IMI UCITS (emerging markets)
+USA, currency-hedged share classes
+•	Equity-USA-EUR — iShares S&P 500 EUR Hedged UCITS
+•	Equity-USA-CHF — UBS S&P 500 CHF Hedged UCITS
+•	Equity-USA-GBP — iShares Core S&P 500 GBP Hedged UCITS
+Sectors / themes
+•	Equity-Technology — iShares S&P 500 Information Technology Sector
+•	Equity-Healthcare — iShares Healthcare Innovation UCITS
+•	Equity-Sustainability — iShares Global Clean Energy UCITS
+•	Equity-Cybersecurity — iShares Digital Security UCITS
+Fixed Income (Anleihen)
+•	FixedIncome-Global — iShares Core Global Aggregate Bond UCITS
+•	FixedIncome-Global-EUR — iShares Global Aggregate Bond EUR Hedged
+•	FixedIncome-Global-CHF — iShares Global Aggregate Bond CHF Hedged
+•	FixedIncome-Global-GBP — iShares Global Aggregate Bond GBP Hedged
+Real Estate
+•	RealEstate-GlobalREITs — iShares Developed Markets Property Yield UCITS
+________________________________________
+21 buckets total, across 5 asset classes. The naming convention is consistent: <AssetClass>-<Region or Theme>[-<Currency hedge or Variant>]. So if you wanted to suggest, for example, an emerging-markets bond ETF, the natural new key would be FixedIncome-EM; a small-cap USA fund would be Equity-USA-SmallCap; an EUR-hedged global equity would be Equity-Global-EUR.
+Want me to also surface this grouped view inside the admin pane (e.g. as a small expandable "Browse existing buckets" panel above the form), so you can see it without context-switching?

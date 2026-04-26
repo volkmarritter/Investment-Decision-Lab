@@ -59,6 +59,11 @@ export default function Admin() {
   const [token, setLocalToken] = useState<string | null>(getToken());
   const [authError, setAuthError] = useState<string | null>(null);
   const [githubConfigured, setGithubConfigured] = useState(false);
+  // Catalog is loaded once at the page level and shared with both the
+  // "Browse existing buckets" overview and the SuggestIsinPanel's
+  // replace-vs-add classifier — avoids two parallel fetches on mount.
+  const [catalog, setCatalog] = useState<CatalogSummary | null>(null);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
 
   // Re-validate the stored token on mount.
   useEffect(() => {
@@ -71,6 +76,18 @@ export default function Admin() {
         setLocalToken(null);
         clearToken();
       });
+  }, [token]);
+
+  // Load the catalog once (after auth succeeds) so both panels can read it.
+  useEffect(() => {
+    if (!token) return;
+    adminApi
+      .catalog()
+      .then((r) => {
+        setCatalog(r.entries);
+        setCatalogError(null);
+      })
+      .catch((e: Error) => setCatalogError(e.message));
   }, [token]);
 
   if (!token) {
@@ -119,9 +136,16 @@ export default function Admin() {
         </div>
       </header>
 
-      <main className="container mx-auto px-4 py-8 grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <SuggestIsinPanel githubConfigured={githubConfigured} />
-        <DataUpdatesColumn />
+      <main className="container mx-auto px-4 py-8 space-y-6">
+        <BrowseBucketsPanel catalog={catalog} catalogError={catalogError} />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <SuggestIsinPanel
+            githubConfigured={githubConfigured}
+            catalog={catalog}
+            catalogError={catalogError}
+          />
+          <DataUpdatesColumn />
+        </div>
       </main>
     </div>
   );
@@ -179,27 +203,211 @@ function TokenPrompt({
 }
 
 // ---------------------------------------------------------------------------
+// Top — Browse existing buckets (collapsible quick-reference)
+// ---------------------------------------------------------------------------
+// Reads the same /admin/catalog response everyone else uses, groups entries
+// by their leading "<AssetClass>-…" prefix, and renders one column per
+// asset class so the operator can scan all 21 buckets without leaving the
+// page. Collapsed by default to keep the form above the fold; expanded
+// state is remembered for the browser tab.
+function BrowseBucketsPanel({
+  catalog,
+  catalogError,
+}: {
+  catalog: CatalogSummary | null;
+  catalogError: string | null;
+}) {
+  const [open, setOpen] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem("admin.browseBuckets.open") === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  function toggle() {
+    setOpen((prev) => {
+      const next = !prev;
+      try {
+        sessionStorage.setItem(
+          "admin.browseBuckets.open",
+          next ? "1" : "0",
+        );
+      } catch {
+        // sessionStorage may be unavailable (private mode, sandbox); the
+        // panel still works, the preference just doesn't persist.
+      }
+      return next;
+    });
+  }
+
+  const groups = useMemo(() => groupCatalogByAssetClass(catalog), [catalog]);
+  const total = catalog ? Object.keys(catalog).length : 0;
+
+  return (
+    <Card>
+      <CardHeader className="py-3">
+        <button
+          type="button"
+          onClick={toggle}
+          aria-expanded={open}
+          className="flex w-full items-center justify-between gap-2 text-left"
+          data-testid="button-toggle-buckets"
+        >
+          <CardTitle className="text-base flex items-center gap-2">
+            {open ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+            Browse existing buckets
+            {total > 0 && (
+              <span className="text-xs font-normal text-muted-foreground">
+                {total} bucket{total === 1 ? "" : "s"} across{" "}
+                {groups.length} asset class
+                {groups.length === 1 ? "" : "es"}
+              </span>
+            )}
+          </CardTitle>
+          <span className="text-xs text-muted-foreground">
+            {open ? "Hide" : "Show"}
+          </span>
+        </button>
+      </CardHeader>
+      {open && (
+        <CardContent className="pt-0">
+          {catalogError && (
+            <Alert variant="destructive" className="mb-4">
+              <AlertTitle>Could not load catalog</AlertTitle>
+              <AlertDescription>{catalogError}</AlertDescription>
+            </Alert>
+          )}
+          {!catalog && !catalogError && (
+            <p className="text-sm text-muted-foreground">Loading…</p>
+          )}
+          {catalog && groups.length > 0 && (
+            <>
+              <p className="text-xs text-muted-foreground mb-3">
+                Naming convention:{" "}
+                <code>&lt;AssetClass&gt;-&lt;Region or Theme&gt;[-&lt;Currency hedge or Variant&gt;]</code>
+                . Click a key to copy it into the catalog-key field below.
+              </p>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-x-6 gap-y-4">
+                {groups.map((g) => (
+                  <div key={g.assetClass}>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-1">
+                      {g.label}
+                    </div>
+                    <ul className="space-y-1">
+                      {g.entries.map((e) => (
+                        <li
+                          key={e.key}
+                          className="text-sm leading-snug"
+                          data-testid={`bucket-row-${e.key}`}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => copyBucketKey(e.key)}
+                            className="font-mono text-xs text-primary hover:underline"
+                            title="Click to copy this catalog key"
+                          >
+                            {e.key}
+                          </button>
+                          <span className="text-muted-foreground"> — </span>
+                          <span>{e.name}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+interface BucketGroup {
+  assetClass: string;
+  label: string;
+  entries: { key: string; name: string }[];
+}
+
+// Splits each catalog key on the first "-" and groups by the prefix.
+// Within each group, entries are sorted alphabetically by full key — this
+// naturally clusters variants together (e.g. Equity-USA, Equity-USA-CHF,
+// Equity-USA-EUR, Equity-USA-Synthetic). Asset-class labels are humanised
+// by inserting spaces before internal capitals (DigitalAssets → "Digital
+// Assets", FixedIncome → "Fixed Income", RealEstate → "Real Estate").
+function groupCatalogByAssetClass(
+  catalog: CatalogSummary | null,
+): BucketGroup[] {
+  if (!catalog) return [];
+  const byClass = new Map<string, { key: string; name: string }[]>();
+  for (const [key, entry] of Object.entries(catalog)) {
+    const assetClass = key.split("-")[0] || "Other";
+    const list = byClass.get(assetClass) ?? [];
+    list.push({ key, name: entry.name });
+    byClass.set(assetClass, list);
+  }
+  const groups: BucketGroup[] = [];
+  for (const [assetClass, entries] of byClass) {
+    entries.sort((a, b) => a.key.localeCompare(b.key));
+    groups.push({
+      assetClass,
+      label: assetClass.replace(/([a-z])([A-Z])/g, "$1 $2"),
+      entries,
+    });
+  }
+  groups.sort((a, b) => a.label.localeCompare(b.label));
+  return groups;
+}
+
+function copyBucketKey(key: string) {
+  // Best-effort: copy to clipboard AND mirror the value into the catalog-key
+  // input if it's currently mounted. Either path is enough for the operator
+  // to feed the form without retyping.
+  try {
+    void navigator.clipboard?.writeText(key);
+  } catch {
+    // Older browsers / insecure contexts — silently ignore; the input mirror
+    // below still works.
+  }
+  const input = document.querySelector<HTMLInputElement>(
+    'input[data-testid="input-key"]',
+  );
+  if (input) {
+    const setter = Object.getOwnPropertyDescriptor(
+      window.HTMLInputElement.prototype,
+      "value",
+    )?.set;
+    setter?.call(input, key);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.focus();
+  }
+  toast.success(`Copied ${key}`);
+}
+
+// ---------------------------------------------------------------------------
 // Left pane — Suggest an ISIN
 // ---------------------------------------------------------------------------
-function SuggestIsinPanel({ githubConfigured }: { githubConfigured: boolean }) {
+function SuggestIsinPanel({
+  githubConfigured,
+  catalog,
+  catalogError,
+}: {
+  githubConfigured: boolean;
+  catalog: CatalogSummary | null;
+  catalogError: string | null;
+}) {
   const [isin, setIsin] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [draft, setDraft] = useState<AddEtfRequest | null>(null);
   const [errMsg, setErrMsg] = useState<string | null>(null);
-  const [catalog, setCatalog] = useState<CatalogSummary | null>(null);
-  const [catalogError, setCatalogError] = useState<string | null>(null);
-
-  // Load the live catalog summary once on mount; the diff panel needs it
-  // to classify drafts as NEW / REPLACE / DUPLICATE_ISIN. Failure here
-  // surfaces inline so the operator knows the diff is "best effort".
-  useEffect(() => {
-    adminApi
-      .catalog()
-      .then((r) => setCatalog(r.entries))
-      .catch((e: Error) => setCatalogError(e.message));
-  }, []);
 
   async function runPreview() {
     setErrMsg(null);
