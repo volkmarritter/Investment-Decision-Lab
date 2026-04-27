@@ -237,7 +237,10 @@ export async function openAddLookthroughPoolPr(args: {
   const nextContent = JSON.stringify(parsed, null, 2) + "\n";
 
   // 3. Create the branch with a deterministic name. 422 on createRef
-  //    means a previous unmerged PR for this ISIN exists.
+  //    means a previous unmerged PR for this ISIN exists. In that case we
+  //    look up the existing PR (if any) and surface its URL in the error
+  //    so the operator can jump straight to it instead of being stuck
+  //    wondering "where is my PR?" (real bug report, 2026-04-27).
   const branch = `add-lookthrough-pool/${args.isin.toLowerCase()}`;
   try {
     await octokit.git.createRef({
@@ -249,8 +252,32 @@ export async function openAddLookthroughPoolPr(args: {
   } catch (err: unknown) {
     const status = (err as { status?: number }).status;
     if (status === 422) {
+      let prHint = "";
+      try {
+        const { data: existing } = await octokit.pulls.list({
+          owner,
+          repo,
+          head: `${owner}:${branch}`,
+          state: "all",
+          per_page: 5,
+        });
+        const open = existing.find((p) => p.state === "open");
+        if (open) {
+          prHint = ` Offener PR: #${open.number} ${open.html_url}`;
+        } else if (existing.length > 0) {
+          // Branch exists but no open PR — orphan or already-closed PR.
+          // Surface the most recent so the operator can decide whether
+          // to reopen or delete the branch.
+          const last = existing[0]!;
+          prHint = ` Letzter PR auf diesem Branch: #${last.number} (${last.state}) ${last.html_url}`;
+        } else {
+          prHint = ` Kein PR für diesen Branch gefunden — Branch ist verwaist und kann via https://github.com/${owner}/${repo}/branches gelöscht werden, dann erneut versuchen.`;
+        }
+      } catch {
+        // Best-effort lookup; ignore failures so we still throw a useful base msg.
+      }
       throw new Error(
-        `Branch ${branch} already exists. Es gibt bereits einen offenen PR für diese ISIN. Bitte zuerst mergen oder den Branch löschen.`,
+        `Branch ${branch} existiert bereits. Es gibt bereits einen offenen PR für diese ISIN. Bitte zuerst mergen oder den Branch löschen.${prHint}`,
       );
     }
     throw err;
