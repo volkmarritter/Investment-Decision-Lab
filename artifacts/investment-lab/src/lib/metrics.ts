@@ -35,7 +35,9 @@ export interface AssetCMA {
 //   4. USER overrides from localStorage (Option B), edited in the Methodology tab.
 // Layers 3+4 mutate the leaf objects of CMA in place so every existing caller
 // (CMA[key].expReturn, CMA[key].vol) keeps working without changes.
-const BASE_SEED: Record<AssetKey, AssetCMA> = {
+// Exportiert, damit die Admin-UI die Built-in-Fallback-Werte (μ und σ) neben
+// jedem CMA-Editor-Feld anzeigen kann (Aktuelle-Werte-Anzeige).
+export const BASE_SEED: Record<AssetKey, AssetCMA> = {
   equity_us:        { key: "equity_us",        label: "US Equity",         expReturn: 0.070, vol: 0.16 },
   equity_eu:        { key: "equity_eu",        label: "Europe Equity",     expReturn: 0.075, vol: 0.17 },
   equity_uk:        { key: "equity_uk",        label: "UK Equity",         expReturn: 0.065, vol: 0.15 },

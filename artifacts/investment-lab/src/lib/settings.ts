@@ -27,7 +27,9 @@ export type RFCurrency = BaseCurrency;
 
 // Hard-coded ship-time fallback. Used when the operator-managed
 // `app-defaults.json` does not specify a value for a given currency.
-const BUILT_IN_RF: Record<BaseCurrency, number> = {
+// Exportiert, damit die Admin-UI den Built-in-Fallback-Wert neben jedem
+// Editor-Feld anzeigen kann (Aktuelle-Werte-Anzeige).
+export const BUILT_IN_RF: Record<BaseCurrency, number> = {
   USD: 0.0425,
   EUR: 0.0250,
   GBP: 0.0400,
@@ -282,7 +284,9 @@ export type HomeBiasOverrides = Partial<Record<HomeBiasCurrency, number>>;
 
 // Hard-coded ship-time fallback. Used when the operator-managed
 // `app-defaults.json` does not specify a value for a given currency.
-const BUILT_IN_HB: Record<BaseCurrency, number> = {
+// Exportiert, damit die Admin-UI den Built-in-Fallback-Wert neben jedem
+// Editor-Feld anzeigen kann (Aktuelle-Werte-Anzeige).
+export const BUILT_IN_HB: Record<BaseCurrency, number> = {
   USD: 1.0,
   EUR: 1.5,
   GBP: 1.5,
