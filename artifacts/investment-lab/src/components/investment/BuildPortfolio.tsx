@@ -924,7 +924,7 @@ export function BuildPortfolio() {
                      * flagged after the look-through pie change. */}
                     <div className="space-y-1">
                       <h4 className="text-sm font-semibold">
-                        {lang === "de" ? "Allokation nach Zeile (deine Auswahl)" : "Allocation by row (your selection)"}
+                        {lang === "de" ? "Allokation nach Bucket (deine Auswahl)" : "Allocation by bucket (your selection)"}
                       </h4>
                       <p className="text-xs text-muted-foreground">
                         {watchedLookThroughView && output.etfImplementation.length > 0
