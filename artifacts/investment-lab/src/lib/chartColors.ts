@@ -7,22 +7,37 @@ export const CHART_COLORS = [
   "hsl(var(--primary))",
 ];
 
-const ASSET_CLASS_COLOR: Record<string, string> = {
-  equity: CHART_COLORS[0],
-  fixedIncome: CHART_COLORS[1],
-  realEstate: CHART_COLORS[2],
-  commodities: CHART_COLORS[3],
-  crypto: CHART_COLORS[4],
-  cash: CHART_COLORS[5],
-};
+const SUB_ASSET_COLOR = {
+  equityUS:       "hsl(220, 65%, 52%)",
+  equityEurope:   "hsl(150, 50%, 42%)",
+  equityUK:       "hsl(355, 65%, 52%)",
+  equitySwiss:    "hsl(55, 95%, 55%)",
+  equityJapan:    "hsl(330, 60%, 60%)",
+  equityEM:       "hsl(20, 75%, 55%)",
+  equityThematic: "hsl(280, 50%, 58%)",
+  equityGlobal:   "hsl(190, 60%, 48%)",
+  bonds:          "hsl(210, 25%, 45%)",
+  cash:           "hsl(0, 0%, 62%)",
+  gold:           "hsl(35, 75%, 48%)",
+  reits:          "hsl(15, 55%, 50%)",
+  crypto:         "hsl(265, 65%, 62%)",
+} as const;
 
 const RULES: Array<{ test: RegExp; color: string }> = [
-  { test: /(^|[\s\-_])(crypto|digital)/i, color: ASSET_CLASS_COLOR.crypto },
-  { test: /(real estate|reit|immobilien)/i, color: ASSET_CLASS_COLOR.realEstate },
-  { test: /(gold|commodit|rohstoff)/i, color: ASSET_CLASS_COLOR.commodities },
-  { test: /(cash|geldmarkt|liquid)/i, color: ASSET_CLASS_COLOR.cash },
-  { test: /(bond|fixed income|anleihen|renten)/i, color: ASSET_CLASS_COLOR.fixedIncome },
-  { test: /(equity|aktien|stock)/i, color: ASSET_CLASS_COLOR.equity },
+  { test: /(us equity|equity\s*[-–]\s*usa|us[\s-]?aktien|aktien\s*us)/i,                                color: SUB_ASSET_COLOR.equityUS },
+  { test: /(swiss equity|equity\s*[-–]\s*switzerland|aktien\s*ch|schweiz)/i,                            color: SUB_ASSET_COLOR.equitySwiss },
+  { test: /(uk equity|equity\s*[-–]\s*(uk|united kingdom)|aktien\s*(uk|gb))/i,                          color: SUB_ASSET_COLOR.equityUK },
+  { test: /(japan equity|equity\s*[-–]\s*japan|aktien\s*japan)/i,                                       color: SUB_ASSET_COLOR.equityJapan },
+  { test: /(em equity|equity\s*[-–]\s*em|emerging|schwellen)/i,                                         color: SUB_ASSET_COLOR.equityEM },
+  { test: /(thematic equity|equity\s*[-–]\s*thematic|themat)/i,                                         color: SUB_ASSET_COLOR.equityThematic },
+  { test: /(europe equity|equity\s*[-–]\s*europe|europ.*aktien|aktien.*europ)/i,                        color: SUB_ASSET_COLOR.equityEurope },
+  { test: /(global equity|equity\s*[-–]\s*global)/i,                                                    color: SUB_ASSET_COLOR.equityGlobal },
+  { test: /(crypto|digital)/i,                                                                          color: SUB_ASSET_COLOR.crypto },
+  { test: /(real estate|reit|immobilien)/i,                                                             color: SUB_ASSET_COLOR.reits },
+  { test: /(gold|commodit|rohstoff)/i,                                                                  color: SUB_ASSET_COLOR.gold },
+  { test: /(bond|fixed income|anleihen|renten)/i,                                                       color: SUB_ASSET_COLOR.bonds },
+  { test: /(cash|geldmarkt|liquid)/i,                                                                   color: SUB_ASSET_COLOR.cash },
+  { test: /(equity|aktien|stock)/i,                                                                     color: SUB_ASSET_COLOR.equityGlobal },
 ];
 
 function hashColor(name: string): string {
@@ -30,7 +45,8 @@ function hashColor(name: string): string {
   for (let i = 0; i < name.length; i++) {
     h = ((h << 5) - h + name.charCodeAt(i)) | 0;
   }
-  return CHART_COLORS[Math.abs(h) % CHART_COLORS.length];
+  const palette = Object.values(SUB_ASSET_COLOR);
+  return palette[Math.abs(h) % palette.length];
 }
 
 export function colorForBucket(name: string): string {
