@@ -160,10 +160,18 @@ export function BuildPortfolio() {
   // failure), publish the new allocation (or null) so other tabs like
   // Methodology can react — e.g. mark which rows of the static correlation
   // matrix are actually held.
+  // The `lookThroughView` toggle gates the look-through routing globally:
+  // when OFF, downstream metric/correlation consumers fall back to the simpler
+  // row-region routing (Europe ETF row → continental EU bucket etc.). When ON,
+  // we publish the actual etfImplementation so look-through can decompose
+  // multi-country ETFs (UK/CH split out of the Europe ETF, etc.).
+  const watchedLookThroughView = form.watch("lookThroughView");
   useEffect(() => {
     setLastAllocation(output?.allocation ?? null);
-    setLastEtfImplementation(output?.etfImplementation ?? null);
-  }, [output]);
+    setLastEtfImplementation(
+      watchedLookThroughView && output?.etfImplementation ? output.etfImplementation : null,
+    );
+  }, [output, watchedLookThroughView]);
 
   // Auto-sync preferred exchange to base currency.
   const watchedBaseCcy = form.watch("baseCurrency");
@@ -1074,7 +1082,11 @@ export function BuildPortfolio() {
                 />
 
                 {/* Risk & Performance Metrics (Sharpe, Beta, Alpha, TE, Max DD, Frontier, Correlation) */}
-                <PortfolioMetrics allocation={output.allocation} baseCurrency={form.getValues().baseCurrency} etfImplementation={output.etfImplementation} />
+                <PortfolioMetrics
+                  allocation={output.allocation}
+                  baseCurrency={form.getValues().baseCurrency}
+                  etfImplementation={watchedLookThroughView ? output.etfImplementation : undefined}
+                />
 
                 {/* Scenario Stress Test */}
                 <StressTest allocation={output.allocation} baseCurrency={watchedBaseCcy} />

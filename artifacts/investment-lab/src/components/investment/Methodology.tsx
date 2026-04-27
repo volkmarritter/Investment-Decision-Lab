@@ -1042,6 +1042,63 @@ export function Methodology() {
               ? <><span className="text-primary/80">●</span> {de ? "Markierte Zeilen/Spalten sind die in Ihrem aktuellen Portfolio (Tab Build) tatsächlich gehaltenen Anlageklassen." : "Marked rows/columns are the asset classes actually held in your current portfolio (Build tab)."}</>
               : (de ? "Hinweis: Sobald Sie im Tab Build ein Portfolio erzeugen, werden die tatsächlich gehaltenen Anlageklassen hier hervorgehoben." : "Note: once you build a portfolio in the Build tab, the asset classes actually held will be highlighted here.")}
           </p>
+          {corrReflectsPortfolio && (
+            <p className="text-[11px] text-muted-foreground italic">
+              {corrEtfImpl
+                ? (de
+                  ? "Look-Through-Routing aktiv: Multi-Country-ETFs wie iShares Core MSCI Europe werden in ihre tatsächlichen Länderanteile (z. B. UK ~20 %, CH ~14 %) zerlegt; entsprechend leuchten auch diese Detail-Zeilen als gehalten auf."
+                  : "Look-Through routing active: multi-country ETFs such as iShares Core MSCI Europe are decomposed into their actual country shares (e.g. UK ~20 %, CH ~14 %); the corresponding detail rows light up as held.")
+                : (de
+                  ? "Look-Through-Routing aus (Schalter im Tab Build): Multi-Country-ETFs werden hier wie ein einzelner Region-Bucket behandelt. Für die feinere Aufteilung den Schalter \u201ELook-Through-Analyse\u201C einschalten."
+                  : "Look-Through routing off (toggle in Build tab): multi-country ETFs are treated as a single regional bucket here. Turn on the “Look-Through Analysis” toggle for the finer split.")}
+            </p>
+          )}
+        </Section>
+
+        <Section value="lookthrough" icon={<Layers className="h-4 w-4" />} title={de ? "Look-Through-Routing" : "Look-Through Routing"}>
+          <p className="text-sm text-muted-foreground">
+            {de
+              ? "ETFs wie iShares Core MSCI Europe (IE00B4K48X80) sind aus Sicht der Risiko-Engine keine homogene \u201EEurope\u201C-Position: rund 20 % entfallen auf UK und 14 % auf die Schweiz, der Rest auf Kontinental-EU. Die Look-Through-Logik nutzt die kuratierten Index-Geo-Profile (siehe Look-Through-Pool unten und src/data/lookthrough.overrides.json) und routet jede Allokationszeile gewichtet auf die korrekten Länder-Buckets — bevor Vola, Beta, TE, Alpha, der TE-Beitrag und die Korrelationsmatrix berechnet werden."
+              : "From the risk engine's perspective, ETFs like iShares Core MSCI Europe (IE00B4K48X80) are not a homogeneous “Europe” position: roughly 20 % is UK and 14 % is Switzerland, with the rest in continental EU. The look-through logic uses the curated index geo profiles (see Look-Through Pool below and src/data/lookthrough.overrides.json) and routes each allocation row, weighted, onto the correct country buckets — before Vol, Beta, TE, Alpha, the TE contribution and the correlation matrix are computed."}
+          </p>
+
+          <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+            <p className="text-xs font-semibold">{de ? "Wo das Routing greift" : "Where the routing applies"}</p>
+            <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+              <li>{de ? "Risiko- & Performance-Kennzahlen im Tab Build (Vola, Beta, TE, Alpha, Sharpe)" : "Risk & Performance metrics in the Build tab (Vol, Beta, TE, Alpha, Sharpe)"}</li>
+              <li>{de ? "TE-Contribution-Tabelle (Treiberzuordnung pro Bucket)" : "TE-Contribution table (per-bucket driver attribution)"}</li>
+              <li>{de ? "Effiziente Frontier (Marker-Position des Portfolios)" : "Efficient Frontier (portfolio marker position)"}</li>
+              <li>{de ? "Korrelationsmatrix oben (welche Zeilen als \u201Egehalten\u201C markiert werden)" : "Correlation matrix above (which rows are marked as “held”)"}</li>
+              <li>{de ? "Compare-Tab (Portfolios A und B unabhängig, je nach deren Toggle-Stellung)" : "Compare tab (Portfolios A and B independently, depending on each one’s toggle setting)"}</li>
+            </ul>
+          </div>
+
+          <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+            <p className="text-xs font-semibold">{de ? "Wo das Routing (bewusst) NICHT greift" : "Where the routing (intentionally) does NOT apply"}</p>
+            <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+              <li>{de ? "Allokations-Pie-Chart: zeigt weiterhin die Top-Level-Buckets der Allokation (kein Drill-Down — UX-Design-Entscheidung)." : "Allocation pie chart: still shows the top-level allocation buckets (no drill-down — UX design choice)."}</li>
+              <li>{de ? "Monte-Carlo-Simulation: nutzt einen eigenen, älteren Bucket-Pfad (`monteCarlo.ts`); Look-Through dort als bekannter Folge-Schritt offen." : "Monte Carlo simulation: uses its own older bucket path (`monteCarlo.ts`); look-through there is a known follow-up."}</li>
+              <li>{de ? "Stress-Test: schockt direkt die deklarierten Buckets, da die historischen Schock-Vektoren auf Region/Asset-Klassen-Ebene kalibriert sind." : "Stress test: shocks the declared buckets directly, because the historical shock vectors are calibrated at region / asset-class level."}</li>
+            </ul>
+          </div>
+
+          <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+            <p className="text-xs font-semibold">{de ? "Steuerung: der Schalter im Tab Build" : "Control: the toggle in the Build tab"}</p>
+            <p className="text-xs text-muted-foreground">
+              {de
+                ? "Der Schalter \u201ELook-Through-Analyse\u201C im Tab Build steuert das Routing global. AN (Default) → Risiko-Kennzahlen und Korrelationsmatrix verwenden die echten ETF-Bestände, plus das Look-Through-Panel (Geo-Map + Top 10) wird angezeigt. AUS → die Engine fällt auf das einfachere Zeilen-Region-Routing zurück (jede Allokationszeile zählt als ein einzelner Region-Bucket gemäss der Asset-Class-/Region-Spalte), und das Panel ist ausgeblendet. Der Vergleichs-Tab respektiert den Schalter pro Portfolio (A und B unabhängig)."
+                : "The “Look-Through Analysis” toggle in the Build tab controls the routing globally. ON (default) → risk metrics and the correlation matrix use the actual ETF holdings, plus the look-through panel (geo map + top 10) is shown. OFF → the engine falls back to the simpler row-region routing (each allocation row counts as a single regional bucket per its asset-class/region column), and the panel is hidden. The Compare tab respects the toggle per portfolio (A and B independently)."}
+            </p>
+          </div>
+
+          <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+            <p className="text-xs font-semibold">{de ? "Konservativer Länder-Map (worauf wird zerlegt)" : "Conservative country map (what gets decomposed)"}</p>
+            <p className="text-xs text-muted-foreground">
+              {de
+                ? "Aus den Index-Geo-Profilen werden nur eindeutig zuordenbare Länder ausgespalten: UK, CH, JP und US (entwickelte Märkte mit eigenem Bucket) sowie Polen → Equity EM. Mehrdeutige Buckets im Profil — etwa \u201EOther Europe\u201C oder \u201EIreland\u201C — bleiben bewusst beim Region-Bucket der Allokationszeile, damit Total-Gewichte invariant bleiben und keine falschen Vola-Annahmen entstehen. Total-Gewicht ist unter allen Routing-Pfaden identisch."
+                : "Only countries that map unambiguously are split out from the index geo profiles: UK, CH, JP and US (developed markets with their own bucket) plus Poland → Equity EM. Ambiguous profile buckets — such as “Other Europe” or “Ireland” — intentionally fall back to the allocation row’s regional bucket, so total weights stay invariant and no spurious volatility assumptions are introduced. Total weight is identical under all routing paths."}
+            </p>
+          </div>
         </Section>
 
         <Section value="bench" icon={<Layers className="h-4 w-4" />} title={de ? "Benchmark (MSCI ACWI Proxy)" : "Benchmark (MSCI ACWI Proxy)"}>
