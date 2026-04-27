@@ -990,6 +990,73 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B53SZB19",
       "_addedAt": "2026-04-27T16:24:48.015Z",
       "_addedVia": "admin/lookthrough-pool"
+    },
+    "IE00BM67HT60": {
+      "topHoldings": [
+        {
+          "name": "NVIDIA Corp.",
+          "pct": 20.57
+        },
+        {
+          "name": "Apple",
+          "pct": 18.55
+        },
+        {
+          "name": "Microsoft",
+          "pct": 12.99
+        },
+        {
+          "name": "Broadcom Inc.",
+          "pct": 6.61
+        },
+        {
+          "name": "ASML Holding NV",
+          "pct": 2.58
+        },
+        {
+          "name": "Micron Technology",
+          "pct": 2.13
+        },
+        {
+          "name": "AMD",
+          "pct": 1.51
+        },
+        {
+          "name": "Palantir Technologies, Inc.",
+          "pct": 1.42
+        },
+        {
+          "name": "Cisco Systems, Inc.",
+          "pct": 1.41
+        },
+        {
+          "name": "Lam Research",
+          "pct": 1.38
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-27T18:13:31.321Z",
+      "geo": {
+        "United States": 85.79,
+        "Japan": 3.34,
+        "Netherlands": 3.21,
+        "Germany": 1.32,
+        "Other": 6.34
+      },
+      "sector": {
+        "Technology": 96.89,
+        "Telecommunication": 0.1,
+        "Other": 3.01
+      },
+      "currency": {
+        "USD": 85.79,
+        "JPY": 3.34,
+        "EUR": 4.53,
+        "Other": 6.34
+      },
+      "breakdownsAsOf": "2026-04-27T18:13:31.321Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BM67HT60",
+      "_addedAt": "2026-04-27T18:13:31.321Z",
+      "_addedVia": "admin/lookthrough-pool"
     }
   }
 }
