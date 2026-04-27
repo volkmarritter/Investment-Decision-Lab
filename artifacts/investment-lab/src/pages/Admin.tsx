@@ -1708,26 +1708,49 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
     }
   }
 
-  function parsePct(s: string): number | undefined {
+  // Dezimaleingabe — akzeptiert SOWOHL Punkt als auch Komma als
+  // Trennzeichen. Vorher: `Number("7,5")` → `NaN` → das Feld wurde
+  // stillschweigend als "leer" behandelt, der PR enthielt keinen Wert
+  // und der Operator hatte keine Möglichkeit zu erkennen, was schiefging.
+  // Jetzt: "7,5" → 7.5; ungültige Eingaben werden separat im Submit-Pfad
+  // gesammelt und als Toast gemeldet. Akzeptierte Grammatik:
+  //   - optionales Vorzeichen (+ / -)
+  //   - eine Ziffernfolge
+  //   - optional ein Trennzeichen (. ODER ,) und Nachkommastellen
+  // Mehrfach-Separatoren wie "1.234,56" oder "1,234,567" werden explizit
+  // abgelehnt — die Editor-Felder erwarten Prozentwerte (~1-30), keine
+  // gruppierten Tausender; Ablehnung verhindert versehentliche
+  // Fehlinterpretation.
+  const DECIMAL_RE = /^[+-]?\d+([.,]\d+)?$/;
+  function parseDecimal(s: string): number | "invalid" | undefined {
     const t = s.trim();
     if (!t) return undefined;
-    const n = Number(t);
-    if (!Number.isFinite(n)) return undefined;
-    return n / 100;
+    if (!DECIMAL_RE.test(t)) return "invalid";
+    const n = Number(t.replace(",", "."));
+    return Number.isFinite(n) ? n : "invalid";
   }
-  function parseNum(s: string): number | undefined {
-    const t = s.trim();
-    if (!t) return undefined;
-    const n = Number(t);
-    return Number.isFinite(n) ? n : undefined;
+  function parsePct(s: string): number | "invalid" | undefined {
+    const r = parseDecimal(s);
+    if (r === undefined || r === "invalid") return r;
+    return r / 100;
   }
 
-  function buildPayload(): { value: AppDefaultsPayload; touched: number } {
+  function buildPayload(): {
+    value: AppDefaultsPayload;
+    touched: number;
+    invalidFields: string[];
+  } {
     const value: AppDefaultsPayload = {};
     let touched = 0;
+    const invalidFields: string[] = [];
+
     const rfOut: Partial<Record<AppDefaultsRfCurrency, number>> = {};
     for (const k of RF_KEYS_UI) {
       const n = parsePct(rf[k]);
+      if (n === "invalid") {
+        invalidFields.push(`Risikoloser Zins ${k}`);
+        continue;
+      }
       if (n !== undefined) {
         rfOut[k] = n;
         touched++;
@@ -1737,7 +1760,11 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
 
     const hbOut: Partial<Record<AppDefaultsHbCurrency, number>> = {};
     for (const k of HB_KEYS_UI) {
-      const n = parseNum(hb[k]);
+      const n = parseDecimal(hb[k]);
+      if (n === "invalid") {
+        invalidFields.push(`Home-Bias ${k}`);
+        continue;
+      }
       if (n !== undefined) {
         hbOut[k] = n;
         touched++;
@@ -1750,21 +1777,25 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
       const row = cma[c.key];
       const mu = parsePct(row.expReturn);
       const sg = parsePct(row.vol);
-      if (mu === undefined && sg === undefined) continue;
+      if (mu === "invalid") invalidFields.push(`CMA ${c.label} → Erw. Rendite`);
+      if (sg === "invalid") invalidFields.push(`CMA ${c.label} → Volatilität`);
+      const muVal = mu === "invalid" ? undefined : mu;
+      const sgVal = sg === "invalid" ? undefined : sg;
+      if (muVal === undefined && sgVal === undefined) continue;
       const entry: { expReturn?: number; vol?: number } = {};
-      if (mu !== undefined) {
-        entry.expReturn = mu;
+      if (muVal !== undefined) {
+        entry.expReturn = muVal;
         touched++;
       }
-      if (sg !== undefined) {
-        entry.vol = sg;
+      if (sgVal !== undefined) {
+        entry.vol = sgVal;
         touched++;
       }
       cmaOut[c.key] = entry;
     }
     if (Object.keys(cmaOut).length > 0) value.cma = cmaOut;
 
-    return { value, touched };
+    return { value, touched, invalidFields };
   }
 
   async function onSubmit() {
@@ -1774,14 +1805,40 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
       toast.error("Kurze Beschreibung erforderlich (für PR-Titel).");
       return;
     }
-    const { value } = buildPayload();
-    // Empty payload is intentionally allowed: it's how an operator wipes
-    // all global overrides and reverts to the pure built-in defaults.
+    const { value, touched, invalidFields } = buildPayload();
+    if (invalidFields.length > 0) {
+      // Mindestens ein Feld enthält Text, der nicht als Zahl interpretiert
+      // werden konnte. Dem Operator EXPLIZIT melden statt stillschweigend
+      // ignorieren — sonst öffnet sich ein leerer PR ohne Hinweis.
+      toast.error(
+        `Ungültige Eingabe in ${invalidFields.length} Feld${invalidFields.length === 1 ? "" : "ern"}: ` +
+          invalidFields.slice(0, 5).join(", ") +
+          (invalidFields.length > 5 ? ` (+${invalidFields.length - 5} weitere)` : "") +
+          ". Erlaubt: Zahl mit optionalem Vorzeichen und einem Dezimaltrennzeichen (z.B. 7,5 oder 7.5 oder -2,3).",
+      );
+      return;
+    }
+    if (touched === 0) {
+      // Leerer Payload ist technisch erlaubt (= "alle Overrides löschen,
+      // zurück zu Built-in"), aber das ist keine versehentliche Aktion.
+      // Confirm-Dialog erzwingen, damit der Operator nicht aus Versehen
+      // alle globalen Overrides wegspült, weil er dachte er hätte Werte
+      // eingetragen (z.B. Komma-Bug aus früherer Build, oder vergessen
+      // zu speichern nach Browser-Reload).
+      const ok = window.confirm(
+        "Kein Feld hat einen Wert. Wenn du jetzt fortsetzt, wird ein PR erzeugt, der ALLE globalen Defaults entfernt und auf die eingebauten Built-in-Werte zurücksetzt. Wirklich fortfahren?",
+      );
+      if (!ok) return;
+    }
     setSubmitting(true);
     try {
       const res = await adminApi.proposeAppDefaultsPr(value, trimmed);
       setLastPr({ url: res.prUrl, number: res.prNumber });
-      toast.success(`PR #${res.prNumber} geöffnet.`);
+      toast.success(
+        touched === 0
+          ? `PR #${res.prNumber} geöffnet (alle Overrides entfernt).`
+          : `PR #${res.prNumber} geöffnet (${touched} Feld${touched === 1 ? "" : "er"} übermittelt).`,
+      );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
     } finally {
