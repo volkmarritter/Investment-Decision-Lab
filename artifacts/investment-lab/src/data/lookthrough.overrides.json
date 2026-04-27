@@ -1057,6 +1057,100 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BM67HT60",
       "_addedAt": "2026-04-27T18:13:31.321Z",
       "_addedVia": "admin/lookthrough-pool"
+    },
+    "IE00B3RBWM25": {
+      "topHoldings": [
+        {
+          "name": "NVIDIA Corp.",
+          "pct": 4.13
+        },
+        {
+          "name": "Apple",
+          "pct": 3.83
+        },
+        {
+          "name": "Microsoft",
+          "pct": 2.9
+        },
+        {
+          "name": "Amazon.com, Inc.",
+          "pct": 2.01
+        },
+        {
+          "name": "Alphabet, Inc. A",
+          "pct": 1.81
+        },
+        {
+          "name": "Taiwan Semiconductor Manufacturing Co., Ltd.",
+          "pct": 1.54
+        },
+        {
+          "name": "Broadcom Inc.",
+          "pct": 1.47
+        },
+        {
+          "name": "Alphabet, Inc. C",
+          "pct": 1.46
+        },
+        {
+          "name": "Meta Platforms",
+          "pct": 1.41
+        },
+        {
+          "name": "Tesla",
+          "pct": 1.13
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-27T18:49:41.832Z",
+      "geo": {
+        "United States": 55.36,
+        "Japan": 6.09,
+        "United Kingdom": 3,
+        "China": 2.87,
+        "Taiwan": 2.67,
+        "Canada": 2.63,
+        "Switzerland": 2.36,
+        "South Korea": 2.2,
+        "Germany": 2.03,
+        "France": 1.96,
+        "Australia": 1.65,
+        "India": 1.51,
+        "Netherlands": 1.33,
+        "Ireland": 1.02,
+        "Other": 13.32
+      },
+      "sector": {
+        "Technology": 25.87,
+        "Financials": 14.75,
+        "Industrials": 10.57,
+        "Consumer Discretionary": 9.51,
+        "Health Care": 8.23,
+        "Telecommunication": 8.06,
+        "Consumer Staples": 4.94,
+        "Energy": 3.83,
+        "Basic Materials": 3.68,
+        "Utilities": 2.67,
+        "Real Estate": 1.95,
+        "Other": 5.94
+      },
+      "currency": {
+        "USD": 55.36,
+        "JPY": 6.09,
+        "GBP": 3,
+        "CNY": 2.87,
+        "TWD": 2.67,
+        "CAD": 2.63,
+        "CHF": 2.36,
+        "KRW": 2.2,
+        "EUR": 6.34,
+        "AUD": 1.65,
+        "INR": 1.51,
+        "Other": 13.32
+      },
+      "breakdownsAsOf": "2026-04-27T18:49:41.832Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B3RBWM25",
+      "_addedAt": "2026-04-27T18:49:41.832Z",
+      "_addedVia": "admin/lookthrough-pool"
     }
   }
 }
