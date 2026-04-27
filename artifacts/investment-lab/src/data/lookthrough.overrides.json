@@ -922,6 +922,74 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=CH0031768937",
       "_addedAt": "2026-04-27T11:05:00.725Z",
       "_addedVia": "admin/lookthrough-pool"
+    },
+    "IE00B53SZB19": {
+      "topHoldings": [
+        {
+          "name": "NVIDIA Corp.",
+          "pct": 8.73
+        },
+        {
+          "name": "Apple",
+          "pct": 7.84
+        },
+        {
+          "name": "Microsoft",
+          "pct": 5.8
+        },
+        {
+          "name": "Amazon.com, Inc.",
+          "pct": 4.32
+        },
+        {
+          "name": "Tesla",
+          "pct": 3.96
+        },
+        {
+          "name": "Meta Platforms",
+          "pct": 3.75
+        },
+        {
+          "name": "Alphabet, Inc. A",
+          "pct": 3.47
+        },
+        {
+          "name": "Walmart, Inc.",
+          "pct": 3.26
+        },
+        {
+          "name": "Alphabet, Inc. C",
+          "pct": 3.23
+        },
+        {
+          "name": "Broadcom Inc.",
+          "pct": 2.95
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-27T16:24:48.015Z",
+      "geo": {
+        "United States": 92.73,
+        "Other": 7.27
+      },
+      "sector": {
+        "Technology": 49.08,
+        "Telecommunication": 15.28,
+        "Consumer Discretionary": 12.45,
+        "Consumer Staples": 8.35,
+        "Health Care": 4.95,
+        "Industrials": 3.21,
+        "Utilities": 1.53,
+        "Energy": 0.6,
+        "Other": 4.55
+      },
+      "currency": {
+        "USD": 92.73,
+        "Other": 7.27
+      },
+      "breakdownsAsOf": "2026-04-27T16:24:48.015Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B53SZB19",
+      "_addedAt": "2026-04-27T16:24:48.015Z",
+      "_addedVia": "admin/lookthrough-pool"
     }
   }
 }
