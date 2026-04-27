@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-04-27 (metrics-home-global-fix)
+Last updated: 2026-04-27 (te-contribution-table)
 
 ---
 
@@ -619,6 +619,16 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-04-27 (te-contribution-table)
+- **Risk & Performance Metrics: neue „Tracking Error Contribution"-Tabelle im Detail-Bereich + geschärfter Tooltip auf der TE-Kachel.** Operator-Frage: „dieses doch eher defensive Portfolio (Cash 3 % / Bonds 0 % / Equities 89.5 % / Gold 7.5 %, mit Schweizer Home-Tilt) hat einen TE von 2.5 %?" — die Zahl ist mathematisch korrekt, die Verteilung der Treiber war aber im UI nirgends sichtbar. Implementierung:
+  - **`decomposeTrackingError(allocation, baseCurrency)` in `metrics.ts`** liefert die marginale Beitragszerlegung pro Anlageklasse: `c_i = a_i · (Σa)_i / TE` mit `a = w_p − w_b`. Mathematische Garantie: `Σ_i c_i = a' Σ a / TE = TE² / TE = TE`, d.h. die Zeilen summieren sich exakt auf den TE-Headline-Wert (auf Floating-Point-Niveau). Vorzeichenbehaftet — negative Einträge sind Diversifikatoren gegen den Rest des aktiven Books.
+  - **Eingaben** sind die echte Allokation und die Basiswährung; die Funktion ruft `mapAllocationToAssets` auf (also durchläuft sie denselben Home/Global-Compaction-Fix wie Vol/Beta/TE selbst), bildet die Vereinigung von Portfolio- und Benchmark-Keys, berechnet `Σa` über die echte Korrelations-/Vol-Matrix (`corr(...) × σ_i × σ_j`), filtert Zeilen mit weder Portfolio- noch Benchmark-Exposure heraus und sortiert nach `|c_i|` absteigend.
+  - **UI in `PortfolioMetrics.tsx`:** neue Sektion zwischen „Expected Returns by Asset Class" und „Efficient Frontier" innerhalb des `Show Details`-Bereichs. Spalten: Asset · Portfolio % · Benchmark % · Active (pp) · TE-Beitrag. Aktive Wette farbcodiert (grün positiv / rot negativ). Total-Zeile unten zeigt die Summe = `m.trackingError`. Erklärt im Legend-Footer, warum Cash/Anleihen/Gold hier auftauchen (Benchmark = 100 % Aktien-ACWI).
+  - **Tooltip-Update auf der Tracking-Error-Kachel:** Beide Sprachen erweitert um den Hinweis, dass der Benchmark-Vergleich ein 100 %-Aktien-ACWI-Proxy ist, also Cash/Anleihen/Gold und regionale Tilts (Home-Bias) den TE mechanisch erhöhen. Verweis auf den `Show Details`-Toggle für die Beitragstabelle.
+  - **i18n-Keys** `metrics.teContrib.*` (9 Keys × 2 Sprachen) für Titel, Beschreibung, Spaltenköpfe, Total, Legend.
+  - **Regressionstest** `decomposeTrackingError contributions sum to total TE and surface gold + home-bias as drivers` rekonstruiert die Operator-Allokation exakt (CHF base, 51.3/13.9/11.6/8.7/4.0 + 7.5 Gold + 3 Cash) und prüft: (1) `d.total ≈ m.trackingError` auf 6 Nachkommastellen, (2) `Σ c_i ≈ d.total` (Schließungseigenschaft der Zerlegung), (3) US-Untergewicht ist der größte positive Treiber (>30 % Anteil), (4) Gold trägt >10 % bei, (5) **Schweizer Übergewicht ist hier ein Diversifikator** (negativer Beitrag) — kontraintuitiv und deshalb gepinnt: weil das Portfolio gleichzeitig stark US/EU/UK-untergewichtet ist, fängt der CH-Tilt einen Teil dieser Untergewichts-Vol ab statt sie zu verstärken; (6) UK ist mit Portfolio=0/Benchmark=4/Active=−4 in der Tabelle vertreten. Zusatzcase: reines Benchmark-Portfolio → `d.total < 0.001`. Suite jetzt 332 Tests, alle grün.
+  - Konkrete Zahlen für die Operator-Allokation (CHF, TE = 2.52 %): US Equity −8.7 pp → +1.11 pp Beitrag (44 % Anteil), Europe −5.3 → +0.67 (26 %), Gold +7.5 → +0.51 (20 %), UK −4.0 → +0.41 (16 %), EM −2.4 → +0.34 (13 %), Schweiz +9.9 → **−0.52** (−21 %, Diversifikator), Cash und Japan ≈ 0. D.h. die TE kommt eigentlich aus den Aktien-Untergewichten gegen ACWI plus Gold; der Schweizer Home-Bias absorbiert sogar einen Teil davon.
 
 ### 2026-04-27 (metrics-home-global-fix)
 - **Bugfix — Risk & Performance Metrics ergaben für komprimierte Equity-Sleeves völlig falsche Vol / Beta / Tracking Error.** Wenn der ETF-Budget zu eng war, kollabiert die Engine das Aktien-Sleeve in zwei Zeilen `region: "Home"` + `region: "Global"` (siehe `portfolio.ts:280-287`, `etfs.ts:480-494`). `mapAllocationToAssets()` in `metrics.ts` und das parallel gehaltene `bucketKey()` in `monteCarlo.ts` kannten diese beiden Region-Werte aber nicht und schmissen sie still in den Fallback `equity_thematic` (Vol 22 %, ExpReturn 8 %, korreliert nur ~0.85 mit US-Equity, nicht im ACWI-Benchmark enthalten). Folge im UI: ein 64.7 % S&P 500 / 35.3 % MSCI ACWI IMI Portfolio zeigte Vol 22.00 %, Expected Return 8.00 %, Beta 1.25 und **Tracking Error 11.4 %** — also den Fingerabdruck eines reinen Themenfonds gegen ACWI, obwohl die Realität eher Vol ~16 %, Beta ~1.05 und TE ~3-4 % wäre. Fix:

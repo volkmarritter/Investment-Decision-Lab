@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { InfoHint } from "@/components/ui/info-hint";
 import { AssetAllocation, BaseCurrency } from "@/lib/types";
-import { computeMetrics, computeFrontier, buildCorrelationMatrix, mapAllocationToAssets, CMA } from "@/lib/metrics";
+import { computeMetrics, computeFrontier, buildCorrelationMatrix, mapAllocationToAssets, decomposeTrackingError, CMA } from "@/lib/metrics";
 import { getRiskFreeRate, subscribeRiskFreeRate, subscribeCMAOverrides } from "@/lib/settings";
 import { applyCMALayers } from "@/lib/metrics";
 import { useT } from "@/lib/i18n";
@@ -29,6 +29,7 @@ export function PortfolioMetrics({ allocation, baseCurrency }: { allocation: Ass
   const frontier = useMemo(() => computeFrontier(allocation, baseCurrency), [allocation, baseCurrency, rf, cmaVersion]);
   const correlation = useMemo(() => buildCorrelationMatrix(allocation, baseCurrency), [allocation, baseCurrency]);
   const exposures = useMemo(() => mapAllocationToAssets(allocation, baseCurrency), [allocation, baseCurrency]);
+  const teDecomp = useMemo(() => decomposeTrackingError(allocation, baseCurrency), [allocation, baseCurrency, cmaVersion]);
 
   const explain = {
     expReturn: {
@@ -70,8 +71,8 @@ export function PortfolioMetrics({ allocation, baseCurrency }: { allocation: Ass
     te: {
       title: t("metrics.te"),
       body: de
-        ? "Wie weit Ihre Jahresrendite typischerweise vom globalen Aktienmarkt abweichen wird – nach oben oder unten. Höher = mutigere Wetten gegen den Markt."
-        : "How far your annual return will typically drift from the global stock market — up or down. Higher = bolder bets away from the index.",
+        ? "Wie weit Ihre Jahresrendite typischerweise vom globalen Aktienmarkt abweichen wird — nach oben oder unten. Gemessen gegen einen 100 %-Aktien-ACWI-Proxy: Anlageklassen, die der Benchmark gar nicht enthält (Cash, Anleihen, Gold), erhöhen diese Zahl mechanisch. Regionale Über-/Untergewichte gegenüber dem ACWI-Mix können den TE je nach Wechselwirkung mit den übrigen aktiven Wetten erhöhen oder auch teilweise wieder absorbieren. Klicken Sie auf »Details anzeigen«, um die Beitragstabelle Position für Position zu sehen."
+        : "How far your annual return will typically drift from the global stock market — up or down. Measured against a 100% equity ACWI proxy: asset classes the benchmark holds none of (cash, bonds, gold) mechanically add to this number. Regional over- or underweights vs the ACWI mix can either add to TE or partly absorb it, depending on how they interact with the rest of the active book. Click »Show Details« to see the contribution table position by position.",
     },
     outperf: {
       title: t("metrics.outperf"),
@@ -172,6 +173,52 @@ export function PortfolioMetrics({ allocation, baseCurrency }: { allocation: Ass
                 </Table>
               </div>
             </div>
+
+        {/* Tracking-error contribution table */}
+        <div className="space-y-3 pt-2 border-t">
+          <h4 className="text-sm font-semibold flex items-center gap-2">
+            <Sigma className="h-4 w-4" /> {t("metrics.teContrib.title")}
+          </h4>
+          <p className="text-xs text-muted-foreground">{t("metrics.teContrib.desc")}</p>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{t("metrics.teContrib.asset")}</TableHead>
+                  <TableHead className="text-right">{t("metrics.teContrib.portfolio")}</TableHead>
+                  <TableHead className="text-right">{t("metrics.teContrib.benchmark")}</TableHead>
+                  <TableHead className="text-right">{t("metrics.teContrib.active")}</TableHead>
+                  <TableHead className="text-right">{t("metrics.teContrib.contribution")}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {teDecomp.rows.map((r) => {
+                  const activePp = r.activeWeight * 100;
+                  const contribPp = r.contribution * 100;
+                  const sign = (n: number) => (n > 0 ? "+" : n < 0 ? "" : " ");
+                  return (
+                    <TableRow key={r.key}>
+                      <TableCell className="font-medium text-xs">{r.label}</TableCell>
+                      <TableCell className="text-right font-mono text-xs">{(r.portfolioWeight * 100).toFixed(1)}%</TableCell>
+                      <TableCell className="text-right font-mono text-xs text-muted-foreground">{(r.benchmarkWeight * 100).toFixed(1)}%</TableCell>
+                      <TableCell className={`text-right font-mono text-xs ${activePp > 0 ? "text-emerald-600" : activePp < 0 ? "text-destructive" : ""}`}>
+                        {sign(activePp)}{activePp.toFixed(1)} pp
+                      </TableCell>
+                      <TableCell className={`text-right font-mono text-xs ${contribPp > 0 ? "text-foreground" : "text-muted-foreground"}`}>
+                        {sign(contribPp)}{contribPp.toFixed(2)}%
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+                <TableRow className="bg-muted/30">
+                  <TableCell className="font-semibold text-xs" colSpan={4}>{t("metrics.teContrib.total")}</TableCell>
+                  <TableCell className="text-right font-mono text-xs font-semibold">{(teDecomp.total * 100).toFixed(2)}%</TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+          <p className="text-[11px] text-muted-foreground">{t("metrics.teContrib.legend")}</p>
+        </div>
 
         {/* Efficient frontier */}
         <div className="space-y-3 pt-2 border-t">

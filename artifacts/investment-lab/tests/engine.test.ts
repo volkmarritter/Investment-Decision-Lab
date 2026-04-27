@@ -13,6 +13,7 @@ import {
   computeMetrics,
   computeFrontier,
   buildCorrelationMatrix,
+  decomposeTrackingError,
   BENCHMARK,
   portfolioReturn,
   portfolioVol,
@@ -876,6 +877,85 @@ describe("metrics", () => {
     expect(m.trackingError).toBeLessThan(0.005);
     expect(m.beta).toBeCloseTo(1.0, 1);
     expect(m.vol).toBeLessThan(0.18);
+  });
+
+  it("decomposeTrackingError contributions sum to total TE and surface gold + home-bias as drivers", () => {
+    // Recreates the operator's allocation: CHF base, 89.5% equities with a
+    // strong Swiss home tilt, 7.5% gold, 3% cash. The user perceived a 2.5%
+    // TE as suspiciously high — this test pins the decomposition that
+    // explains it: gold + Swiss overweight should be the top contributors.
+    const alloc: AssetAllocation[] = [
+      { assetClass: "Cash", region: "CHF", weight: 3.0 },
+      { assetClass: "Equity", region: "USA", weight: 51.3 },
+      { assetClass: "Equity", region: "Switzerland", weight: 13.9 },
+      { assetClass: "Equity", region: "EM", weight: 11.6 },
+      { assetClass: "Equity", region: "Europe", weight: 8.7 },
+      { assetClass: "Equity", region: "Japan", weight: 4.0 },
+      { assetClass: "Commodities", region: "Gold", weight: 7.5 },
+    ];
+    const m = computeMetrics(alloc, "CHF");
+    const d = decomposeTrackingError(alloc, "CHF");
+
+    // Total of decomposition equals computeMetrics' tracking error.
+    expect(d.total).toBeCloseTo(m.trackingError, 6);
+
+    // Per-asset signed contributions sum to the total (definition: the
+    // marginal-contribution decomposition closes mathematically).
+    const sum = d.rows.reduce((s, r) => s + r.contribution, 0);
+    expect(sum).toBeCloseTo(d.total, 6);
+
+    // Sanity-check the actual drivers (counter-intuitive result worth
+    // pinning): the largest positive TE contributors are the *underweights*
+    // vs. the ACWI benchmark (US -8.7pp, EU -5.3pp, UK -4pp, EM -2.4pp)
+    // plus the +7.5pp gold position. The Swiss home-bias overweight is
+    // actually a *diversifier* against the equity underweights, so its
+    // contribution is negative — confirming the engine's tilt logic does
+    // partly absorb, not amplify, TE in this kind of portfolio.
+    const us = d.rows.find((r) => r.key === "equity_us");
+    const gold = d.rows.find((r) => r.key === "gold");
+    const ch = d.rows.find((r) => r.key === "equity_ch");
+    expect(us).toBeDefined();
+    expect(gold).toBeDefined();
+    expect(ch).toBeDefined();
+    // US underweight is the single largest positive contributor.
+    expect(us!.contribution).toBeGreaterThan(0);
+    expect(us!.contribution / d.total).toBeGreaterThan(0.3);
+    // Gold contributes meaningfully (no benchmark counterpart, ~zero corr
+    // with equities).
+    expect(gold!.contribution).toBeGreaterThan(0);
+    expect(gold!.contribution / d.total).toBeGreaterThan(0.1);
+    // Swiss overweight is a *diversifier* here, not a driver.
+    expect(ch!.contribution).toBeLessThan(0);
+
+    // UK appears even though the portfolio holds none — pure benchmark
+    // underweight (active = -4pp).
+    const uk = d.rows.find((r) => r.key === "equity_uk");
+    expect(uk).toBeDefined();
+    expect(uk!.portfolioWeight).toBe(0);
+    expect(uk!.benchmarkWeight).toBeCloseTo(0.04, 6);
+    expect(uk!.activeWeight).toBeCloseTo(-0.04, 6);
+
+    // And cash appears even though the benchmark holds none — pure
+    // portfolio-only position (active = +3pp). Locks the symmetric case
+    // of the union-of-keys logic (benchmark-only AND portfolio-only both
+    // surface as rows).
+    const cash = d.rows.find((r) => r.key === "cash");
+    expect(cash).toBeDefined();
+    expect(cash!.portfolioWeight).toBeCloseTo(0.03, 6);
+    expect(cash!.benchmarkWeight).toBe(0);
+    expect(cash!.activeWeight).toBeCloseTo(0.03, 6);
+
+    // Pure benchmark portfolio has TE ≈ 0 → decomposition is empty/zero.
+    const benchAlloc: AssetAllocation[] = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Equity", region: "Europe", weight: 14 },
+      { assetClass: "Equity", region: "UK", weight: 4 },
+      { assetClass: "Equity", region: "Switzerland", weight: 4 },
+      { assetClass: "Equity", region: "Japan", weight: 4 },
+      { assetClass: "Equity", region: "EM", weight: 14 },
+    ];
+    const dBench = decomposeTrackingError(benchAlloc, "USD");
+    expect(dBench.total).toBeLessThan(0.001);
   });
 
   it("computeMetrics returns sane numbers for a default portfolio", () => {

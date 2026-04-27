@@ -515,6 +515,77 @@ export function computeMetrics(allocation: AssetAllocation[], baseCurrency: Base
   };
 }
 
+// ---------------------------------------------------------------------------
+// Tracking-error decomposition.
+// ---------------------------------------------------------------------------
+// TE = sqrt(a' Σ a) where a = w_p − w_b are the active weights vs the
+// benchmark. The marginal contribution of asset i is
+//   c_i = a_i · (Σa)_i / TE,
+// and Σ c_i = a' Σ a / TE = TE² / TE = TE — i.e. the contributions sum
+// exactly to the total tracking error and tell the operator which active
+// bets are actually driving it (e.g. gold, home-bias, missing UK).
+// Contributions are signed: negative entries indicate positions that
+// diversify against the rest of the active book.
+export interface TrackingErrorContribution {
+  key: AssetKey;
+  label: string;
+  portfolioWeight: number;
+  benchmarkWeight: number;
+  activeWeight: number;
+  contribution: number;
+}
+export interface TrackingErrorDecomposition {
+  total: number;
+  rows: TrackingErrorContribution[];
+}
+
+export function decomposeTrackingError(
+  allocation: AssetAllocation[],
+  baseCurrency: BaseCurrency,
+): TrackingErrorDecomposition {
+  const exp = mapAllocationToAssets(allocation, baseCurrency);
+  const merged: Partial<Record<AssetKey, { p: number; b: number }>> = {};
+  for (const e of exp) {
+    const slot = (merged[e.key] ??= { p: 0, b: 0 });
+    slot.p += e.weight;
+  }
+  for (const b of BENCHMARK) {
+    const slot = (merged[b.key] ??= { p: 0, b: 0 });
+    slot.b += b.weight;
+  }
+  const keys = Object.keys(merged) as AssetKey[];
+  const a = keys.map((k) => merged[k]!.p - merged[k]!.b);
+
+  // Σa per asset (covariance row · active vector)
+  const sigmaA = keys.map((ki) => {
+    let s = 0;
+    for (let j = 0; j < keys.length; j++) {
+      s += a[j] * CMA[ki].vol * CMA[keys[j]].vol * corr(ki, keys[j]);
+    }
+    return s;
+  });
+  const teVar = a.reduce((s, ai, i) => s + ai * sigmaA[i], 0);
+  const te = Math.sqrt(Math.max(teVar, 0));
+
+  const rows: TrackingErrorContribution[] = keys.map((k, i) => ({
+    key: k,
+    label: CMA[k].label,
+    portfolioWeight: merged[k]!.p,
+    benchmarkWeight: merged[k]!.b,
+    activeWeight: a[i],
+    contribution: te > 0 ? (a[i] * sigmaA[i]) / te : 0,
+  }));
+
+  // Drop rows the user has no relationship with (neither portfolio nor
+  // benchmark exposure), then sort by contribution magnitude so the biggest
+  // TE drivers are at the top.
+  const filtered = rows
+    .filter((r) => r.portfolioWeight > 1e-6 || r.benchmarkWeight > 1e-6)
+    .sort((x, y) => Math.abs(y.contribution) - Math.abs(x.contribution));
+
+  return { total: te, rows: filtered };
+}
+
 // Efficient frontier: scale equity sleeve from 0% to 100%, keeping internal mix.
 export interface FrontierPoint {
   equityPct: number;
