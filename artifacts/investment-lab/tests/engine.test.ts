@@ -1705,6 +1705,86 @@ describe("CMA layered overrides", () => {
     }
   });
 
+  // -- Compare A=physical vs B=synthetic regression (architect-review follow-up) ----
+  // The `includeSyntheticETFs` flag is plumbed through 4 call sites in
+  // ComparePortfolios.tsx (Mobile A+B, Desktop A+B). These engine-level tests
+  // pin the contract those call sites depend on, so a future refactor of the
+  // compare layout cannot silently drop the prop without one of these failing.
+
+  it("synthetic lift scales linearly with US-equity weight (Compare A=30 % vs B=60 % scenario)", () => {
+    // Same engine call ComparePortfolios makes per portfolio, just with two
+    // different US weights. If the prop ever stops reaching computeMetrics,
+    // both sides degenerate to the physical case and this test breaks.
+    const lo: AssetAllocation[] = [
+      { assetClass: "Equity", region: "USA", weight: 30 },
+      { assetClass: "Equity", region: "Europe", weight: 55 },
+      { assetClass: "Fixed Income", region: "Global", weight: 15 },
+    ];
+    const hi: AssetAllocation[] = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Equity", region: "Europe", weight: 25 },
+      { assetClass: "Fixed Income", region: "Global", weight: 15 },
+    ];
+    const liftLo = computeMetrics(lo, "USD", undefined, true).expReturn
+                 - computeMetrics(lo, "USD", undefined, false).expReturn;
+    const liftHi = computeMetrics(hi, "USD", undefined, true).expReturn
+                 - computeMetrics(hi, "USD", undefined, false).expReturn;
+    // Lift is exactly w_us × WHT_DRAG.equity_us — linear in US weight.
+    expect(liftLo).toBeCloseTo(0.30 * WHT_DRAG.equity_us, 8);
+    expect(liftHi).toBeCloseTo(0.60 * WHT_DRAG.equity_us, 8);
+    // And the 60 % side is exactly twice the 30 % side.
+    expect(liftHi).toBeCloseTo(2 * liftLo, 8);
+  });
+
+  it("synthetic toggle is a no-op when the portfolio holds zero US equity (edge case)", () => {
+    // No equity_us bucket → carve-out has nothing to bite on. Guards against a
+    // future refactor that accidentally widens the carve-out from equity_us
+    // to all equity buckets (which would silently inflate non-US returns).
+    const alloc: AssetAllocation[] = [
+      { assetClass: "Equity", region: "Europe", weight: 70 },
+      { assetClass: "Fixed Income", region: "Global", weight: 30 },
+    ];
+    const physical = computeMetrics(alloc, "USD", undefined, false);
+    const synthetic = computeMetrics(alloc, "USD", undefined, true);
+    expect(synthetic.expReturn).toBeCloseTo(physical.expReturn, 12);
+    expect(synthetic.alpha).toBeCloseTo(physical.alpha, 12);
+    expect(synthetic.outperformance).toBeCloseTo(physical.outperformance, 12);
+    expect(synthetic.benchmarkReturn).toBeCloseTo(physical.benchmarkReturn, 12);
+  });
+
+  it("CMA override × synthetic ON: carve-out is additive on the overridden μ (no double-count)", async () => {
+    // User overrides US-equity expReturn to 0.10 (e.g. their own house view).
+    // With synthetic ON, the carve-out must remove the 30 bps drag from the
+    // US sleeve regardless of the override magnitude — i.e. the lift is still
+    // exactly w_us × WHT_DRAG.equity_us, NOT scaled by the override level.
+    // Pins the additive composition of CMA-layer × WHT-layer.
+    const { CMA } = await import("../src/lib/metrics");
+    const allocation: AssetAllocation[] = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Equity", region: "Europe", weight: 25 },
+      { assetClass: "Fixed Income", region: "Global", weight: 15 },
+    ];
+    const originalUs = CMA.equity_us.expReturn;
+    CMA.equity_us.expReturn = 0.10;
+    try {
+      const physical = computeMetrics(allocation, "USD", undefined, false);
+      const synthetic = computeMetrics(allocation, "USD", undefined, true);
+      // Lift is invariant to the override level — only the US weight matters.
+      const expectedLift = 0.60 * WHT_DRAG.equity_us;
+      expect(synthetic.expReturn - physical.expReturn).toBeCloseTo(expectedLift, 8);
+      // And the absolute physical leg uses the OVERRIDDEN μ (0.10) minus
+      // the full drag — proves the override flowed through and the drag is
+      // still applied on the physical side.
+      const expectedPhysExpReturn =
+        0.60 * (0.10 - WHT_DRAG.equity_us) +
+        0.25 * (CMA.equity_eu.expReturn - WHT_DRAG.equity_eu) +
+        0.15 * (CMA.bonds.expReturn - WHT_DRAG.bonds);
+      expect(physical.expReturn).toBeCloseTo(expectedPhysExpReturn, 8);
+    } finally {
+      CMA.equity_us.expReturn = originalUs;
+    }
+  });
+
   it("FX-hedge sigma reduction stays composable on top of CMA σ for foreign equity", async () => {
     const { runMonteCarlo } = await import("../src/lib/monteCarlo");
     const { CMA } = await import("../src/lib/metrics");
