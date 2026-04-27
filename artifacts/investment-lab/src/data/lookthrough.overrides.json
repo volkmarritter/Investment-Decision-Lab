@@ -856,6 +856,7 @@
   },
   "pool": {
     "CH0031768937": {
+      "name": "iShares SLI ETF (CH)",
       "topHoldings": [
         {
           "name": "Novartis AG",
@@ -924,6 +925,7 @@
       "_addedVia": "admin/lookthrough-pool"
     },
     "IE00B53SZB19": {
+      "name": "iShares Nasdaq 100 UCITS ETF (Acc)",
       "topHoldings": [
         {
           "name": "NVIDIA Corp.",
@@ -992,6 +994,7 @@
       "_addedVia": "admin/lookthrough-pool"
     },
     "IE00BM67HT60": {
+      "name": "Xtrackers MSCI World Information Technology UCITS ETF 1C",
       "topHoldings": [
         {
           "name": "NVIDIA Corp.",
