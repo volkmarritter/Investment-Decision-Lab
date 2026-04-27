@@ -484,6 +484,10 @@ function SuggestIsinPanel({
   const [preview, setPreview] = useState<PreviewResponse | null>(null);
   const [draft, setDraft] = useState<AddEtfRequest | null>(null);
   const [errMsg, setErrMsg] = useState<string | null>(null);
+  // Bumped after every successful or failed PR-creating action so the
+  // embedded PendingPrsCard refetches and shows the new (or pre-existing,
+  // in the 422-"branch already exists" case) PR without manual reload.
+  const [prsRefreshKey, setPrsRefreshKey] = useState(0);
 
   async function runPreview() {
     setErrMsg(null);
@@ -517,8 +521,13 @@ function SuggestIsinPanel({
       setIsin("");
       setPreview(null);
       setDraft(null);
+      setPrsRefreshKey((k) => k + 1);
     } catch (e: unknown) {
       setErrMsg(e instanceof Error ? e.message : String(e));
+      // Auch im Fehlerfall (z.B. "branch already exists") aktualisieren —
+      // genau dann ist der bereits-existierende PR die Information, die
+      // der Operator sehen muss.
+      setPrsRefreshKey((k) => k + 1);
     } finally {
       setSubmitting(false);
     }
@@ -617,6 +626,14 @@ function SuggestIsinPanel({
             catalog={catalog}
           />
         )}
+        <PendingPrsCard
+          prefix="add-etf/"
+          refreshKey={prsRefreshKey}
+          emptyHint={t({
+            de: "Keine offenen ETF-PRs — alle Vorschläge sind gemerged.",
+            en: "No open ETF PRs — all suggestions are merged.",
+          })}
+        />
       </CardContent>
     </Card>
   );
@@ -2144,6 +2161,10 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
   const [summary, setSummary] = useState("");
   const [lastPr, setLastPr] = useState<{ url: string; number: number } | null>(null);
   const [presetId, setPresetId] = useState<string>("");
+  // Bumped after every PR-creating action (success oder error) so der
+  // PendingPrsCard sich automatisch neu lädt — auch im 422-Fall sieht der
+  // Operator dann sofort den bereits-existierenden offenen PR.
+  const [prsRefreshKey, setPrsRefreshKey] = useState(0);
 
   // Lade-Logik als benannte Funktion, damit der "Aktuelle Werte neu laden"-
   // Button sie auch nach manuellen Edits noch einmal triggern kann (Revert-
@@ -2405,6 +2426,7 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
     try {
       const res = await adminApi.proposeAppDefaultsPr(value, trimmed);
       setLastPr({ url: res.prUrl, number: res.prNumber });
+      setPrsRefreshKey((k) => k + 1);
       toast.success(
         touched === 0
           ? lang === "de"
@@ -2416,6 +2438,10 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
+      // Auch im Fehlerfall die offenen-PRs-Liste auffrischen — etwa bei
+      // 422-"branch already exists" wäre der bereits offene PR genau die
+      // Antwort auf "warum hat es nicht geklappt".
+      setPrsRefreshKey((k) => k + 1);
     } finally {
       setSubmitting(false);
     }
@@ -2817,6 +2843,15 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
                 </AlertDescription>
               </Alert>
             )}
+
+            <PendingPrsCard
+              prefix="update-app-defaults/"
+              refreshKey={prsRefreshKey}
+              emptyHint={t({
+                de: "Keine offenen Defaults-PRs — alle Änderungen sind gemerged.",
+                en: "No open defaults PRs — all changes are merged.",
+              })}
+            />
           </>
         )}
       </CardContent>
