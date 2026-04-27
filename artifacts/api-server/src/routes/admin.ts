@@ -18,13 +18,14 @@
 // ----------------------------------------------------------------------------
 
 import { Router, type IRouter } from "express";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import { requireAdmin } from "../middlewares/admin-auth";
 import { dataFile } from "../lib/data-paths";
 import {
   githubConfigured,
   openAddEtfPr,
+  openAddLookthroughPoolPr,
   openUpdateAppDefaultsPr,
   renderEntryBlock,
   type NewEtfEntry,
@@ -289,6 +290,24 @@ router.get("/admin/lookthrough-pool", async (_req, res) => {
 // silently overwrite a curated pool entry by re-submitting). The refresh
 // script handles updating existing entries on its monthly cron.
 router.post("/admin/lookthrough-pool/:isin", async (req, res) => {
+  // PR-basiert (umgestellt am 2026-04-27): vorher hat dieser Handler
+  // direkt auf die Disk geschrieben (`writeFile(...)`). Das war doppelt
+  // kaputt: (1) die Schreibvorgänge auf dem Production-api-server-Container
+  // waren ephemer und gingen beim nächsten Restart verloren; (2) das
+  // Frontend bundlet `lookthrough.overrides.json` zur Build-Zeit, hätte
+  // also die neuen Einträge ohnehin nie gesehen — die Methodology-
+  // Tausch-Ansicht zeigte weiterhin "no look-through data on file"
+  // während die Admin-Tabelle "Daten OK" behauptete.
+  // Jetzt: GitHub-PR öffnen (gleicher Pattern wie /admin/app-defaults).
+  // Nach Merge + Redeploy sehen Admin und Frontend dieselben Daten.
+  if (!githubConfigured()) {
+    res.status(503).json({
+      error: "github_not_configured",
+      message: "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
+    });
+    return;
+  }
+
   let isin: string;
   try {
     isin = normalizeIsin(req.params.isin);
@@ -301,11 +320,16 @@ router.post("/admin/lookthrough-pool/:isin", async (req, res) => {
   }
 
   try {
-    const existing = await readLookthroughPool();
-    if (existing[isin]) {
+    // Lokale Disk-Datei vorab als Schnell-Check für offensichtliche
+    // Duplikate (sieht z.B. ein bereits gemergtes Dev-Add). Der
+    // verbindliche Duplikat-Check passiert weiter unten gegen den
+    // base-Branch-Inhalt im PR-Helper, da nur dort die Wahrheit liegt
+    // (lokales File kann veraltet sein).
+    const localBoth = await readLookthroughSources();
+    if (localBoth.pool[isin] || localBoth.overrides[isin]) {
       res.status(409).json({
         error: "already_in_pool",
-        message: `ISIN ${isin} ist bereits im Datenpool. Der monatliche Refresh-Job aktualisiert die Daten automatisch.`,
+        message: `ISIN ${isin} ist bereits im Datenpool (lokale Bundle-Datei). Der monatliche Refresh-Job aktualisiert die Daten automatisch.`,
       });
       return;
     }
@@ -344,25 +368,27 @@ router.post("/admin/lookthrough-pool/:isin", async (req, res) => {
       return;
     }
 
-    const path = dataFile("lookthrough.overrides.json");
-    const file = JSON.parse(await readFile(path, "utf8")) as Record<
-      string,
-      unknown
-    >;
-    const pool = (file.pool ?? {}) as Record<string, unknown>;
-    pool[isin] = {
-      topHoldings: scraped.topHoldings,
-      topHoldingsAsOf: scraped.asOf,
-      geo: scraped.geo,
-      sector: scraped.sector,
-      currency: scraped.currency,
-      breakdownsAsOf: scraped.asOf,
-      _source: scraped.sourceUrl,
-      _addedAt: scraped.asOf,
-      _addedVia: "admin/lookthrough-pool",
-    };
-    file.pool = pool;
-    await writeFile(path, JSON.stringify(file, null, 2) + "\n", "utf8");
+    const pr = await openAddLookthroughPoolPr({
+      isin,
+      entry: {
+        topHoldings: scraped.topHoldings,
+        topHoldingsAsOf: scraped.asOf,
+        geo: scraped.geo,
+        sector: scraped.sector,
+        currency: scraped.currency,
+        breakdownsAsOf: scraped.asOf,
+        _source: scraped.sourceUrl,
+        _addedAt: scraped.asOf,
+        _addedVia: "admin/lookthrough-pool",
+      },
+    });
+    if (pr.alreadyInBaseFile) {
+      res.status(409).json({
+        error: "already_in_pool",
+        message: `ISIN ${isin} ist bereits im Datenpool auf dem Base-Branch (overrides oder pool). Kein PR nötig.`,
+      });
+      return;
+    }
 
     res.status(201).json({
       ok: true,
@@ -372,16 +398,33 @@ router.post("/admin/lookthrough-pool/:isin", async (req, res) => {
       sectorCount: Object.keys(scraped.sector).length,
       asOf: scraped.asOf,
       sourceUrl: scraped.sourceUrl,
-      note: "App-Build muss neu gestartet werden, damit das Frontend die neue ISIN sieht.",
+      prUrl: pr.url,
+      prNumber: pr.number,
+      note: "PR geöffnet. Nach Merge + Redeploy sehen sowohl die Admin-Tabelle als auch die Methodology-Tausch-Ansicht diese ISIN.",
     });
   } catch (err) {
     if (err instanceof PreviewError) {
       res.status(err.status).json({ error: err.code, message: err.message });
       return;
     }
+    // Architect-Review-Folge-Fix (2026-04-27): Wenn der deterministische
+    // PR-Branch `add-lookthrough-pool/{isin}` bereits existiert (offener PR
+    // wartet noch auf Review/Merge), wirft `openAddLookthroughPoolPr` einen
+    // Error mit der Phrase "already exists". Statt das als generischen 500
+    // zu surfacen, mappen wir auf 409 Conflict — semantisch korrekt und
+    // erlaubt dem Frontend, den Operator klar zu informieren ("PR steht
+    // schon offen, bitte erst mergen").
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/already exists/i.test(msg)) {
+      res.status(409).json({
+        error: "pr_already_open",
+        message: msg,
+      });
+      return;
+    }
     res.status(500).json({
       error: "internal",
-      message: err instanceof Error ? err.message : String(err),
+      message: msg,
     });
   }
 });

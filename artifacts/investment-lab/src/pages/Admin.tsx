@@ -1146,6 +1146,10 @@ function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
+  // Letzter erfolgreich geöffneter PR — wird inline unter dem Eingabefeld
+  // angezeigt mit klickbarem Link, damit der Operator direkt review +
+  // merge kann. Auf null gesetzt bei jedem neuen Submit-Versuch.
+  const [lastPr, setLastPr] = useState<{ url: string; number: number; isin: string } | null>(null);
 
   // ISIN -> Katalog-Eintrag-Lookup. Damit kann die Tabelle den jeweiligen
   // ETF-Namen + Bucket-Key neben der ISIN anzeigen, statt nur eine nackte
@@ -1183,10 +1187,13 @@ function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
     if (!trimmed) return;
     setSubmitting(true);
     setErrMsg(null);
+    setLastPr(null);
     try {
       const r = await adminApi.addLookthroughPoolIsin(trimmed);
-      toast.success(`${r.isin} aufgenommen`, {
-        description: `${r.topHoldingCount} Holdings · ${r.geoCount} Länder · ${r.sectorCount} Sektoren — ${r.note}`,
+      setLastPr({ url: r.prUrl, number: r.prNumber, isin: r.isin });
+      toast.success(`PR #${r.prNumber} geöffnet für ${r.isin}`, {
+        description: `${r.topHoldingCount} Holdings · ${r.geoCount} Länder · ${r.sectorCount} Sektoren — Review + merge erforderlich, dann redeploy.`,
+        action: { label: "Öffnen", onClick: () => window.open(r.prUrl, "_blank") },
       });
       setIsin("");
       await load();
@@ -1206,9 +1213,13 @@ function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
         <p className="text-sm text-muted-foreground">
           ISINs hier sind <em>bucket-unabhängig</em> für Methodology-Overrides
           verfügbar. Beim Hinzufügen werden Top-Holdings sowie Länder- und
-          Sektor-Aufteilung von justETF gescraped; der monatliche Refresh-Job
-          aktualisiert die Daten automatisch mit. Ein App-Neustart ist nötig,
-          damit das Frontend eine neu aufgenommene ISIN sieht.
+          Sektor-Aufteilung von justETF gescraped und ein <strong>GitHub-PR</strong>{" "}
+          geöffnet, der den neuen Eintrag zur <code>pool</code>-Sektion von{" "}
+          <code>lookthrough.overrides.json</code> hinzufügt. Erst nach Merge +
+          Redeploy ist die ISIN sowohl in dieser Tabelle (Quelle „Auto-Refresh")
+          als auch in der Methodology-Tausch-Ansicht (kein „No look-through
+          data"-Hinweis mehr) sichtbar. Der monatliche Refresh-Job hält die
+          Daten danach automatisch aktuell.
         </p>
         <div className="flex gap-2">
           <Input
@@ -1237,6 +1248,28 @@ function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
           <Alert variant="destructive">
             <AlertTitle>Fehler</AlertTitle>
             <AlertDescription>{errMsg}</AlertDescription>
+          </Alert>
+        )}
+        {lastPr && (
+          <Alert
+            className="border-emerald-600/40 text-emerald-900 dark:text-emerald-200"
+            data-testid="alert-pool-pr-success"
+          >
+            <AlertTitle>PR #{lastPr.number} geöffnet</AlertTitle>
+            <AlertDescription className="text-xs">
+              {lastPr.isin} wartet auf Review &amp; Merge. Erst nach Merge +
+              Redeploy taucht die ISIN unten in der Tabelle (Quelle
+              „Auto-Refresh") und in der Methodology-Tausch-Ansicht auf.{" "}
+              <a
+                href={lastPr.url}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="underline font-medium"
+                data-testid={`link-pool-pr-${lastPr.isin}`}
+              >
+                PR auf GitHub öffnen →
+              </a>
+            </AlertDescription>
           </Alert>
         )}
         <div data-testid="lookthrough-pool-list">

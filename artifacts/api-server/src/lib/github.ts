@@ -39,6 +39,8 @@ export interface PrCreationContext {
 const ETFS_FILE_PATH = "artifacts/investment-lab/src/lib/etfs.ts";
 const APP_DEFAULTS_FILE_PATH =
   "artifacts/investment-lab/src/data/app-defaults.json";
+const LOOKTHROUGH_OVERRIDES_FILE_PATH =
+  "artifacts/investment-lab/src/data/lookthrough.overrides.json";
 
 export function githubConfigured(): boolean {
   return Boolean(
@@ -134,6 +136,166 @@ export async function openUpdateAppDefaultsPr(args: {
   });
 
   return { url: pr.html_url, number: pr.number };
+}
+
+// ---------------------------------------------------------------------------
+// openAddLookthroughPoolPr — admin /lookthrough-pool (Bugfix 2026-04-27)
+// ---------------------------------------------------------------------------
+// Adds a new ISIN to the `pool` section of
+// `artifacts/investment-lab/src/data/lookthrough.overrides.json`.
+//
+// Why a PR (and not a direct disk write like before): the file is bundled
+// into the FRONTEND at build time (`import lookthroughOverridesFile from
+// "@/data/lookthrough.overrides.json"`). Direct disk writes on the
+// api-server (a) are ephemeral — lost on next container restart — and (b)
+// never reach the frontend bundle so `profileFor(isin)` keeps returning
+// null and the Methodology override dialog keeps showing the amber "no
+// look-through data" warning. Going through merge + redeploy is the only
+// way both the admin pool table and the runtime `profileFor()` lookup
+// agree on what's available.
+//
+// Concurrency: deterministic branch name `add-lookthrough-pool/{isin}`
+// (lowercased). The first attempt succeeds, a duplicate attempt before
+// the first PR is merged returns 422 from createRef which we surface as
+// a clear error.
+// ---------------------------------------------------------------------------
+export interface LookthroughPoolEntry {
+  topHoldings: Array<{ name: string; pct: number }>;
+  topHoldingsAsOf: string;
+  geo: Record<string, number>;
+  sector: Record<string, number>;
+  currency: Record<string, number>;
+  breakdownsAsOf: string;
+  _source: string;
+  _addedAt: string;
+  _addedVia: string;
+}
+
+export async function openAddLookthroughPoolPr(args: {
+  isin: string;
+  entry: LookthroughPoolEntry;
+}): Promise<{ url: string; number: number; alreadyInBaseFile: boolean }> {
+  if (!githubConfigured()) {
+    throw new Error(
+      "GitHub PR creation is not configured. Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO.",
+    );
+  }
+  const owner = process.env.GITHUB_OWNER!;
+  const repo = process.env.GITHUB_REPO!;
+  const base = process.env.GITHUB_BASE_BRANCH ?? "main";
+  const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
+
+  // 1. Read base SHA + current file from the base branch (the file always
+  //    exists in the repo — refusal is appropriate if it doesn't).
+  const { data: baseRef } = await octokit.git.getRef({
+    owner,
+    repo,
+    ref: `heads/${base}`,
+  });
+  const baseSha = baseRef.object.sha;
+
+  const { data: fileMeta } = await octokit.repos.getContent({
+    owner,
+    repo,
+    path: LOOKTHROUGH_OVERRIDES_FILE_PATH,
+    ref: baseSha,
+  });
+  if (Array.isArray(fileMeta) || fileMeta.type !== "file") {
+    throw new Error(
+      `Unexpected GitHub response for ${LOOKTHROUGH_OVERRIDES_FILE_PATH}.`,
+    );
+  }
+  const currentContent = Buffer.from(fileMeta.content, "base64").toString(
+    "utf8",
+  );
+
+  // 2. Parse, mutate, re-serialise. We refuse if the ISIN is already in
+  //    EITHER `overrides` (curated) OR `pool` (refresh job) — duplicates
+  //    in the file would be confusing.
+  let parsed: {
+    _meta?: unknown;
+    overrides?: Record<string, unknown>;
+    pool?: Record<string, unknown>;
+    [k: string]: unknown;
+  };
+  try {
+    parsed = JSON.parse(currentContent);
+  } catch (err) {
+    throw new Error(
+      `lookthrough.overrides.json on ${base} is not valid JSON: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+  const overrides = (parsed.overrides ?? {}) as Record<string, unknown>;
+  const pool = (parsed.pool ?? {}) as Record<string, unknown>;
+  if (overrides[args.isin] || pool[args.isin]) {
+    return { url: "", number: 0, alreadyInBaseFile: true };
+  }
+  pool[args.isin] = args.entry;
+  parsed.pool = pool;
+  const nextContent = JSON.stringify(parsed, null, 2) + "\n";
+
+  // 3. Create the branch with a deterministic name. 422 on createRef
+  //    means a previous unmerged PR for this ISIN exists.
+  const branch = `add-lookthrough-pool/${args.isin.toLowerCase()}`;
+  try {
+    await octokit.git.createRef({
+      owner,
+      repo,
+      ref: `refs/heads/${branch}`,
+      sha: baseSha,
+    });
+  } catch (err: unknown) {
+    const status = (err as { status?: number }).status;
+    if (status === 422) {
+      throw new Error(
+        `Branch ${branch} already exists. Es gibt bereits einen offenen PR für diese ISIN. Bitte zuerst mergen oder den Branch löschen.`,
+      );
+    }
+    throw err;
+  }
+
+  // 4. Commit the new file content on the branch.
+  await octokit.repos.createOrUpdateFileContents({
+    owner,
+    repo,
+    path: LOOKTHROUGH_OVERRIDES_FILE_PATH,
+    branch,
+    message: `Add ${args.isin} to lookthrough pool`,
+    content: Buffer.from(nextContent, "utf8").toString("base64"),
+    sha: fileMeta.sha,
+  });
+
+  // 5. Open the PR.
+  const body = [
+    `Adds **\`${args.isin}\`** to the look-through data pool (\`pool\` section of \`lookthrough.overrides.json\`).`,
+    "",
+    "Generated from `/admin` → Look-through-Datenpool. After merge + redeploy:",
+    "",
+    "- The admin pool table will show this ISIN with `Quelle = Auto-Refresh`.",
+    "- The Methodology override dialog (`profileFor(isin)`) will return a full profile, so the amber \"no look-through data\" warning auto-clears.",
+    "",
+    "**Scrape stats**",
+    `- Top holdings: ${args.entry.topHoldings.length}`,
+    `- Geo buckets: ${Object.keys(args.entry.geo).length}`,
+    `- Sector buckets: ${Object.keys(args.entry.sector).length}`,
+    `- As of: ${args.entry.topHoldingsAsOf}`,
+    `- Source: ${args.entry._source}`,
+    "",
+    "The monthly refresh job will keep this entry up to date going forward.",
+  ].join("\n");
+
+  const { data: pr } = await octokit.pulls.create({
+    owner,
+    repo,
+    head: branch,
+    base,
+    title: `Add ${args.isin} to lookthrough pool`,
+    body,
+  });
+
+  return { url: pr.html_url, number: pr.number, alreadyInBaseFile: false };
 }
 
 export async function openAddEtfPr(

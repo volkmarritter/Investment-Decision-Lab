@@ -193,6 +193,12 @@ export const adminApi = {
       sectorCount: number;
       asOf: string;
       sourceUrl: string;
+      // PR-basiert seit 2026-04-27: der Schreibpfad öffnet einen
+      // GitHub-PR statt direkt auf Disk zu schreiben (vorher ephemer +
+      // unsichtbar fürs Frontend). Beide Felder sind nach erfolgreichem
+      // POST garantiert vorhanden.
+      prUrl: string;
+      prNumber: number;
       note: string;
     }>(`/admin/lookthrough-pool/${encodeURIComponent(isin)}`, {
       method: "POST",

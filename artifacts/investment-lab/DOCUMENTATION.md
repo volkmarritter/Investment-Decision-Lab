@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-04-27 (admin-app-defaults-presets)
+Last updated: 2026-04-27 (admin-lookthrough-pool-pr-flow)
 
 ---
 
@@ -619,6 +619,13 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-04-27 (admin-lookthrough-pool-pr-flow)
+- **Architektur-Fix: `POST /admin/lookthrough-pool/:isin` schreibt nicht mehr direkt auf Disk, sondern öffnet einen GitHub-PR.** Operator meldete einen Widerspruch in der Oberfläche: die Admin-Pool-Tabelle zeigte 13 ETFs als „Auto-Refresh" / „Daten OK" an, der `EtfOverrideDialog` derselben ISIN sagte aber „no look-through data on file". Ursache war ein doppelter Architekturfehler im Schreibpfad: (1) der Endpoint schrieb mit `writeFile(...)` direkt in `artifacts/investment-lab/src/data/lookthrough.overrides.json` — dieses Verzeichnis ist auf der Production-Container-Disk **ephemer** und ging beim nächsten Restart verloren; (2) selbst wenn die Schreibe überlebt hätte, hätte das Frontend sie nicht gesehen, weil dort `lookthrough.overrides.json` zur **Build-Zeit** in das Vite-Bundle gezogen wird (`src/lib/lookthrough.ts` → `import overrides from "../data/lookthrough.overrides.json"`). Der `LookthroughPoolPanel` zeigte also den Server-Disk-Zustand, der `EtfOverrideDialog` den Bundle-Zustand — beide divergierten.
+  - **Fix (Option B — gewählt vom Operator)**: der Schreibpfad spiegelt jetzt den bewährten ETF-PR-Flow. Neue Helper-Funktion `openAddLookthroughPoolPr({isin, entry})` in `artifacts/api-server/src/lib/github.ts` (~Zeile 144): liest die aktuelle `lookthrough.overrides.json` von `main`, fügt den neuen Eintrag in die `pool`-Sektion ein (oder kein-op, wenn bereits in `overrides` oder `pool` vorhanden — Antwort `alreadyInBaseFile: true`), commitet auf einen deterministischen Branch `add-lookthrough-pool/{isin-lowercase}` und öffnet einen PR. Determinismus per ISIN verhindert PR-Duplikate bei wiederholten Klicks. Die Route `POST /admin/lookthrough-pool/:isin` (`src/routes/admin.ts` ~Zeile 295) wurde komplett umgeschrieben: `writeFile`-Pfad entfernt, neuer `githubConfigured()`-Guard mit 503-Antwort wenn `GITHUB_*`-Secrets fehlen, lokale Disk-Datei wird nur noch als schneller Dedup-Check vor dem (teuren) justETF-Scrape gelesen — der eigentliche persistente Schreibpfad ist ausschließlich der PR. Antwort-Shape um `prUrl: string` und `prNumber: number` erweitert.
+  - **Frontend** — `addLookthroughPoolIsin` in `src/lib/admin-api.ts` (~Zeile 187) übernimmt die neuen Pflichtfelder im Return-Type. `LookthroughPoolPanel` (`Admin.tsx` ~Zeile 1146) bekommt einen neuen `lastPr`-State; der Erfolgs-Toast zeigt jetzt `PR #N geöffnet für {ISIN}` mit „Öffnen"-Action-Button (öffnet GitHub-Tab); ein zusätzliches grünes Inline-`Alert` (Test-IDs `alert-pool-pr-success` und `link-pool-pr-{ISIN}`) erklärt unmissverständlich, dass die ISIN erst nach Merge + Redeploy in Tabelle und Methodology-Tausch-Ansicht erscheint. Der erläuternde Intro-Absatz oberhalb des ISIN-Eingabefelds wurde entsprechend umformuliert (vorher: „Ein App-Neustart ist nötig …"; nachher: explizite Beschreibung des PR → Merge → Redeploy-Workflows mit den beiden konkreten UI-Stellen, an denen das Ergebnis sichtbar wird).
+  - **Was bewusst nicht geändert wurde** — die `pool`-Sektion bleibt vom monatlichen `lookthrough-refresh`-Job weiterhin Live-überschrieben (das ist der Sinn dieser Sektion); curated `overrides` bleibt geschützt und wird vom Schreibpfad nie angefasst. Der Frontend-Build-Time-Bundle-Mechanismus bleibt unverändert (kein Runtime-Fetch eingeführt) — er ist die Single Source of Truth, sobald der PR gemerged ist.
+  - **Tests / Validierung** — keine bestehenden Tests verändert (alle E2E- und Unit-Selektoren auf `data-testid` greifen nach wie vor). 330 / 330 Vitest-Tests grün, Typecheck clean, E2E 2 / 2.
 
 ### 2026-04-27 (admin-de-translation-builtin-display-pool-list)
 - **Drei kleine Verbesserungen am `/admin`-Bereich** auf Operator-Wunsch: (1) komplette deutsche Übersetzung der noch englischen UI-Strings, (2) sichtbare Anzeige der Built-in-Defaults neben jedem Editor-Feld der "Globale Defaults"-Karte, (3) Anreicherung der Look-through-Datenpool-Liste um ETF-Name und ein Status-Badge pro Eintrag.
