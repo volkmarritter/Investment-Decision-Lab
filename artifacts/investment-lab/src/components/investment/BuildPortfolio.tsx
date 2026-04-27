@@ -36,6 +36,7 @@ import { PortfolioInput, PortfolioOutput, ValidationResult } from "@/lib/types";
 import { runValidation } from "@/lib/validation";
 import { buildPortfolio, computeNaturalBucketCount } from "@/lib/portfolio";
 import { mapAllocationToAssetsLookthrough, CMA } from "@/lib/metrics";
+import { colorForBucket } from "@/lib/chartColors";
 import { defaultExchangeFor } from "@/lib/exchange";
 import { setLastAllocation, setLastEtfImplementation } from "@/lib/settings";
 import { StressTest } from "./StressTest";
@@ -51,15 +52,6 @@ import { ETFSnapshotFreshness } from "./SnapshotFreshness";
 import { SavedScenariosUI } from "./SavedScenariosUI";
 import { DisclaimerPdfBlock } from "./Disclaimer";
 import { useT } from "@/lib/i18n";
-
-const COLORS = [
-  "hsl(var(--chart-1))",
-  "hsl(var(--chart-2))",
-  "hsl(var(--chart-3))",
-  "hsl(var(--chart-4))",
-  "hsl(var(--chart-5))",
-  "hsl(var(--primary))",
-];
 
 const defaultValues: PortfolioInput = {
   baseCurrency: "CHF",
@@ -878,7 +870,7 @@ export function BuildPortfolio() {
                               stroke="none"
                             >
                               {chartData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                <Cell key={`cell-${index}`} fill={colorForBucket(entry.name)} />
                               ))}
                             </Pie>
                             <RechartsTooltip
@@ -895,7 +887,7 @@ export function BuildPortfolio() {
                       {chartData.map((d, i) => (
                         <div 
                           key={i} 
-                          style={{ width: `${d.value}%`, backgroundColor: COLORS[i % COLORS.length] }} 
+                          style={{ width: `${d.value}%`, backgroundColor: colorForBucket(d.name) }} 
                           title={`${d.name}: ${d.value}%`}
                           className="h-full transition-all duration-500 hover:brightness-110"
                         />
@@ -913,7 +905,7 @@ export function BuildPortfolio() {
                         <li key={i} className="flex items-center gap-2 min-w-0">
                           <span
                             className="inline-block h-2.5 w-2.5 rounded-sm shrink-0"
-                            style={{ backgroundColor: COLORS[i % COLORS.length] }}
+                            style={{ backgroundColor: colorForBucket(d.name) }}
                             aria-hidden
                           />
                           <span className="truncate text-muted-foreground" title={d.name}>{d.name}</span>
