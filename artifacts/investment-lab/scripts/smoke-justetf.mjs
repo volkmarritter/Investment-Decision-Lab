@@ -41,6 +41,7 @@ import {
   LISTINGS_EXTRACTORS,
 } from "./refresh-justetf.mjs";
 import { extractTopHoldings } from "./refresh-lookthrough.mjs";
+import { fetchWithRetry } from "./lib/justetf-extract.mjs";
 
 const REQUEST_DELAY_MS = 1500;
 const USER_AGENT =
@@ -89,10 +90,16 @@ const CANARIES = [
 
 async function fetchProfile(isin) {
   const url = `https://www.justetf.com/en/etf-profile.html?isin=${isin}`;
-  const res = await fetch(url, {
-    headers: { "User-Agent": USER_AGENT, "Accept-Language": "en" },
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${isin}`);
+  const res = await fetchWithRetry(
+    url,
+    { headers: { "User-Agent": USER_AGENT, "Accept-Language": "en" } },
+    {
+      onRetry: ({ attempt, retries, waitMs, error }) =>
+        console.warn(
+          `  ! ${isin}: profile fetch attempt ${attempt}/${retries} failed (${error?.message ?? "unknown"}), retrying in ${Math.round(waitMs / 100) / 10}s`
+        ),
+    }
+  );
   return await res.text();
 }
 

@@ -31,6 +31,7 @@ import {
   HEDGED_ISINS,
   parseEquityIsinsFromLookthroughSource,
 } from "../scripts/refresh-lookthrough.mjs";
+import { fetchWithRetry } from "../scripts/lib/justetf-extract.mjs";
 
 const FIXTURES = path.join(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -639,5 +640,194 @@ describe("refresh-lookthrough parseEquityIsinsFromLookthroughSource", () => {
     for (const isin of equity) {
       expect(isin).toMatch(/^[A-Z]{2}[A-Z0-9]{9}\d$/);
     }
+  });
+});
+
+// ----------------------------------------------------------------------------
+// fetchWithRetry — transient HTTP error handling.
+// ----------------------------------------------------------------------------
+// Why: the 2026-04-26 morning smoke run flipped red even though every
+// extractor still matched the live justETF markup. Almost certainly a
+// transient 429 / 503 from a single canary fetch. fetchWithRetry now
+// absorbs those before they turn the workflow red. These tests pin down
+// the retry policy so a future "let's just always retry everything" or
+// "let's retry 404s too" change has to be justified.
+describe("fetchWithRetry", () => {
+  // Helper: build a fake fetch that returns a queued sequence of {status,
+  // headers?} responses, recording how many times it was called. Anything
+  // beyond the queue throws so a buggy retry loop blows up loudly instead
+  // of looping forever.
+  function makeFakeFetch(queue: Array<{ status: number; headers?: Record<string, string>; throwError?: Error }>) {
+    let calls = 0;
+    const fn = async () => {
+      const next = queue[calls];
+      calls++;
+      if (!next) throw new Error(`fake fetch called ${calls} times, queue exhausted`);
+      if (next.throwError) throw next.throwError;
+      return {
+        ok: next.status >= 200 && next.status < 300,
+        status: next.status,
+        headers: {
+          get: (name: string) => next.headers?.[name.toLowerCase()] ?? null,
+        },
+        text: async () => "<html>ok</html>",
+      } as unknown as Response;
+    };
+    return { fn, getCalls: () => calls };
+  }
+
+  // Use 0ms backoff in tests so the suite stays fast — the backoff value
+  // itself is not what we're asserting here, only the retry policy.
+  const FAST = { baseDelayMs: 0, maxDelayMs: 0 };
+
+  it("returns immediately on first 2xx without retrying", async () => {
+    const { fn, getCalls } = makeFakeFetch([{ status: 200 }]);
+    const res = await fetchWithRetry("https://x", {}, { ...FAST, fetchImpl: fn });
+    expect(res.status).toBe(200);
+    expect(getCalls()).toBe(1);
+  });
+
+  it("retries on 429 and succeeds when the next attempt is 2xx", async () => {
+    const { fn, getCalls } = makeFakeFetch([
+      { status: 429 },
+      { status: 200 },
+    ]);
+    const res = await fetchWithRetry("https://x", {}, { ...FAST, retries: 3, fetchImpl: fn });
+    expect(res.status).toBe(200);
+    expect(getCalls()).toBe(2);
+  });
+
+  it("retries on 503 and succeeds when the next attempt is 2xx", async () => {
+    const { fn, getCalls } = makeFakeFetch([
+      { status: 503 },
+      { status: 502 },
+      { status: 200 },
+    ]);
+    const res = await fetchWithRetry("https://x", {}, { ...FAST, retries: 3, fetchImpl: fn });
+    expect(res.status).toBe(200);
+    expect(getCalls()).toBe(3);
+  });
+
+  it("retries on thrown network errors and succeeds when the next attempt is 2xx", async () => {
+    const { fn, getCalls } = makeFakeFetch([
+      { status: 0, throwError: new Error("ECONNRESET") },
+      { status: 200 },
+    ]);
+    const res = await fetchWithRetry("https://x", {}, { ...FAST, retries: 3, fetchImpl: fn });
+    expect(res.status).toBe(200);
+    expect(getCalls()).toBe(2);
+  });
+
+  it("does NOT retry on 404 — real not-found must fail loudly", async () => {
+    const { fn, getCalls } = makeFakeFetch([{ status: 404 }]);
+    await expect(
+      fetchWithRetry("https://x", {}, { ...FAST, retries: 3, fetchImpl: fn })
+    ).rejects.toThrow(/HTTP 404/);
+    expect(getCalls()).toBe(1);
+  });
+
+  it("does NOT retry on 403 — forbidden must fail loudly", async () => {
+    const { fn, getCalls } = makeFakeFetch([{ status: 403 }]);
+    await expect(
+      fetchWithRetry("https://x", {}, { ...FAST, retries: 3, fetchImpl: fn })
+    ).rejects.toThrow(/HTTP 403/);
+    expect(getCalls()).toBe(1);
+  });
+
+  it("gives up after `retries` attempts and surfaces the last error", async () => {
+    const { fn, getCalls } = makeFakeFetch([
+      { status: 429 },
+      { status: 429 },
+      { status: 503 },
+      { status: 429 },
+    ]);
+    await expect(
+      fetchWithRetry("https://x", {}, { ...FAST, retries: 3, fetchImpl: fn })
+    ).rejects.toThrow(/HTTP 429|HTTP 503/);
+    // 1 initial attempt + 3 retries = 4 total calls.
+    expect(getCalls()).toBe(4);
+  });
+
+  it("honours Retry-After header expressed as integer seconds (extends backoff)", async () => {
+    // baseDelay 0 → without Retry-After we'd retry immediately. Retry-After: 1
+    // forces a >= 1000ms wait. We measure elapsed time to assert the header
+    // actually pushed the wait out — without asserting an exact value (jitter
+    // + scheduler noise make tight bounds flaky in CI).
+    const { fn } = makeFakeFetch([
+      { status: 429, headers: { "retry-after": "1" } },
+      { status: 200 },
+    ]);
+    const t0 = Date.now();
+    const res = await fetchWithRetry(
+      "https://x",
+      {},
+      { baseDelayMs: 0, maxDelayMs: 5000, retries: 1, fetchImpl: fn }
+    );
+    const elapsed = Date.now() - t0;
+    expect(res.status).toBe(200);
+    expect(elapsed).toBeGreaterThanOrEqual(900); // ~1s minus scheduler slack
+  });
+
+  it("honours Retry-After header expressed as HTTP-date (extends backoff)", async () => {
+    // Synthetic HTTP-date in the future. NOTE: `toUTCString()` truncates to
+    // whole seconds (HTTP-date has 1s resolution), so a `Date.now() + 1000`
+    // input can resolve to as little as ~0ms in the future after parsing.
+    // We use 2 000 ms here so the wait is reliably ≥ 1 s + scheduler slack.
+    const futureDate = new Date(Date.now() + 2000).toUTCString();
+    const { fn } = makeFakeFetch([
+      { status: 503, headers: { "retry-after": futureDate } },
+      { status: 200 },
+    ]);
+    const t0 = Date.now();
+    const res = await fetchWithRetry(
+      "https://x",
+      {},
+      { baseDelayMs: 0, maxDelayMs: 10000, retries: 1, fetchImpl: fn }
+    );
+    const elapsed = Date.now() - t0;
+    expect(res.status).toBe(200);
+    expect(elapsed).toBeGreaterThanOrEqual(900); // lower bound: ≥ ~1s after truncation + slack
+  });
+
+  it("caps wait at maxDelayMs even when Retry-After requests longer", async () => {
+    // Retry-After: 10s but maxDelayMs = 200ms — the cap must win so a
+    // hostile / buggy server can't stall the workflow indefinitely.
+    const { fn } = makeFakeFetch([
+      { status: 429, headers: { "retry-after": "10" } },
+      { status: 200 },
+    ]);
+    const t0 = Date.now();
+    await fetchWithRetry(
+      "https://x",
+      {},
+      { baseDelayMs: 0, maxDelayMs: 200, retries: 1, fetchImpl: fn }
+    );
+    const elapsed = Date.now() - t0;
+    expect(elapsed).toBeLessThan(2000); // well below the requested 10s
+  });
+
+  it("invokes onRetry hook with attempt metadata between attempts", async () => {
+    const { fn } = makeFakeFetch([
+      { status: 429 },
+      { status: 503 },
+      { status: 200 },
+    ]);
+    const seen: Array<{ attempt: number; retries: number }> = [];
+    await fetchWithRetry(
+      "https://x",
+      {},
+      {
+        ...FAST,
+        retries: 3,
+        fetchImpl: fn,
+        onRetry: ({ attempt, retries }) => seen.push({ attempt, retries }),
+      }
+    );
+    // Hook fires once per failed attempt that will be retried (= 2 retries
+    // before the final success), with 1-indexed attempt counters.
+    expect(seen).toEqual([
+      { attempt: 1, retries: 3 },
+      { attempt: 2, retries: 3 },
+    ]);
   });
 });

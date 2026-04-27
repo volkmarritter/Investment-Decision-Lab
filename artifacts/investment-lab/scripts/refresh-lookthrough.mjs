@@ -47,6 +47,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { appendRunLogEntry } from "./lib/run-log.mjs";
 import { computeFieldChanges, appendChangeEntries } from "./lib/diff-overrides.mjs";
+import { fetchWithRetry } from "./lib/justetf-extract.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
@@ -373,10 +374,16 @@ function captureCookies(res) {
 
 async function fetchProfile(isin) {
   const url = `https://www.justetf.com/en/etf-profile.html?isin=${isin}`;
-  const res = await fetch(url, {
-    headers: { "User-Agent": USER_AGENT, "Accept-Language": "en" },
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${isin}`);
+  const res = await fetchWithRetry(
+    url,
+    { headers: { "User-Agent": USER_AGENT, "Accept-Language": "en" } },
+    {
+      onRetry: ({ attempt, retries, waitMs, error }) =>
+        console.warn(
+          `  ! ${isin}: profile fetch attempt ${attempt}/${retries} failed (${error?.message ?? "unknown"}), retrying in ${Math.round(waitMs / 100) / 10}s`
+        ),
+    }
+  );
   const cookie = captureCookies(res);
   const html = await res.text();
   return { html, cookie };
@@ -398,8 +405,16 @@ async function fetchBreakdownAjax(isin, kind, cookie) {
     Referer: `https://www.justetf.com/en/etf-profile.html?isin=${isin}`,
   };
   if (cookie) headers.Cookie = cookie;
-  const res = await fetch(url, { method: "POST", headers });
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${isin} ${kind}`);
+  const res = await fetchWithRetry(
+    url,
+    { method: "POST", headers },
+    {
+      onRetry: ({ attempt, retries, waitMs, error }) =>
+        console.warn(
+          `  ! ${isin}: ${kind} Ajax attempt ${attempt}/${retries} failed (${error?.message ?? "unknown"}), retrying in ${Math.round(waitMs / 100) / 10}s`
+        ),
+    }
+  );
   return await res.text();
 }
 

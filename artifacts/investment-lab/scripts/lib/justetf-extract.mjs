@@ -218,11 +218,106 @@ export function lastRefreshedModeFor(mode) {
   return mode === "listings" ? "listings" : "core";
 }
 
+// ----------------------------------------------------------------------------
+// fetchWithRetry — transient-error wrapper around the global fetch.
+// ----------------------------------------------------------------------------
+// Why this exists. The three scheduled scrapers and the smoke check all hit
+// justETF.com from a single GitHub Actions runner over a short window, so a
+// single 429 (Too Many Requests) or 503 (load-balancer hiccup) used to flip
+// the entire workflow red even though the extractors themselves were fine.
+// The 2026-04-26 morning smoke run is the textbook example: extractors still
+// match the live markup (re-running the script by hand five hours later was
+// fully green) but the scheduled run came back red, almost certainly because
+// one of the three canary fetches got rate-limited.
+//
+// Policy:
+//   - Retry on network errors thrown by `fetch` itself (DNS / TCP / TLS
+//     blips, AbortError on Actions runner network glitches).
+//   - Retry on HTTP 429 (Too Many Requests) and on any 5xx (server-side).
+//   - DO NOT retry on other 4xx (404 / 403 are real "not found" / "forbidden"
+//     and should fail loudly so we notice ISIN typos or geo-blocks).
+//   - Exponential backoff with jitter: base × 2^attempt + Random(0, 500ms).
+//   - Honour Retry-After header when justETF sends one (seconds or HTTP-date),
+//     capped at maxDelayMs to keep CI runtime predictable.
+//
+// Defaults: 3 retries, base 2 000 ms, cap 30 000 ms — total worst-case wait
+// per URL ≈ 2 + 4 + 8 = 14 s + jitter, comfortably under the 6-min Actions
+// step timeout. The `onRetry` hook lets callers log each retry attempt
+// without taking a dependency on a shared logger.
+export async function fetchWithRetry(
+  url,
+  init = {},
+  {
+    retries = 3,
+    baseDelayMs = 2000,
+    maxDelayMs = 30000,
+    onRetry,
+    // Test seam: lets unit tests inject a fake fetch without monkey-patching
+    // the global. Defaults to the runtime's global fetch in production.
+    fetchImpl = fetch,
+  } = {}
+) {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    let res;
+    try {
+      res = await fetchImpl(url, init);
+      if (res.ok) return res;
+      // Non-2xx: classify into retryable vs hard-fail.
+      if (res.status === 429 || res.status >= 500) {
+        lastErr = new Error(`HTTP ${res.status}`);
+      } else {
+        // 4xx other than 429 — real client error, do not retry.
+        throw new Error(`HTTP ${res.status}`);
+      }
+    } catch (e) {
+      // Re-throw the hard-fail HTTP errors so they bubble up unchanged.
+      if (e?.message?.startsWith("HTTP ") && !/(HTTP 429|HTTP 5\d\d)/.test(e.message)) {
+        throw e;
+      }
+      lastErr = e;
+    }
+    if (attempt >= retries) break;
+
+    // Honour Retry-After (RFC 7231 §7.1.3): integer seconds or HTTP-date.
+    let waitMs = baseDelayMs * Math.pow(2, attempt) + Math.floor(Math.random() * 500);
+    const retryAfter = res?.headers?.get?.("retry-after");
+    if (retryAfter) {
+      const asInt = parseInt(retryAfter, 10);
+      if (!Number.isNaN(asInt)) {
+        waitMs = Math.max(waitMs, asInt * 1000);
+      } else {
+        const asDate = Date.parse(retryAfter);
+        if (!Number.isNaN(asDate)) {
+          waitMs = Math.max(waitMs, asDate - Date.now());
+        }
+      }
+    }
+    waitMs = Math.min(waitMs, maxDelayMs);
+
+    if (typeof onRetry === "function") {
+      try {
+        onRetry({ url, attempt: attempt + 1, retries, waitMs, error: lastErr });
+      } catch {
+        /* never let logging side-effects bubble back into the retry loop */
+      }
+    }
+    await new Promise((r) => setTimeout(r, waitMs));
+  }
+  throw lastErr;
+}
+
 export async function fetchProfile(isin) {
   const url = `https://www.justetf.com/en/etf-profile.html?isin=${isin}`;
-  const res = await fetch(url, {
-    headers: { "User-Agent": USER_AGENT, "Accept-Language": "en" },
-  });
-  if (!res.ok) throw new Error(`HTTP ${res.status} for ${isin}`);
+  const res = await fetchWithRetry(
+    url,
+    { headers: { "User-Agent": USER_AGENT, "Accept-Language": "en" } },
+    {
+      onRetry: ({ attempt, retries, waitMs, error }) =>
+        console.warn(
+          `  ! ${isin}: profile fetch attempt ${attempt}/${retries} failed (${error?.message ?? "unknown"}), retrying in ${Math.round(waitMs / 100) / 10}s`
+        ),
+    }
+  );
   return await res.text();
 }

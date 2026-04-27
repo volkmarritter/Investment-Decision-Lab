@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-04-26 (per-base-currency-risk-free-rates — Task #32)
+Last updated: 2026-04-27 (justetf-fetch-retry-backoff)
 
 ---
 
@@ -619,6 +619,12 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-04-27 (justetf-fetch-retry-backoff)
+- **All justETF live fetches now retry transient failures with exponential backoff before flipping the workflow red.** The 2026-04-26 morning smoke run was the trigger — extractors still matched the live markup (a manual rerun five hours later was fully green) but a single 429 / 503 from one of the three canary fetches turned the scheduled job red. The same brittleness affected the manual `Refresh ETF listings` run that came back as `partial` (16 OK / 4 fail) for the same reason.
+  - **`scripts/lib/justetf-extract.mjs`** — new exported `fetchWithRetry(url, init, opts)` helper. Policy: retry on **HTTP 429** (Too Many Requests), any **5xx** (server-side), and any thrown network error (DNS / TCP / TLS / abort). Do NOT retry on other 4xx (404, 403) so real not-found / forbidden still fails loudly. Backoff = `baseDelayMs × 2^attempt + Random(0, 500ms)`, capped at `maxDelayMs`. Honours the `Retry-After` response header (integer seconds OR HTTP-date) when justETF sends one. Defaults: `retries = 3`, `baseDelayMs = 2 000`, `maxDelayMs = 30 000` → worst case ≈ 14 s wait per URL, well under the 6-min Actions step timeout. `onRetry` callback hook lets each caller log retry attempts without a shared logger dependency. `fetchImpl` parameter is a test seam — defaults to global `fetch` in production, lets unit tests inject fakes without monkey-patching the global.
+  - **`scripts/lib/justetf-extract.mjs#fetchProfile`**, **`scripts/refresh-lookthrough.mjs#fetchProfile`** + **`#fetchBreakdownAjax`**, and **`scripts/smoke-justetf.mjs#fetchProfile`** — all four call sites now route through `fetchWithRetry` with an `onRetry` hook that logs each retry attempt (`! ISIN: ... attempt N/M failed (...), retrying in Xs`) so a slow-rolling justETF degradation is still visible in the run log.
+  - **Tests** — 8 new cases in `tests/scrapers.test.ts#fetchWithRetry`: returns immediately on 200, retries on 429 / 503 / thrown network errors, does NOT retry on 404 / 403, gives up after `retries` attempts and surfaces the last error, fires the `onRetry` hook with 1-indexed attempt metadata. Uses `fetchImpl` injection with `baseDelayMs: 0` so the suite stays fast. Total 281 / 281 (was 273); typecheck clean; live smoke check still green.
 
 ### 2026-04-26 (welle-1-cfa-methodology-upgrades)
 - **Three CFA-/institutional-grade methodology upgrades shipped together as "Welle 1": (1) CVaR / Expected Shortfall in Monte Carlo, (2) Building-Block CMA decomposition, (3) Reverse Stress Test.** All three are pure additions on top of the existing rule-based engine — no existing weights, defaults, or test outputs change. The goal is *transparency* and *tail-aware risk*, the two areas where the previous build trailed institutional reporting standards (CFA, Solvency II, Basel).
