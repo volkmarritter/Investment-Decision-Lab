@@ -1,0 +1,54 @@
+Stufe 1 — GitHub Auto-Merge
+Was es macht: Der PR wird automatisch gemerged, sobald er geöffnet wird (oder sobald evtl. Checks grün sind). Du sparst dir den manuellen Klick auf „Merge".
+
+Zwei Varianten:
+
+A) Pro-PR auto-merge (sicherer Mittelweg)
+Beim Öffnen eines PRs erscheint ein Button „Enable auto-merge". Du klickst einmal drauf — der PR wartet kurz und mergt sich dann selbst. Vorteil: du kannst noch eingreifen, falls dir am Diff etwas auffällt.
+
+B) Branch-Protection mit Auto-Merge default
+In GitHub: Settings → Branches → Add rule for main → „Allow auto-merge" + ggf. „Automatically delete head branches". Damit ist Auto-Merge als Standard verfügbar; man kann es auch erzwingen über eine GitHub Action, die jeden vom Bot-Account geöffneten PR direkt mergt.
+
+Aufwand: ~2 Minuten Setup in GitHub, kein Code.
+
+Stufe 2 — Replit Auto-Deploy bei Push auf main
+Was es macht: Sobald ein Commit auf main landet (z.B. durch den Auto-Merge oben), startet Replit automatisch einen neuen Build + Deploy. Du klickst nie mehr „Republish".
+
+So aktivieren:
+Im Replit-„Deployments"-Panel → Tab „Settings" → Option „Redeploy on commit" (oder ähnlich benannt) einschalten. Damit hört Replit auf den Webhook von GitHub und triggert bei jedem Push auf main einen Rebuild.
+
+Aufwand: Ein Toggle, ~30 Sekunden.
+
+Mit beiden Stufen aktiv sieht der Flow so aus
+Du klickst „PR öffnen" im Admin
+    ↓ ~5 Sekunden
+PR wird auf GitHub geöffnet
+    ↓ ~5 Sekunden (Auto-Merge greift)
+Commit auf main
+    ↓ ~10 Sekunden (Webhook trifft Replit)
+Build startet automatisch
+    ↓ ~1–3 Minuten
+Live für alle Endnutzer
+
+→ Aus 3 manuellen Schritten wird 1 Klick. Gesamtzeit von „PR öffnen" bis „live": ca. 2–4 Minuten, komplett ohne weitere Aktion deinerseits.
+
+Stufe 3 (optional) — Komplett ohne PR
+Den PR-Schritt ganz weglassen und direkt in einen Override-Layer schreiben (so wie der Methodology-Tab heute schon funktioniert: sofort wirksam, kein PR, kein Deploy nötig).
+
+Aber: Das war genau der Bugfix-Anlass beim Look-through-Pool letzte Woche. Direktes Schreiben hat zwei Probleme:
+
+Ephemerer Disk-Speicher — Production-Container vergessen die Schreibe beim nächsten Restart
+Kein Audit-Trail — du kannst nicht mehr nachvollziehen, wer wann was geändert hat
+Lösbar wäre das mit einer echten Datenbank (z.B. Replit's eingebautes PostgreSQL) statt JSON-Datei. Dann:
+
+Schreibe ist persistent (überlebt Restarts)
+Frontend liest live aus der DB statt aus dem Vite-Bundle → kein Build/Deploy nötig
+Audit-Log über DB-Trigger oder eigene change_log-Tabelle
+Aufwand: Mehrere Stunden Refactoring (Schema, API-Routes, Frontend-Loader). Lohnt sich, wenn du Werte sehr oft änderst oder mehrere Operatoren hast.
+
+Meine Empfehlung
+Für dich als Solo-Operator mit gelegentlichen Anpassungen: Stufe 1 + Stufe 2 aktivieren. Das ist 5 Minuten Setup und entfernt 90 % der Klick-Arbeit, ohne Sicherheits- oder Nachvollziehbarkeits-Verlust (jede Änderung bleibt als Commit im Git sichtbar).
+
+Stufe 3 würde ich nur angehen, wenn dich nach ein paar Wochen die ~2 Minuten Build-Zeit pro Änderung wirklich stören, oder wenn ein zweiter Operator dazu kommt.
+
+Sag Bescheid, welche Stufe(n) du einrichten willst — Stufe 2 kann ich dir mit einem Screenshot des „Settings"-Tabs Schritt für Schritt zeigen, Stufe 1 läuft komplett auf GitHub und ich kann dir die genauen Klickpfade nennen.
