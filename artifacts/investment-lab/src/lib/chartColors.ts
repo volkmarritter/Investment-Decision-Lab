@@ -57,25 +57,25 @@ export function colorForBucket(name: string): string {
 }
 
 // Canonical display order for asset-class buckets across pie chart, legend,
-// stacked bar and bucket table. Same convention as standard asset-allocation
-// reporting: equity (by region) → fixed income → real estate → commodities →
-// cash → digital assets. Lower number = shown first.
+// stacked bar and bucket table. Operator convention (defensive → growth →
+// satellites): Cash → Bonds → Equity (by region) → Satellites (Real Estate /
+// Gold / Thematic Equity / Crypto). Lower number = shown first.
 const ORDER_RULES: Array<{ test: RegExp; rank: number }> = [
-  { test: /(us equity|equity\s*[-–]\s*usa|us[\s-]?aktien|aktien\s*us)/i,                                rank: 11 },
-  { test: /(europe equity|equity\s*[-–]\s*europe|europ.*aktien|aktien.*europ)/i,                        rank: 12 },
-  { test: /(uk equity|equity\s*[-–]\s*(uk|united kingdom)|aktien\s*(uk|gb))/i,                          rank: 13 },
-  { test: /(swiss equity|equity\s*[-–]\s*switzerland|aktien\s*ch|schweiz)/i,                            rank: 14 },
-  { test: /(japan equity|equity\s*[-–]\s*japan|aktien\s*japan)/i,                                       rank: 15 },
-  { test: /(em equity|equity\s*[-–]\s*em|emerging|schwellen)/i,                                         rank: 16 },
-  { test: /(thematic equity|equity\s*[-–]\s*thematic|themat)/i,                                         rank: 17 },
-  { test: /(global equity|equity\s*[-–]\s*global)/i,                                                    rank: 18 },
-  { test: /(equity\s*[-–]\s*home)/i,                                                                    rank: 19 },
-  { test: /(equity|aktien|stock)/i,                                                                     rank: 20 },
-  { test: /(bond|fixed income|anleihen|renten)/i,                                                       rank: 30 },
-  { test: /(real estate|reit|immobilien)/i,                                                             rank: 40 },
-  { test: /(gold|commodit|rohstoff)/i,                                                                  rank: 50 },
-  { test: /(cash|geldmarkt|liquid)/i,                                                                   rank: 60 },
-  { test: /(crypto|digital)/i,                                                                          rank: 70 },
+  { test: /(cash|geldmarkt|liquid)/i,                                                                   rank: 10 },
+  { test: /(bond|fixed income|anleihen|renten)/i,                                                       rank: 20 },
+  { test: /(us equity|equity\s*[-–]\s*usa|us[\s-]?aktien|aktien\s*us)/i,                                rank: 31 },
+  { test: /(europe equity|equity\s*[-–]\s*europe|europ.*aktien|aktien.*europ)/i,                        rank: 32 },
+  { test: /(uk equity|equity\s*[-–]\s*(uk|united kingdom)|aktien\s*(uk|gb))/i,                          rank: 33 },
+  { test: /(swiss equity|equity\s*[-–]\s*switzerland|aktien\s*ch|schweiz)/i,                            rank: 34 },
+  { test: /(japan equity|equity\s*[-–]\s*japan|aktien\s*japan)/i,                                       rank: 35 },
+  { test: /(em equity|equity\s*[-–]\s*em|emerging|schwellen)/i,                                         rank: 36 },
+  { test: /(global equity|equity\s*[-–]\s*global)/i,                                                    rank: 37 },
+  { test: /(equity\s*[-–]\s*home)/i,                                                                    rank: 38 },
+  { test: /(equity|aktien|stock)/i,                                                                     rank: 39 },
+  { test: /(real estate|reit|immobilien)/i,                                                             rank: 50 },
+  { test: /(gold|commodit|rohstoff)/i,                                                                  rank: 60 },
+  { test: /(thematic equity|equity\s*[-–]\s*thematic|themat)/i,                                         rank: 70 },
+  { test: /(crypto|digital)/i,                                                                          rank: 80 },
 ];
 
 export function bucketOrderKey(name: string): number {
