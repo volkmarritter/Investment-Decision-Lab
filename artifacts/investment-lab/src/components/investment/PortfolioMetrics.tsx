@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceDot } from "recharts";
-import { Sigma, Activity, BarChart3, GitCompare, TrendingUp } from "lucide-react";
+import { Sigma, Activity, BarChart3, GitCompare, ChevronDown, ChevronUp, TrendingUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { InfoHint } from "@/components/ui/info-hint";
@@ -13,6 +14,7 @@ import { useT } from "@/lib/i18n";
 export function PortfolioMetrics({ allocation, baseCurrency }: { allocation: AssetAllocation[]; baseCurrency: BaseCurrency }) {
   const { t, lang } = useT();
   const de = lang === "de";
+  const [showDetails, setShowDetails] = useState(false);
   const [rf, setRf] = useState<number>(() => getRiskFreeRate(baseCurrency));
   useEffect(() => subscribeRiskFreeRate((all) => setRf(all[baseCurrency])), [baseCurrency]);
   // Re-read RF whenever the active base currency changes (Sharpe / Alpha must
@@ -107,7 +109,7 @@ export function PortfolioMetrics({ allocation, baseCurrency }: { allocation: Ass
         <CardDescription>{t("metrics.desc")}</CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
-        {/* Scalar metrics grid */}
+        {/* Scalar metrics grid — 8 tiles, always visible */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <MetricTile label={t("metrics.expReturn")} value={pct(m.expReturn)} sub={de ? "p.a." : "p.a."} info={explain.expReturn} />
           <MetricTile label={t("metrics.vol")} value={pct(m.vol)} sub={de ? "Standardabw." : "stdev"} info={explain.vol} />
@@ -119,47 +121,57 @@ export function PortfolioMetrics({ allocation, baseCurrency }: { allocation: Ass
           <MetricTile label={t("metrics.outperf")} value={`${m.outperformance >= 0 ? "+" : ""}${pct(m.outperformance)}`} sub={de ? "vs. ACWI p.a." : "vs ACWI p.a."} accent={m.outperformance >= 0 ? "good" : "warn"} info={explain.outperf} />
         </div>
 
-        {/* Per-asset expected returns table */}
-        <div className="space-y-3 pt-2 border-t">
-          <h4 className="text-sm font-semibold flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" /> {t("metrics.assetTable.title")}
-          </h4>
-          <p className="text-xs text-muted-foreground">{t("metrics.assetTable.desc")}</p>
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{t("metrics.assetTable.asset")}</TableHead>
-                  <TableHead className="text-right">{t("metrics.assetTable.weight")}</TableHead>
-                  <TableHead className="text-right">{t("metrics.assetTable.expReturn")}</TableHead>
-                  <TableHead className="text-right">{t("metrics.assetTable.vol")}</TableHead>
-                  <TableHead className="text-right">{t("metrics.assetTable.contribution")}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {exposures.map((e) => {
-                  const cma = CMA[e.key];
-                  return (
-                    <TableRow key={e.key}>
-                      <TableCell className="font-medium text-xs">{cma.label}</TableCell>
-                      <TableCell className="text-right font-mono text-xs">{(e.weight * 100).toFixed(1)}%</TableCell>
-                      <TableCell className="text-right font-mono text-xs">{(cma.expReturn * 100).toFixed(2)}%</TableCell>
-                      <TableCell className="text-right font-mono text-xs">{(cma.vol * 100).toFixed(1)}%</TableCell>
-                      <TableCell className="text-right font-mono text-xs">{(e.weight * cma.expReturn * 100).toFixed(2)}%</TableCell>
-                    </TableRow>
-                  );
-                })}
-                <TableRow className="bg-muted/30">
-                  <TableCell className="font-semibold text-xs">{t("metrics.assetTable.total")}</TableCell>
-                  <TableCell className="text-right font-mono text-xs font-semibold">100.0%</TableCell>
-                  <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
-                  <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
-                  <TableCell className="text-right font-mono text-xs font-semibold">{(m.expReturn * 100).toFixed(2)}%</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </div>
+        {/* Show Details toggle — reveals asset table, efficient frontier, correlation matrix */}
+        <div className="flex justify-center pt-1">
+          <Button variant="outline" size="sm" onClick={() => setShowDetails((v) => !v)}>
+            {showDetails ? <ChevronUp className="h-4 w-4 mr-1" /> : <ChevronDown className="h-4 w-4 mr-1" />}
+            {showDetails ? t("build.homeBias.collapse") : t("build.homeBias.expand")}
+          </Button>
         </div>
+
+        {showDetails && (
+          <>
+            {/* Per-asset expected returns table */}
+            <div className="space-y-3 pt-2 border-t">
+              <h4 className="text-sm font-semibold flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" /> {t("metrics.assetTable.title")}
+              </h4>
+              <p className="text-xs text-muted-foreground">{t("metrics.assetTable.desc")}</p>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t("metrics.assetTable.asset")}</TableHead>
+                      <TableHead className="text-right">{t("metrics.assetTable.weight")}</TableHead>
+                      <TableHead className="text-right">{t("metrics.assetTable.expReturn")}</TableHead>
+                      <TableHead className="text-right">{t("metrics.assetTable.vol")}</TableHead>
+                      <TableHead className="text-right">{t("metrics.assetTable.contribution")}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {exposures.map((e) => {
+                      const cma = CMA[e.key];
+                      return (
+                        <TableRow key={e.key}>
+                          <TableCell className="font-medium text-xs">{cma.label}</TableCell>
+                          <TableCell className="text-right font-mono text-xs">{(e.weight * 100).toFixed(1)}%</TableCell>
+                          <TableCell className="text-right font-mono text-xs">{(cma.expReturn * 100).toFixed(2)}%</TableCell>
+                          <TableCell className="text-right font-mono text-xs">{(cma.vol * 100).toFixed(1)}%</TableCell>
+                          <TableCell className="text-right font-mono text-xs">{(e.weight * cma.expReturn * 100).toFixed(2)}%</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    <TableRow className="bg-muted/30">
+                      <TableCell className="font-semibold text-xs">{t("metrics.assetTable.total")}</TableCell>
+                      <TableCell className="text-right font-mono text-xs font-semibold">100.0%</TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+                      <TableCell className="text-right font-mono text-xs font-semibold">{(m.expReturn * 100).toFixed(2)}%</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
 
         {/* Efficient frontier */}
         <div className="space-y-3 pt-2 border-t">
@@ -264,6 +276,8 @@ export function PortfolioMetrics({ allocation, baseCurrency }: { allocation: Ass
           </p>
           <p className="text-[11px] text-muted-foreground">{t("metrics.corr.legend")}</p>
         </div>
+          </>
+        )}
 
         <p className="text-[11px] text-muted-foreground border-t pt-3 flex items-start gap-2">
           <BarChart3 className="h-3 w-3 mt-0.5 shrink-0" />
