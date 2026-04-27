@@ -80,6 +80,11 @@ export default function Admin() {
   const [token, setLocalToken] = useState<string | null>(getToken());
   const [authError, setAuthError] = useState<string | null>(null);
   const [githubConfigured, setGithubConfigured] = useState(false);
+  const [githubInfo, setGithubInfo] = useState<{
+    owner: string | null;
+    repo: string | null;
+    baseBranch: string;
+  }>({ owner: null, repo: null, baseBranch: "main" });
   // Catalog is loaded once at the page level and shared with both the
   // "Browse existing buckets" overview and the SuggestIsinPanel's
   // replace-vs-add classifier — avoids two parallel fetches on mount.
@@ -91,7 +96,14 @@ export default function Admin() {
     if (!token) return;
     adminApi
       .whoami(token)
-      .then((r) => setGithubConfigured(r.githubConfigured))
+      .then((r) => {
+        setGithubConfigured(r.githubConfigured);
+        setGithubInfo({
+          owner: r.githubOwner,
+          repo: r.githubRepo,
+          baseBranch: r.githubBaseBranch,
+        });
+      })
       .catch((e: Error) => {
         setAuthError(e.message);
         setLocalToken(null);
@@ -163,7 +175,7 @@ export default function Admin() {
       </header>
 
       <main className="container mx-auto px-4 py-8 space-y-6">
-        <DocsPanel />
+        <DocsPanel github={githubInfo} />
         <BrowseBucketsPanel catalog={catalog} catalogError={catalogError} />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <SuggestIsinPanel

@@ -47,9 +47,16 @@ router.use("/admin", requireAdmin);
 // --- /api/admin/whoami -------------------------------------------------------
 // Cheapest possible 200 — used by the UI to validate a stored token.
 router.get("/admin/whoami", (_req, res) => {
+  // We surface owner/repo/baseBranch (but never the PAT) so the Admin UI
+  // can render direct GitHub links to files and PR lists. The values come
+  // from the api-server env — if any of them is missing, githubConfigured()
+  // is false and the UI suppresses the links.
   res.json({
     ok: true,
     githubConfigured: githubConfigured(),
+    githubOwner: process.env.GITHUB_OWNER ?? null,
+    githubRepo: process.env.GITHUB_REPO ?? null,
+    githubBaseBranch: process.env.GITHUB_BASE_BRANCH ?? "main",
   });
 });
 

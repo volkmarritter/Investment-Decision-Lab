@@ -3,18 +3,37 @@
 // ----------------------------------------------------------------------------
 // Single source of truth for "where do my edits actually go and when are they
 // visible to other users?". Five flows are described, each in EN + DE:
-//   1. ETF catalog PR  — "ISIN vorschlagen" → opens PR to etfs.config.ts
+//   1. ETF catalog PR  — "ISIN vorschlagen" → opens PR to src/lib/etfs.ts
 //   2. Look-through pool PR — adds an ISIN to lookthrough.overrides.json
 //   3. App-defaults PR — RF / Home-Bias / CMA written to app-defaults.json
 //   4. Personal Methodology overrides — per-user localStorage, no PR
 //   5. Monthly refresh job — cron-driven re-scrape of pool entries
+//
+// In addition, a short "After-merge republish" insight section captures the
+// gotcha discovered on 2026-04-27: after a PR is merged on GitHub, the deploy
+// snapshot served to end users is built from whatever workspace state Replit
+// has at that moment. If the Republish click happens before the GitHub merge
+// has synced into the workspace, the snapshot will still be pre-merge — the
+// fix is to click Republish *after* the merge has landed in main.
+//
+// Each flow gets two GitHub deep links when the api-server is configured with
+// GITHUB_OWNER + GITHUB_REPO: "View file" (the file on the base branch) and
+// "Open PRs" (filter by branch-name prefix so only this flow's PRs are shown).
+// The owner/repo come through the `github` prop sourced from /admin/whoami so
+// the values stay in sync with the api-server's environment.
 //
 // Implemented as a collapsible Card to mirror BrowseBucketsPanel's pattern so
 // the operator can keep it folded once familiar but always one click away.
 // ----------------------------------------------------------------------------
 
 import { useEffect, useState } from "react";
-import { ChevronDown, ChevronRight, BookOpen } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  BookOpen,
+  ExternalLink,
+  AlertTriangle,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
@@ -22,7 +41,50 @@ import { useAdminT } from "@/lib/admin-i18n";
 
 const STORAGE_KEY = "admin.docsPanel.open";
 
-export function DocsPanel() {
+export interface DocsPanelGithub {
+  owner: string | null;
+  repo: string | null;
+  baseBranch: string;
+}
+
+interface DocsPanelProps {
+  github?: DocsPanelGithub;
+}
+
+// Build a github.com URL pointing at a specific file on the base branch.
+// Returns null when the api-server hasn't been configured with owner/repo so
+// callers can suppress the link rather than render a broken anchor.
+//
+// Path segments are individually URI-encoded (slashes preserved) so any
+// future call site can pass paths containing spaces, `#`, `?` or unicode
+// without producing a malformed URL — today's call sites are all ASCII so
+// this is defensive, not a fix for a current bug.
+function fileUrl(github: DocsPanelGithub | undefined, path: string): string | null {
+  if (!github?.owner || !github?.repo) return null;
+  const encoded = path.split("/").map(encodeURIComponent).join("/");
+  return `https://github.com/${github.owner}/${github.repo}/blob/${encodeURIComponent(github.baseBranch)}/${encoded}`;
+}
+
+// Filter the repo's PR list to a single flow by matching the branch prefix
+// used by `openAddEtfPr` / `openAddLookthroughPoolPr` / `openUpdateAppDefaultsPr`.
+// `is:pr head:add-etf/` returns every PR (open + closed) whose branch starts
+// with that prefix, which is exactly the operator's mental model of "all the
+// PRs this flow has produced".
+function prListUrl(
+  github: DocsPanelGithub | undefined,
+  branchPrefix: string,
+): string | null {
+  if (!github?.owner || !github?.repo) return null;
+  const q = encodeURIComponent(`is:pr head:${branchPrefix}`);
+  return `https://github.com/${github.owner}/${github.repo}/pulls?q=${q}`;
+}
+
+function repoUrl(github: DocsPanelGithub | undefined): string | null {
+  if (!github?.owner || !github?.repo) return null;
+  return `https://github.com/${github.owner}/${github.repo}`;
+}
+
+export function DocsPanel({ github }: DocsPanelProps) {
   const { lang, t } = useAdminT();
   const [open, setOpen] = useState<boolean>(() => {
     try {
@@ -39,6 +101,14 @@ export function DocsPanel() {
       // sessionStorage may be unavailable; preference simply doesn't persist.
     }
   }, [open]);
+
+  const repo = repoUrl(github);
+  const allPrsUrl = github?.owner && github?.repo
+    ? `https://github.com/${github.owner}/${github.repo}/pulls`
+    : null;
+  const actionsUrl = github?.owner && github?.repo
+    ? `https://github.com/${github.owner}/${github.repo}/actions`
+    : null;
 
   return (
     <Card data-testid="card-docs-panel">
@@ -78,12 +148,14 @@ export function DocsPanel() {
             })}
           </p>
 
+          <AfterMergeCallout />
+
           <FlowSection
             number={1}
             testid="docs-flow-etf-catalog"
             title={t({
-              de: "ETF-Katalog (PR auf etfs.config.ts)",
-              en: "ETF catalog (PR to etfs.config.ts)",
+              de: "ETF-Katalog (PR auf src/lib/etfs.ts)",
+              en: "ETF catalog (PR to src/lib/etfs.ts)",
             })}
             tone="emerald"
             scope={t({
@@ -94,7 +166,12 @@ export function DocsPanel() {
               de: '„ISIN vorschlagen" → Vorschau → „PR öffnen"',
               en: "'Suggest ISIN' → Preview → 'Open PR'",
             })}
-            file="artifacts/investment-lab/src/data/etfs.config.ts"
+            file="artifacts/investment-lab/src/lib/etfs.ts"
+            fileLink={fileUrl(
+              github,
+              "artifacts/investment-lab/src/lib/etfs.ts",
+            )}
+            prListLink={prListUrl(github, "add-etf/")}
             body={
               lang === "de" ? (
                 <>
@@ -154,6 +231,11 @@ export function DocsPanel() {
               en: "'Look-through data pool' → enter ISIN → 'Add'",
             })}
             file="artifacts/investment-lab/src/data/lookthrough.overrides.json"
+            fileLink={fileUrl(
+              github,
+              "artifacts/investment-lab/src/data/lookthrough.overrides.json",
+            )}
+            prListLink={prListUrl(github, "add-lookthrough-pool/")}
             body={
               lang === "de" ? (
                 <>
@@ -214,6 +296,11 @@ export function DocsPanel() {
               en: "'Global defaults' → enter values (or apply preset) → 'Open PR'",
             })}
             file="artifacts/investment-lab/src/data/app-defaults.json"
+            fileLink={fileUrl(
+              github,
+              "artifacts/investment-lab/src/data/app-defaults.json",
+            )}
+            prListLink={prListUrl(github, "update-app-defaults/")}
             body={
               lang === "de" ? (
                 <>
@@ -275,6 +362,8 @@ export function DocsPanel() {
               en: "'Methodology' tab on the main page → edit values",
             })}
             file="localStorage: investment-lab.methodology.v1"
+            fileLink={null}
+            prListLink={null}
             body={
               lang === "de" ? (
                 <>
@@ -332,7 +421,17 @@ export function DocsPanel() {
               de: 'Cron — keine manuelle Aktion (siehe „Datenaktualität" unten für den Zeitplan)',
               en: "Cron — no manual action (see 'Data freshness' below for the schedule)",
             })}
-            file="etfs.overrides.json + lookthrough.overrides.json"
+            file=".github/workflows/refresh-*.yml"
+            fileLink={
+              github?.owner && github?.repo
+                ? `https://github.com/${github.owner}/${github.repo}/tree/${github.baseBranch}/.github/workflows`
+                : null
+            }
+            prListLink={actionsUrl}
+            prListLabel={{
+              de: "GitHub Actions öffnen",
+              en: "Open GitHub Actions",
+            }}
             body={
               lang === "de" ? (
                 <>
@@ -382,9 +481,136 @@ export function DocsPanel() {
               en: "Practical order: flows 1 + 2 open PRs (review, merge, redeploy). Flow 3 opens a PR for default values. Flow 4 is a pure browser-only setting. Flow 5 runs on its own and only needs monitoring.",
             })}
           </p>
+
+          {(repo || allPrsUrl || actionsUrl) && (
+            <>
+              <Separator />
+              <section
+                className="space-y-2"
+                data-testid="docs-github-shortcuts"
+              >
+                <h3 className="font-semibold text-sm">
+                  {t({ de: "GitHub-Direktlinks", en: "GitHub shortcuts" })}
+                </h3>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+                  {repo && (
+                    <ExternalAnchor
+                      href={repo}
+                      testid="link-github-repo"
+                      label={t({ de: "Repository", en: "Repository" })}
+                    />
+                  )}
+                  {allPrsUrl && (
+                    <ExternalAnchor
+                      href={allPrsUrl}
+                      testid="link-github-all-prs"
+                      label={t({ de: "Alle Pull Requests", en: "All pull requests" })}
+                    />
+                  )}
+                  {actionsUrl && (
+                    <ExternalAnchor
+                      href={actionsUrl}
+                      testid="link-github-actions"
+                      label={t({ de: "GitHub Actions", en: "GitHub Actions" })}
+                    />
+                  )}
+                </div>
+                {!github?.owner || !github?.repo ? (
+                  <p className="text-xs text-muted-foreground">
+                    {t({
+                      de: "Hinweis: setze GITHUB_OWNER und GITHUB_REPO auf dem api-server, damit hier echte Links erscheinen.",
+                      en: "Tip: set GITHUB_OWNER and GITHUB_REPO on the api-server so real links appear here.",
+                    })}
+                  </p>
+                ) : null}
+              </section>
+            </>
+          )}
         </CardContent>
       )}
     </Card>
+  );
+}
+
+// ----------------------------------------------------------------------------
+// AfterMergeCallout — captures the 2026-04-27 republish-race finding.
+// ----------------------------------------------------------------------------
+// Operator merged two PRs on github.com, clicked Republish, and the deployed
+// app still served the pre-merge built-in defaults. Root cause: the deploy
+// snapshot is built from whatever the workspace contains at the moment the
+// Republish click is processed; if the GitHub→workspace sync hasn't pulled
+// the merge commit yet, the build is from a pre-merge state. Fix is simply
+// to Republish *again* once the merge has landed in the workspace's main.
+// ----------------------------------------------------------------------------
+function AfterMergeCallout() {
+  const { lang, t } = useAdminT();
+  return (
+    <section
+      className="rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 p-3 space-y-2"
+      data-testid="docs-after-merge-callout"
+    >
+      <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
+        <AlertTriangle className="h-4 w-4" />
+        <h3 className="font-semibold text-sm">
+          {t({
+            de: "Was passiert nach dem Merge? (Republish-Reihenfolge)",
+            en: "What happens after merge? (republish order)",
+          })}
+        </h3>
+      </div>
+      <div className="space-y-2 text-sm text-amber-900 dark:text-amber-100">
+        {lang === "de" ? (
+          <>
+            <p>
+              Merge ≠ Deploy. Die ausgelieferte App läuft aus einem{" "}
+              <strong>Snapshot</strong>, den Replit zum Zeitpunkt des
+              „Publish"-Klicks aus dem aktuellen Workspace-Stand baut. Wenn du
+              auf „Republish" klickst, <em>bevor</em> der GitHub-Merge in den
+              Workspace gesynct ist, wird ein Pre-Merge-Snapshot deployt — die
+              alten Werte bleiben sichtbar, obwohl der PR auf{" "}
+              <code>main</code> gemergt ist.
+            </p>
+            <p>
+              <strong>Korrekte Reihenfolge:</strong>{" "}
+              (1) PR auf GitHub mergen →{" "}
+              (2) kurz warten, bis der Workspace die Änderung gezogen hat (im
+              Files-Tree sichtbar) →{" "}
+              (3) <strong>dann</strong> Replit „Republish" klicken →{" "}
+              (4) im Inkognito-Fenster live prüfen.
+            </p>
+            <p>
+              Betrifft alle bundle-getragenen Daten: Flows 1, 2, 3 (siehe
+              unten). Flow 5 (monatlicher Job) ist davon unabhängig — die
+              Override-Layer-Dateien werden zur Laufzeit gelesen.
+            </p>
+          </>
+        ) : (
+          <>
+            <p>
+              Merge ≠ deploy. The live app runs from a{" "}
+              <strong>snapshot</strong> Replit builds at the moment of your
+              "Publish" click, using the current workspace contents. Clicking
+              "Republish" <em>before</em> the GitHub merge has synced into
+              the workspace ships a pre-merge snapshot — the old values stay
+              visible even though the PR is merged on <code>main</code>.
+            </p>
+            <p>
+              <strong>Correct order:</strong>{" "}
+              (1) merge the PR on GitHub →{" "}
+              (2) wait briefly for the workspace to pull the change (visible
+              in the file tree) →{" "}
+              (3) <strong>then</strong> click "Republish" in Replit →{" "}
+              (4) verify in an incognito window.
+            </p>
+            <p>
+              Applies to every bundle-carried payload: flows 1, 2, 3 (see
+              below). Flow 5 (monthly job) is unaffected — its override-layer
+              files are read at runtime.
+            </p>
+          </>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -396,6 +622,9 @@ function FlowSection({
   scope,
   trigger,
   file,
+  fileLink,
+  prListLink,
+  prListLabel,
   body,
 }: {
   number: number;
@@ -405,6 +634,11 @@ function FlowSection({
   scope: string;
   trigger: string;
   file: string;
+  fileLink: string | null;
+  prListLink: string | null;
+  // Optional override label for the second link — flow 5 uses "Open GitHub
+  // Actions" instead of "Open PRs" because there are no PRs for the cron job.
+  prListLabel?: { de: string; en: string };
   body: React.ReactNode;
 }) {
   const { t } = useAdminT();
@@ -438,7 +672,53 @@ function FlowSection({
         </dt>
         <dd className="font-mono break-all">{file}</dd>
       </dl>
+      {(fileLink || prListLink) && (
+        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
+          {fileLink && (
+            <ExternalAnchor
+              href={fileLink}
+              testid={`${testid}-link-file`}
+              label={t({ de: "Datei auf GitHub", en: "View file on GitHub" })}
+            />
+          )}
+          {prListLink && (
+            <ExternalAnchor
+              href={prListLink}
+              testid={`${testid}-link-prs`}
+              label={t(
+                prListLabel ?? {
+                  de: "PRs dieses Flows",
+                  en: "PRs from this flow",
+                },
+              )}
+            />
+          )}
+        </div>
+      )}
       <div className="space-y-2 text-sm">{body}</div>
     </section>
+  );
+}
+
+function ExternalAnchor({
+  href,
+  testid,
+  label,
+}: {
+  href: string;
+  testid: string;
+  label: string;
+}) {
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noopener noreferrer"
+      data-testid={testid}
+      className="inline-flex items-center gap-1 text-primary hover:underline"
+    >
+      {label}
+      <ExternalLink className="h-3 w-3" />
+    </a>
   );
 }

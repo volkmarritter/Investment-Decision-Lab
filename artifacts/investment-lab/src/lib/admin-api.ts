@@ -156,7 +156,13 @@ export type CatalogSummary = Record<string, CatalogEntrySummary>;
 
 export const adminApi = {
   whoami: (token?: string) =>
-    call<{ ok: boolean; githubConfigured: boolean }>("/admin/whoami", {
+    call<{
+      ok: boolean;
+      githubConfigured: boolean;
+      githubOwner: string | null;
+      githubRepo: string | null;
+      githubBaseBranch: string;
+    }>("/admin/whoami", {
       token,
     }),
   changes: (limit = 50) =>

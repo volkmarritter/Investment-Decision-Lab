@@ -1522,11 +1522,22 @@ describe("CMA layered overrides", () => {
     delete (globalThis as { window?: unknown }).window;
     try {
       // No window → defaults must be returned by getRiskFreeRate(ccy).
-      expect(settings.getRiskFreeRate("USD")).toBeCloseTo(0.0425, 6);
-      expect(settings.getRiskFreeRate("EUR")).toBeCloseTo(0.0250, 6);
-      expect(settings.getRiskFreeRate("GBP")).toBeCloseTo(0.0400, 6);
-      expect(settings.getRiskFreeRate("CHF")).toBeCloseTo(0.0050, 6);
-      expect(settings.RF_DEFAULTS).toEqual({ USD: 0.0425, EUR: 0.0250, GBP: 0.0400, CHF: 0.0050 });
+      // The exact values depend on whatever overlay app-defaults.json
+      // currently ships, so we reference RF_DEFAULTS as the source of truth
+      // rather than hardcoding numbers that bit-rot every time an admin PR
+      // tweaks the global defaults (this test broke 3 times in 2026-04-27
+      // for exactly that reason).
+      expect(settings.getRiskFreeRate("USD")).toBeCloseTo(settings.RF_DEFAULTS.USD, 6);
+      expect(settings.getRiskFreeRate("EUR")).toBeCloseTo(settings.RF_DEFAULTS.EUR, 6);
+      expect(settings.getRiskFreeRate("GBP")).toBeCloseTo(settings.RF_DEFAULTS.GBP, 6);
+      expect(settings.getRiskFreeRate("CHF")).toBeCloseTo(settings.RF_DEFAULTS.CHF, 6);
+      // Sanity-check the structural contract: all four currencies present,
+      // all in the [0, 0.2] band that clampRf enforces.
+      expect(Object.keys(settings.RF_DEFAULTS).sort()).toEqual(["CHF", "EUR", "GBP", "USD"]);
+      for (const v of Object.values(settings.RF_DEFAULTS)) {
+        expect(v).toBeGreaterThanOrEqual(0);
+        expect(v).toBeLessThanOrEqual(0.2);
+      }
     } finally {
       if (orig) (globalThis as unknown as { window: typeof orig }).window = orig;
     }
@@ -1627,15 +1638,18 @@ describe("CMA layered overrides", () => {
     };
     try {
       // Override CHF only; USD / EUR / GBP must stay on their defaults.
+      // (Defaults are sourced from RF_DEFAULTS so this stays valid when an
+      // admin PR changes app-defaults.json — see the "per-currency RF
+      // defaults" test above for the same reasoning.)
       settings.setRiskFreeRate("CHF", 0.012);
       expect(settings.getRiskFreeRate("CHF")).toBeCloseTo(0.012, 6);
-      expect(settings.getRiskFreeRate("USD")).toBeCloseTo(0.0425, 6);
-      expect(settings.getRiskFreeRate("EUR")).toBeCloseTo(0.0250, 6);
-      expect(settings.getRiskFreeRate("GBP")).toBeCloseTo(0.0400, 6);
+      expect(settings.getRiskFreeRate("USD")).toBeCloseTo(settings.RF_DEFAULTS.USD, 6);
+      expect(settings.getRiskFreeRate("EUR")).toBeCloseTo(settings.RF_DEFAULTS.EUR, 6);
+      expect(settings.getRiskFreeRate("GBP")).toBeCloseTo(settings.RF_DEFAULTS.GBP, 6);
       // Reset CHF brings it back to its default; others still untouched.
       settings.resetRiskFreeRate("CHF");
-      expect(settings.getRiskFreeRate("CHF")).toBeCloseTo(0.0050, 6);
-      expect(settings.getRiskFreeRate("USD")).toBeCloseTo(0.0425, 6);
+      expect(settings.getRiskFreeRate("CHF")).toBeCloseTo(settings.RF_DEFAULTS.CHF, 6);
+      expect(settings.getRiskFreeRate("USD")).toBeCloseTo(settings.RF_DEFAULTS.USD, 6);
       // After the only override is reset, the storage key is removed so
       // getRiskFreeRateOverrides() returns {}.
       expect(settings.getRiskFreeRateOverrides()).toEqual({});
@@ -1646,7 +1660,7 @@ describe("CMA layered overrides", () => {
   });
 
   it("per-currency RF: getRiskFreeRates sanitization drops unknown currencies and clamps out-of-bounds values", async () => {
-    const { getRiskFreeRates, getRiskFreeRateOverrides } = await import("../src/lib/settings");
+    const { getRiskFreeRates, getRiskFreeRateOverrides, RF_DEFAULTS } = await import("../src/lib/settings");
     const fakeStore: Record<string, string> = {
       "idl.riskFreeRates": JSON.stringify({
         USD: 0.05,
@@ -1665,7 +1679,7 @@ describe("CMA layered overrides", () => {
       expect(rates.USD).toBeCloseTo(0.05, 6);
       expect(rates.EUR).toBeCloseTo(0.20, 6);   // clamped to upper bound
       expect(rates.GBP).toBeCloseTo(0, 6);      // clamped to lower bound
-      expect(rates.CHF).toBeCloseTo(0.0050, 6); // wrong type → falls through to default
+      expect(rates.CHF).toBeCloseTo(RF_DEFAULTS.CHF, 6); // wrong type → falls through to default
       const ov = getRiskFreeRateOverrides();
       // overrides view should NOT include unknown currencies or wrong-type ones
       expect(Object.keys(ov).sort()).toEqual(["EUR", "GBP", "USD"]);
