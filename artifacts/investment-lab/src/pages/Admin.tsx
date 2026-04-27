@@ -1251,8 +1251,8 @@ function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
           {!loading && entries && entries.length > 0 && (
             <>
               <p className="text-xs text-muted-foreground mb-1">
-                {entries.length} ETF{entries.length === 1 ? "" : "s"} im
-                Datenpool. Status pro Eintrag:{" "}
+                {entries.length} ETF{entries.length === 1 ? "" : "s"} mit
+                Look-through-Daten. Status pro Eintrag:{" "}
                 <Badge variant="outline" className="border-emerald-600 text-emerald-700 dark:text-emerald-400">
                   Daten OK
                 </Badge>{" "}
@@ -1264,13 +1264,16 @@ function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
                 <Badge variant="outline" className="border-rose-600 text-rose-700 dark:text-rose-400">
                   Daten fehlen
                 </Badge>{" "}
-                = mindestens eine Quelle leer.
+                = mindestens eine Quelle leer. Quelle: <em>Kuratiert</em> =
+                manuell im Repo gepflegt; <em>Auto-Refresh</em> = vom
+                monatlichen Scrape-Job geschrieben.
               </p>
               <div className="overflow-auto max-h-96 border rounded">
                 <table className="text-xs w-full">
                   <thead className="bg-muted/40 sticky top-0">
                     <tr className="text-left">
                       <th className="px-2 py-1 font-medium">Status</th>
+                      <th className="px-2 py-1 font-medium">Quelle</th>
                       <th className="px-2 py-1 font-medium">ISIN</th>
                       <th className="px-2 py-1 font-medium">Name (Katalog)</th>
                       <th className="px-2 py-1 font-medium">Positionen</th>
@@ -1298,6 +1301,25 @@ function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
                               data-testid={`badge-pool-status-${e.isin}`}
                             >
                               {status.label}
+                            </Badge>
+                          </td>
+                          <td className="px-2 py-1">
+                            <Badge
+                              variant="outline"
+                              className={
+                                e.source === "pool"
+                                  ? "border-sky-600 text-sky-700 dark:text-sky-400"
+                                  : e.source === "both"
+                                    ? "border-violet-600 text-violet-700 dark:text-violet-400"
+                                    : "border-slate-500 text-slate-700 dark:text-slate-400"
+                              }
+                              data-testid={`badge-pool-source-${e.isin}`}
+                            >
+                              {e.source === "pool"
+                                ? "Auto-Refresh"
+                                : e.source === "both"
+                                  ? "Beide"
+                                  : "Kuratiert"}
                             </Badge>
                           </td>
                           <td className="px-2 py-1 font-mono">{e.isin}</td>

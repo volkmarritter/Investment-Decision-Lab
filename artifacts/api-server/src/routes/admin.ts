@@ -248,15 +248,32 @@ router.post("/admin/add-isin", async (req, res) => {
 // a list of what's already in.
 router.get("/admin/lookthrough-pool", async (_req, res) => {
   try {
-    const pool = await readLookthroughPool();
-    const entries = Object.entries(pool).map(([isin, p]) => ({
-      isin,
-      topHoldingsAsOf: p.topHoldingsAsOf ?? null,
-      breakdownsAsOf: p.breakdownsAsOf ?? null,
-      topHoldingCount: p.topHoldings?.length ?? 0,
-      geoCount: p.geo ? Object.keys(p.geo).length : 0,
-      sectorCount: p.sector ? Object.keys(p.sector).length : 0,
-    }));
+    // Beide Quellen mergen: `overrides` = manuell kuratierte Baseline,
+    // `pool` = vom monatlichen Refresh-Job geschriebene Live-Daten.
+    // Aus Operator-Sicht sind beide gleichwertig "Look-through ist
+    // verfügbar" — die Tabelle muss beide zeigen, sonst entsteht der
+    // Eindruck, der Pool sei leer, obwohl 11 ETFs in `overrides` stehen.
+    // Bei Kollisionen gewinnt `pool` (frischere Refresh-Daten).
+    const { overrides, pool } = await readLookthroughSources();
+    const allIsins = new Set<string>([
+      ...Object.keys(overrides),
+      ...Object.keys(pool),
+    ]);
+    const entries = Array.from(allIsins).map((isin) => {
+      const p = pool[isin];
+      const o = overrides[isin];
+      const src = p ?? o;
+      const source: "pool" | "overrides" | "both" = p && o ? "both" : p ? "pool" : "overrides";
+      return {
+        isin,
+        source,
+        topHoldingsAsOf: src.topHoldingsAsOf ?? null,
+        breakdownsAsOf: src.breakdownsAsOf ?? null,
+        topHoldingCount: src.topHoldings?.length ?? 0,
+        geoCount: src.geo ? Object.keys(src.geo).length : 0,
+        sectorCount: src.sector ? Object.keys(src.sector).length : 0,
+      };
+    });
     entries.sort((a, b) => a.isin.localeCompare(b.isin));
     res.json({ entries });
   } catch (err) {
@@ -369,27 +386,44 @@ router.post("/admin/lookthrough-pool/:isin", async (req, res) => {
   }
 });
 
-async function readLookthroughPool(): Promise<
-  Record<
-    string,
-    {
-      topHoldings?: Array<{ name: string; pct: number }>;
-      topHoldingsAsOf?: string;
-      geo?: Record<string, number>;
-      sector?: Record<string, number>;
-      currency?: Record<string, number>;
-      breakdownsAsOf?: string;
-    }
-  >
-> {
+type LookthroughEntryShape = {
+  topHoldings?: Array<{ name: string; pct: number }>;
+  topHoldingsAsOf?: string;
+  geo?: Record<string, number>;
+  sector?: Record<string, number>;
+  currency?: Record<string, number>;
+  breakdownsAsOf?: string;
+};
+
+// Liefert beide Sektionen der Datei. `overrides` = manuell kuratierte
+// Baseline (Repo-eingecheckt), `pool` = vom monatlichen Refresh-Job
+// geschriebene Live-Daten. Aus Frontend-Sicht sind beide gleichwertig
+// "Look-through-Daten verfügbar".
+async function readLookthroughSources(): Promise<{
+  overrides: Record<string, LookthroughEntryShape>;
+  pool: Record<string, LookthroughEntryShape>;
+}> {
   try {
     const raw = JSON.parse(
       await readFile(dataFile("lookthrough.overrides.json"), "utf8"),
     );
-    return (raw?.pool ?? {}) as Record<string, never>;
+    return {
+      overrides: (raw?.overrides ?? {}) as Record<string, LookthroughEntryShape>,
+      pool: (raw?.pool ?? {}) as Record<string, LookthroughEntryShape>,
+    };
   } catch {
-    return {};
+    return { overrides: {}, pool: {} };
   }
+}
+
+// Beibehaltener Helper für Schreibpfade, die nur den auto-refresh-Pool
+// berühren dürfen (POST /admin/lookthrough-pool/:isin schreibt
+// ausschliesslich in `pool[isin]` — die kuratierten `overrides` bleiben
+// unangetastet).
+async function readLookthroughPool(): Promise<
+  Record<string, LookthroughEntryShape>
+> {
+  return (await readLookthroughSources()).pool;
 }
 
 // --- helpers -----------------------------------------------------------------

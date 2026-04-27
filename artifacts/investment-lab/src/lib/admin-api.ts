@@ -246,6 +246,12 @@ export interface AppDefaultsPayload {
 
 export interface LookthroughPoolEntry {
   isin: string;
+  // Quelle des Eintrags innerhalb von lookthrough.overrides.json:
+  //   "overrides" = manuell kuratierte Baseline (Repo-eingecheckt),
+  //   "pool"      = vom monatlichen Refresh-Job geschriebene Live-Daten,
+  //   "both"      = ISIN existiert in beiden Sektionen (pool gewinnt
+  //                 inhaltlich, weil frischer).
+  source: "overrides" | "pool" | "both";
   topHoldingsAsOf: string | null;
   breakdownsAsOf: string | null;
   topHoldingCount: number;
