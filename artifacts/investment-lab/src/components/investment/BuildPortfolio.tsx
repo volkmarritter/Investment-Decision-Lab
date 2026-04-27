@@ -922,6 +922,26 @@ export function BuildPortfolio() {
                       ))}
                     </ul>
 
+                    {/* Heading for the bucket table. Makes explicit that
+                     * this table shows the user-selected rows — i.e. it is
+                     * NOT look-through-decomposed even when the toggle is
+                     * ON (in which case the pie + bar above ARE
+                     * decomposed). Avoids the ambiguity an operator
+                     * flagged after the look-through pie change. */}
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-semibold">
+                        {lang === "de" ? "Allokation nach Zeile (deine Auswahl)" : "Allocation by row (your selection)"}
+                      </h4>
+                      <p className="text-xs text-muted-foreground">
+                        {watchedLookThroughView && output.etfImplementation.length > 0
+                          ? (lang === "de"
+                              ? "Diese Tabelle zeigt die von dir gewählten Buckets — ohne Look-Through. Pie und Balken oben sind über die ETF-Bestände zerlegt."
+                              : "This table shows the buckets you picked — without look-through. The pie and bar above are decomposed via the ETF holdings.")
+                          : (lang === "de"
+                              ? "Die von dir gewählten Buckets. Look-Through ist aus, daher zeigen Pie, Balken und Tabelle dieselbe Sicht."
+                              : "The buckets you picked. Look-through is off, so the pie, bar and table all show the same view.")}
+                      </p>
+                    </div>
                     <div className="rounded-md border">
                       <Table>
                         <TableHeader>
