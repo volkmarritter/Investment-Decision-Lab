@@ -613,14 +613,14 @@ export function ComparePortfolios() {
                                     <Cell key={`cell-${index}`} fill={colorForBucket(entry.name)} />
                                   ))}
                                 </Pie>
-                                <RechartsTooltip formatter={(value: number) => [`${value.toFixed(1)}%`, tr("Weight", "Gewicht")]} contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }} />
+                                <RechartsTooltip formatter={(value: number, name: string) => [`${value.toFixed(1)}%`, name]} contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }} />
                               </PieChart>
                             </ResponsiveContainer>
                           </div>
                         </div>
                         <div className="h-4 w-full flex rounded-full overflow-hidden mt-4">
                           {item.data.map((d, i) => (
-                            <div key={i} style={{ width: `${d.value}%`, backgroundColor: colorForBucket(d.name) }} title={`${d.name}: ${d.value}%`} className="h-full" />
+                            <div key={i} style={{ width: `${d.value}%`, backgroundColor: colorForBucket(d.name) }} title={`${d.name}: ${d.value.toFixed(1)}%`} className="h-full" />
                           ))}
                         </div>
                         <ul

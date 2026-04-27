@@ -877,7 +877,7 @@ export function BuildPortfolio() {
                               ))}
                             </Pie>
                             <RechartsTooltip
-                              formatter={(value: number) => [`${value.toFixed(1)}%`, 'Weight']}
+                              formatter={(value: number, name: string) => [`${value.toFixed(1)}%`, name]}
                               contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }}
                             />
                           </PieChart>
@@ -891,7 +891,7 @@ export function BuildPortfolio() {
                         <div 
                           key={i} 
                           style={{ width: `${d.value}%`, backgroundColor: colorForBucket(d.name) }} 
-                          title={`${d.name}: ${d.value}%`}
+                          title={`${d.name}: ${d.value.toFixed(1)}%`}
                           className="h-full transition-all duration-500 hover:brightness-110"
                         />
                       ))}
