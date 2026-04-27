@@ -868,6 +868,8 @@ export function BuildPortfolio() {
                               paddingAngle={2}
                               dataKey="value"
                               stroke="none"
+                              startAngle={90}
+                              endAngle={-270}
                             >
                               {chartData.map((entry, index) => (
                                 <Cell key={`cell-${index}`} fill={colorForBucket(entry.name)} />
