@@ -32,7 +32,8 @@ jobs:
       (
         startsWith(github.event.pull_request.head.ref, 'add-etf/') ||
         startsWith(github.event.pull_request.head.ref, 'add-lookthrough-pool/') ||
-        startsWith(github.event.pull_request.head.ref, 'update-app-defaults/')
+        startsWith(github.event.pull_request.head.ref, 'update-app-defaults/') ||
+        startsWith(github.event.pull_request.head.ref, 'backfill-')
       )
     runs-on: ubuntu-latest
     steps:
