@@ -26,7 +26,7 @@ import { PortfolioInput, PortfolioOutput, ValidationResult } from "@/lib/types";
 import { runValidation } from "@/lib/validation";
 import { buildPortfolio } from "@/lib/portfolio";
 import { mapAllocationToAssetsLookthrough, CMA } from "@/lib/metrics";
-import { colorForBucket } from "@/lib/chartColors";
+import { colorForBucket, bucketOrderKey } from "@/lib/chartColors";
 import { defaultExchangeFor } from "@/lib/exchange";
 import { diffPortfolios } from "@/lib/compare";
 import type { ManualWeights } from "@/lib/manualWeights";
@@ -167,7 +167,9 @@ export function ComparePortfolios() {
       name: `${a.assetClass} - ${a.region}`,
       value: a.weight,
     }));
-    if (!input || !input.lookThroughView || out.etfImplementation.length === 0) return base;
+    if (!input || !input.lookThroughView || out.etfImplementation.length === 0) {
+      return base.slice().sort((x, y) => bucketOrderKey(x.name) - bucketOrderKey(y.name));
+    }
     const lt = mapAllocationToAssetsLookthrough(
       out.allocation,
       out.etfImplementation,
@@ -175,7 +177,8 @@ export function ComparePortfolios() {
     );
     return lt
       .filter(e => e.weight > 0)
-      .map(e => ({ name: CMA[e.key].label, value: e.weight * 100 }));
+      .map(e => ({ name: CMA[e.key].label, value: e.weight * 100 }))
+      .sort((x, y) => bucketOrderKey(x.name) - bucketOrderKey(y.name));
   };
   const chartDataA = buildChartData(outputA, inputA);
   const chartDataB = buildChartData(outputB, inputB);

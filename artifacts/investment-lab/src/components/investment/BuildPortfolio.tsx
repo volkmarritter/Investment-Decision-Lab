@@ -36,7 +36,7 @@ import { PortfolioInput, PortfolioOutput, ValidationResult } from "@/lib/types";
 import { runValidation } from "@/lib/validation";
 import { buildPortfolio, computeNaturalBucketCount } from "@/lib/portfolio";
 import { mapAllocationToAssetsLookthrough, CMA } from "@/lib/metrics";
-import { colorForBucket } from "@/lib/chartColors";
+import { colorForBucket, bucketOrderKey } from "@/lib/chartColors";
 import { defaultExchangeFor } from "@/lib/exchange";
 import { setLastAllocation, setLastEtfImplementation } from "@/lib/settings";
 import { StressTest } from "./StressTest";
@@ -222,10 +222,10 @@ export function BuildPortfolio() {
     }, 100);
   };
 
-  const baseChartData = output?.allocation.map(a => ({
+  const baseChartData = (output?.allocation.map(a => ({
     name: `${a.assetClass} - ${a.region}`,
     value: a.weight
-  })) || [];
+  })) || []).slice().sort((x, y) => bucketOrderKey(x.name) - bucketOrderKey(y.name));
 
   // When Look-Through is ON and an ETF implementation exists, decompose the
   // pie/stacked-bar into the underlying country buckets (e.g. Equity-Europe
@@ -242,7 +242,8 @@ export function BuildPortfolio() {
     );
     return lt
       .filter(e => e.weight > 0)
-      .map(e => ({ name: CMA[e.key].label, value: e.weight * 100 }));
+      .map(e => ({ name: CMA[e.key].label, value: e.weight * 100 }))
+      .sort((x, y) => bucketOrderKey(x.name) - bucketOrderKey(y.name));
   })();
 
   return (
@@ -946,7 +947,10 @@ export function BuildPortfolio() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {output.allocation.map((alloc, i) => (
+                          {output.allocation
+                            .slice()
+                            .sort((a, b) => bucketOrderKey(`${a.assetClass} - ${a.region}`) - bucketOrderKey(`${b.assetClass} - ${b.region}`))
+                            .map((alloc, i) => (
                             <TableRow key={i}>
                               <TableCell className="font-medium">{alloc.assetClass}</TableCell>
                               <TableCell className="text-muted-foreground">{alloc.region}</TableCell>
