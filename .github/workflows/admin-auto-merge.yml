@@ -1,0 +1,100 @@
+name: Auto-merge admin PRs
+
+# Auto-merges PRs opened by the in-app admin (Investment Decision Lab).
+# Closes the recurring "operator forgot to merge" / "operator merged but
+# republished too early" loop documented in DocsPanel's AfterMergeCallout.
+#
+# Scope is intentionally narrow: only branches whose name starts with one
+# of the three admin-flow prefixes are touched. Anything human-authored
+# (manual hotfixes, refactors, dependency bumps) merges the normal way.
+# Draft PRs are also skipped, so the operator can still "convert to draft"
+# on a PR they want to inspect first.
+#
+# Safety: the action polls GitHub until `mergeable` is decided (it can be
+# null right after PR creation while GitHub computes the merge), and
+# refuses to merge if the result is anything other than `true`. This means
+# real conflicts surface as a failed Action run instead of a corrupt main.
+
+on:
+  pull_request:
+    types: [opened, ready_for_review, synchronize, reopened]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    # Only act on the three admin-generated branch prefixes, and never on
+    # drafts. Anything else is left alone for human review.
+    if: |
+      !github.event.pull_request.draft &&
+      (
+        startsWith(github.event.pull_request.head.ref, 'add-etf/') ||
+        startsWith(github.event.pull_request.head.ref, 'add-lookthrough-pool/') ||
+        startsWith(github.event.pull_request.head.ref, 'update-app-defaults/')
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wait for mergeable status, then squash-merge
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const pr = context.payload.pull_request;
+            core.info(`PR #${pr.number} on branch ${pr.head.ref}`);
+
+            // GitHub computes `mergeable` asynchronously after the PR is
+            // opened. The webhook payload usually has it as null on the
+            // very first event. Poll up to ~60s before giving up.
+            let mergeable = pr.mergeable;
+            let mergeable_state = pr.mergeable_state;
+            for (let attempt = 0; attempt < 20 && mergeable === null; attempt++) {
+              await new Promise((r) => setTimeout(r, 3000));
+              const { data } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: pr.number,
+              });
+              mergeable = data.mergeable;
+              mergeable_state = data.mergeable_state;
+              core.info(`attempt ${attempt + 1}: mergeable=${mergeable} state=${mergeable_state}`);
+            }
+
+            if (mergeable !== true) {
+              core.setFailed(
+                `PR #${pr.number} not mergeable (mergeable=${mergeable}, state=${mergeable_state}). ` +
+                `Resolve conflicts and re-run, or merge manually.`,
+              );
+              return;
+            }
+
+            // `blocked` covers required-checks/required-reviews. Treat as a
+            // hard stop so future branch-protection rules can opt this PR
+            // out of auto-merge cleanly.
+            if (mergeable_state === 'blocked' || mergeable_state === 'behind') {
+              core.setFailed(
+                `PR #${pr.number} is in state '${mergeable_state}' — declining to auto-merge.`,
+              );
+              return;
+            }
+
+            await github.rest.pulls.merge({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: pr.number,
+              merge_method: 'squash',
+            });
+            core.info(`PR #${pr.number} merged.`);
+
+            // Best-effort branch cleanup. Failure here is non-fatal — the
+            // merge already happened.
+            try {
+              await github.rest.git.deleteRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `heads/${pr.head.ref}`,
+              });
+              core.info(`Branch ${pr.head.ref} deleted.`);
+            } catch (err) {
+              core.warning(`Could not delete branch ${pr.head.ref}: ${err.message}`);
+            }
