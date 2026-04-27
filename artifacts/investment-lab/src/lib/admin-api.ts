@@ -223,7 +223,29 @@ export const adminApi = {
         body: JSON.stringify({ value, summary }),
       },
     ),
+  // Lists currently-open PRs on the configured GitHub repo, optionally
+  // scoped to a single admin flow via branch prefix:
+  //   "add-lookthrough-pool/" | "add-etf/" | "update-app-defaults/"
+  // Uses the REST list-pulls endpoint server-side (NOT the search API)
+  // so it is unaffected by GitHub's occasional search-index lag.
+  listOpenPrs: (prefix?: string) => {
+    const qs = prefix ? `?prefix=${encodeURIComponent(prefix)}` : "";
+    return call<{
+      configured: boolean;
+      prs: OpenPrInfo[];
+      message?: string;
+    }>(`/admin/github/prs${qs}`);
+  },
 };
+
+export interface OpenPrInfo {
+  number: number;
+  url: string;
+  title: string;
+  headRef: string;
+  createdAt: string;
+  draft: boolean;
+}
 
 // Mirrors the validated payload shape from artifacts/api-server/src/lib/app-defaults.ts.
 // Keep in sync with that file's exports.

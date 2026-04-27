@@ -10,7 +10,7 @@
 // token unlocks PR creation against the user's GitHub repo.
 // ----------------------------------------------------------------------------
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   adminApi,
   clearToken,
@@ -25,6 +25,7 @@ import {
   type ChangeEntry,
   type FreshnessResponse,
   type LookthroughPoolEntry,
+  type OpenPrInfo,
   type PreviewResponse,
   type RunLogRow,
 } from "@/lib/admin-api";
@@ -55,7 +56,7 @@ import { ThemeToggle } from "@/components/theme-toggle";
 import { LangToggle } from "@/components/lang-toggle";
 import { DocsPanel } from "@/components/admin/DocsPanel";
 import { useAdminT } from "@/lib/admin-i18n";
-import { ChevronDown, ChevronRight, Layers, LogOut, RefreshCw } from "lucide-react";
+import { ChevronDown, ChevronRight, ExternalLink, GitPullRequest, Layers, LogOut, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import {
   BucketTree,
@@ -1354,6 +1355,136 @@ function poolStatusLabel(tone: PoolStatusTone, lang: "de" | "en"): string {
   return lang === "de" ? "Daten fehlen" : "Data missing";
 }
 
+// PendingPrsCard — reliable inline list of open GitHub PRs scoped to a single
+// admin flow (passed via `prefix`). Replaces the operator's reliance on the
+// public github.com/.../pulls page, which can show stale "0 open" counts due
+// to GitHub's search-index lag (real bug 2026-04-27). Uses the REST list-pulls
+// API server-side, so the count is always correct. Re-render the parent with
+// a different `refreshKey` value to force a refetch (e.g. after opening a PR).
+function PendingPrsCard({
+  prefix,
+  refreshKey = 0,
+  emptyHint,
+}: {
+  prefix: string;
+  refreshKey?: number;
+  emptyHint?: React.ReactNode;
+}) {
+  const { t, lang } = useAdminT();
+  const [prs, setPrs] = useState<OpenPrInfo[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setErrMsg(null);
+    try {
+      const r = await adminApi.listOpenPrs(prefix);
+      setPrs(r.prs);
+      if (r.message) setErrMsg(r.message);
+    } catch (e: unknown) {
+      setErrMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  }, [prefix]);
+
+  useEffect(() => {
+    void load();
+  }, [load, refreshKey]);
+
+  const fmtAge = (iso: string) => {
+    const ms = Date.now() - new Date(iso).getTime();
+    if (ms < 60_000) return lang === "de" ? "gerade eben" : "just now";
+    const m = Math.floor(ms / 60_000);
+    if (m < 60) return lang === "de" ? `vor ${m} Min` : `${m} min ago`;
+    const h = Math.floor(m / 60);
+    if (h < 48) return lang === "de" ? `vor ${h} Std` : `${h} h ago`;
+    const d = Math.floor(h / 24);
+    return lang === "de" ? `vor ${d} Tagen` : `${d} d ago`;
+  };
+
+  return (
+    <div
+      className="rounded-md border border-border bg-muted/30 p-3 space-y-2"
+      data-testid={`pending-prs-${prefix.replace(/[^a-z0-9]+/gi, "-")}`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <GitPullRequest className="h-4 w-4 text-muted-foreground" />
+          <span className="text-sm font-medium">
+            {t({
+              de: "Offene PRs (warten auf Merge)",
+              en: "Open PRs (awaiting merge)",
+            })}
+          </span>
+          {prs && (
+            <span className="text-xs text-muted-foreground">
+              {prs.length}
+            </span>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => void load()}
+          disabled={loading}
+          className="text-xs text-muted-foreground hover:text-foreground disabled:opacity-50"
+          title={t({ de: "Aktualisieren", en: "Refresh" })}
+          data-testid={`pending-prs-refresh-${prefix.replace(/[^a-z0-9]+/gi, "-")}`}
+        >
+          <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+        </button>
+      </div>
+      {errMsg && (
+        <p className="text-xs text-destructive">{errMsg}</p>
+      )}
+      {!errMsg && prs && prs.length === 0 && (
+        <p className="text-xs text-muted-foreground">
+          {emptyHint ??
+            t({
+              de: "Keine offenen PRs in diesem Flow.",
+              en: "No open PRs in this flow.",
+            })}
+        </p>
+      )}
+      {prs && prs.length > 0 && (
+        <ul className="space-y-1.5">
+          {prs.map((p) => (
+            <li
+              key={p.number}
+              className="flex items-center justify-between gap-3 text-sm"
+              data-testid={`pending-pr-${p.number}`}
+            >
+              <div className="min-w-0 flex-1">
+                <span className="font-medium">#{p.number}</span>
+                {p.draft && (
+                  <span className="ml-1.5 text-xs text-muted-foreground">
+                    (draft)
+                  </span>
+                )}
+                <span className="ml-2 truncate">{p.title}</span>
+                <span className="ml-2 text-xs text-muted-foreground">
+                  · {fmtAge(p.createdAt)}
+                </span>
+              </div>
+              <a
+                href={p.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-xs text-primary hover:underline shrink-0"
+                data-testid={`pending-pr-link-${p.number}`}
+              >
+                {t({ de: "Öffnen", en: "Open" })}
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
 function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
   const { t, lang } = useAdminT();
   const [isin, setIsin] = useState("");
@@ -1361,6 +1492,9 @@ function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
+  // Bumped after every successful PR-creating action so the embedded
+  // PendingPrsCard refetches and shows the new PR without manual reload.
+  const [prsRefreshKey, setPrsRefreshKey] = useState(0);
   // Letzter erfolgreich geöffneter PR — wird inline unter dem Eingabefeld
   // angezeigt mit klickbarem Link, damit der Operator direkt review +
   // merge kann. Auf null gesetzt bei jedem neuen Submit-Versuch.
@@ -1422,9 +1556,14 @@ function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
         },
       );
       setIsin("");
+      setPrsRefreshKey((k) => k + 1);
       await load();
     } catch (e: unknown) {
       setErrMsg(e instanceof Error ? e.message : String(e));
+      // Even on error (e.g. "branch already exists"), refresh the pending
+      // PRs list so the operator sees the existing PR they had forgotten
+      // about — that's exactly the scenario the new error message hints at.
+      setPrsRefreshKey((k) => k + 1);
     } finally {
       setSubmitting(false);
     }
@@ -1540,6 +1679,14 @@ function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
             </AlertDescription>
           </Alert>
         )}
+        <PendingPrsCard
+          prefix="add-lookthrough-pool/"
+          refreshKey={prsRefreshKey}
+          emptyHint={t({
+            de: "Keine offenen Pool-PRs — alle Adds sind gemerged.",
+            en: "No open pool PRs — all adds are merged.",
+          })}
+        />
         <div data-testid="lookthrough-pool-list">
           {loading && (
             <p className="text-sm text-muted-foreground">

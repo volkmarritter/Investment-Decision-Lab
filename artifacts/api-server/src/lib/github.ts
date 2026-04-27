@@ -504,3 +504,47 @@ function buildPrBody(
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
+
+// ---------------------------------------------------------------------------
+// listOpenPrs — used by the admin UI to render a reliable "open PRs awaiting
+// merge" list inline. Critically uses the REST list-pulls API (not the
+// search API) so it's not affected by the GitHub search-index lag that
+// occasionally causes the public /pulls page to show "0 open" for new
+// repos with low activity (real bug, 2026-04-27).
+//
+// `prefix` filters to PRs whose head branch starts with the given string —
+// e.g. "add-lookthrough-pool/" to scope the list to a single admin flow.
+// Pass undefined / empty to get all open PRs in the repo.
+// ---------------------------------------------------------------------------
+export interface OpenPrInfo {
+  number: number;
+  url: string;
+  title: string;
+  headRef: string;
+  createdAt: string;
+  draft: boolean;
+}
+
+export async function listOpenPrs(prefix?: string): Promise<OpenPrInfo[]> {
+  if (!githubConfigured()) return [];
+  const owner = process.env.GITHUB_OWNER!;
+  const repo = process.env.GITHUB_REPO!;
+  const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
+  const { data } = await octokit.pulls.list({
+    owner,
+    repo,
+    state: "open",
+    per_page: 50,
+    sort: "created",
+    direction: "desc",
+  });
+  const filtered = prefix ? data.filter((p) => p.head.ref.startsWith(prefix)) : data;
+  return filtered.map((p) => ({
+    number: p.number,
+    url: p.html_url,
+    title: p.title,
+    headRef: p.head.ref,
+    createdAt: p.created_at,
+    draft: p.draft ?? false,
+  }));
+}
