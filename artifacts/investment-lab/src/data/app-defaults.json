@@ -1,7 +1,12 @@
 {
+  "riskFreeRates": {
+    "EUR": 0.03,
+    "GBP": 0.049,
+    "CHF": 0.004
+  },
   "_meta": {
-    "lastUpdated": null,
-    "lastUpdatedBy": null,
-    "comment": "Empty by default. The /admin pane edits this file via a GitHub PR. After merge + redeploy the values here override the in-code RF_DEFAULTS / HOME_BIAS_DEFAULTS / CMA_SEED for ALL users. Per-user localStorage overrides from the Methodology editor still layer on top of these."
+    "lastUpdated": "2026-04-27",
+    "lastUpdatedBy": "admin",
+    "comment": null
   }
 }
