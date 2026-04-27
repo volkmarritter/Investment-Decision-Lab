@@ -428,3 +428,44 @@ export function subscribeLastAllocation(cb: (a: LastAllocItem[] | null) => void)
   window.addEventListener(LAST_ALLOC_EVENT, handler);
   return () => window.removeEventListener(LAST_ALLOC_EVENT, handler);
 }
+
+// ----------------------------------------------------------------------------
+// Cross-tab publish/subscribe for the user's last-built ETF implementation.
+// Mirrors the lastAllocation pattern above and lives alongside it: published by
+// BuildPortfolio whenever `output` changes; consumed by Methodology so the
+// reference correlation matrix can route exposures via the look-through-aware
+// router (mapAllocationToAssetsLookthrough) when the user has actually built
+// a portfolio. Without this, Methodology would still route the Europe ETF row
+// purely as continental EU and disagree with the TE-Contribution table for
+// the same allocation. Like lastAllocation, in-memory only — fresh on reload.
+// ----------------------------------------------------------------------------
+const LAST_ETF_IMPL_EVENT = "idl-last-etf-implementation-changed";
+// Kept loose (`unknown[]`) at the boundary because settings.ts must not import
+// from src/lib/types (would create a Methodology → settings → types → metrics
+// → settings cycle). Consumers re-cast to ETFImplementation[] at the call site.
+let lastEtfImplementation: unknown[] | null = null;
+
+export function setLastEtfImplementation(impl: unknown[] | null): void {
+  if (typeof window === "undefined") return;
+  lastEtfImplementation = impl && impl.length > 0 ? [...impl] : null;
+  window.dispatchEvent(new CustomEvent(LAST_ETF_IMPL_EVENT, { detail: lastEtfImplementation }));
+}
+
+export function getLastEtfImplementation(): unknown[] | null {
+  // Defensive copy so consumers can't mutate the internal store. Inner objects
+  // are not cloned because ETFImplementation is treated as immutable everywhere
+  // it's read (engine builds it once per portfolio).
+  return lastEtfImplementation ? [...lastEtfImplementation] : null;
+}
+
+export function subscribeLastEtfImplementation(
+  cb: (impl: unknown[] | null) => void,
+): () => void {
+  if (typeof window === "undefined") return () => {};
+  const handler = (e: Event) => {
+    const detail = (e as CustomEvent).detail;
+    cb(detail ?? null);
+  };
+  window.addEventListener(LAST_ETF_IMPL_EVENT, handler);
+  return () => window.removeEventListener(LAST_ETF_IMPL_EVENT, handler);
+}

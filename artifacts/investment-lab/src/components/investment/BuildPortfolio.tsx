@@ -36,7 +36,7 @@ import { PortfolioInput, PortfolioOutput, ValidationResult } from "@/lib/types";
 import { runValidation } from "@/lib/validation";
 import { buildPortfolio, computeNaturalBucketCount } from "@/lib/portfolio";
 import { defaultExchangeFor } from "@/lib/exchange";
-import { setLastAllocation } from "@/lib/settings";
+import { setLastAllocation, setLastEtfImplementation } from "@/lib/settings";
 import { StressTest } from "./StressTest";
 import { FeeEstimator } from "./FeeEstimator";
 import { MonteCarloSimulation } from "./MonteCarloSimulation";
@@ -162,6 +162,7 @@ export function BuildPortfolio() {
   // matrix are actually held.
   useEffect(() => {
     setLastAllocation(output?.allocation ?? null);
+    setLastEtfImplementation(output?.etfImplementation ?? null);
   }, [output]);
 
   // Auto-sync preferred exchange to base currency.

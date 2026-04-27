@@ -10,8 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { CMA, BENCHMARK, buildCorrelationMatrix, getCMAConsensus, getCMASources, getCMASeed, applyCMALayers, AssetKey, CMA_BUILDING_BLOCKS, sumBuildingBlocks } from "@/lib/metrics";
 import { SCENARIOS } from "@/lib/scenarios";
-import { getRiskFreeRates, getRiskFreeRateOverrides, setRiskFreeRate, resetRiskFreeRate, resetAllRiskFreeRates, subscribeRiskFreeRate, RF_DEFAULTS, RFCurrency, getCMAOverrides, setCMAOverrides, resetCMAOverrides, resetCMAOverride, subscribeCMAOverrides, CMAUserOverrides, getHomeBiasOverrides, setHomeBiasOverrides, resetHomeBiasOverrides, resetHomeBiasOverride, subscribeHomeBiasOverrides, resolvedHomeBias, HOME_BIAS_DEFAULTS, HomeBiasCurrency, getLastAllocation, subscribeLastAllocation } from "@/lib/settings";
-import type { AssetAllocation } from "@/lib/types";
+import { getRiskFreeRates, getRiskFreeRateOverrides, setRiskFreeRate, resetRiskFreeRate, resetAllRiskFreeRates, subscribeRiskFreeRate, RF_DEFAULTS, RFCurrency, getCMAOverrides, setCMAOverrides, resetCMAOverrides, resetCMAOverride, subscribeCMAOverrides, CMAUserOverrides, getHomeBiasOverrides, setHomeBiasOverrides, resetHomeBiasOverrides, resetHomeBiasOverride, subscribeHomeBiasOverrides, resolvedHomeBias, HOME_BIAS_DEFAULTS, HomeBiasCurrency, getLastAllocation, subscribeLastAllocation, getLastEtfImplementation, subscribeLastEtfImplementation } from "@/lib/settings";
+import type { AssetAllocation, ETFImplementation } from "@/lib/types";
 import { useT } from "@/lib/i18n";
 import { parseDecimalInput } from "@/lib/manualWeights";
 import {
@@ -167,11 +167,35 @@ export function Methodology() {
   // built a portfolio yet, so the matrix still renders as a pure reference.
   const [lastAlloc, setLastAlloc] = useState<AssetAllocation[] | null>(() => getLastAllocation() as AssetAllocation[] | null);
   useEffect(() => subscribeLastAllocation((a) => setLastAlloc(a as AssetAllocation[] | null)), []);
+  // Mirror BuildPortfolio's etfImplementation so the reference matrix routes
+  // exposures via look-through (UK/CH split out of the Europe ETF, etc.) — the
+  // same way PortfolioMetrics does. Falls back to undefined when no portfolio
+  // has been built, in which case buildCorrelationMatrix uses its row-region
+  // routing (the BENCHMARK fallback case).
+  const [lastEtfImpl, setLastEtfImpl] = useState<ETFImplementation[] | null>(
+    () => getLastEtfImplementation() as ETFImplementation[] | null,
+  );
+  useEffect(
+    () => subscribeLastEtfImplementation((i) => setLastEtfImpl(i as ETFImplementation[] | null)),
+    [],
+  );
 
   const corrSourceAllocation: AssetAllocation[] = (lastAlloc && lastAlloc.length > 0)
     ? lastAlloc
     : BENCHMARK.map((b) => ({ assetClass: "Equity", region: regionFromKey(b.key), weight: b.weight * 100 }));
-  const sampleCorr = buildCorrelationMatrix(corrSourceAllocation);
+  // Only pass etfImplementation when it pairs with the user's actual allocation;
+  // pairing it with the BENCHMARK fallback would mis-route (the impl describes
+  // the user's holdings, not the benchmark).
+  const corrEtfImpl: ETFImplementation[] | undefined =
+    lastAlloc && lastAlloc.length > 0 && lastEtfImpl && lastEtfImpl.length > 0
+      ? lastEtfImpl
+      : undefined;
+  // baseCurrency left at the function default ("USD"): Methodology has no
+  // direct access to the user's selected base currency, and the previous call
+  // also used the default. Look-through routing of multi-country ETFs (the
+  // 3rd arg) is independent of base currency, so this still correctly lights
+  // up the UK/CH cells when a Europe ETF is held.
+  const sampleCorr = buildCorrelationMatrix(corrSourceAllocation, undefined, corrEtfImpl);
   const corrReflectsPortfolio = !!(lastAlloc && lastAlloc.length > 0);
 
   // ------------------------------------------------------ ETF bucket browser
