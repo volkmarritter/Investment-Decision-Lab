@@ -1073,7 +1073,7 @@ export function BuildPortfolio() {
                 />
 
                 {/* Risk & Performance Metrics (Sharpe, Beta, Alpha, TE, Max DD, Frontier, Correlation) */}
-                <PortfolioMetrics allocation={output.allocation} baseCurrency={form.getValues().baseCurrency} />
+                <PortfolioMetrics allocation={output.allocation} baseCurrency={form.getValues().baseCurrency} etfImplementation={output.etfImplementation} />
 
                 {/* Scenario Stress Test */}
                 <StressTest allocation={output.allocation} baseCurrency={watchedBaseCcy} />

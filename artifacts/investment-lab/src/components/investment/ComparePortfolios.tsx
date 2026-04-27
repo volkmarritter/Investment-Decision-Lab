@@ -737,10 +737,10 @@ export function ComparePortfolios() {
                             <TabsTrigger value="B">Portfolio B</TabsTrigger>
                           </TabsList>
                           <TabsContent value="A" className="mt-4">
-                            <PortfolioMetrics allocation={outputA!.allocation} baseCurrency={inputA.baseCurrency} />
+                            <PortfolioMetrics allocation={outputA!.allocation} baseCurrency={inputA.baseCurrency} etfImplementation={outputA!.etfImplementation} />
                           </TabsContent>
                           <TabsContent value="B" className="mt-4">
-                            <PortfolioMetrics allocation={outputB!.allocation} baseCurrency={inputB.baseCurrency} />
+                            <PortfolioMetrics allocation={outputB!.allocation} baseCurrency={inputB.baseCurrency} etfImplementation={outputB!.etfImplementation} />
                           </TabsContent>
                         </Tabs>
 
@@ -769,7 +769,7 @@ export function ComparePortfolios() {
                             baseCurrency={inputA.baseCurrency}
                             hedged={inputA.includeCurrencyHedging}
                           />
-                          <PortfolioMetrics allocation={outputA!.allocation} baseCurrency={inputA.baseCurrency} />
+                          <PortfolioMetrics allocation={outputA!.allocation} baseCurrency={inputA.baseCurrency} etfImplementation={outputA!.etfImplementation} />
                           <StressTest allocation={outputA!.allocation} baseCurrency={inputA.baseCurrency} />
                         </div>
                         <div className="space-y-0 min-w-0">
@@ -780,7 +780,7 @@ export function ComparePortfolios() {
                             baseCurrency={inputB.baseCurrency}
                             hedged={inputB.includeCurrencyHedging}
                           />
-                          <PortfolioMetrics allocation={outputB!.allocation} baseCurrency={inputB.baseCurrency} />
+                          <PortfolioMetrics allocation={outputB!.allocation} baseCurrency={inputB.baseCurrency} etfImplementation={outputB!.etfImplementation} />
                           <StressTest allocation={outputB!.allocation} baseCurrency={inputB.baseCurrency} />
                         </div>
                       </div>

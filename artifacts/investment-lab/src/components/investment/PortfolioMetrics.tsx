@@ -5,13 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { InfoHint } from "@/components/ui/info-hint";
-import { AssetAllocation, BaseCurrency } from "@/lib/types";
-import { computeMetrics, computeFrontier, buildCorrelationMatrix, mapAllocationToAssets, decomposeTrackingError, CMA } from "@/lib/metrics";
+import { AssetAllocation, BaseCurrency, ETFImplementation } from "@/lib/types";
+import { computeMetrics, computeFrontier, buildCorrelationMatrix, mapAllocationToAssetsLookthrough, mapAllocationToAssets, decomposeTrackingError, CMA } from "@/lib/metrics";
 import { getRiskFreeRate, subscribeRiskFreeRate, subscribeCMAOverrides } from "@/lib/settings";
 import { applyCMALayers } from "@/lib/metrics";
 import { useT } from "@/lib/i18n";
 
-export function PortfolioMetrics({ allocation, baseCurrency }: { allocation: AssetAllocation[]; baseCurrency: BaseCurrency }) {
+export function PortfolioMetrics({ allocation, baseCurrency, etfImplementation }: { allocation: AssetAllocation[]; baseCurrency: BaseCurrency; etfImplementation?: ETFImplementation[] }) {
   const { t, lang } = useT();
   const de = lang === "de";
   const [showDetails, setShowDetails] = useState(false);
@@ -25,11 +25,17 @@ export function PortfolioMetrics({ allocation, baseCurrency }: { allocation: Ass
   const [cmaVersion, setCmaVersion] = useState(0);
   useEffect(() => subscribeCMAOverrides(() => { applyCMALayers(); setCmaVersion((v) => v + 1); }), []);
 
-  const m = useMemo(() => computeMetrics(allocation, baseCurrency), [allocation, baseCurrency, rf, cmaVersion]);
-  const frontier = useMemo(() => computeFrontier(allocation, baseCurrency), [allocation, baseCurrency, rf, cmaVersion]);
-  const correlation = useMemo(() => buildCorrelationMatrix(allocation, baseCurrency), [allocation, baseCurrency]);
-  const exposures = useMemo(() => mapAllocationToAssets(allocation, baseCurrency), [allocation, baseCurrency]);
-  const teDecomp = useMemo(() => decomposeTrackingError(allocation, baseCurrency), [allocation, baseCurrency, cmaVersion]);
+  // Look-through-aware metrics: when etfImplementation is supplied, vol /
+  // beta / TE / alpha and the TE-contribution table reflect the actual ETF
+  // holdings (e.g. UK + CH content inside an Equity-Europe ETF). When the
+  // prop is omitted (legacy callers), we fall back to region-based routing.
+  const m = useMemo(() => computeMetrics(allocation, baseCurrency, etfImplementation), [allocation, baseCurrency, etfImplementation, rf, cmaVersion]);
+  const frontier = useMemo(() => computeFrontier(allocation, baseCurrency, etfImplementation), [allocation, baseCurrency, etfImplementation, rf, cmaVersion]);
+  const correlation = useMemo(() => buildCorrelationMatrix(allocation, baseCurrency, etfImplementation), [allocation, baseCurrency, etfImplementation]);
+  const exposures = useMemo(() => etfImplementation
+    ? mapAllocationToAssetsLookthrough(allocation, etfImplementation, baseCurrency)
+    : mapAllocationToAssets(allocation, baseCurrency), [allocation, baseCurrency, etfImplementation]);
+  const teDecomp = useMemo(() => decomposeTrackingError(allocation, baseCurrency, etfImplementation), [allocation, baseCurrency, etfImplementation, cmaVersion]);
 
   const explain = {
     expReturn: {

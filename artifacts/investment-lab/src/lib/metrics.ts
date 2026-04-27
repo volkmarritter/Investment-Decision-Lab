@@ -1,7 +1,8 @@
-import { AssetAllocation, BaseCurrency } from "./types";
+import { AssetAllocation, BaseCurrency, ETFImplementation } from "./types";
 import { getRiskFreeRate, getCMAOverrides } from "./settings";
 import consensusFile from "@/data/cmas.consensus.json";
 import { APP_DEFAULTS } from "./appDefaults";
+import { profileFor } from "./lookthrough";
 
 export type AssetKey =
   | "equity_us"
@@ -424,6 +425,187 @@ export function mapAllocationToAssets(
     .map((k) => ({ key: k, weight: map[k] }));
 }
 
+// ---------------------------------------------------------------------------
+// Look-through-aware allocation → CMA bucket mapping.
+// ---------------------------------------------------------------------------
+// `mapAllocationToAssets` above routes each row by its declared *region*
+// (e.g. `Equity-Europe` → `equity_eu`). That is the right shape if the user
+// only ever held single-country ETFs, but the actual ETF that implements an
+// "Equity-Europe" row is iShares Core MSCI Europe (IE00B4K48X80), whose
+// holdings are 23% UK + 15% Switzerland + 17% France + 15% Germany + ...
+// The region-based router treats those 38% UK+CH inside the Europe ETF as if
+// they were continental-EU equities (σ 17%), which (a) understates UK/CH
+// exposure in vol/beta/TE and (b) makes UK/CH look perpetually
+// "underweight" in the TE-contribution table even when held implicitly
+// through a multi-country ETF.
+//
+// `mapAllocationToAssetsLookthrough` fixes this by reading the curated
+// `LookthroughProfile.geo` map (lookthrough.ts PROFILES) for the ETF that
+// actually implements each row, and distributing the row's weight across
+// CMA buckets by those geo percentages. Non-equity rows and rows whose ETF
+// has no curated profile fall back to the region-based routing above so the
+// total weight is preserved.
+// IMPORTANT: only list country labels whose CMA bucket is unambiguous
+// regardless of which ETF the label appears in. Context-dependent labels
+// like "Other" (Europe ETF: 8.6% Other Europe; S&P 500: 3.4% Other DM;
+// EM IMI: 10.6% Other EM) and "Ireland" (Europe ETF: Bank of Ireland;
+// S&P 500: Accenture, Medtronic — US-domiciled but Irish-incorporated)
+// must be omitted so they fall back to routeByRegion(row.region), which
+// routes by the *row's* declared region — the correct context-aware
+// behavior.
+const COUNTRY_TO_EQUITY_KEY: Record<string, AssetKey> = {
+  // Americas → US bucket (Canada has no separate CMA; ~95% US-correlated).
+  "United States": "equity_us",
+  "USA": "equity_us",
+  "Canada": "equity_us",
+  // UK home market (FTSE-100).
+  "United Kingdom": "equity_uk",
+  "UK": "equity_uk",
+  // Switzerland home market (SMI/SLI).
+  "Switzerland": "equity_ch",
+  // Japan home market (TOPIX/Nikkei).
+  "Japan": "equity_jp",
+  // Continental Europe ex-UK ex-CH (developed) → equity_eu.
+  "France": "equity_eu",
+  "Germany": "equity_eu",
+  "Netherlands": "equity_eu",
+  "Sweden": "equity_eu",
+  "Italy": "equity_eu",
+  "Spain": "equity_eu",
+  "Denmark": "equity_eu",
+  "Norway": "equity_eu",
+  "Belgium": "equity_eu",
+  "Austria": "equity_eu",
+  "Finland": "equity_eu",
+  "Portugal": "equity_eu",
+  "Other Europe": "equity_eu",
+  "Other EU": "equity_eu",
+  // Generic "Europe" buckets in look-through profiles (e.g. MSCI World) lump
+  // UK + CH inside a single slice. Without sub-country detail we route to
+  // continental EU as the closest single bucket; the explicit single-country
+  // ETFs (Core MSCI Europe, FTSE-100, SLI) carry the granular breakdown
+  // and handle the UK/CH leakage correctly.
+  "Europe": "equity_eu",
+  "Europe ex-UK": "equity_eu",
+  // Asia-Pacific developed ex-Japan: no separate CMA bucket, route to Japan
+  // as the nearest developed-Asia proxy.
+  "Australia": "equity_jp",
+  "Hong Kong": "equity_jp",
+  "Singapore": "equity_jp",
+  "New Zealand": "equity_jp",
+  // Emerging markets.
+  "China": "equity_em",
+  "India": "equity_em",
+  "Taiwan": "equity_em",
+  "Brazil": "equity_em",
+  "South Korea": "equity_em",
+  "Mexico": "equity_em",
+  "South Africa": "equity_em",
+  "Saudi Arabia": "equity_em",
+  "Indonesia": "equity_em",
+  "Thailand": "equity_em",
+  "Malaysia": "equity_em",
+  // Poland: MSCI reclassified to EM in 2018 — appears in EM IMI / EM
+  // breakdowns (~1%), not in MSCI Europe.
+  "Poland": "equity_em",
+  "United Arab Emirates": "equity_em",
+  "UAE": "equity_em",
+  "Qatar": "equity_em",
+  "Kuwait": "equity_em",
+  "Egypt": "equity_em",
+  "Turkey": "equity_em",
+  "Greece": "equity_em",
+  "Hungary": "equity_em",
+  "Czech Republic": "equity_em",
+  "Chile": "equity_em",
+  "Colombia": "equity_em",
+  "Peru": "equity_em",
+  "Philippines": "equity_em",
+  "Vietnam": "equity_em",
+  "Other EM": "equity_em",
+  "EM": "equity_em",
+};
+
+export function mapAllocationToAssetsLookthrough(
+  allocation: AssetAllocation[],
+  etfImplementation: ETFImplementation[],
+  baseCurrency: BaseCurrency = "USD",
+): AssetExposure[] {
+  // bucketKey convention from portfolio.ts:349 / manualWeights.ts:25
+  // is `${assetClass} - ${region}` (space-dash-space).
+  const isinByBucket = new Map<string, string>();
+  for (const e of etfImplementation) isinByBucket.set(e.bucket, e.isin);
+
+  const map: Record<AssetKey, number> = {
+    equity_us: 0, equity_eu: 0, equity_uk: 0, equity_ch: 0, equity_jp: 0, equity_em: 0,
+    equity_thematic: 0, bonds: 0, cash: 0, gold: 0, reits: 0, crypto: 0,
+  };
+  const benchSum = BENCHMARK.reduce((s, e) => s + e.weight, 0);
+
+  // Route a row using the existing region-based logic. Used for non-equity
+  // rows and as a fallback for equity rows whose ETF lacks a curated
+  // look-through profile (or whose profile contains an unmapped country
+  // label).
+  const routeByRegion = (a: AssetAllocation, w: number): void => {
+    if (a.assetClass === "Fixed Income") map.bonds += w;
+    else if (a.assetClass === "Cash") map.cash += w;
+    else if (a.assetClass === "Commodities") map.gold += w;
+    else if (a.assetClass === "Real Estate") map.reits += w;
+    else if (a.assetClass === "Digital Assets") map.crypto += w;
+    else if (a.assetClass === "Equity") {
+      const r = a.region;
+      if (r === "USA") map.equity_us += w;
+      else if (r === "Europe") map.equity_eu += w;
+      else if (r === "UK" || r === "United Kingdom") map.equity_uk += w;
+      else if (r === "Switzerland") map.equity_ch += w;
+      else if (r === "Japan") map.equity_jp += w;
+      else if (r === "EM") map.equity_em += w;
+      else if (r === "Home") map[HOME_EQUITY_KEY[baseCurrency]] += w;
+      else if (r === "Global") {
+        for (const b of BENCHMARK) map[b.key] += w * (b.weight / benchSum);
+      }
+      else map.equity_thematic += w;
+    }
+  };
+
+  for (const a of allocation) {
+    const w = a.weight / 100;
+    if (w <= 0) continue;
+    // Non-equity asset classes don't benefit from look-through bucket
+    // routing (bonds stay bonds regardless of country, etc.).
+    if (a.assetClass !== "Equity") {
+      routeByRegion(a, w);
+      continue;
+    }
+    const isin = isinByBucket.get(`${a.assetClass} - ${a.region}`);
+    const profile = isin ? profileFor(isin) : null;
+    if (!profile || !profile.isEquity) {
+      routeByRegion(a, w);
+      continue;
+    }
+    const totalGeo = Object.values(profile.geo).reduce((s, v) => s + v, 0);
+    if (totalGeo <= 0) {
+      routeByRegion(a, w);
+      continue;
+    }
+    let unmappedShare = 0;
+    for (const [country, pct] of Object.entries(profile.geo)) {
+      const share = (pct / totalGeo) * w;
+      const key = COUNTRY_TO_EQUITY_KEY[country];
+      if (key) map[key] += share;
+      else unmappedShare += share;
+    }
+    // Any unmapped country labels (e.g. a freshly-renamed label not yet in
+    // the country map) fall back to region-based routing so we never
+    // silently drop weight. Total weight per row is invariant.
+    if (unmappedShare > 0) routeByRegion(a, unmappedShare);
+  }
+
+  return (Object.keys(map) as AssetKey[])
+    .filter((k) => map[k] > 0)
+    .map((k) => ({ key: k, weight: map[k] }));
+}
+
 export function portfolioReturn(exp: AssetExposure[]): number {
   let r = 0;
   for (const e of exp) r += e.weight * CMA[e.key].expReturn;
@@ -477,9 +659,19 @@ export interface PortfolioMetricsResult {
   benchmarkVol: number;
 }
 
-export function computeMetrics(allocation: AssetAllocation[], baseCurrency: BaseCurrency): PortfolioMetricsResult {
+export function computeMetrics(
+  allocation: AssetAllocation[],
+  baseCurrency: BaseCurrency,
+  etfImplementation?: ETFImplementation[],
+): PortfolioMetricsResult {
   const rf = getRiskFreeRate(baseCurrency);
-  const exp = mapAllocationToAssets(allocation, baseCurrency);
+  // When the caller passes etfImplementation, we use look-through-aware
+  // bucket routing so vol/beta/TE/alpha reflect what the user actually
+  // holds (e.g. the UK + CH content inside an Equity-Europe ETF). When
+  // absent (older callers, tests), fall back to the region-based router.
+  const exp = etfImplementation
+    ? mapAllocationToAssetsLookthrough(allocation, etfImplementation, baseCurrency)
+    : mapAllocationToAssets(allocation, baseCurrency);
   const r = portfolioReturn(exp);
   const v = portfolioVol(exp);
   const rB = portfolioReturn(BENCHMARK);
@@ -542,8 +734,11 @@ export interface TrackingErrorDecomposition {
 export function decomposeTrackingError(
   allocation: AssetAllocation[],
   baseCurrency: BaseCurrency,
+  etfImplementation?: ETFImplementation[],
 ): TrackingErrorDecomposition {
-  const exp = mapAllocationToAssets(allocation, baseCurrency);
+  const exp = etfImplementation
+    ? mapAllocationToAssetsLookthrough(allocation, etfImplementation, baseCurrency)
+    : mapAllocationToAssets(allocation, baseCurrency);
   const merged: Partial<Record<AssetKey, { p: number; b: number }>> = {};
   for (const e of exp) {
     const slot = (merged[e.key] ??= { p: 0, b: 0 });
@@ -595,9 +790,15 @@ export interface FrontierPoint {
   isCurrent?: boolean;
 }
 
-export function computeFrontier(allocation: AssetAllocation[], baseCurrency: BaseCurrency): { points: FrontierPoint[]; current: FrontierPoint } {
+export function computeFrontier(
+  allocation: AssetAllocation[],
+  baseCurrency: BaseCurrency,
+  etfImplementation?: ETFImplementation[],
+): { points: FrontierPoint[]; current: FrontierPoint } {
   const rf = getRiskFreeRate(baseCurrency);
-  const exp = mapAllocationToAssets(allocation, baseCurrency);
+  const exp = etfImplementation
+    ? mapAllocationToAssetsLookthrough(allocation, etfImplementation, baseCurrency)
+    : mapAllocationToAssets(allocation, baseCurrency);
   const equityKeys: AssetKey[] = ["equity_us", "equity_eu", "equity_uk", "equity_ch", "equity_jp", "equity_em", "equity_thematic", "reits", "crypto"];
   const isEq = (k: AssetKey) => equityKeys.includes(k);
 
@@ -663,13 +864,16 @@ const CORR_DISPLAY_ORDER: AssetKey[] = [
 export function buildCorrelationMatrix(
   allocation: AssetAllocation[],
   baseCurrency: BaseCurrency = "USD",
+  etfImplementation?: ETFImplementation[],
 ): {
   keys: AssetKey[];
   labels: string[];
   matrix: number[][];
   held: boolean[];
 } {
-  const exp = mapAllocationToAssets(allocation, baseCurrency);
+  const exp = etfImplementation
+    ? mapAllocationToAssetsLookthrough(allocation, etfImplementation, baseCurrency)
+    : mapAllocationToAssets(allocation, baseCurrency);
   const heldSet = new Set<AssetKey>(exp.map((e) => e.key));
   const keys = [...CORR_DISPLAY_ORDER];
   const labels = keys.map((k) => CMA[k].label);

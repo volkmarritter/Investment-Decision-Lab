@@ -10,6 +10,7 @@ import { estimateFees, getETFTer } from "../src/lib/fees";
 import { buildAiPrompt } from "../src/lib/aiPrompt";
 import {
   mapAllocationToAssets,
+  mapAllocationToAssetsLookthrough,
   computeMetrics,
   computeFrontier,
   buildCorrelationMatrix,
@@ -18,7 +19,7 @@ import {
   portfolioReturn,
   portfolioVol,
 } from "../src/lib/metrics";
-import type { AssetAllocation } from "../src/lib/types";
+import type { AssetAllocation, ETFImplementation } from "../src/lib/types";
 import { diffPortfolios } from "../src/lib/compare";
 import { analyzePortfolio } from "../src/lib/explain";
 
@@ -956,6 +957,196 @@ describe("metrics", () => {
     ];
     const dBench = decomposeTrackingError(benchAlloc, "USD");
     expect(dBench.total).toBeLessThan(0.001);
+  });
+
+  it("mapAllocationToAssetsLookthrough decomposes Europe ETF into UK + CH + continental EU", () => {
+    // Operator-spotted inconsistency: the iShares Core MSCI Europe ETF
+    // (IE00B4K48X80) holds ~20% UK + ~15% Switzerland (the curated
+    // PROFILES values are continually refreshed by
+    // scripts/refresh-lookthrough.mjs into lookthrough.overrides.json,
+    // so we read live values from profileFor() rather than hardcoding).
+    // The region-based router treats a 14% Equity-Europe row as 14%
+    // equity_eu, which understates UK/CH exposure and makes them look
+    // perpetually underweight in the TE-contribution table even when
+    // held implicitly through a multi-country ETF.
+    const ISIN = "IE00B4K48X80";
+    const profile = profileFor(ISIN)!;
+    expect(profile).toBeTruthy();
+    const totalGeo = Object.values(profile.geo).reduce((s, v) => s + v, 0);
+    const ukPct = (profile.geo["United Kingdom"] ?? 0) / totalGeo;
+    const chPct = (profile.geo["Switzerland"] ?? 0) / totalGeo;
+    // Sanity: this ETF is *the* multi-country test case — UK + CH must
+    // each be material (>5% of the ETF) for the look-through math to
+    // matter at all. If the underlying index ever changes shape this
+    // dramatically we want to know.
+    expect(ukPct).toBeGreaterThan(0.05);
+    expect(chPct).toBeGreaterThan(0.05);
+
+    const allocation: AssetAllocation[] = [
+      { assetClass: "Equity", region: "Europe", weight: 14 },
+    ];
+    const etfImpl: ETFImplementation[] = [{
+      bucket: "Equity - Europe",
+      assetClass: "Equity",
+      weight: 14,
+      intent: "",
+      exampleETF: "iShares Core MSCI Europe UCITS",
+      rationale: "",
+      isin: ISIN,
+      ticker: "",
+      exchange: "",
+      terBps: 12,
+      domicile: "IE",
+      replication: "Physical",
+      distribution: "Accumulating",
+      currency: "EUR",
+      comment: "",
+    }];
+
+    const region = mapAllocationToAssets(allocation);
+    const lookthrough = mapAllocationToAssetsLookthrough(allocation, etfImpl);
+
+    // Region-based: all 14% routed to equity_eu — this is the broken
+    // baseline the look-through fix replaces.
+    expect(region.find((e) => e.key === "equity_eu")?.weight).toBeCloseTo(0.14, 6);
+    expect(region.find((e) => e.key === "equity_uk")).toBeUndefined();
+    expect(region.find((e) => e.key === "equity_ch")).toBeUndefined();
+
+    // Look-through: 14% × ukPct goes to equity_uk, 14% × chPct to equity_ch,
+    // and the remainder (continental-Europe country labels: France,
+    // Germany, Netherlands, Sweden, Italy, Spain, Denmark, "Other Europe")
+    // to equity_eu.
+    const uk = lookthrough.find((e) => e.key === "equity_uk")!;
+    const ch = lookthrough.find((e) => e.key === "equity_ch")!;
+    const eu = lookthrough.find((e) => e.key === "equity_eu")!;
+    expect(uk).toBeDefined();
+    expect(ch).toBeDefined();
+    expect(eu).toBeDefined();
+    expect(uk.weight).toBeCloseTo(0.14 * ukPct, 6);
+    expect(ch.weight).toBeCloseTo(0.14 * chPct, 6);
+    // Continental-EU bucket is what's left after UK + CH are carved out.
+    expect(eu.weight).toBeCloseTo(0.14 * (1 - ukPct - chPct), 4);
+
+    // Closure: total exposure preserved (no weight silently dropped to
+    // unmapped country labels).
+    const total = lookthrough.reduce((s, e) => s + e.weight, 0);
+    expect(total).toBeCloseTo(0.14, 6);
+  });
+
+  it("mapAllocationToAssetsLookthrough preserves total weight, falls back for non-equity, and is backwards-compatible when etfImplementation is missing", () => {
+    // Three invariants this test pins:
+    //  (1) Total exposure weight is identical between region-based and
+    //      look-through routing — look-through redistributes shares
+    //      across CMA buckets but never creates or destroys weight.
+    //  (2) Non-equity rows (bonds, gold, cash) route identically in
+    //      both modes — look-through only affects equity geography.
+    //  (3) computeMetrics(..., baseCcy) and computeMetrics(..., baseCcy, [])
+    //      produce identical numbers — passing an empty/missing
+    //      etfImplementation must preserve legacy behavior.
+    const allocation: AssetAllocation[] = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Equity", region: "Switzerland", weight: 10 },
+      { assetClass: "Equity", region: "UK", weight: 5 },
+      { assetClass: "Fixed Income", region: "Global", weight: 25 },
+    ];
+    const etfImpl: ETFImplementation[] = [
+      { bucket: "Equity - USA", assetClass: "Equity", weight: 60, intent: "", exampleETF: "iShares Core S&P 500", rationale: "", isin: "IE00B5BMR087", ticker: "", exchange: "", terBps: 7, domicile: "IE", replication: "Physical", distribution: "Accumulating", currency: "USD", comment: "" },
+      { bucket: "Equity - Switzerland", assetClass: "Equity", weight: 10, intent: "", exampleETF: "iShares SLI", rationale: "", isin: "DE0005933964", ticker: "", exchange: "", terBps: 51, domicile: "DE", replication: "Physical", distribution: "Distributing", currency: "EUR", comment: "" },
+      { bucket: "Equity - UK", assetClass: "Equity", weight: 5, intent: "", exampleETF: "iShares Core FTSE 100", rationale: "", isin: "IE00B53HP851", ticker: "", exchange: "", terBps: 7, domicile: "IE", replication: "Physical", distribution: "Distributing", currency: "GBP", comment: "" },
+      { bucket: "Fixed Income - Global", assetClass: "Fixed Income", weight: 25, intent: "", exampleETF: "iShares Core Global Aggregate Bond", rationale: "", isin: "IE00BDBRDM35", ticker: "", exchange: "", terBps: 10, domicile: "IE", replication: "Physical", distribution: "Accumulating", currency: "USD", comment: "" },
+    ];
+
+    const region = mapAllocationToAssets(allocation);
+    const lookthrough = mapAllocationToAssetsLookthrough(allocation, etfImpl);
+
+    // (1) Total weight conservation across both routers.
+    const sumRegion = region.reduce((s, e) => s + e.weight, 0);
+    const sumLookthrough = lookthrough.reduce((s, e) => s + e.weight, 0);
+    expect(sumRegion).toBeCloseTo(1.0, 6);
+    expect(sumLookthrough).toBeCloseTo(1.0, 6);
+
+    // (2) Non-equity buckets (bonds) route identically — Global bonds
+    //     get routed by the existing fallback regardless of whether
+    //     look-through is on.
+    const bondsRegion = region.find((e) => e.key === "bonds")?.weight ?? 0;
+    const bondsLook = lookthrough.find((e) => e.key === "bonds")?.weight ?? 0;
+    expect(bondsLook).toBeCloseTo(bondsRegion, 6);
+    expect(bondsLook).toBeCloseTo(0.25, 6);
+
+    // (3) Backwards compatibility: missing/empty etfImplementation arg
+    //     must not change a single number coming out of computeMetrics.
+    const m1 = computeMetrics(allocation, "USD");
+    const m2 = computeMetrics(allocation, "USD", []);
+    expect(m2.vol).toBeCloseTo(m1.vol, 6);
+    expect(m2.trackingError).toBeCloseTo(m1.trackingError, 6);
+    expect(m2.beta).toBeCloseTo(m1.beta, 6);
+    expect(m2.alpha).toBeCloseTo(m1.alpha, 6);
+  });
+
+  it("decomposeTrackingError with look-through shrinks UK underweight when held via Europe ETF", () => {
+    // Operator's portfolio: 8.7% Equity-Europe + no explicit UK or CH.
+    // Without look-through the TE-contribution table reports UK as a
+    // -4pp pure-benchmark underweight. With look-through the implicit UK
+    // content from the Europe ETF (~2pp) shrinks the active UK bet to
+    // ~-2pp and the CH active bet from -4pp to ~-2.7pp.
+    const allocation: AssetAllocation[] = [
+      { assetClass: "Cash", region: "CHF", weight: 3.0 },
+      { assetClass: "Equity", region: "USA", weight: 51.3 },
+      { assetClass: "Equity", region: "EM", weight: 11.6 },
+      { assetClass: "Equity", region: "Europe", weight: 8.7 },
+      { assetClass: "Equity", region: "Japan", weight: 4.0 },
+      { assetClass: "Commodities", region: "Gold", weight: 7.5 },
+      { assetClass: "Equity", region: "Switzerland", weight: 13.9 },
+    ];
+    const etfImpl: ETFImplementation[] = [
+      { bucket: "Equity - USA", assetClass: "Equity", weight: 51.3, intent: "", exampleETF: "iShares Core S&P 500", rationale: "", isin: "IE00B5BMR087", ticker: "", exchange: "", terBps: 7, domicile: "IE", replication: "Physical", distribution: "Accumulating", currency: "USD", comment: "" },
+      { bucket: "Equity - EM", assetClass: "Equity", weight: 11.6, intent: "", exampleETF: "iShares Core MSCI EM IMI", rationale: "", isin: "IE00BKM4GZ66", ticker: "", exchange: "", terBps: 18, domicile: "IE", replication: "Physical", distribution: "Accumulating", currency: "USD", comment: "" },
+      { bucket: "Equity - Europe", assetClass: "Equity", weight: 8.7, intent: "", exampleETF: "iShares Core MSCI Europe", rationale: "", isin: "IE00B4K48X80", ticker: "", exchange: "", terBps: 12, domicile: "IE", replication: "Physical", distribution: "Accumulating", currency: "EUR", comment: "" },
+      { bucket: "Equity - Japan", assetClass: "Equity", weight: 4.0, intent: "", exampleETF: "iShares Core MSCI Japan IMI", rationale: "", isin: "IE00B4L5YX21", ticker: "", exchange: "", terBps: 12, domicile: "IE", replication: "Physical", distribution: "Accumulating", currency: "USD", comment: "" },
+      { bucket: "Commodities - Gold", assetClass: "Commodities", weight: 7.5, intent: "", exampleETF: "Invesco Physical Gold A", rationale: "", isin: "IE00B579F325", ticker: "", exchange: "", terBps: 12, domicile: "IE", replication: "Physical", distribution: "Accumulating", currency: "USD", comment: "" },
+      { bucket: "Equity - Switzerland", assetClass: "Equity", weight: 13.9, intent: "", exampleETF: "iShares SLI", rationale: "", isin: "DE0005933964", ticker: "", exchange: "", terBps: 51, domicile: "DE", replication: "Physical", distribution: "Distributing", currency: "EUR", comment: "" },
+    ];
+
+    const dBefore = decomposeTrackingError(allocation, "CHF");
+    const dAfter = decomposeTrackingError(allocation, "CHF", etfImpl);
+
+    // Closure: contributions still sum to total TE in both modes.
+    const sumBefore = dBefore.rows.reduce((s, r) => s + r.contribution, 0);
+    const sumAfter = dAfter.rows.reduce((s, r) => s + r.contribution, 0);
+    expect(sumBefore).toBeCloseTo(dBefore.total, 6);
+    expect(sumAfter).toBeCloseTo(dAfter.total, 6);
+
+    // Region-only: UK is fully underweight at -4pp because the
+    // 8.7% Europe row is treated as pure equity_eu.
+    const ukBefore = dBefore.rows.find((r) => r.key === "equity_uk")!;
+    expect(ukBefore.portfolioWeight).toBe(0);
+    expect(ukBefore.activeWeight).toBeCloseTo(-0.04, 6);
+
+    // Look-through: the 8.7% Europe ETF contributes 8.7% × ukPct UK
+    // exposure (live values from profileFor), so the UK active bet
+    // shrinks meaningfully toward zero instead of staying at -4pp.
+    const europeProfile = profileFor("IE00B4K48X80")!;
+    const europeTotalGeo = Object.values(europeProfile.geo).reduce((s, v) => s + v, 0);
+    const ukPctInEurope = (europeProfile.geo["United Kingdom"] ?? 0) / europeTotalGeo;
+    const chPctInEurope = (europeProfile.geo["Switzerland"] ?? 0) / europeTotalGeo;
+    const ukAfter = dAfter.rows.find((r) => r.key === "equity_uk")!;
+    expect(ukAfter.portfolioWeight).toBeCloseTo(0.087 * ukPctInEurope, 6);
+    expect(ukAfter.activeWeight).toBeGreaterThan(ukBefore.activeWeight);
+    expect(Math.abs(ukAfter.activeWeight)).toBeLessThan(Math.abs(ukBefore.activeWeight));
+
+    // Same effect on Switzerland: explicit 13.9% plus implicit
+    // 8.7% × chPct from the Europe ETF brings total CH portfolio weight up.
+    const chBefore = dBefore.rows.find((r) => r.key === "equity_ch")!;
+    const chAfter = dAfter.rows.find((r) => r.key === "equity_ch")!;
+    expect(chAfter.portfolioWeight).toBeGreaterThan(chBefore.portfolioWeight);
+    expect(chAfter.portfolioWeight).toBeCloseTo(0.139 + 0.087 * chPctInEurope, 6);
+
+    // Continental EU exposure is correspondingly smaller: only the
+    // (1 - ukPct - chPct) non-UK / non-CH content of the Europe ETF.
+    const euBefore = dBefore.rows.find((r) => r.key === "equity_eu")!;
+    const euAfter = dAfter.rows.find((r) => r.key === "equity_eu")!;
+    expect(euAfter.portfolioWeight).toBeLessThan(euBefore.portfolioWeight);
+    expect(euAfter.portfolioWeight).toBeCloseTo(0.087 * (1 - ukPctInEurope - chPctInEurope), 4);
   });
 
   it("computeMetrics returns sane numbers for a default portfolio", () => {
