@@ -6,12 +6,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { InfoHint } from "@/components/ui/info-hint";
 import { AssetAllocation, BaseCurrency, ETFImplementation } from "@/lib/types";
-import { computeMetrics, computeFrontier, buildCorrelationMatrix, mapAllocationToAssetsLookthrough, mapAllocationToAssets, decomposeTrackingError, CMA } from "@/lib/metrics";
+import { computeMetrics, computeFrontier, buildCorrelationMatrix, mapAllocationToAssetsLookthrough, mapAllocationToAssets, decomposeTrackingError, CMA, isSyntheticUsEffective } from "@/lib/metrics";
 import { getRiskFreeRate, subscribeRiskFreeRate, subscribeCMAOverrides } from "@/lib/settings";
 import { applyCMALayers } from "@/lib/metrics";
 import { useT } from "@/lib/i18n";
 
-export function PortfolioMetrics({ allocation, baseCurrency, etfImplementation }: { allocation: AssetAllocation[]; baseCurrency: BaseCurrency; etfImplementation?: ETFImplementation[] }) {
+export function PortfolioMetrics({ allocation, baseCurrency, etfImplementation, includeSyntheticETFs, hedged }: { allocation: AssetAllocation[]; baseCurrency: BaseCurrency; etfImplementation?: ETFImplementation[]; includeSyntheticETFs?: boolean; hedged?: boolean }) {
   const { t, lang } = useT();
   const de = lang === "de";
   const [showDetails, setShowDetails] = useState(false);
@@ -29,8 +29,12 @@ export function PortfolioMetrics({ allocation, baseCurrency, etfImplementation }
   // beta / TE / alpha and the TE-contribution table reflect the actual ETF
   // holdings (e.g. UK + CH content inside an Equity-Europe ETF). When the
   // prop is omitted (legacy callers), we fall back to region-based routing.
-  const m = useMemo(() => computeMetrics(allocation, baseCurrency, etfImplementation), [allocation, baseCurrency, etfImplementation, rf, cmaVersion]);
-  const frontier = useMemo(() => computeFrontier(allocation, baseCurrency, etfImplementation), [allocation, baseCurrency, etfImplementation, rf, cmaVersion]);
+  // Synthetic-US carve-out: when the toggle is on AND the ETF picker
+  // actually selects a swap-based US share class (not gated off by hedged
+  // non-USD), the equity_us WHT drag is zero — see metrics.ts.
+  const syntheticUsEffective = isSyntheticUsEffective(includeSyntheticETFs, baseCurrency, hedged);
+  const m = useMemo(() => computeMetrics(allocation, baseCurrency, etfImplementation, syntheticUsEffective), [allocation, baseCurrency, etfImplementation, syntheticUsEffective, rf, cmaVersion]);
+  const frontier = useMemo(() => computeFrontier(allocation, baseCurrency, etfImplementation, syntheticUsEffective), [allocation, baseCurrency, etfImplementation, syntheticUsEffective, rf, cmaVersion]);
   const correlation = useMemo(() => buildCorrelationMatrix(allocation, baseCurrency, etfImplementation), [allocation, baseCurrency, etfImplementation]);
   const exposures = useMemo(() => etfImplementation
     ? mapAllocationToAssetsLookthrough(allocation, etfImplementation, baseCurrency)

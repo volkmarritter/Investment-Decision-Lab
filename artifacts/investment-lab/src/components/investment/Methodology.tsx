@@ -1190,12 +1190,25 @@ export function Methodology() {
           </p>
         </Section>
 
-        <Section value="wht" icon={<Coins className="h-4 w-4" />} title={de ? "Quellensteuer-Drag (v1.4, Apr 2026)" : "Withholding-Tax Drag (v1.4, Apr 2026)"}>
+        <Section value="wht" icon={<Coins className="h-4 w-4" />} title={de ? "Quellensteuer-Drag (v1.5, Apr 2026)" : "Withholding-Tax Drag (v1.5, Apr 2026)"}>
           <p className="text-sm text-muted-foreground">
             {de
               ? "Jede ausgewiesene erwartete Rendite (Risk-&-Performance-Kachel, effiziente Frontier, Monte-Carlo-Pfade, Vergleichstab) ist NETTO der nicht-rückforderbaren Quellensteuer auf Dividenden — die Steuer, die ein typischer CH/EU-Privatanleger über IE-domizilierte UCITS-ETFs trotz aller Doppelbesteuerungs-Treaties tatsächlich zahlt. Symmetrisch wird derselbe Drag auch auf den ACWI-Benchmark angewandt, sodass Alpha und Outperformance nicht künstlich erhöht werden."
               : "Every reported expected return (Risk & Performance tile, efficient frontier, Monte Carlo paths, Compare tab) is NET of irrecoverable withholding tax on dividends — the tax a typical CH/EU retail investor actually pays via IE-domiciled UCITS ETFs even after the most favorable double-taxation treaty. The same drag is applied symmetrically to the ACWI benchmark so alpha and outperformance aren't artificially inflated."}
           </p>
+          <div className="rounded-md border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-950/20 p-3 text-xs space-y-2">
+            <p className="font-semibold">{de ? "Synthetik-Carve-Out (v1.5):" : "Synthetic-replication carve-out (v1.5):"}</p>
+            <p className="text-muted-foreground">
+              {de
+                ? "Wenn der Synthetic-ETF-Schalter im Builder aktiv ist (und nicht durch Hedging in einer non-USD-Basiswährung überschrieben wird), entfällt der US-Equity-Drag von 30 bp auf der Portfolio-Seite — ein swap-basierter UCITS-ETF auf den S&P 500 (z. B. Invesco IE00B3YCGJ38) erhält die US-Dividenden rechtlich nicht selbst und vermeidet die 15 % US-WHT strukturell. Der ACWI-Benchmark behält bewusst seinen vollen Drag (er steht für die praktische Alternative — ein physisch replizierender ACWI-ETF), sodass die Synthetik korrekt als Implementations-Alpha sichtbar wird (~30 bp × US-Anteil im Aktien-Sleeve, also ~18 bp bei 60 % US-Equity)."
+                : "When the synthetic-ETF toggle in the builder is active (and not overridden by currency hedging in a non-USD base), the 30 bps US-equity drag is removed on the portfolio side — a swap-based UCITS ETF on the S&P 500 (e.g. Invesco IE00B3YCGJ38) doesn't legally receive US dividends and structurally avoids the 15 % US WHT. The ACWI benchmark deliberately keeps its full drag (it represents the practical alternative — a physical-replication ACWI ETF), so the synthetic structure shows up correctly as implementation alpha (~30 bps × US share of the equity sleeve, i.e. ~18 bps at 60 % US equity)."}
+            </p>
+            <p className="text-muted-foreground">
+              {de
+                ? "Risiko: Im Tausch gegen den Steuervorteil entsteht kontrolliertes Kontrahentenrisiko zu den Swap-Counterparts (begrenzt durch tägliches Collateral-Management und die UCITS-10 %-Grenze pro Kontrahent). Vol, β, Tracking Error sind unverändert — der Carve-Out wirkt ausschließlich auf den Renditeterm."
+                : "Risk: in exchange for the tax pickup, the portfolio takes controlled counterparty risk to the swap counterparties (mitigated by daily collateral and the UCITS 10 %-per-counterparty cap). Vol, β, tracking error are unchanged — the carve-out is a pure return adjustment."}
+            </p>
+          </div>
           <div className="rounded-md border border-border bg-muted/30 p-3 text-xs">
             <p className="font-semibold mb-2">{de ? "Default-Drag-Sätze (jährlich, in bp):" : "Default drag rates (annual, in bps):"}</p>
             <ul className="space-y-1 list-disc pl-5">

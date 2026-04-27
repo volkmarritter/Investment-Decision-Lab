@@ -79,14 +79,17 @@ function bucketAssumption(
   assetClass: string,
   region: string,
   hedged: boolean = false,
-  baseCurrency: BaseCurrency = "USD"
+  baseCurrency: BaseCurrency = "USD",
+  syntheticUsEffective: boolean = false,
 ): BucketAssumption {
   const key = bucketKey(assetClass, region, baseCurrency);
   const cma = CMA[key];
   // Net of irrecoverable WHT on dividends — same drag definition used by
   // computeMetrics, so MC paths and the analytical Risk & Performance
-  // metrics agree on the headline expected return.
-  let mu = cma.expReturn - whtDragForKey(key, baseCurrency);
+  // metrics agree on the headline expected return. Synthetic-US carve-out
+  // is honoured here too, so MC and analytical views shift together when
+  // the toggle flips.
+  let mu = cma.expReturn - whtDragForKey(key, baseCurrency, syntheticUsEffective);
   let sigma = cma.vol;
 
   // FX-hedge sigma reduction for foreign equity. Applied after reading CMA so
@@ -142,12 +145,14 @@ export function runMonteCarlo(
     seed?: number;
     hedged?: boolean;
     baseCurrency?: BaseCurrency;
+    syntheticUsEffective?: boolean;
   } = {}
 ): MonteCarloResult {
   const numPaths = options.paths ?? 2000;
   const seed = options.seed ?? 42;
   const hedged = options.hedged ?? false;
   const baseCurrency: BaseCurrency = options.baseCurrency ?? "USD";
+  const syntheticUsEffective = options.syntheticUsEffective ?? false;
 
   let portfolioMu = 0;
 
@@ -184,7 +189,7 @@ export function runMonteCarlo(
   const buckets: { weight: number; mu: number; sigma: number; key: AssetKey }[] = [];
   for (const a of expanded) {
     const w = a.weight / 100;
-    const { mu, sigma } = bucketAssumption(a.assetClass, a.region, hedged, baseCurrency);
+    const { mu, sigma } = bucketAssumption(a.assetClass, a.region, hedged, baseCurrency, syntheticUsEffective);
     const key = bucketKey(a.assetClass, a.region, baseCurrency);
     buckets.push({ weight: w, mu, sigma, key });
     portfolioMu += w * mu;

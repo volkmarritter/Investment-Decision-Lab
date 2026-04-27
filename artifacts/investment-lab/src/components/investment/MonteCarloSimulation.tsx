@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AssetAllocation, BaseCurrency } from "@/lib/types";
 import { runMonteCarlo } from "@/lib/monteCarlo";
+import { isSyntheticUsEffective } from "@/lib/metrics";
 import { parseDecimalInput } from "@/lib/manualWeights";
 import { useT } from "@/lib/i18n";
 
@@ -27,6 +28,7 @@ interface MonteCarloSimulationProps {
   horizonYears: number;
   baseCurrency: BaseCurrency;
   hedged?: boolean;
+  includeSyntheticETFs?: boolean;
 }
 
 export function MonteCarloSimulation({
@@ -34,6 +36,7 @@ export function MonteCarloSimulation({
   horizonYears,
   baseCurrency,
   hedged,
+  includeSyntheticETFs,
 }: MonteCarloSimulationProps) {
   const { t, lang } = useT();
   // Raw text buffer is the source of truth so mobile users on Swiss/German/
@@ -52,13 +55,18 @@ export function MonteCarloSimulation({
   const [cmaVersion, setCmaVersion] = useState(0);
   useEffect(() => subscribeCMAOverrides(() => { applyCMALayers(); setCmaVersion((v) => v + 1); }), []);
 
+  // Synthetic-US carve-out: gate the swap-based US-equity WHT exemption
+  // through the same shared helper that PortfolioMetrics uses, so MC and
+  // analytical views shift together when the toggle flips.
+  const syntheticUsEffective = isSyntheticUsEffective(includeSyntheticETFs, baseCurrency, hedged);
   const result = useMemo(
     () =>
       runMonteCarlo(allocation, horizonYears, investmentAmount, {
         hedged: !!hedged,
         baseCurrency,
+        syntheticUsEffective,
       }),
-    [allocation, horizonYears, investmentAmount, hedged, baseCurrency, cmaVersion]
+    [allocation, horizonYears, investmentAmount, hedged, baseCurrency, syntheticUsEffective, cmaVersion]
   );
 
   const formatCurrency = (value: number) => {

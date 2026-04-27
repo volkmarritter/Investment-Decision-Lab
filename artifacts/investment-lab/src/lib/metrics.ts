@@ -653,18 +653,51 @@ export const WHT_DRAG: Record<AssetKey, number> = {
   crypto:           0,
 };
 
-export function whtDragForKey(key: AssetKey, baseCurrency: BaseCurrency): number {
+export function whtDragForKey(
+  key: AssetKey,
+  baseCurrency: BaseCurrency,
+  syntheticUsEffective: boolean = false,
+): number {
   // CH equity is fully WHT-reclaimable for CHF residents (annual tax return
   // refunds the 35 % federal anticipatory tax). For all other base currencies
   // the standard partial-treaty residual applies.
   if (key === "equity_ch" && baseCurrency === "CHF") return 0;
+  // Synthetic-replication carve-out: a swap-based UCITS ETF on the S&P 500
+  // (e.g. Invesco IE00B3YCGJ38) doesn't legally receive US dividends — the
+  // total-return swap delivers the gross index return, so the 15 % US
+  // dividend WHT does NOT leak. Applies only to equity_us and only when
+  // the synthetic toggle is *effective* (the etfs.ts picker already gates
+  // synthetic off when the user wants currency hedging on a non-USD base,
+  // because a hedged synthetic share class isn't the standard pick).
+  if (key === "equity_us" && syntheticUsEffective) return 0;
   return WHT_DRAG[key];
 }
 
-export function portfolioWhtDrag(exp: AssetExposure[], baseCurrency: BaseCurrency): number {
+export function portfolioWhtDrag(
+  exp: AssetExposure[],
+  baseCurrency: BaseCurrency,
+  syntheticUsEffective: boolean = false,
+): number {
   let d = 0;
-  for (const e of exp) d += e.weight * whtDragForKey(e.key, baseCurrency);
+  for (const e of exp) d += e.weight * whtDragForKey(e.key, baseCurrency, syntheticUsEffective);
   return d;
+}
+
+// The synthetic-ETF toggle's "is it actually firing?" gate. Mirrors the
+// condition in portfolio.ts:378 and etfs.ts:488/500 so all three places
+// agree on when the swap-based pick is in effect. Centralised here so any
+// future change to the gate (e.g. allowing hedged synthetic share classes)
+// only needs to be made once.
+export function isSyntheticUsEffective(
+  includeSyntheticETFs: boolean | undefined,
+  baseCurrency: BaseCurrency,
+  hedged: boolean | undefined,
+): boolean {
+  if (!includeSyntheticETFs) return false;
+  // Hedged + non-USD base: ETF picker keeps the physical pick, so the WHT
+  // drag stays in.
+  if (hedged && baseCurrency !== "USD") return false;
+  return true;
 }
 
 export function portfolioVol(exp: AssetExposure[]): number {
@@ -718,6 +751,7 @@ export function computeMetrics(
   allocation: AssetAllocation[],
   baseCurrency: BaseCurrency,
   etfImplementation?: ETFImplementation[],
+  syntheticUsEffective: boolean = false,
 ): PortfolioMetricsResult {
   const rf = getRiskFreeRate(baseCurrency);
   // When the caller passes etfImplementation, we use look-through-aware
@@ -727,12 +761,17 @@ export function computeMetrics(
   const exp = etfImplementation
     ? mapAllocationToAssetsLookthrough(allocation, etfImplementation, baseCurrency)
     : mapAllocationToAssets(allocation, baseCurrency);
-  // Net of irrecoverable withholding-tax drag on dividends — applied
-  // symmetrically to the portfolio AND the benchmark so alpha / outperformance
-  // aren't artificially inflated by a tax the benchmark can't escape either.
-  const r = portfolioReturn(exp) - portfolioWhtDrag(exp, baseCurrency);
+  // Net of irrecoverable withholding-tax drag on dividends. Applied
+  // symmetrically to the portfolio AND the benchmark so alpha /
+  // outperformance aren't inflated by a tax the benchmark would also
+  // pay — EXCEPT for the synthetic-replication carve-out: the benchmark
+  // is treated as the practical alternative (a physical ACWI ETF), so
+  // it always carries full WHT. When the user opts into a swap-based US
+  // sleeve, that's a real implementation alpha vs the physical-ACWI
+  // counterfactual (~30 bps × US weight in the equity sleeve).
+  const r = portfolioReturn(exp) - portfolioWhtDrag(exp, baseCurrency, syntheticUsEffective);
   const v = portfolioVol(exp);
-  const rB = portfolioReturn(BENCHMARK) - portfolioWhtDrag(BENCHMARK, baseCurrency);
+  const rB = portfolioReturn(BENCHMARK) - portfolioWhtDrag(BENCHMARK, baseCurrency, false);
   const vB = portfolioVol(BENCHMARK);
 
   const cov_pb = covariance(exp, BENCHMARK);
@@ -852,6 +891,7 @@ export function computeFrontier(
   allocation: AssetAllocation[],
   baseCurrency: BaseCurrency,
   etfImplementation?: ETFImplementation[],
+  syntheticUsEffective: boolean = false,
 ): { points: FrontierPoint[]; current: FrontierPoint } {
   const rf = getRiskFreeRate(baseCurrency);
   const exp = etfImplementation
@@ -881,8 +921,10 @@ export function computeFrontier(
       ...defMix.map((e) => ({ key: e.key, weight: e.weight * (1 - w) })),
     ];
     // Net of WHT drag — keeps the frontier on the same return scale as the
-    // metric tile and rationale strings (see computeMetrics above).
-    const r = portfolioReturn(blended) - portfolioWhtDrag(blended, baseCurrency);
+    // metric tile and rationale strings (see computeMetrics above). The
+    // synthetic-US carve-out applies here too, so the curve faithfully shifts
+    // up when the toggle flips.
+    const r = portfolioReturn(blended) - portfolioWhtDrag(blended, baseCurrency, syntheticUsEffective);
     const v = portfolioVol(blended);
     points.push({
       equityPct: pct,
@@ -893,7 +935,7 @@ export function computeFrontier(
   }
 
   const currentEqPct = Math.round(eqWeightSum * 100);
-  const r = portfolioReturn(exp) - portfolioWhtDrag(exp, baseCurrency);
+  const r = portfolioReturn(exp) - portfolioWhtDrag(exp, baseCurrency, syntheticUsEffective);
   const v = portfolioVol(exp);
   const current: FrontierPoint = {
     equityPct: currentEqPct,

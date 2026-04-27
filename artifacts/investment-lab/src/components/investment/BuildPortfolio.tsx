@@ -1139,6 +1139,7 @@ export function BuildPortfolio() {
                   horizonYears={form.getValues().horizon}
                   baseCurrency={form.getValues().baseCurrency}
                   hedged={form.getValues().includeCurrencyHedging}
+                  includeSyntheticETFs={form.getValues().includeSyntheticETFs}
                 />
 
                 {/* Risk & Performance Metrics (Sharpe, Beta, Alpha, TE, Max DD, Frontier, Correlation) */}
@@ -1146,6 +1147,8 @@ export function BuildPortfolio() {
                   allocation={output.allocation}
                   baseCurrency={form.getValues().baseCurrency}
                   etfImplementation={watchedLookThroughView ? output.etfImplementation : undefined}
+                  includeSyntheticETFs={form.getValues().includeSyntheticETFs}
+                  hedged={form.getValues().includeCurrencyHedging}
                 />
 
                 {/* Scenario Stress Test */}

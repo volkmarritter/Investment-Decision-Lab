@@ -1619,6 +1619,60 @@ describe("CMA layered overrides", () => {
     expect(r.realizedMddP50).toBeLessThan(-0.02);
   });
 
+  it("synthetic-US carve-out lifts expReturn by exactly WHT_DRAG.equity_us × US weight (USD base, 100 % US equity)", async () => {
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    // 100 % US equity, USD base, no hedge → synthetic effective.
+    // Drag should drop from WHT_DRAG.equity_us (=30 bps) to 0,
+    // so MC expectedReturn rises by exactly that amount.
+    const alloc = [{ assetClass: "Equity", region: "USA", weight: 100 }];
+    const physical = runMonteCarlo(alloc, 5, 100_000, { paths: 200, seed: 1, baseCurrency: "USD" });
+    const synthetic = runMonteCarlo(alloc, 5, 100_000, {
+      paths: 200, seed: 1, baseCurrency: "USD", syntheticUsEffective: true,
+    });
+    expect(synthetic.expectedReturn - physical.expectedReturn).toBeCloseTo(WHT_DRAG.equity_us, 8);
+    // Sigma is untouched by the drag — same paths, same vol.
+    expect(synthetic.expectedVol).toBeCloseTo(physical.expectedVol, 10);
+  });
+
+  it("synthetic-US carve-out lifts portfolio expReturn AND alpha (benchmark drag stays full)", () => {
+    // 60 / 25 / 15 portfolio, USD base. Synthetic effective for the user's
+    // US sleeve only — the benchmark is a physical-ACWI proxy and keeps its
+    // full WHT, so alpha and outperformance both rise by 0.60 × 30 bps = 18 bps.
+    const allocation: AssetAllocation[] = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Equity", region: "Europe", weight: 25 },
+      { assetClass: "Fixed Income", region: "Global", weight: 15 },
+    ];
+    const physical = computeMetrics(allocation, "USD", undefined, false);
+    const synthetic = computeMetrics(allocation, "USD", undefined, true);
+    const expectedLift = 0.60 * WHT_DRAG.equity_us;
+    expect(synthetic.expReturn - physical.expReturn).toBeCloseTo(expectedLift, 8);
+    expect(synthetic.alpha - physical.alpha).toBeCloseTo(expectedLift, 8);
+    expect(synthetic.outperformance - physical.outperformance).toBeCloseTo(expectedLift, 8);
+    // Benchmark return is untouched — synthetic only changes the portfolio side.
+    expect(synthetic.benchmarkReturn).toBeCloseTo(physical.benchmarkReturn, 10);
+    // Vol / beta / TE unchanged — drag is a return-only adjustment.
+    expect(synthetic.vol).toBeCloseTo(physical.vol, 10);
+    expect(synthetic.beta).toBeCloseTo(physical.beta, 10);
+    expect(synthetic.trackingError).toBeCloseTo(physical.trackingError, 10);
+  });
+
+  it("isSyntheticUsEffective gate matches the rationale-text condition (synthetic && !(hedged && base!==USD))", async () => {
+    const { isSyntheticUsEffective } = await import("../src/lib/metrics");
+    // Toggle off → never effective.
+    expect(isSyntheticUsEffective(false, "USD", false)).toBe(false);
+    expect(isSyntheticUsEffective(false, "CHF", true)).toBe(false);
+    // Toggle on, USD base → effective regardless of hedge (hedge is a no-op for USD residents).
+    expect(isSyntheticUsEffective(true, "USD", false)).toBe(true);
+    expect(isSyntheticUsEffective(true, "USD", true)).toBe(true);
+    // Toggle on, non-USD base, unhedged → effective (synthetic share class wins).
+    expect(isSyntheticUsEffective(true, "CHF", false)).toBe(true);
+    expect(isSyntheticUsEffective(true, "EUR", false)).toBe(true);
+    // Toggle on, non-USD base, hedged → NOT effective (ETF picker keeps physical pick).
+    expect(isSyntheticUsEffective(true, "CHF", true)).toBe(false);
+    expect(isSyntheticUsEffective(true, "EUR", true)).toBe(false);
+  });
+
   it("WHT drag affects expReturn / alpha / outperformance but leaves vol / beta / TE unchanged", async () => {
     // Snapshot WHT_DRAG, zero it out, recompute, then restore. Vol/beta/TE
     // depend only on σ and correlations — they MUST be invariant to the drag.
