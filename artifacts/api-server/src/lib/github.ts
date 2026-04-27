@@ -37,6 +37,8 @@ export interface PrCreationContext {
 }
 
 const ETFS_FILE_PATH = "artifacts/investment-lab/src/lib/etfs.ts";
+const APP_DEFAULTS_FILE_PATH =
+  "artifacts/investment-lab/src/data/app-defaults.json";
 
 export function githubConfigured(): boolean {
   return Boolean(
@@ -44,6 +46,94 @@ export function githubConfigured(): boolean {
       process.env.GITHUB_OWNER &&
       process.env.GITHUB_REPO,
   );
+}
+
+// ---------------------------------------------------------------------------
+// openUpdateAppDefaultsPr — global defaults editor (Task #35, 2026-04-27)
+// ---------------------------------------------------------------------------
+// Replaces `artifacts/investment-lab/src/data/app-defaults.json` wholesale
+// (whole-file replacement is safe here because the file is JSON, not source
+// — there's no surrounding code to disturb). Same flow as openAddEtfPr
+// otherwise: read base SHA, branch, commit, open PR.
+//
+// The caller is responsible for validating the payload via
+// validateAppDefaults() and stamping _meta via stampMeta(). We only handle
+// the bytes-on-disk side here.
+// ---------------------------------------------------------------------------
+export async function openUpdateAppDefaultsPr(args: {
+  fileContent: string; // already-serialised JSON (with trailing newline)
+  summary: string; // short, human-readable change summary for PR title
+  body: string; // full PR body (markdown)
+}): Promise<{ url: string; number: number }> {
+  if (!githubConfigured()) {
+    throw new Error(
+      "GitHub PR creation is not configured. Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO.",
+    );
+  }
+  const owner = process.env.GITHUB_OWNER!;
+  const repo = process.env.GITHUB_REPO!;
+  const base = process.env.GITHUB_BASE_BRANCH ?? "main";
+  const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
+
+  // 1. Read base SHA + current file sha (the file should always exist; if
+  //    it doesn't we still create it on the new branch).
+  const { data: baseRef } = await octokit.git.getRef({
+    owner,
+    repo,
+    ref: `heads/${base}`,
+  });
+  const baseSha = baseRef.object.sha;
+
+  let currentFileSha: string | undefined;
+  try {
+    const { data: fileMeta } = await octokit.repos.getContent({
+      owner,
+      repo,
+      path: APP_DEFAULTS_FILE_PATH,
+      ref: baseSha,
+    });
+    if (!Array.isArray(fileMeta) && fileMeta.type === "file") {
+      currentFileSha = fileMeta.sha;
+    }
+  } catch (err: unknown) {
+    if ((err as { status?: number }).status !== 404) throw err;
+  }
+
+  // 2. Branch name uses an epoch + 6-char random suffix so two operators
+  //    can submit concurrently without colliding (epoch alone collides
+  //    when two requests land in the same millisecond), and a stale
+  //    branch never blocks a fresh attempt.
+  const rand = Math.random().toString(36).slice(2, 8);
+  const branch = `update-app-defaults/${Date.now()}-${rand}`;
+  await octokit.git.createRef({
+    owner,
+    repo,
+    ref: `refs/heads/${branch}`,
+    sha: baseSha,
+  });
+
+  // 3. Commit the new file on the new branch (create or update).
+  await octokit.repos.createOrUpdateFileContents({
+    owner,
+    repo,
+    path: APP_DEFAULTS_FILE_PATH,
+    branch,
+    message: `Update global defaults (${args.summary})`,
+    content: Buffer.from(args.fileContent, "utf8").toString("base64"),
+    sha: currentFileSha,
+  });
+
+  // 4. Open the PR.
+  const { data: pr } = await octokit.pulls.create({
+    owner,
+    repo,
+    head: branch,
+    base,
+    title: `Update global defaults: ${args.summary}`,
+    body: args.body,
+  });
+
+  return { url: pr.html_url, number: pr.number };
 }
 
 export async function openAddEtfPr(

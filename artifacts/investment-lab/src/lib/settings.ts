@@ -21,15 +21,32 @@
 // fallthrough hole that the previous hand-aligned literal unions allowed.
 
 import type { BaseCurrency } from "./types";
+import { APP_DEFAULTS } from "./appDefaults";
 
 export type RFCurrency = BaseCurrency;
 
-export const RF_DEFAULTS: Record<BaseCurrency, number> = {
+// Hard-coded ship-time fallback. Used when the operator-managed
+// `app-defaults.json` does not specify a value for a given currency.
+const BUILT_IN_RF: Record<BaseCurrency, number> = {
   USD: 0.0425,
   EUR: 0.0250,
   GBP: 0.0400,
   CHF: 0.0050,
 };
+
+// Effective ship-wide defaults: built-in seed merged with the
+// admin-managed overlay from `src/data/app-defaults.json` (Task #35,
+// 2026-04-27). The admin-PR pane writes to that JSON; after the PR is
+// merged and redeployed, every user picks up the new defaults via the
+// bundle. Per-user overrides from the Methodology editor (localStorage)
+// still layer on top of these in `getRiskFreeRates()`.
+export const RF_DEFAULTS: Record<BaseCurrency, number> = (() => {
+  const out = { ...BUILT_IN_RF };
+  for (const [k, v] of Object.entries(APP_DEFAULTS.riskFreeRates)) {
+    if (k in out) out[k as BaseCurrency] = v;
+  }
+  return out;
+})();
 
 export type RFOverrides = Partial<Record<RFCurrency, number>>;
 
@@ -263,12 +280,25 @@ const HB_EVENT = "idl-homebias-changed";
 export type HomeBiasCurrency = BaseCurrency;
 export type HomeBiasOverrides = Partial<Record<HomeBiasCurrency, number>>;
 
-export const HOME_BIAS_DEFAULTS: Record<BaseCurrency, number> = {
+// Hard-coded ship-time fallback. Used when the operator-managed
+// `app-defaults.json` does not specify a value for a given currency.
+const BUILT_IN_HB: Record<BaseCurrency, number> = {
   USD: 1.0,
   EUR: 1.5,
   GBP: 1.5,
   CHF: 2.5,
 };
+
+// Effective ship-wide defaults: built-in seed merged with the
+// admin-managed overlay from `src/data/app-defaults.json` (Task #35,
+// 2026-04-27). Same two-layer pattern as RF_DEFAULTS above.
+export const HOME_BIAS_DEFAULTS: Record<BaseCurrency, number> = (() => {
+  const out = { ...BUILT_IN_HB };
+  for (const [k, v] of Object.entries(APP_DEFAULTS.homeBias)) {
+    if (k in out) out[k as BaseCurrency] = v;
+  }
+  return out;
+})();
 
 // Derived from HOME_BIAS_DEFAULTS so the runtime whitelist can never drift
 // from the compile-time type — see RF_VALID_KEYS for the same pattern.

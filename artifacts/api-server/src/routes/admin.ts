@@ -25,12 +25,19 @@ import { dataFile } from "../lib/data-paths";
 import {
   githubConfigured,
   openAddEtfPr,
+  openUpdateAppDefaultsPr,
   renderEntryBlock,
   type NewEtfEntry,
 } from "../lib/github";
 import { findDuplicateIsinKey, loadCatalog } from "../lib/catalog-parser";
 import { scrapePreview, PreviewError, normalizeIsin } from "../lib/etf-scrape";
 import { scrapeLookthrough } from "../lib/lookthrough-scrape";
+import {
+  renderAppDefaultsFile,
+  stampMeta,
+  validateAppDefaults,
+  type AppDefaults,
+} from "../lib/app-defaults";
 
 const router: IRouter = Router();
 
@@ -504,6 +511,137 @@ function validateEntry(e: NewEtfEntry | undefined): string | null {
       return "inceptionDate must be ISO YYYY-MM-DD";
   }
   return null;
+}
+
+// --- /api/admin/app-defaults -------------------------------------------------
+// Operator-managed global defaults (RF rates, Home-Bias, CMA) shipped in the
+// investment-lab bundle. The /admin pane edits these and opens a GitHub PR
+// against `artifacts/investment-lab/src/data/app-defaults.json`. After merge
+// + redeploy every user picks up the new defaults — per-user localStorage
+// overrides from the Methodology editor still layer on top.
+//
+// GET returns the current on-disk file content (always-fresh, no caching).
+// We read the same file the bundler reads so the admin UI always shows the
+// truth, even between deploys when we're running ahead of GitHub.
+
+router.get("/admin/app-defaults", async (_req, res) => {
+  let body: string;
+  try {
+    body = await readFile(dataFile("app-defaults.json"), "utf8");
+  } catch {
+    // Missing file → empty defaults. Same UX as a brand-new repo.
+    res.json({ value: {}, raw: "{}\n" });
+    return;
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch (err) {
+    res.status(500).json({
+      error: "invalid_json_on_disk",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+  // Re-validate so a hand-edited file with an out-of-range value gets
+  // clamped/dropped before it reaches the UI form (the form would
+  // otherwise echo it back into a future PR).
+  const result = validateAppDefaults(parsed);
+  if (!result.ok) {
+    res.status(500).json({
+      error: "invalid_app_defaults_on_disk",
+      message: "Current app-defaults.json failed validation.",
+      errors: result.errors,
+    });
+    return;
+  }
+  res.json({ value: result.value, raw: body });
+});
+
+router.post("/admin/app-defaults", async (req, res) => {
+  const payload = req.body?.value as unknown;
+  const summary = typeof req.body?.summary === "string" ? req.body.summary.trim() : "";
+  if (!summary) {
+    res.status(400).json({
+      error: "missing_summary",
+      message: "Provide a non-empty 'summary' (used for the PR title).",
+    });
+    return;
+  }
+  const result = validateAppDefaults(payload);
+  if (!result.ok) {
+    res.status(400).json({
+      error: "invalid_payload",
+      message: result.errors.join("; "),
+      errors: result.errors,
+    });
+    return;
+  }
+  if (!githubConfigured()) {
+    res.status(503).json({
+      error: "github_not_configured",
+      message: "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
+    });
+    return;
+  }
+
+  // Stamp _meta server-side — the operator should not be able to forge
+  // an arbitrary lastUpdated date in the committed file.
+  const stamped: AppDefaults = stampMeta(result.value, "admin");
+  const fileContent = renderAppDefaultsFile(stamped);
+  const body = buildAppDefaultsPrBody(stamped, summary, fileContent);
+
+  try {
+    const pr = await openUpdateAppDefaultsPr({
+      fileContent,
+      summary: summary.slice(0, 100),
+      body,
+    });
+    res.json({ ok: true, prUrl: pr.url, prNumber: pr.number });
+  } catch (err) {
+    res.status(502).json({
+      error: "pr_creation_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+function buildAppDefaultsPrBody(
+  value: AppDefaults,
+  summary: string,
+  fileContent: string,
+): string {
+  const lines: string[] = [];
+  lines.push(`Updates global defaults: **${summary}**.`);
+  lines.push("");
+  lines.push(
+    "Generated from the in-app admin pane. After merge + redeploy these values become the ship-wide defaults for risk-free rates, home-bias multipliers and CMA inputs. Per-user overrides from the Methodology editor still layer on top.",
+  );
+  lines.push("");
+  lines.push("**New file content**");
+  lines.push("");
+  lines.push("```json");
+  lines.push(fileContent.trimEnd());
+  lines.push("```");
+  lines.push("");
+  lines.push("**Reviewer checklist**");
+  lines.push("- Confirm RF rates are in [0%, 20%] and roughly match current money-market yields.");
+  lines.push("- Confirm home-bias multipliers are in [0, 5].");
+  lines.push("- Confirm CMA expReturn is in [-50%, 100%] and vol is in [0, 200%] for each touched asset.");
+  lines.push("- Sanity-check the impact on the demo portfolios after merge.");
+  // Reference the parsed value so a reviewer can spot a renamed currency
+  // or missing key without reading the JSON byte-for-byte.
+  if (value.riskFreeRates && Object.keys(value.riskFreeRates).length > 0) {
+    lines.push("");
+    lines.push(`Touched RF currencies: ${Object.keys(value.riskFreeRates).join(", ")}`);
+  }
+  if (value.homeBias && Object.keys(value.homeBias).length > 0) {
+    lines.push(`Touched home-bias currencies: ${Object.keys(value.homeBias).join(", ")}`);
+  }
+  if (value.cma && Object.keys(value.cma).length > 0) {
+    lines.push(`Touched CMA assets: ${Object.keys(value.cma).join(", ")}`);
+  }
+  return lines.join("\n");
 }
 
 // Re-export the data-dir helper for tests.

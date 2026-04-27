@@ -17,6 +17,10 @@ import {
   getToken,
   setToken,
   type AddEtfRequest,
+  type AppDefaultsAssetKey,
+  type AppDefaultsHbCurrency,
+  type AppDefaultsPayload,
+  type AppDefaultsRfCurrency,
   type CatalogSummary,
   type ChangeEntry,
   type FreshnessResponse,
@@ -153,6 +157,7 @@ export default function Admin() {
           <DataUpdatesColumn />
         </div>
         <LookthroughPoolPanel />
+        <AppDefaultsPanel githubConfigured={githubConfigured} />
       </main>
     </div>
   );
@@ -1436,4 +1441,402 @@ function fmt(v: unknown): string {
   } catch {
     return "[unserializable]";
   }
+}
+
+// ---------------------------------------------------------------------------
+// AppDefaultsPanel — globale Defaults (RF / Home-Bias / CMA), via PR.
+// ---------------------------------------------------------------------------
+// Liest die aktuell ausgelieferten Defaults aus app-defaults.json (über
+// /admin/app-defaults), erlaubt Bearbeitung der drei Tabellen und öffnet
+// per Klick einen GitHub-PR der die JSON-Datei ersetzt. Nach Merge +
+// Redeploy gelten die Werte für ALLE Nutzer. Per-User-Overrides aus dem
+// Methodology-Tab (localStorage) liegen weiterhin oben drauf.
+//
+// Drei Editoren ein einer Karte: bewusst kompakt gehalten, da der Operator
+// in der Regel nur einzelne Werte anfasst (z. B. RF-Anpassung nach EZB-
+// Sitzung). Eingabe als Prozent für RF/CMA-Return/Vol, als Multiplikator
+// für Home-Bias — mirrors the Methodology-Editor, damit der Operator nicht
+// zwischen Einheiten umrechnen muss.
+// ---------------------------------------------------------------------------
+const RF_KEYS_UI: AppDefaultsRfCurrency[] = ["USD", "EUR", "GBP", "CHF"];
+const HB_KEYS_UI: AppDefaultsHbCurrency[] = ["USD", "EUR", "GBP", "CHF"];
+const CMA_KEYS_UI: { key: AppDefaultsAssetKey; label: string }[] = [
+  { key: "equity_us", label: "US Equity" },
+  { key: "equity_eu", label: "Europe Equity" },
+  { key: "equity_uk", label: "UK Equity" },
+  { key: "equity_ch", label: "Swiss Equity" },
+  { key: "equity_jp", label: "Japan Equity" },
+  { key: "equity_em", label: "EM Equity" },
+  { key: "equity_thematic", label: "Thematic Equity" },
+  { key: "bonds", label: "Global Bonds" },
+  { key: "cash", label: "Cash" },
+  { key: "gold", label: "Gold" },
+  { key: "reits", label: "Listed Real Estate" },
+  { key: "crypto", label: "Crypto" },
+];
+
+// String-state per Feld, damit "leer = nicht gesetzt" und Tippvorgang ohne
+// Reparsing möglich. parseOptionalPct/parseOptionalNum übersetzen am Submit.
+type FieldState = string;
+type CmaRow = { expReturn: FieldState; vol: FieldState };
+
+function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [meta, setMeta] = useState<{ lastUpdated?: string | null; lastUpdatedBy?: string | null } | null>(null);
+  const [rf, setRf] = useState<Record<AppDefaultsRfCurrency, FieldState>>({
+    USD: "", EUR: "", GBP: "", CHF: "",
+  });
+  const [hb, setHb] = useState<Record<AppDefaultsHbCurrency, FieldState>>({
+    USD: "", EUR: "", GBP: "", CHF: "",
+  });
+  const [cma, setCma] = useState<Record<AppDefaultsAssetKey, CmaRow>>(() =>
+    Object.fromEntries(CMA_KEYS_UI.map((c) => [c.key, { expReturn: "", vol: "" }])) as Record<AppDefaultsAssetKey, CmaRow>,
+  );
+  const [summary, setSummary] = useState("");
+  const [lastPr, setLastPr] = useState<{ url: string; number: number } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    adminApi
+      .getAppDefaults()
+      .then((res) => {
+        if (cancelled) return;
+        const v = res.value ?? {};
+        if (v._meta) setMeta({ lastUpdated: v._meta.lastUpdated ?? null, lastUpdatedBy: v._meta.lastUpdatedBy ?? null });
+        if (v.riskFreeRates) {
+          setRf((prev) => {
+            const next = { ...prev };
+            for (const k of RF_KEYS_UI) {
+              const n = v.riskFreeRates?.[k];
+              if (typeof n === "number") next[k] = (n * 100).toFixed(3);
+            }
+            return next;
+          });
+        }
+        if (v.homeBias) {
+          setHb((prev) => {
+            const next = { ...prev };
+            for (const k of HB_KEYS_UI) {
+              const n = v.homeBias?.[k];
+              if (typeof n === "number") next[k] = String(n);
+            }
+            return next;
+          });
+        }
+        if (v.cma) {
+          setCma((prev) => {
+            const next = { ...prev };
+            for (const c of CMA_KEYS_UI) {
+              const entry = v.cma?.[c.key];
+              if (!entry) continue;
+              next[c.key] = {
+                expReturn: typeof entry.expReturn === "number" ? (entry.expReturn * 100).toFixed(3) : "",
+                vol: typeof entry.vol === "number" ? (entry.vol * 100).toFixed(3) : "",
+              };
+            }
+            return next;
+          });
+        }
+        setLoadError(null);
+      })
+      .catch((err: Error) => {
+        if (cancelled) return;
+        setLoadError(err.message);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function parsePct(s: string): number | undefined {
+    const t = s.trim();
+    if (!t) return undefined;
+    const n = Number(t);
+    if (!Number.isFinite(n)) return undefined;
+    return n / 100;
+  }
+  function parseNum(s: string): number | undefined {
+    const t = s.trim();
+    if (!t) return undefined;
+    const n = Number(t);
+    return Number.isFinite(n) ? n : undefined;
+  }
+
+  function buildPayload(): { value: AppDefaultsPayload; touched: number } {
+    const value: AppDefaultsPayload = {};
+    let touched = 0;
+    const rfOut: Partial<Record<AppDefaultsRfCurrency, number>> = {};
+    for (const k of RF_KEYS_UI) {
+      const n = parsePct(rf[k]);
+      if (n !== undefined) {
+        rfOut[k] = n;
+        touched++;
+      }
+    }
+    if (Object.keys(rfOut).length > 0) value.riskFreeRates = rfOut;
+
+    const hbOut: Partial<Record<AppDefaultsHbCurrency, number>> = {};
+    for (const k of HB_KEYS_UI) {
+      const n = parseNum(hb[k]);
+      if (n !== undefined) {
+        hbOut[k] = n;
+        touched++;
+      }
+    }
+    if (Object.keys(hbOut).length > 0) value.homeBias = hbOut;
+
+    const cmaOut: Partial<Record<AppDefaultsAssetKey, { expReturn?: number; vol?: number }>> = {};
+    for (const c of CMA_KEYS_UI) {
+      const row = cma[c.key];
+      const mu = parsePct(row.expReturn);
+      const sg = parsePct(row.vol);
+      if (mu === undefined && sg === undefined) continue;
+      const entry: { expReturn?: number; vol?: number } = {};
+      if (mu !== undefined) {
+        entry.expReturn = mu;
+        touched++;
+      }
+      if (sg !== undefined) {
+        entry.vol = sg;
+        touched++;
+      }
+      cmaOut[c.key] = entry;
+    }
+    if (Object.keys(cmaOut).length > 0) value.cma = cmaOut;
+
+    return { value, touched };
+  }
+
+  async function onSubmit() {
+    setLastPr(null);
+    const trimmed = summary.trim();
+    if (!trimmed) {
+      toast.error("Kurze Beschreibung erforderlich (für PR-Titel).");
+      return;
+    }
+    const { value } = buildPayload();
+    // Empty payload is intentionally allowed: it's how an operator wipes
+    // all global overrides and reverts to the pure built-in defaults.
+    setSubmitting(true);
+    try {
+      const res = await adminApi.proposeAppDefaultsPr(value, trimmed);
+      setLastPr({ url: res.prUrl, number: res.prNumber });
+      toast.success(`PR #${res.prNumber} geöffnet.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Card data-testid="card-app-defaults">
+      <CardHeader>
+        <CardTitle className="flex items-center justify-between">
+          <span>Globale Defaults (Risk-Free / Home-Bias / CMA)</span>
+          {meta?.lastUpdated && (
+            <span className="text-xs font-normal text-muted-foreground">
+              zuletzt geändert: {meta.lastUpdated}
+              {meta.lastUpdatedBy ? ` (${meta.lastUpdatedBy})` : ""}
+            </span>
+          )}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <p className="text-sm text-muted-foreground">
+          Werte hier werden über einen GitHub-PR in{" "}
+          <code>artifacts/investment-lab/src/data/app-defaults.json</code>{" "}
+          geschrieben. Nach Merge + Redeploy gelten sie als Default für alle
+          Nutzer. Felder leer lassen = bisheriger Built-in-Default greift.
+          Per-User-Overrides aus dem Methodology-Tab (localStorage) bleiben
+          unverändert oben drauf wirksam.
+        </p>
+
+        {loading && (
+          <p className="text-sm text-muted-foreground">Lade aktuelle Werte…</p>
+        )}
+        {loadError && (
+          <Alert variant="destructive">
+            <AlertTitle>Fehler beim Laden</AlertTitle>
+            <AlertDescription>{loadError}</AlertDescription>
+          </Alert>
+        )}
+
+        {!loading && !loadError && (
+          <>
+            <section className="space-y-2">
+              <h3 className="text-sm font-semibold">Risk-Free Rates (in %)</h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {RF_KEYS_UI.map((k) => (
+                  <div key={k} className="space-y-1">
+                    <Label htmlFor={`rf-${k}`}>{k}</Label>
+                    <Input
+                      id={`rf-${k}`}
+                      data-testid={`input-rf-${k}`}
+                      type="number"
+                      step="0.01"
+                      min={0}
+                      max={20}
+                      placeholder=""
+                      value={rf[k]}
+                      onChange={(e) => setRf({ ...rf, [k]: e.target.value })}
+                    />
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <Separator />
+
+            <section className="space-y-2">
+              <h3 className="text-sm font-semibold">
+                Home-Bias-Multiplikator (0–5)
+              </h3>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                {HB_KEYS_UI.map((k) => (
+                  <div key={k} className="space-y-1">
+                    <Label htmlFor={`hb-${k}`}>{k}</Label>
+                    <Input
+                      id={`hb-${k}`}
+                      data-testid={`input-hb-${k}`}
+                      type="number"
+                      step="0.1"
+                      min={0}
+                      max={5}
+                      placeholder=""
+                      value={hb[k]}
+                      onChange={(e) => setHb({ ...hb, [k]: e.target.value })}
+                    />
+                  </div>
+                ))}
+              </div>
+            </section>
+
+            <Separator />
+
+            <section className="space-y-2">
+              <h3 className="text-sm font-semibold">
+                CMA — erwartete Rendite & Volatilität (in %)
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border text-left">
+                      <th className="pb-2 pr-3 font-medium">Asset</th>
+                      <th className="pb-2 pr-3 font-medium">Exp. Return %</th>
+                      <th className="pb-2 font-medium">Vol %</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {CMA_KEYS_UI.map((c) => (
+                      <tr key={c.key} className="border-b border-border/50">
+                        <td className="py-1.5 pr-3 text-muted-foreground">
+                          {c.label}
+                        </td>
+                        <td className="py-1.5 pr-3">
+                          <Input
+                            data-testid={`input-cma-${c.key}-mu`}
+                            type="number"
+                            step="0.1"
+                            placeholder=""
+                            value={cma[c.key].expReturn}
+                            onChange={(e) =>
+                              setCma({
+                                ...cma,
+                                [c.key]: { ...cma[c.key], expReturn: e.target.value },
+                              })
+                            }
+                          />
+                        </td>
+                        <td className="py-1.5">
+                          <Input
+                            data-testid={`input-cma-${c.key}-vol`}
+                            type="number"
+                            step="0.1"
+                            min={0}
+                            placeholder=""
+                            value={cma[c.key].vol}
+                            onChange={(e) =>
+                              setCma({
+                                ...cma,
+                                [c.key]: { ...cma[c.key], vol: e.target.value },
+                              })
+                            }
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+
+            <Separator />
+
+            <section className="space-y-2">
+              <Label htmlFor="app-defaults-summary">
+                Kurze Beschreibung der Änderung (für PR-Titel)
+              </Label>
+              <Input
+                id="app-defaults-summary"
+                data-testid="input-app-defaults-summary"
+                placeholder="z. B. RF nach EZB-Sitzung 04/2026"
+                value={summary}
+                onChange={(e) => setSummary(e.target.value)}
+              />
+            </section>
+
+            {!githubConfigured && (
+              <Alert>
+                <AlertTitle>GitHub nicht konfiguriert</AlertTitle>
+                <AlertDescription>
+                  Setze <code>GITHUB_PAT</code>, <code>GITHUB_OWNER</code>,{" "}
+                  <code>GITHUB_REPO</code> auf dem api-server, um PRs öffnen
+                  zu können.
+                </AlertDescription>
+              </Alert>
+            )}
+
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-muted-foreground">
+                Hinweis: Werte werden vor dem Commit serverseitig validiert
+                (Bereiche wie Methodology). Ungültige Eingaben werden als
+                Fehler gemeldet und es entsteht kein PR.
+              </p>
+              <Button
+                data-testid="button-app-defaults-submit"
+                onClick={onSubmit}
+                disabled={submitting || !githubConfigured}
+              >
+                {submitting ? "PR wird geöffnet…" : "PR öffnen"}
+              </Button>
+            </div>
+
+            {lastPr && (
+              <Alert>
+                <AlertTitle>PR geöffnet</AlertTitle>
+                <AlertDescription>
+                  <a
+                    href={lastPr.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="underline text-primary"
+                    data-testid="link-app-defaults-pr"
+                  >
+                    PR #{lastPr.number} auf GitHub öffnen
+                  </a>
+                </AlertDescription>
+              </Alert>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
 }

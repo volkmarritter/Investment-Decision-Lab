@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-04-27 (justetf-fetch-retry-backoff)
+Last updated: 2026-04-27 (admin-app-defaults)
 
 ---
 
@@ -619,6 +619,14 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-04-27 (admin-app-defaults)
+- **New "Globale Defaults" admin section.** The Methodology editor (per-user, localStorage) now has a server-backed counterpart at `/admin`. Operators can edit the ship-wide defaults for **Risk-Free Rates**, **Home-Bias multipliers**, and **CMA** (expReturn / vol per asset) and submit them via a single GitHub PR. After merge + redeploy the values become the new built-in defaults for **all** users, while per-user Methodology overrides keep layering on top — same priority ladder as before, just with one additional rung between built-in and consensus.
+  - **Storage** — new file `artifacts/investment-lab/src/data/app-defaults.json` (initially empty `{}`). Bundled at build time, so the frontend stays static (no runtime API call to render the app). Layout: `{ _meta, riskFreeRates?, homeBias?, cma? }` with each section partial — only set values override built-in defaults.
+  - **Frontend hydration** — new module `src/lib/appDefaults.ts` exports a defensively-sanitised `APP_DEFAULTS` (drops unknown currencies, unknown asset keys, out-of-range values). `settings.ts`'s `RF_DEFAULTS` and `HOME_BIAS_DEFAULTS` and `metrics.ts`'s `CMA_SEED` are now built as `BUILT_IN_xxx merged with APP_DEFAULTS.xxx` at module load. The Methodology editor reads the same constants, so its "Default" column already shows the live shipped value.
+  - **Backend** — new `lib/app-defaults.ts` in api-server with strict `validateAppDefaults` (returns explicit errors instead of silently dropping), `renderAppDefaultsFile` (2-space indent + trailing newline), and `stampMeta` (sets `_meta.lastUpdated`/`lastUpdatedBy` server-side so the operator cannot forge a date). New `openUpdateAppDefaultsPr` in `lib/github.ts` performs whole-file replacement (safe for JSON) on a per-call branch `update-app-defaults/<epoch>-<rand6>` (epoch + 6-char random suffix so two requests in the same millisecond cannot collide). New routes `GET /admin/app-defaults` (returns current on-disk content, re-validated) and `POST /admin/app-defaults` (validates → stamps → opens PR → returns `{prUrl, prNumber}`).
+  - **Admin UI** — new `AppDefaultsPanel` card on `/admin` with three editor tables (RF, Home-Bias, CMA), preloaded from `getAppDefaults()`. Inputs are in the same units as the Methodology editor (% for RF / CMA, multiplier for Home-Bias). Empty fields = "no override → built-in default applies". A required summary input populates the PR title. Submitting an entirely empty payload is intentionally allowed — that is the operator's path to wipe all global overrides and revert to the pure built-in defaults. Surfaces the resulting PR URL on success; shows a 503 banner when GitHub credentials are missing.
+  - **Tests** — 12 new cases in `tests/app-defaults.test.ts` covering the frontend sanitiser (happy path + defensive drops including the bug it caught: an asset-key whitelist was missing in v0 of the loader), and 17 new cases in `tests/api-app-defaults.test.ts` covering the backend strict validator (good shapes + every error class) and the `renderAppDefaultsFile` / `stampMeta` helpers. Total 315 / 315 (was 286), typecheck clean for both packages.
 
 ### 2026-04-27 (justetf-fetch-retry-backoff)
 - **All justETF live fetches now retry transient failures with exponential backoff before flipping the workflow red.** The 2026-04-26 morning smoke run was the trigger — extractors still matched the live markup (a manual rerun five hours later was fully green) but a single 429 / 503 from one of the three canary fetches turned the scheduled job red. The same brittleness affected the manual `Refresh ETF listings` run that came back as `partial` (16 OK / 4 fail) for the same reason.

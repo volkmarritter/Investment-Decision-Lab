@@ -197,7 +197,52 @@ export const adminApi = {
     }>(`/admin/lookthrough-pool/${encodeURIComponent(isin)}`, {
       method: "POST",
     }),
+  // Global defaults editor (RF rates, Home-Bias, CMA). GET returns the
+  // currently-shipped JSON; POST validates the payload server-side and
+  // opens a GitHub PR replacing app-defaults.json. After merge + redeploy
+  // the values become the ship-wide defaults for ALL users.
+  getAppDefaults: () =>
+    call<{ value: AppDefaultsPayload; raw: string }>("/admin/app-defaults"),
+  proposeAppDefaultsPr: (value: AppDefaultsPayload, summary: string) =>
+    call<{ ok: boolean; prUrl: string; prNumber: number }>(
+      "/admin/app-defaults",
+      {
+        method: "POST",
+        body: JSON.stringify({ value, summary }),
+      },
+    ),
 };
+
+// Mirrors the validated payload shape from artifacts/api-server/src/lib/app-defaults.ts.
+// Keep in sync with that file's exports.
+export type AppDefaultsRfCurrency = "USD" | "EUR" | "GBP" | "CHF";
+export type AppDefaultsHbCurrency = "USD" | "EUR" | "GBP" | "CHF";
+export type AppDefaultsAssetKey =
+  | "equity_us"
+  | "equity_eu"
+  | "equity_uk"
+  | "equity_ch"
+  | "equity_jp"
+  | "equity_em"
+  | "equity_thematic"
+  | "bonds"
+  | "cash"
+  | "gold"
+  | "reits"
+  | "crypto";
+
+export interface AppDefaultsPayload {
+  _meta?: {
+    lastUpdated?: string | null;
+    lastUpdatedBy?: string | null;
+    comment?: string | null;
+  };
+  riskFreeRates?: Partial<Record<AppDefaultsRfCurrency, number>>;
+  homeBias?: Partial<Record<AppDefaultsHbCurrency, number>>;
+  cma?: Partial<
+    Record<AppDefaultsAssetKey, { expReturn?: number; vol?: number }>
+  >;
+}
 
 export interface LookthroughPoolEntry {
   isin: string;

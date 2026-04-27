@@ -1,6 +1,7 @@
 import { AssetAllocation, BaseCurrency } from "./types";
 import { getRiskFreeRate, getCMAOverrides } from "./settings";
 import consensusFile from "@/data/cmas.consensus.json";
+import { APP_DEFAULTS } from "./appDefaults";
 
 export type AssetKey =
   | "equity_us"
@@ -23,14 +24,18 @@ export interface AssetCMA {
   vol: number;
 }
 
-// Seed values (engine fallback). These are the deliberately conservative,
-// stable defaults documented in the Methodology tab. Two further override
-// layers may be applied on top (priority: user > consensus > seed):
-//   1. Multi-provider CONSENSUS from src/data/cmas.consensus.json (Option A)
-//   2. USER overrides from localStorage (Option B), edited in the Methodology tab
-// Both layers mutate the leaf objects of CMA in place so every existing caller
+// Built-in seed values (final engine fallback). These are the deliberately
+// conservative, stable defaults documented in the Methodology tab.
+// Override layers (priority: user > consensus > app-defaults > built-in):
+//   1. Built-in BASE_SEED below.
+//   2. APP-DEFAULTS overlay from src/data/app-defaults.json (admin-managed
+//      via /admin → GitHub PR; ships in the bundle for ALL users after
+//      merge + redeploy). Task #35, 2026-04-27.
+//   3. Multi-provider CONSENSUS from src/data/cmas.consensus.json (Option A).
+//   4. USER overrides from localStorage (Option B), edited in the Methodology tab.
+// Layers 3+4 mutate the leaf objects of CMA in place so every existing caller
 // (CMA[key].expReturn, CMA[key].vol) keeps working without changes.
-const CMA_SEED: Record<AssetKey, AssetCMA> = {
+const BASE_SEED: Record<AssetKey, AssetCMA> = {
   equity_us:        { key: "equity_us",        label: "US Equity",         expReturn: 0.070, vol: 0.16 },
   equity_eu:        { key: "equity_eu",        label: "Europe Equity",     expReturn: 0.075, vol: 0.17 },
   equity_uk:        { key: "equity_uk",        label: "UK Equity",         expReturn: 0.065, vol: 0.15 },
@@ -44,6 +49,24 @@ const CMA_SEED: Record<AssetKey, AssetCMA> = {
   reits:            { key: "reits",            label: "Listed Real Estate", expReturn: 0.065, vol: 0.18 },
   crypto:           { key: "crypto",           label: "Crypto",            expReturn: 0.120, vol: 0.70 },
 };
+
+// Effective seed = built-in seed with the admin-managed overlay applied.
+const CMA_SEED: Record<AssetKey, AssetCMA> = (() => {
+  const out = Object.fromEntries(
+    (Object.entries(BASE_SEED) as [AssetKey, AssetCMA][]).map(([k, v]) => [k, { ...v }]),
+  ) as Record<AssetKey, AssetCMA>;
+  for (const [k, v] of Object.entries(APP_DEFAULTS.cma)) {
+    if (!(k in out)) continue;
+    const target = out[k as AssetKey];
+    if (typeof v?.expReturn === "number" && Number.isFinite(v.expReturn)) {
+      target.expReturn = v.expReturn;
+    }
+    if (typeof v?.vol === "number" && Number.isFinite(v.vol)) {
+      target.vol = v.vol;
+    }
+  }
+  return out;
+})();
 
 // Live, mutable view used by the engine and UI everywhere.
 export const CMA: Record<AssetKey, AssetCMA> = Object.fromEntries(
