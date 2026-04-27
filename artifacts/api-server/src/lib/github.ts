@@ -530,15 +530,20 @@ export async function listOpenPrs(prefix?: string): Promise<OpenPrInfo[]> {
   const owner = process.env.GITHUB_OWNER!;
   const repo = process.env.GITHUB_REPO!;
   const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
-  const { data } = await octokit.pulls.list({
+  // Paginate fully (per_page max 100). The whole point of this helper is to
+  // be a *reliable* source of truth for the operator — silently capping at
+  // page 1 would re-introduce the same "missing PR" class of bug we built
+  // this widget to defeat. NEVER use the search API here (search-index lag
+  // is the entire reason for this work).
+  const all = await octokit.paginate(octokit.pulls.list, {
     owner,
     repo,
     state: "open",
-    per_page: 50,
+    per_page: 100,
     sort: "created",
     direction: "desc",
   });
-  const filtered = prefix ? data.filter((p) => p.head.ref.startsWith(prefix)) : data;
+  const filtered = prefix ? all.filter((p) => p.head.ref.startsWith(prefix)) : all;
   return filtered.map((p) => ({
     number: p.number,
     url: p.html_url,

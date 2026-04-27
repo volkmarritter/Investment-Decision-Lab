@@ -1459,7 +1459,7 @@ function PendingPrsCard({
                 <span className="font-medium">#{p.number}</span>
                 {p.draft && (
                   <span className="ml-1.5 text-xs text-muted-foreground">
-                    (draft)
+                    {t({ de: "(Entwurf)", en: "(draft)" })}
                   </span>
                 )}
                 <span className="ml-2 truncate">{p.title}</span>
