@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-04-27 (admin-bilingual-and-docs-card)
+Last updated: 2026-04-27 (metrics-home-global-fix)
 
 ---
 
@@ -619,6 +619,14 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-04-27 (metrics-home-global-fix)
+- **Bugfix — Risk & Performance Metrics ergaben für komprimierte Equity-Sleeves völlig falsche Vol / Beta / Tracking Error.** Wenn der ETF-Budget zu eng war, kollabiert die Engine das Aktien-Sleeve in zwei Zeilen `region: "Home"` + `region: "Global"` (siehe `portfolio.ts:280-287`, `etfs.ts:480-494`). `mapAllocationToAssets()` in `metrics.ts` und das parallel gehaltene `bucketKey()` in `monteCarlo.ts` kannten diese beiden Region-Werte aber nicht und schmissen sie still in den Fallback `equity_thematic` (Vol 22 %, ExpReturn 8 %, korreliert nur ~0.85 mit US-Equity, nicht im ACWI-Benchmark enthalten). Folge im UI: ein 64.7 % S&P 500 / 35.3 % MSCI ACWI IMI Portfolio zeigte Vol 22.00 %, Expected Return 8.00 %, Beta 1.25 und **Tracking Error 11.4 %** — also den Fingerabdruck eines reinen Themenfonds gegen ACWI, obwohl die Realität eher Vol ~16 %, Beta ~1.05 und TE ~3-4 % wäre. Fix:
+  - `mapAllocationToAssets(allocation, baseCurrency)` löst `region === "Home"` jetzt anhand der Basiswährung in den passenden Equity-Bucket auf (USD → `equity_us`, CHF → `equity_ch`, GBP → `equity_uk`, EUR → `equity_eu`) — analog zur Logik im ETF-Picker.
+  - `region === "Global"` wird über die ACWI-Benchmark-Gewichte (60 / 14 / 4 / 4 / 4 / 14) auf die sechs Regional-Buckets verteilt. Damit hat ein 100 %-ACWI-Portfolio Tracking Error ≈ 0 und Beta ≈ 1.0, wie es muss.
+  - `computeMetrics`, `computeFrontier` und `buildCorrelationMatrix` reichen die Basiswährung jetzt durch; `PortfolioMetrics.tsx` übergibt sie entsprechend.
+  - Monte-Carlo-Pfad (`monteCarlo.ts`) bekommt die gleiche Behandlung: `bucketKey(assetClass, region, baseCurrency)` und ein expliziter Vor-Schritt, der `Equity-Global`-Zeilen in die sechs ACWI-Regionen aufspannt, bevor die Buckets gebaut werden — sonst weicht die analytische Vol von der MC-Vol auf der Run-Monte-Carlo-Ansicht ab.
+  - Neuer Regressionstest `mapAllocationToAssets resolves Equity-Home + Equity-Global from sleeve compaction` prüft alle drei Eigenschaften (Home-Routing nach Basiswährung, Global-Aufteilung gemäß BENCHMARK, TE eines reinen Global-Bestands < 0.5 %). Suite jetzt 331 Tests, alle grün.
 
 ### 2026-04-27 (auto-merge-backfill-prefix)
 - **Auto-Merge-Action akzeptiert jetzt einen vierten Branch-Prefix `backfill-`.** Bisher hörte `.github/workflows/admin-auto-merge.yml` nur auf die drei vom in-app Admin erzeugten Prefixes (`add-etf/`, `add-lookthrough-pool/`, `update-app-defaults/`). Operator-seitige One-off-Backfill-PRs — wie zuletzt PR #8, der die drei offiziellen ETF-Namen in die bestehenden Pool-Einträge nachgezogen hat (Branch `backfill-pool-names/2026-04-27T18-56-46`) — fielen aus dem Filter heraus und mussten manuell per REST-API gemergt werden. Mit dem neuen Prefix laufen künftige Backfills (egal ob Pool-Namen, Override-Korrekturen, Refresh-Daten-Repair) wieder ohne Handgriff durch denselben Pfad: PR öffnen → Action squash-mergt → Branch wird gelöscht. Action-Kommentar und der Operator-facing-Erklärtext im DocsPanel (DE + EN) wurden auf „vier Prefixes" aktualisiert. Hinweis: Da das Replit-PAT keinen `workflow`-Scope hat, musste die Workflow-Datei wie üblich manuell über die GitHub-Web-UI committet werden — die lokale Datei ist die Source of Truth.

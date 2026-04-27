@@ -836,6 +836,48 @@ describe("metrics", () => {
     expect(get("cash")).toBeCloseTo(0.05);
   });
 
+  it("mapAllocationToAssets resolves Equity-Home + Equity-Global from sleeve compaction", () => {
+    // When the ETF budget is too small, the engine collapses the equity
+    // sleeve into "Home" + "Global" rows (portfolio.ts:280-287). The
+    // metrics layer must resolve these to real CMA buckets — otherwise
+    // they fall through to equity_thematic and balloon vol / TE / beta.
+    // Home → equity_us for USD, equity_ch for CHF.
+    const usd = mapAllocationToAssets(
+      [{ assetClass: "Equity", region: "Home", weight: 40 }],
+      "USD",
+    );
+    expect(usd.find((e) => e.key === "equity_us")?.weight).toBeCloseTo(0.4);
+    expect(usd.find((e) => e.key === "equity_thematic")).toBeUndefined();
+
+    const chf = mapAllocationToAssets(
+      [{ assetClass: "Equity", region: "Home", weight: 40 }],
+      "CHF",
+    );
+    expect(chf.find((e) => e.key === "equity_ch")?.weight).toBeCloseTo(0.4);
+
+    // Global → distributed across BENCHMARK weights (60/14/4/4/4/14).
+    const glob = mapAllocationToAssets(
+      [{ assetClass: "Equity", region: "Global", weight: 100 }],
+      "USD",
+    );
+    const get = (k: string) => glob.find((e) => e.key === k)?.weight ?? 0;
+    const benchSum = BENCHMARK.reduce((s, e) => s + e.weight, 0);
+    for (const b of BENCHMARK) {
+      expect(get(b.key)).toBeCloseTo(b.weight / benchSum);
+    }
+    expect(get("equity_thematic")).toBe(0);
+
+    // A 100% Global portfolio must have ~zero tracking error vs the ACWI
+    // benchmark — this is the regression that motivated the fix.
+    const m = computeMetrics(
+      [{ assetClass: "Equity", region: "Global", weight: 100 }],
+      "USD",
+    );
+    expect(m.trackingError).toBeLessThan(0.005);
+    expect(m.beta).toBeCloseTo(1.0, 1);
+    expect(m.vol).toBeLessThan(0.18);
+  });
+
   it("computeMetrics returns sane numbers for a default portfolio", () => {
     const input = baseInput();
     const out = buildPortfolio(input);

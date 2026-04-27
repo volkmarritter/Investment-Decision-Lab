@@ -370,11 +370,25 @@ export interface AssetExposure {
   weight: number;
 }
 
-export function mapAllocationToAssets(allocation: AssetAllocation[]): AssetExposure[] {
+// Base-currency → home equity bucket. Mirrors the ETF picker in
+// `etfs.ts:480-494`, which maps `region === "Home"` to the corresponding
+// regional ETF (Equity-USA for USD, Equity-Switzerland for CHF, etc.).
+const HOME_EQUITY_KEY: Record<BaseCurrency, AssetKey> = {
+  USD: "equity_us",
+  EUR: "equity_eu",
+  GBP: "equity_uk",
+  CHF: "equity_ch",
+};
+
+export function mapAllocationToAssets(
+  allocation: AssetAllocation[],
+  baseCurrency: BaseCurrency = "USD",
+): AssetExposure[] {
   const map: Record<AssetKey, number> = {
     equity_us: 0, equity_eu: 0, equity_uk: 0, equity_ch: 0, equity_jp: 0, equity_em: 0,
     equity_thematic: 0, bonds: 0, cash: 0, gold: 0, reits: 0, crypto: 0,
   };
+  const benchSum = BENCHMARK.reduce((s, e) => s + e.weight, 0);
   for (const a of allocation) {
     const w = a.weight / 100;
     if (a.assetClass === "Fixed Income") map.bonds += w;
@@ -390,6 +404,18 @@ export function mapAllocationToAssets(allocation: AssetAllocation[]): AssetExpos
       else if (r === "Switzerland") map.equity_ch += w;
       else if (r === "Japan") map.equity_jp += w;
       else if (r === "EM") map.equity_em += w;
+      // Equity sleeve compaction: when the ETF budget is too tight to give
+      // every region its own slot, the engine emits "Equity-Home" + "Equity-
+      // Global" rows (see portfolio.ts:280-287, etfs.ts:480-494). Resolve
+      // them to real CMA buckets so vol / Sharpe / TE / beta stay
+      // consistent with the underlying ACWI-IMI exposure. Without this,
+      // both rows fall through to equity_thematic (vol 22%, low ACWI corr),
+      // which makes vol read as 22%, beta jump to ~1.25 and TE balloon to
+      // double-digits even for a near-pure ACWI portfolio.
+      else if (r === "Home") map[HOME_EQUITY_KEY[baseCurrency]] += w;
+      else if (r === "Global") {
+        for (const b of BENCHMARK) map[b.key] += w * (b.weight / benchSum);
+      }
       else map.equity_thematic += w;
     }
   }
@@ -453,7 +479,7 @@ export interface PortfolioMetricsResult {
 
 export function computeMetrics(allocation: AssetAllocation[], baseCurrency: BaseCurrency): PortfolioMetricsResult {
   const rf = getRiskFreeRate(baseCurrency);
-  const exp = mapAllocationToAssets(allocation);
+  const exp = mapAllocationToAssets(allocation, baseCurrency);
   const r = portfolioReturn(exp);
   const v = portfolioVol(exp);
   const rB = portfolioReturn(BENCHMARK);
@@ -500,7 +526,7 @@ export interface FrontierPoint {
 
 export function computeFrontier(allocation: AssetAllocation[], baseCurrency: BaseCurrency): { points: FrontierPoint[]; current: FrontierPoint } {
   const rf = getRiskFreeRate(baseCurrency);
-  const exp = mapAllocationToAssets(allocation);
+  const exp = mapAllocationToAssets(allocation, baseCurrency);
   const equityKeys: AssetKey[] = ["equity_us", "equity_eu", "equity_uk", "equity_ch", "equity_jp", "equity_em", "equity_thematic", "reits", "crypto"];
   const isEq = (k: AssetKey) => equityKeys.includes(k);
 
@@ -563,13 +589,16 @@ const CORR_DISPLAY_ORDER: AssetKey[] = [
   "gold", "reits", "crypto",
 ];
 
-export function buildCorrelationMatrix(allocation: AssetAllocation[]): {
+export function buildCorrelationMatrix(
+  allocation: AssetAllocation[],
+  baseCurrency: BaseCurrency = "USD",
+): {
   keys: AssetKey[];
   labels: string[];
   matrix: number[][];
   held: boolean[];
 } {
-  const exp = mapAllocationToAssets(allocation);
+  const exp = mapAllocationToAssets(allocation, baseCurrency);
   const heldSet = new Set<AssetKey>(exp.map((e) => e.key));
   const keys = [...CORR_DISPLAY_ORDER];
   const labels = keys.map((k) => CMA[k].label);

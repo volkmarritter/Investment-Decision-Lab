@@ -27,8 +27,8 @@ export function PortfolioMetrics({ allocation, baseCurrency }: { allocation: Ass
 
   const m = useMemo(() => computeMetrics(allocation, baseCurrency), [allocation, baseCurrency, rf, cmaVersion]);
   const frontier = useMemo(() => computeFrontier(allocation, baseCurrency), [allocation, baseCurrency, rf, cmaVersion]);
-  const correlation = useMemo(() => buildCorrelationMatrix(allocation), [allocation]);
-  const exposures = useMemo(() => mapAllocationToAssets(allocation), [allocation]);
+  const correlation = useMemo(() => buildCorrelationMatrix(allocation, baseCurrency), [allocation, baseCurrency]);
+  const exposures = useMemo(() => mapAllocationToAssets(allocation, baseCurrency), [allocation, baseCurrency]);
 
   const explain = {
     expReturn: {

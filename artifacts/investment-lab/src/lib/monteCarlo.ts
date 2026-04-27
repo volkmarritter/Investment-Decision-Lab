@@ -1,11 +1,17 @@
 import { AssetAllocation } from "./types";
-import { CMA, AssetKey, corr } from "./metrics";
+import { CMA, AssetKey, corr, BENCHMARK } from "./metrics";
 
 // Map an (assetClass, region) pair to the CMA key. Mirrors the logic in
 // metrics.mapAllocationToAssets so Monte Carlo, Sharpe and the frontier all
 // draw from the same single source of truth (CMA — including any user
-// overrides applied via applyCMALayers).
-function bucketKey(assetClass: string, region: string): AssetKey {
+// overrides applied via applyCMALayers). "Home" / "Global" are the engine's
+// equity-sleeve compaction labels (see portfolio.ts:280-287); they must
+// resolve to real region keys instead of falling through to thematic, or
+// vol / Sharpe / TE / beta drift away from reality.
+const HOME_BUCKET: Record<string, AssetKey> = {
+  USD: "equity_us", EUR: "equity_eu", GBP: "equity_uk", CHF: "equity_ch",
+};
+function bucketKey(assetClass: string, region: string, baseCurrency: string = "USD"): AssetKey {
   const ac = assetClass.toLowerCase();
   const rg = region.toLowerCase();
   if (ac.includes("cash")) return "cash";
@@ -14,12 +20,16 @@ function bucketKey(assetClass: string, region: string): AssetKey {
   if (ac.includes("real estate")) return "reits";
   if (ac.includes("digital") || ac.includes("crypto")) return "crypto";
   if (ac.includes("equity")) {
+    if (rg === "home") return HOME_BUCKET[baseCurrency] ?? "equity_us";
     if (rg.includes("usa")) return "equity_us";
     if (rg.includes("switzer")) return "equity_ch";
     if (rg === "uk" || rg.includes("united kingdom")) return "equity_uk";
     if (rg.includes("europ")) return "equity_eu";
     if (rg.includes("japan")) return "equity_jp";
     if (rg.includes("em")) return "equity_em";
+    // "Global" intentionally falls through here — runMonteCarlo expands
+    // a single Global row across the BENCHMARK weights (see below) so
+    // we never collapse it into one bucket the way other regions do.
     return "equity_thematic";
   }
   return "equity_thematic";
@@ -135,11 +145,34 @@ export function runMonteCarlo(
   // "Expected Volatility" line up with the analytical Risk & Performance
   // Metrics view (modulo the FX-hedge sigma reduction below, which is
   // intentionally a Monte-Carlo-only feature).
-  const buckets: { weight: number; mu: number; sigma: number; key: AssetKey }[] = [];
+  // Equity-sleeve compaction: an "Equity-Global" (MSCI ACWI IMI) row
+  // expands across the BENCHMARK regional weights so MC vol / Sharpe stay
+  // consistent with metrics.mapAllocationToAssets. Without this, Global
+  // would collapse to one bucket and produce a different sigma than the
+  // analytical Risk & Performance Metrics view.
+  const expanded: { assetClass: string; region: string; weight: number }[] = [];
+  const benchSum = BENCHMARK.reduce((s, e) => s + e.weight, 0);
   for (const a of allocation) {
+    if (a.assetClass === "Equity" && a.region === "Global") {
+      for (const b of BENCHMARK) {
+        const regionLabel =
+          b.key === "equity_us" ? "USA" :
+          b.key === "equity_eu" ? "Europe" :
+          b.key === "equity_uk" ? "UK" :
+          b.key === "equity_ch" ? "Switzerland" :
+          b.key === "equity_jp" ? "Japan" : "EM";
+        expanded.push({ assetClass: "Equity", region: regionLabel, weight: a.weight * (b.weight / benchSum) });
+      }
+    } else {
+      expanded.push({ assetClass: a.assetClass, region: a.region, weight: a.weight });
+    }
+  }
+
+  const buckets: { weight: number; mu: number; sigma: number; key: AssetKey }[] = [];
+  for (const a of expanded) {
     const w = a.weight / 100;
     const { mu, sigma } = bucketAssumption(a.assetClass, a.region, hedged, baseCurrency);
-    const key = bucketKey(a.assetClass, a.region);
+    const key = bucketKey(a.assetClass, a.region, baseCurrency);
     buckets.push({ weight: w, mu, sigma, key });
     portfolioMu += w * mu;
   }
