@@ -34,6 +34,8 @@ import {
   applyPresetToFields,
   findPresetById,
 } from "@/lib/appDefaultsPresets";
+import { BUILT_IN_RF, BUILT_IN_HB } from "@/lib/settings";
+import { BASE_SEED } from "@/lib/metrics";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -131,7 +133,7 @@ export default function Admin() {
                 Admin
               </h1>
               <p className="text-xs text-muted-foreground">
-                Investment Decision Lab — operator pane
+                Investment Decision Lab — Operator-Bereich
               </p>
             </div>
           </div>
@@ -145,7 +147,7 @@ export default function Admin() {
                 setLocalToken(null);
               }}
             >
-              <LogOut className="h-4 w-4 mr-1" /> Sign out
+              <LogOut className="h-4 w-4 mr-1" /> Abmelden
             </Button>
           </div>
         </div>
@@ -161,7 +163,7 @@ export default function Admin() {
           />
           <DataUpdatesColumn />
         </div>
-        <LookthroughPoolPanel />
+        <LookthroughPoolPanel catalog={catalog} />
         <AppDefaultsPanel githubConfigured={githubConfigured} />
       </main>
     </div>
@@ -183,16 +185,17 @@ function TokenPrompt({
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Admin sign-in</CardTitle>
+          <CardTitle>Admin-Anmeldung</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Enter the admin token (set as <code>ADMIN_TOKEN</code> on the
-            api-server). The token is stored only for this browser tab.
+            Bitte das Admin-Token eingeben (auf dem api-server als{" "}
+            <code>ADMIN_TOKEN</code> hinterlegt). Das Token wird nur für
+            diesen Browser-Tab gespeichert.
           </p>
           <Input
             type="password"
-            placeholder="Admin token"
+            placeholder="Admin-Token"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {
@@ -211,7 +214,7 @@ function TokenPrompt({
             onClick={() => onSubmit(value.trim())}
             data-testid="button-admin-signin"
           >
-            Sign in
+            Anmelden
           </Button>
         </CardContent>
       </Card>
@@ -311,17 +314,16 @@ function BrowseBucketsPanel({
             ) : (
               <ChevronRight className="h-4 w-4" />
             )}
-            Browse existing buckets
+            Bestehende Buckets durchsuchen
             {total > 0 && (
               <span className="text-xs font-normal text-muted-foreground">
-                {total} bucket{total === 1 ? "" : "s"} across{" "}
-                {groups.length} asset class
-                {groups.length === 1 ? "" : "es"}
+                {total} Bucket{total === 1 ? "" : "s"} in {groups.length}{" "}
+                Asset-Klasse{groups.length === 1 ? "" : "n"}
               </span>
             )}
           </CardTitle>
           <span className="text-xs text-muted-foreground">
-            {open ? "Hide" : "Show"}
+            {open ? "Verbergen" : "Anzeigen"}
           </span>
         </button>
       </CardHeader>
@@ -329,20 +331,21 @@ function BrowseBucketsPanel({
         <CardContent className="pt-0">
           {catalogError && (
             <Alert variant="destructive" className="mb-4">
-              <AlertTitle>Could not load catalog</AlertTitle>
+              <AlertTitle>Katalog konnte nicht geladen werden</AlertTitle>
               <AlertDescription>{catalogError}</AlertDescription>
             </Alert>
           )}
           {!catalog && !catalogError && (
-            <p className="text-sm text-muted-foreground">Loading…</p>
+            <p className="text-sm text-muted-foreground">Lade …</p>
           )}
           {catalog && groups.length > 0 && (
             <>
               <div className="flex items-center justify-between mb-3 gap-3">
                 <p className="text-xs text-muted-foreground">
-                  Naming convention:{" "}
-                  <code>&lt;AssetClass&gt;-&lt;Region or Theme&gt;[-&lt;Currency hedge or Variant&gt;]</code>
-                  . Click a key to copy it into the catalog-key field below.
+                  Namens­konvention:{" "}
+                  <code>&lt;AssetClass&gt;-&lt;Region oder Thema&gt;[-&lt;Hedge oder Variante&gt;]</code>
+                  . Auf einen Key klicken, um ihn ins Katalog-Key-Feld unten
+                  zu kopieren.
                 </p>
                 <BucketTreeBulkToggle
                   groups={groups}
@@ -386,7 +389,7 @@ function copyBucketKey(key: string) {
     input.dispatchEvent(new Event("input", { bubbles: true }));
     input.focus();
   }
-  toast.success(`Copied ${key}`);
+  toast.success(`${key} kopiert`);
 }
 
 // ---------------------------------------------------------------------------
@@ -430,9 +433,9 @@ function SuggestIsinPanel({
     setErrMsg(null);
     try {
       const r = await adminApi.addIsin(draft);
-      toast.success("Pull request opened", {
+      toast.success("Pull-Request geöffnet", {
         description: r.prUrl,
-        action: { label: "Open", onClick: () => window.open(r.prUrl, "_blank") },
+        action: { label: "Öffnen", onClick: () => window.open(r.prUrl, "_blank") },
       });
       setIsin("");
       setPreview(null);
@@ -447,12 +450,12 @@ function SuggestIsinPanel({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Suggest an ISIN</CardTitle>
+        <CardTitle>ISIN vorschlagen</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex gap-2">
           <Input
-            placeholder="e.g. IE00B5BMR087"
+            placeholder="z. B. IE00B5BMR087"
             value={isin}
             onChange={(e) => setIsin(e.target.value)}
             onKeyDown={(e) => {
@@ -468,32 +471,32 @@ function SuggestIsinPanel({
             {loading ? (
               <RefreshCw className="h-4 w-4 animate-spin" />
             ) : (
-              "Preview"
+              "Vorschau"
             )}
           </Button>
         </div>
         {errMsg && (
           <Alert variant="destructive">
-            <AlertTitle>Error</AlertTitle>
+            <AlertTitle>Fehler</AlertTitle>
             <AlertDescription>{errMsg}</AlertDescription>
           </Alert>
         )}
         {catalogError && (
           <Alert variant="destructive">
-            <AlertTitle>Could not load catalog</AlertTitle>
+            <AlertTitle>Katalog konnte nicht geladen werden</AlertTitle>
             <AlertDescription>
-              {catalogError} — replace-vs-add diff is unavailable until this
-              clears.
+              {catalogError} — der Replace-vs-Add-Vergleich ist nicht
+              verfügbar, bis dies behoben ist.
             </AlertDescription>
           </Alert>
         )}
         {!githubConfigured && draft && (
           <Alert>
-            <AlertTitle>GitHub not configured</AlertTitle>
+            <AlertTitle>GitHub nicht konfiguriert</AlertTitle>
             <AlertDescription>
-              Set <code>GITHUB_PAT</code>, <code>GITHUB_OWNER</code>,{" "}
-              <code>GITHUB_REPO</code> on the api-server to enable PR
-              creation.
+              Setze <code>GITHUB_PAT</code>, <code>GITHUB_OWNER</code> und{" "}
+              <code>GITHUB_REPO</code> auf dem api-server, um PRs erzeugen
+              zu können.
             </AlertDescription>
           </Alert>
         )}
@@ -544,15 +547,15 @@ function PreviewEditor({
     <div className="space-y-4 border rounded-md p-4 bg-muted/30">
       <div className="flex items-center justify-between">
         <div>
-          <div className="font-medium">{draft.name || "(no name detected)"}</div>
+          <div className="font-medium">{draft.name || "(kein Name erkannt)"}</div>
           <div className="text-xs text-muted-foreground">{draft.isin}</div>
         </div>
         <div className="flex gap-2">
           <Badge variant={preview.policyFit.aumOk ? "default" : "destructive"}>
-            AUM {preview.policyFit.aumOk ? "OK" : "fail"}
+            AUM {preview.policyFit.aumOk ? "OK" : "ungenügend"}
           </Badge>
           <Badge variant={preview.policyFit.terOk ? "default" : "destructive"}>
-            TER {preview.policyFit.terOk ? "OK" : "fail"}
+            TER {preview.policyFit.terOk ? "OK" : "ungenügend"}
           </Badge>
         </div>
       </div>
@@ -563,13 +566,13 @@ function PreviewEditor({
         rel="noreferrer"
         className="text-xs text-primary underline"
       >
-        View on justETF →
+        Auf justETF ansehen →
       </a>
 
       <Separator />
 
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Catalog key">
+        <Field label="Katalog-Key">
           <Input
             value={draft.key}
             onChange={(e) => set("key", e.target.value)}
@@ -593,9 +596,10 @@ function PreviewEditor({
               : null}
           </datalist>
           <p className="text-[11px] text-muted-foreground mt-1">
-            Pick an existing key to <strong>replace</strong> a bucket, or
-            type a new one (e.g. <code>Equity-AI</code>) to{" "}
-            <strong>add</strong> a new bucket.
+            Existierenden Key wählen, um einen Bucket zu{" "}
+            <strong>ersetzen</strong>, oder einen neuen tippen (z. B.{" "}
+            <code>Equity-AI</code>), um einen neuen Bucket{" "}
+            <strong>hinzuzufügen</strong>.
           </p>
         </Field>
         <Field label="Name">
@@ -611,7 +615,7 @@ function PreviewEditor({
             onChange={(e) => set("terBps", Number(e.target.value))}
           />
         </Field>
-        <Field label="AUM (M EUR)">
+        <Field label="AUM (Mio. EUR)">
           <Input
             type="number"
             value={draft.aumMillionsEUR ?? ""}
@@ -623,19 +627,19 @@ function PreviewEditor({
             }
           />
         </Field>
-        <Field label="Domicile">
+        <Field label="Domizil">
           <Input
             value={draft.domicile}
             onChange={(e) => set("domicile", e.target.value)}
           />
         </Field>
-        <Field label="Currency">
+        <Field label="Währung">
           <Input
             value={draft.currency}
             onChange={(e) => set("currency", e.target.value.toUpperCase())}
           />
         </Field>
-        <Field label="Replication">
+        <Field label="Replikation">
           <Select
             value={draft.replication}
             onValueChange={(v) => set("replication", v as Replication)}
@@ -652,7 +656,7 @@ function PreviewEditor({
             </SelectContent>
           </Select>
         </Field>
-        <Field label="Distribution">
+        <Field label="Ausschüttung">
           <Select
             value={draft.distribution}
             onValueChange={(v) => set("distribution", v as Distribution)}
@@ -669,16 +673,16 @@ function PreviewEditor({
             </SelectContent>
           </Select>
         </Field>
-        <Field label="Inception date">
+        <Field label="Auflagedatum">
           <Input
-            placeholder="YYYY-MM-DD"
+            placeholder="JJJJ-MM-TT"
             value={draft.inceptionDate ?? ""}
             onChange={(e) =>
               set("inceptionDate", e.target.value || undefined)
             }
           />
         </Field>
-        <Field label="Default exchange">
+        <Field label="Standard-Börse">
           <Select
             value={draft.defaultExchange}
             onValueChange={(v) => set("defaultExchange", v as Exchange)}
@@ -697,7 +701,7 @@ function PreviewEditor({
         </Field>
       </div>
 
-      <Field label="Comment (shown in tooltips)">
+      <Field label="Kommentar (wird in Tooltips angezeigt)">
         <Textarea
           rows={2}
           value={draft.comment}
@@ -706,13 +710,13 @@ function PreviewEditor({
       </Field>
 
       <div>
-        <Label className="text-xs">Listings (ticker per exchange)</Label>
+        <Label className="text-xs">Listings (Ticker je Börse)</Label>
         <div className="grid grid-cols-2 gap-2 mt-1">
           {EXCHANGES.map((ex) => (
             <div key={ex} className="flex items-center gap-2">
               <span className="text-xs w-16">{ex}</span>
               <Input
-                placeholder="(none)"
+                placeholder="(keine)"
                 value={draft.listings[ex]?.ticker ?? ""}
                 onChange={(e) => {
                   const next = { ...draft.listings };
@@ -738,12 +742,12 @@ function PreviewEditor({
         data-testid="button-submit-pr"
       >
         {submitting
-          ? "Opening PR…"
+          ? "PR wird geöffnet …"
           : blockedByDuplicate
-            ? "Resolve the ISIN clash above to continue"
+            ? "ISIN-Konflikt oben beheben, um fortzufahren"
             : classification?.state === "REPLACE"
-              ? "Open PR to replace the existing entry"
-              : "Open PR to add to catalog"}
+              ? "PR öffnen: bestehenden Eintrag ersetzen"
+              : "PR öffnen: zum Katalog hinzufügen"}
       </Button>
     </div>
   );
@@ -762,7 +766,7 @@ function DiffPanel({
   if (!classification) {
     return (
       <div className="text-xs text-muted-foreground" data-testid="diff-panel-loading">
-        Loading catalog…
+        Katalog wird geladen …
       </div>
     );
   }
@@ -774,20 +778,20 @@ function DiffPanel({
         data-testid="diff-panel-duplicate"
       >
         <div className="flex items-center gap-2">
-          <Badge variant="destructive">Duplicate ISIN</Badge>
+          <Badge variant="destructive">Doppelte ISIN</Badge>
           <span className="text-sm">
-            This ISIN is already used by{" "}
+            Diese ISIN wird bereits von{" "}
             <code className="font-mono text-xs">
               {classification.conflictKey}
-            </code>
-            .
+            </code>{" "}
+            verwendet.
           </span>
         </div>
         <p className="text-xs text-muted-foreground">
-          Existing entry: <strong>{classification.conflict.name}</strong>{" "}
-          ({classification.conflict.isin}). Change the ISIN — or change the
-          catalog key to <code>{classification.conflictKey}</code> if you
-          want to replace it — before opening a PR.
+          Bestehender Eintrag: <strong>{classification.conflict.name}</strong>{" "}
+          ({classification.conflict.isin}). Vor dem PR die ISIN ändern — oder
+          den Katalog-Key auf <code>{classification.conflictKey}</code>{" "}
+          setzen, um den bestehenden Eintrag zu ersetzen.
         </p>
         {/* Still expose the generated TS even while the PR is blocked,
             so the operator can sanity-check what would have been written
@@ -805,11 +809,11 @@ function DiffPanel({
       >
         <div className="flex items-center gap-2">
           <Badge className="bg-emerald-600 hover:bg-emerald-600">
-            New bucket
+            Neuer Bucket
           </Badge>
           <span className="text-sm">
-            <code className="font-mono text-xs">{draft.key || "(no key)"}</code>{" "}
-            doesn't exist yet — this PR will add a new entry.
+            <code className="font-mono text-xs">{draft.key || "(kein Key)"}</code>{" "}
+            existiert noch nicht — dieser PR legt einen neuen Eintrag an.
           </span>
         </div>
         <GeneratedCodeDisclosure draft={draft} />
@@ -825,11 +829,11 @@ function DiffPanel({
     >
       <div className="flex items-center gap-2">
         <Badge className="bg-amber-600 hover:bg-amber-600">
-          Replaces existing entry
+          Ersetzt bestehenden Eintrag
         </Badge>
         <span className="text-sm">
-          <code className="font-mono text-xs">{draft.key}</code> already exists
-          in the catalog. Review the diff before opening a PR.
+          <code className="font-mono text-xs">{draft.key}</code> existiert
+          bereits im Katalog. Diff bitte vor dem Öffnen des PRs prüfen.
         </span>
       </div>
       <SideBySideDiff existing={classification.existing} draft={draft} />
@@ -926,9 +930,9 @@ function SideBySideDiff({
       <table className="text-xs w-full border-collapse">
         <thead>
           <tr className="text-left border-b">
-            <th className="py-1 pr-2 font-medium w-32">Field</th>
-            <th className="py-1 pr-2 font-medium">Current (in catalog)</th>
-            <th className="py-1 pr-2 font-medium">Proposed (this PR)</th>
+            <th className="py-1 pr-2 font-medium w-32">Feld</th>
+            <th className="py-1 pr-2 font-medium">Aktuell (im Katalog)</th>
+            <th className="py-1 pr-2 font-medium">Vorgeschlagen (dieser PR)</th>
           </tr>
         </thead>
         <tbody>
@@ -957,9 +961,10 @@ function SideBySideDiff({
         </tbody>
       </table>
       <p className="text-[10px] text-muted-foreground mt-1">
-        Note: <code>aumMillionsEUR</code> and <code>inceptionDate</code> live
-        in the override layer (refreshed nightly), not the static catalog —
-        the "current" column shows "—" if they weren't curated by hand.
+        Hinweis: <code>aumMillionsEUR</code> und <code>inceptionDate</code>{" "}
+        liegen in der Override-Schicht (nächtlicher Refresh), nicht im
+        statischen Katalog — die Spalte „Aktuell" zeigt „—", wenn nicht
+        manuell gepflegt.
       </p>
     </div>
   );
@@ -1012,12 +1017,12 @@ function GeneratedCodeDisclosure({ draft }: { draft: AddEtfRequest }) {
         ) : (
           <ChevronRight className="h-3 w-3" />
         )}
-        {open ? "Hide generated code" : "Show generated code"}
+        {open ? "Generierten Code verbergen" : "Generierten Code anzeigen"}
       </button>
       {open && (
         <div className="mt-2" data-testid="generated-code-block">
           {loading && !code && (
-            <p className="text-xs text-muted-foreground">Rendering…</p>
+            <p className="text-xs text-muted-foreground">Wird gerendert …</p>
           )}
           {error && (
             <Alert variant="destructive">
@@ -1111,12 +1116,49 @@ function normalizeDistribution(v: unknown): Distribution {
 // Add-only on purpose — see the chat: pool entries are picked up by the
 // monthly refresh job, so there's no per-row "Refresh now" button. To
 // remove an entry, edit lookthrough.overrides.json directly.
-function LookthroughPoolPanel() {
+// Pool-Status-Heuristik: Eintrag gilt als "ok", wenn alle drei Quellen
+// (Top-Holdings, Geo-Breakdown, Sektoren) gefüllt sind UND der letzte
+// Scrape jünger als 60 Tage ist. Älter → "stale". Mindestens eine Quelle
+// leer → "missing". Damit der Operator auf einen Blick sieht, welche
+// Pool-Einträge nachgepflegt werden müssen.
+type PoolStatus = {
+  tone: "ok" | "stale" | "missing";
+  label: string;
+};
+function computePoolStatus(e: LookthroughPoolEntry): PoolStatus {
+  const hasAll = e.topHoldingCount > 0 && e.geoCount > 0 && e.sectorCount > 0;
+  if (!hasAll) return { tone: "missing", label: "Daten fehlen" };
+  // OK setzt voraus, dass es einen *gültigen* Zeitstempel ≤ 60 Tage gibt.
+  // Ein fehlender oder unparsbarer asOf-Wert wird absichtlich als "Veraltet"
+  // klassifiziert — wir können die Frische sonst nicht garantieren.
+  const asOf = e.topHoldingsAsOf || e.breakdownsAsOf;
+  if (!asOf) return { tone: "stale", label: "Veraltet" };
+  const ts = Date.parse(asOf);
+  if (Number.isNaN(ts)) return { tone: "stale", label: "Veraltet" };
+  const ageDays = (Date.now() - ts) / (1000 * 60 * 60 * 24);
+  if (ageDays > 60) return { tone: "stale", label: "Veraltet" };
+  return { tone: "ok", label: "Daten OK" };
+}
+
+function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
   const [isin, setIsin] = useState("");
   const [entries, setEntries] = useState<LookthroughPoolEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
+
+  // ISIN -> Katalog-Eintrag-Lookup. Damit kann die Tabelle den jeweiligen
+  // ETF-Namen + Bucket-Key neben der ISIN anzeigen, statt nur eine nackte
+  // ISIN-Liste. Der Pool ist bucket-unabhängig — manche ISINs sind nicht
+  // im Katalog, dann bleibt das Name-Feld einfach leer.
+  const isinToCatalog = useMemo(() => {
+    const m = new Map<string, { key: string; name: string }>();
+    if (!catalog) return m;
+    for (const [key, entry] of Object.entries(catalog)) {
+      m.set(entry.isin.toUpperCase(), { key, name: entry.name });
+    }
+    return m;
+  }, [catalog]);
 
   async function load() {
     setLoading(true);
@@ -1207,32 +1249,87 @@ function LookthroughPoolPanel() {
             </p>
           )}
           {!loading && entries && entries.length > 0 && (
-            <div className="overflow-auto max-h-80 border rounded">
-              <table className="text-xs w-full">
-                <thead className="bg-muted/40">
-                  <tr className="text-left">
-                    <th className="px-2 py-1 font-medium">ISIN</th>
-                    <th className="px-2 py-1 font-medium">Holdings</th>
-                    <th className="px-2 py-1 font-medium">Länder</th>
-                    <th className="px-2 py-1 font-medium">Sektoren</th>
-                    <th className="px-2 py-1 font-medium">As-of</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {entries.map((e) => (
-                    <tr key={e.isin} className="border-t">
-                      <td className="px-2 py-1 font-mono">{e.isin}</td>
-                      <td className="px-2 py-1">{e.topHoldingCount}</td>
-                      <td className="px-2 py-1">{e.geoCount}</td>
-                      <td className="px-2 py-1">{e.sectorCount}</td>
-                      <td className="px-2 py-1 text-muted-foreground">
-                        {e.topHoldingsAsOf?.slice(0, 10) ?? "—"}
-                      </td>
+            <>
+              <p className="text-xs text-muted-foreground mb-1">
+                {entries.length} ETF{entries.length === 1 ? "" : "s"} im
+                Datenpool. Status pro Eintrag:{" "}
+                <Badge variant="outline" className="border-emerald-600 text-emerald-700 dark:text-emerald-400">
+                  Daten OK
+                </Badge>{" "}
+                = Holdings + Länder + Sektoren vorhanden,{" "}
+                <Badge variant="outline" className="border-amber-600 text-amber-700 dark:text-amber-400">
+                  Veraltet
+                </Badge>{" "}
+                = letzter Scrape &gt; 60 Tage,{" "}
+                <Badge variant="outline" className="border-rose-600 text-rose-700 dark:text-rose-400">
+                  Daten fehlen
+                </Badge>{" "}
+                = mindestens eine Quelle leer.
+              </p>
+              <div className="overflow-auto max-h-96 border rounded">
+                <table className="text-xs w-full">
+                  <thead className="bg-muted/40 sticky top-0">
+                    <tr className="text-left">
+                      <th className="px-2 py-1 font-medium">Status</th>
+                      <th className="px-2 py-1 font-medium">ISIN</th>
+                      <th className="px-2 py-1 font-medium">Name (Katalog)</th>
+                      <th className="px-2 py-1 font-medium">Positionen</th>
+                      <th className="px-2 py-1 font-medium">Länder</th>
+                      <th className="px-2 py-1 font-medium">Sektoren</th>
+                      <th className="px-2 py-1 font-medium">Letzter Scrape</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {entries.map((e) => {
+                      const cat = isinToCatalog.get(e.isin.toUpperCase());
+                      const status = computePoolStatus(e);
+                      return (
+                        <tr key={e.isin} className="border-t" data-testid={`row-pool-${e.isin}`}>
+                          <td className="px-2 py-1">
+                            <Badge
+                              variant="outline"
+                              className={
+                                status.tone === "ok"
+                                  ? "border-emerald-600 text-emerald-700 dark:text-emerald-400"
+                                  : status.tone === "stale"
+                                    ? "border-amber-600 text-amber-700 dark:text-amber-400"
+                                    : "border-rose-600 text-rose-700 dark:text-rose-400"
+                              }
+                              data-testid={`badge-pool-status-${e.isin}`}
+                            >
+                              {status.label}
+                            </Badge>
+                          </td>
+                          <td className="px-2 py-1 font-mono">{e.isin}</td>
+                          <td className="px-2 py-1">
+                            {cat ? (
+                              <>
+                                <div className="truncate max-w-[28ch]" title={cat.name}>
+                                  {cat.name}
+                                </div>
+                                <div className="text-[10px] text-muted-foreground font-mono">
+                                  {cat.key}
+                                </div>
+                              </>
+                            ) : (
+                              <span className="text-muted-foreground italic">
+                                — nicht im Katalog
+                              </span>
+                            )}
+                          </td>
+                          <td className="px-2 py-1">{e.topHoldingCount}</td>
+                          <td className="px-2 py-1">{e.geoCount}</td>
+                          <td className="px-2 py-1">{e.sectorCount}</td>
+                          <td className="px-2 py-1 text-muted-foreground">
+                            {e.topHoldingsAsOf?.slice(0, 10) ?? "—"}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       </CardContent>
@@ -1283,7 +1380,7 @@ function DataUpdatesColumn() {
           <RefreshCw
             className={`h-4 w-4 mr-1 ${refreshing ? "animate-spin" : ""}`}
           />
-          Refresh
+          Aktualisieren
         </Button>
       </div>
 
@@ -1304,10 +1401,10 @@ function FreshnessCard({ fresh }: { fresh: FreshnessResponse | null }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Data freshness</CardTitle>
+        <CardTitle className="text-base">Datenaktualität</CardTitle>
       </CardHeader>
       <CardContent className="space-y-2 text-sm">
-        {!fresh && <p className="text-muted-foreground">Loading…</p>}
+        {!fresh && <p className="text-muted-foreground">Lade …</p>}
         {fresh && (
           <>
             <Row
@@ -1349,14 +1446,14 @@ function RecentChangesCard({ changes }: { changes: ChangeEntry[] }) {
     <Card>
       <CardHeader>
         <CardTitle className="text-base">
-          Recent data changes ({changes.length})
+          Aktuelle Datenänderungen ({changes.length})
         </CardTitle>
       </CardHeader>
       <CardContent>
         {grouped.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            No changes yet. The next scheduled scrape will populate this list
-            when it detects field-level differences.
+            Noch keine Änderungen. Der nächste geplante Scrape füllt diese
+            Liste, sobald er Feld-Unterschiede erkennt.
           </p>
         )}
         <div className="space-y-3 max-h-96 overflow-auto">
@@ -1390,11 +1487,13 @@ function RecentRunsCard({ runs }: { runs: RunLogRow[] }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Recent runs ({runs.length})</CardTitle>
+        <CardTitle className="text-base">Letzte Läufe ({runs.length})</CardTitle>
       </CardHeader>
       <CardContent>
         {runs.length === 0 && (
-          <p className="text-sm text-muted-foreground">No runs logged yet.</p>
+          <p className="text-sm text-muted-foreground">
+            Noch keine Läufe protokolliert.
+          </p>
         )}
         {runs.length > 0 && (
           <div className="overflow-auto max-h-64">
@@ -1672,7 +1771,7 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
     <Card data-testid="card-app-defaults">
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
-          <span>Globale Defaults (Risk-Free / Home-Bias / CMA)</span>
+          <span>Globale Defaults (Risikoloser Zins / Home-Bias / Kapitalmarkt­annahmen)</span>
           {meta?.lastUpdated && (
             <span className="text-xs font-normal text-muted-foreground">
               zuletzt geändert: {meta.lastUpdated}
@@ -1765,7 +1864,10 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
             <Separator />
 
             <section className="space-y-2">
-              <h3 className="text-sm font-semibold">Risk-Free Rates (in %)</h3>
+              <h3 className="text-sm font-semibold">Risikofreie Zinssätze (in %)</h3>
+              <p className="text-xs text-muted-foreground">
+                Leeres Feld = Built-in-Default greift.
+              </p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {RF_KEYS_UI.map((k) => (
                   <div key={k} className="space-y-1">
@@ -1777,10 +1879,16 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
                       step="0.01"
                       min={0}
                       max={20}
-                      placeholder=""
+                      placeholder={(BUILT_IN_RF[k] * 100).toFixed(3)}
                       value={rf[k]}
                       onChange={(e) => setRf({ ...rf, [k]: e.target.value })}
                     />
+                    <p
+                      className="text-[10px] text-muted-foreground font-mono"
+                      data-testid={`builtin-rf-${k}`}
+                    >
+                      Built-in: {(BUILT_IN_RF[k] * 100).toFixed(3)} %
+                    </p>
                   </div>
                 ))}
               </div>
@@ -1792,6 +1900,9 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
               <h3 className="text-sm font-semibold">
                 Home-Bias-Multiplikator (0–5)
               </h3>
+              <p className="text-xs text-muted-foreground">
+                Leeres Feld = Built-in-Default greift.
+              </p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {HB_KEYS_UI.map((k) => (
                   <div key={k} className="space-y-1">
@@ -1803,10 +1914,16 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
                       step="0.1"
                       min={0}
                       max={5}
-                      placeholder=""
+                      placeholder={BUILT_IN_HB[k].toFixed(1)}
                       value={hb[k]}
                       onChange={(e) => setHb({ ...hb, [k]: e.target.value })}
                     />
+                    <p
+                      className="text-[10px] text-muted-foreground font-mono"
+                      data-testid={`builtin-hb-${k}`}
+                    >
+                      Built-in: {BUILT_IN_HB[k].toFixed(1)}×
+                    </p>
                   </div>
                 ))}
               </div>
@@ -1818,54 +1935,69 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
               <h3 className="text-sm font-semibold">
                 CMA — erwartete Rendite & Volatilität (in %)
               </h3>
+              <p className="text-xs text-muted-foreground">
+                Leere Felder erben den Built-in-Default (Spalte „Built-in").
+              </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border text-left">
-                      <th className="pb-2 pr-3 font-medium">Asset</th>
-                      <th className="pb-2 pr-3 font-medium">Exp. Return %</th>
-                      <th className="pb-2 font-medium">Vol %</th>
+                      <th className="pb-2 pr-3 font-medium">Anlageklasse</th>
+                      <th className="pb-2 pr-3 font-medium">Built-in μ / σ</th>
+                      <th className="pb-2 pr-3 font-medium">Erw. Rendite %</th>
+                      <th className="pb-2 font-medium">Volatilität %</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {CMA_KEYS_UI.map((c) => (
-                      <tr key={c.key} className="border-b border-border/50">
-                        <td className="py-1.5 pr-3 text-muted-foreground">
-                          {c.label}
-                        </td>
-                        <td className="py-1.5 pr-3">
-                          <Input
-                            data-testid={`input-cma-${c.key}-mu`}
-                            type="number"
-                            step="0.1"
-                            placeholder=""
-                            value={cma[c.key].expReturn}
-                            onChange={(e) =>
-                              setCma({
-                                ...cma,
-                                [c.key]: { ...cma[c.key], expReturn: e.target.value },
-                              })
-                            }
-                          />
-                        </td>
-                        <td className="py-1.5">
-                          <Input
-                            data-testid={`input-cma-${c.key}-vol`}
-                            type="number"
-                            step="0.1"
-                            min={0}
-                            placeholder=""
-                            value={cma[c.key].vol}
-                            onChange={(e) =>
-                              setCma({
-                                ...cma,
-                                [c.key]: { ...cma[c.key], vol: e.target.value },
-                              })
-                            }
-                          />
-                        </td>
-                      </tr>
-                    ))}
+                    {CMA_KEYS_UI.map((c) => {
+                      const seed = BASE_SEED[c.key];
+                      const muBuiltin = (seed.expReturn * 100).toFixed(1);
+                      const volBuiltin = (seed.vol * 100).toFixed(1);
+                      return (
+                        <tr key={c.key} className="border-b border-border/50">
+                          <td className="py-1.5 pr-3 text-muted-foreground">
+                            {c.label}
+                          </td>
+                          <td
+                            className="py-1.5 pr-3 text-[11px] text-muted-foreground font-mono whitespace-nowrap"
+                            data-testid={`builtin-cma-${c.key}`}
+                          >
+                            μ {muBuiltin}% / σ {volBuiltin}%
+                          </td>
+                          <td className="py-1.5 pr-3">
+                            <Input
+                              data-testid={`input-cma-${c.key}-mu`}
+                              type="number"
+                              step="0.1"
+                              placeholder={muBuiltin}
+                              value={cma[c.key].expReturn}
+                              onChange={(e) =>
+                                setCma({
+                                  ...cma,
+                                  [c.key]: { ...cma[c.key], expReturn: e.target.value },
+                                })
+                              }
+                            />
+                          </td>
+                          <td className="py-1.5">
+                            <Input
+                              data-testid={`input-cma-${c.key}-vol`}
+                              type="number"
+                              step="0.1"
+                              min={0}
+                              placeholder={volBuiltin}
+                              value={cma[c.key].vol}
+                              onChange={(e) =>
+                                setCma({
+                                  ...cma,
+                                  [c.key]: { ...cma[c.key], vol: e.target.value },
+                                })
+                              }
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
