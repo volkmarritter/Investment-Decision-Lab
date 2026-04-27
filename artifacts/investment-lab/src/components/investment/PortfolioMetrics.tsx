@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, ReferenceDot } from "recharts";
-import { Sigma, Activity, BarChart3, GitCompare, ChevronDown, ChevronUp, TrendingUp } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { Sigma, Activity, BarChart3, GitCompare, TrendingUp } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { InfoHint } from "@/components/ui/info-hint";
@@ -14,7 +13,6 @@ import { useT } from "@/lib/i18n";
 export function PortfolioMetrics({ allocation, baseCurrency }: { allocation: AssetAllocation[]; baseCurrency: BaseCurrency }) {
   const { t, lang } = useT();
   const de = lang === "de";
-  const [expanded, setExpanded] = useState(false);
   const [rf, setRf] = useState<number>(() => getRiskFreeRate(baseCurrency));
   useEffect(() => subscribeRiskFreeRate((all) => setRf(all[baseCurrency])), [baseCurrency]);
   // Re-read RF whenever the active base currency changes (Sharpe / Alpha must
@@ -103,26 +101,11 @@ export function PortfolioMetrics({ allocation, baseCurrency }: { allocation: Ass
   return (
     <Card className="mt-6">
       <CardHeader>
-        <div className="flex flex-row items-start justify-between gap-4">
-          <div className="space-y-1">
-            <CardTitle className="flex items-center gap-2">
-              <Sigma className="h-5 w-5" /> {t("metrics.title")}
-            </CardTitle>
-            <CardDescription>{t("metrics.desc")}</CardDescription>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 pt-2 text-xs font-mono text-muted-foreground">
-              <span><span className="text-foreground font-semibold">{pct(m.expReturn)}</span> {t("metrics.expReturn").toLowerCase()}</span>
-              <span><span className="text-foreground font-semibold">{pct(m.vol)}</span> {t("metrics.vol").toLowerCase()}</span>
-              <span><span className="text-foreground font-semibold">{num(m.sharpe)}</span> {t("metrics.sharpe").toLowerCase()}</span>
-              <span><span className="text-foreground font-semibold">{pct(m.maxDrawdown, 1)}</span> {t("metrics.maxDD").toLowerCase()}</span>
-            </div>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => setExpanded((v) => !v)} className="shrink-0">
-            {expanded ? <ChevronUp className="h-4 w-4 mr-1" /> : <ChevronDown className="h-4 w-4 mr-1" />}
-            {expanded ? t("build.homeBias.collapse") : t("build.homeBias.expand")}
-          </Button>
-        </div>
+        <CardTitle className="flex items-center gap-2">
+          <Sigma className="h-5 w-5" /> {t("metrics.title")}
+        </CardTitle>
+        <CardDescription>{t("metrics.desc")}</CardDescription>
       </CardHeader>
-      {expanded && (
       <CardContent className="space-y-6">
         {/* Scalar metrics grid */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -287,7 +270,6 @@ export function PortfolioMetrics({ allocation, baseCurrency }: { allocation: Ass
           <span>{t("metrics.disclaimer")}</span>
         </p>
       </CardContent>
-      )}
     </Card>
   );
 }
