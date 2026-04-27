@@ -109,6 +109,9 @@ export function DocsPanel({ github }: DocsPanelProps) {
   const actionsUrl = github?.owner && github?.repo
     ? `https://github.com/${github.owner}/${github.repo}/actions`
     : null;
+  const autoMergeRunsUrl = github?.owner && github?.repo
+    ? `https://github.com/${github.owner}/${github.repo}/actions/workflows/admin-auto-merge.yml`
+    : null;
 
   return (
     <Card data-testid="card-docs-panel">
@@ -148,7 +151,10 @@ export function DocsPanel({ github }: DocsPanelProps) {
             })}
           </p>
 
-          <AfterMergeCallout />
+          <AfterMergeCallout
+            autoMergeRunsUrl={autoMergeRunsUrl}
+            allPrsUrl={allPrsUrl}
+          />
 
           <FlowSection
             number={1}
@@ -533,81 +539,221 @@ export function DocsPanel({ github }: DocsPanelProps) {
 }
 
 // ----------------------------------------------------------------------------
-// AfterMergeCallout — captures the 2026-04-27 republish-race finding.
+// AfterMergeCallout — pipeline explainer, "from admin click to live app".
 // ----------------------------------------------------------------------------
-// Operator merged two PRs on github.com, clicked Republish, and the deployed
-// app still served the pre-merge built-in defaults. Root cause: the deploy
-// snapshot is built from whatever the workspace contains at the moment the
-// Republish click is processed; if the GitHub→workspace sync hasn't pulled
-// the merge commit yet, the build is from a pre-merge state. Fix is simply
-// to Republish *again* once the merge has landed in the workspace's main.
+// Originally the operator manually merged each admin PR on github.com and
+// then clicked Republish in Replit, racing the GitHub→workspace sync (a
+// pre-merge snapshot would deploy if Republish ran first). The 2026-04-27
+// auto-merge GitHub Action removes the merge step (admin-prefixed PRs are
+// squash-merged automatically once mergeable). The remaining manual step is
+// "wait for the workspace to pull the merge, then Republish" — or one-time
+// enable Replit's "Redeploy on commit" toggle to remove that step too.
+// This callout walks through all three pipeline stages so a non-developer
+// operator understands which step is automatic, which they still own, and
+// what to check when an expected change hasn't appeared on the live app.
 // ----------------------------------------------------------------------------
-function AfterMergeCallout() {
+interface AfterMergeCalloutProps {
+  autoMergeRunsUrl: string | null;
+  allPrsUrl: string | null;
+}
+
+function AfterMergeCallout({
+  autoMergeRunsUrl,
+  allPrsUrl,
+}: AfterMergeCalloutProps) {
   const { lang, t } = useAdminT();
   return (
     <section
-      className="rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 p-3 space-y-2"
+      className="rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 p-3 space-y-3"
       data-testid="docs-after-merge-callout"
     >
       <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
         <AlertTriangle className="h-4 w-4" />
         <h3 className="font-semibold text-sm">
           {t({
-            de: "Was passiert nach dem Merge? (Republish-Reihenfolge)",
-            en: "What happens after merge? (republish order)",
+            de: "Vom Klick im Admin bis zur Live-App",
+            en: "From admin click to live app",
           })}
         </h3>
       </div>
-      <div className="space-y-2 text-sm text-amber-900 dark:text-amber-100">
+
+      <div className="space-y-3 text-sm text-amber-900 dark:text-amber-100">
         {lang === "de" ? (
-          <>
-            <p>
-              Merge ≠ Deploy. Die ausgelieferte App läuft aus einem{" "}
-              <strong>Snapshot</strong>, den Replit zum Zeitpunkt des
-              „Publish"-Klicks aus dem aktuellen Workspace-Stand baut. Wenn du
-              auf „Republish" klickst, <em>bevor</em> der GitHub-Merge in den
-              Workspace gesynct ist, wird ein Pre-Merge-Snapshot deployt — die
-              alten Werte bleiben sichtbar, obwohl der PR auf{" "}
-              <code>main</code> gemergt ist.
-            </p>
-            <p>
-              <strong>Korrekte Reihenfolge:</strong>{" "}
-              (1) PR auf GitHub mergen →{" "}
-              (2) kurz warten, bis der Workspace die Änderung gezogen hat (im
-              Files-Tree sichtbar) →{" "}
-              (3) <strong>dann</strong> Replit „Republish" klicken →{" "}
-              (4) im Inkognito-Fenster live prüfen.
-            </p>
-            <p>
-              Betrifft alle bundle-getragenen Daten: Flows 1, 2, 3 (siehe
-              unten). Flow 5 (monatlicher Job) ist davon unabhängig — die
-              Override-Layer-Dateien werden zur Laufzeit gelesen.
-            </p>
-          </>
+          <p>
+            Eine Änderung an Pool, ETF-Katalog oder globalen Defaults
+            durchläuft <strong>drei Stationen</strong>. Die ersten zwei sind
+            automatisch, die dritte erfordert (noch) einen Klick.
+          </p>
         ) : (
-          <>
-            <p>
-              Merge ≠ deploy. The live app runs from a{" "}
-              <strong>snapshot</strong> Replit builds at the moment of your
-              "Publish" click, using the current workspace contents. Clicking
-              "Republish" <em>before</em> the GitHub merge has synced into
-              the workspace ships a pre-merge snapshot — the old values stay
-              visible even though the PR is merged on <code>main</code>.
-            </p>
-            <p>
-              <strong>Correct order:</strong>{" "}
-              (1) merge the PR on GitHub →{" "}
-              (2) wait briefly for the workspace to pull the change (visible
-              in the file tree) →{" "}
-              (3) <strong>then</strong> click "Republish" in Replit →{" "}
-              (4) verify in an incognito window.
-            </p>
-            <p>
-              Applies to every bundle-carried payload: flows 1, 2, 3 (see
-              below). Flow 5 (monthly job) is unaffected — its override-layer
-              files are read at runtime.
-            </p>
-          </>
+          <p>
+            A change to the pool, ETF catalog or global defaults passes through{" "}
+            <strong>three stages</strong>. The first two are automatic; the
+            third still needs (one) click.
+          </p>
+        )}
+
+        <ol className="space-y-3 list-decimal list-inside">
+          <li>
+            <strong>
+              {t({ de: "PR öffnen (du)", en: "Open PR (you)" })}
+            </strong>
+            <div className="mt-1 ml-1">
+              {lang === "de" ? (
+                <>
+                  Klick auf „PR öffnen" / „Aufnehmen" im Admin schickt eine
+                  Pull-Request-Anfrage an GitHub. Sie taucht oben in der Karte{" "}
+                  „Offene Pull Requests" auf.
+                </>
+              ) : (
+                <>
+                  Clicking "Open PR" / "Add" in the admin sends a pull-request
+                  to GitHub. It appears at the top in the "Open pull requests"
+                  card.
+                </>
+              )}
+              {allPrsUrl && (
+                <>
+                  {" "}
+                  <ExternalAnchor
+                    href={allPrsUrl}
+                    testid="callout-link-all-prs"
+                    label={t({
+                      de: "PR-Liste auf GitHub",
+                      en: "PR list on GitHub",
+                    })}
+                  />
+                </>
+              )}
+            </div>
+          </li>
+
+          <li>
+            <strong>
+              {t({
+                de: "Auto-Merge (~30 Sekunden, automatisch)",
+                en: "Auto-merge (~30 seconds, automatic)",
+              })}
+            </strong>
+            <div className="mt-1 ml-1">
+              {lang === "de" ? (
+                <>
+                  Eine GitHub-Action erkennt Admin-PRs an ihrem Branch-Namen
+                  (<code>add-etf/</code>, <code>add-lookthrough-pool/</code>,{" "}
+                  <code>update-app-defaults/</code>) und mergt sie automatisch,
+                  sobald sie konfliktfrei sind. Der Branch wird danach
+                  gelöscht. Wenn du einen PR <em>vor</em> dem Merge selbst
+                  prüfen willst, konvertiere ihn auf GitHub in einen{" "}
+                  <strong>Draft</strong> — die Action lässt Drafts in Ruhe.
+                </>
+              ) : (
+                <>
+                  A GitHub Action recognizes admin PRs by their branch name
+                  (<code>add-etf/</code>, <code>add-lookthrough-pool/</code>,{" "}
+                  <code>update-app-defaults/</code>) and squash-merges them as
+                  soon as they are conflict-free. The branch is deleted
+                  afterwards. If you want to review a PR <em>before</em> it
+                  merges, convert it to a <strong>Draft</strong> on GitHub —
+                  the action skips drafts.
+                </>
+              )}
+              {autoMergeRunsUrl && (
+                <>
+                  {" "}
+                  <ExternalAnchor
+                    href={autoMergeRunsUrl}
+                    testid="callout-link-auto-merge-runs"
+                    label={t({
+                      de: "Live-Status der Action",
+                      en: "Live status of the action",
+                    })}
+                  />
+                </>
+              )}
+            </div>
+          </li>
+
+          <li>
+            <strong>
+              {t({
+                de: "Workspace-Sync + Republish (du, einmalig pro Merge)",
+                en: "Workspace sync + Republish (you, once per merge)",
+              })}
+            </strong>
+            <div className="mt-1 ml-1 space-y-2">
+              {lang === "de" ? (
+                <>
+                  <p>
+                    Replit zieht den Merge automatisch von GitHub in den
+                    Workspace (kann 1–2 Minuten dauern). Im{" "}
+                    <strong>Files-Tab</strong> links siehst du, ob die geänderte
+                    Datei (z. B. <code>lookthrough.overrides.json</code>)
+                    bereits den neuen Stand zeigt. <strong>Erst dann</strong>{" "}
+                    oben rechts auf <strong>„Republish"</strong> klicken — der
+                    neue Live-Snapshot ist nach 1–3 Min draußen.
+                  </p>
+                  <p>
+                    <strong>Optional, einmal einrichten:</strong> Im{" "}
+                    Deployments-Tab den Schalter „Redeploy on commit"
+                    einschalten. Dann macht Replit Sync + Republish vollständig
+                    automatisch nach jedem Auto-Merge — du musst gar nichts
+                    mehr klicken.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p>
+                    Replit pulls the merge from GitHub into the workspace
+                    automatically (can take 1–2 minutes). In the{" "}
+                    <strong>Files tab</strong> on the left you can see whether
+                    the changed file (e.g. <code>lookthrough.overrides.json</code>)
+                    already reflects the new state. <strong>Only then</strong>{" "}
+                    click <strong>"Republish"</strong> at the top right — the
+                    new live snapshot is out in 1–3 minutes.
+                  </p>
+                  <p>
+                    <strong>Optional, one-time setup:</strong> In the
+                    Deployments tab toggle "Redeploy on commit" on. Then Replit
+                    handles sync + republish fully automatically after every
+                    auto-merge — no clicks needed.
+                  </p>
+                </>
+              )}
+            </div>
+          </li>
+        </ol>
+
+        <div className="rounded border border-amber-400 bg-amber-100 dark:bg-amber-900/40 px-2 py-1.5 text-xs">
+          {lang === "de" ? (
+            <>
+              <strong>Häufiger Fehler:</strong> „Republish" klicken,{" "}
+              <em>bevor</em> der Workspace die Änderung gezogen hat. Folge:
+              alter Stand wird ausgeliefert, obwohl der PR gemergt ist. Im
+              Files-Tab kontrollieren, ob die Datei aktuell ist —{" "}
+              <strong>dann</strong> erst Republish.
+            </>
+          ) : (
+            <>
+              <strong>Common mistake:</strong> Clicking "Republish"{" "}
+              <em>before</em> the workspace has pulled the change. Result: the
+              old state ships even though the PR is merged. Verify in the
+              Files tab that the file is up to date —{" "}
+              <strong>then</strong> Republish.
+            </>
+          )}
+        </div>
+
+        {lang === "de" ? (
+          <p className="text-xs">
+            Betrifft alle bundle-getragenen Daten (Flows 1, 2, 3 unten). Flow 5
+            (monatlicher Job) ist davon unberührt — die Override-Layer-Dateien
+            werden zur Laufzeit gelesen, kein Republish nötig.
+          </p>
+        ) : (
+          <p className="text-xs">
+            Applies to every bundle-carried payload (flows 1, 2, 3 below). Flow
+            5 (monthly job) is unaffected — its override-layer files are read
+            at runtime, no republish needed.
+          </p>
         )}
       </div>
     </section>
