@@ -902,6 +902,26 @@ export function BuildPortfolio() {
                       ))}
                     </div>
 
+                    {/* Legend (mirrors Compare-tab layout): one row per
+                     * pie slice with color swatch, label, and weight %. */}
+                    <ul
+                      className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs"
+                      aria-label={lang === "de" ? "Legende" : "Legend"}
+                      data-testid="build-allocation-legend"
+                    >
+                      {chartData.map((d, i) => (
+                        <li key={i} className="flex items-center gap-2 min-w-0">
+                          <span
+                            className="inline-block h-2.5 w-2.5 rounded-sm shrink-0"
+                            style={{ backgroundColor: COLORS[i % COLORS.length] }}
+                            aria-hidden
+                          />
+                          <span className="truncate text-muted-foreground" title={d.name}>{d.name}</span>
+                          <span className="ml-auto tabular-nums font-medium">{d.value.toFixed(1)}%</span>
+                        </li>
+                      ))}
+                    </ul>
+
                     <div className="rounded-md border">
                       <Table>
                         <TableHeader>
