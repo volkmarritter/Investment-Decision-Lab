@@ -639,7 +639,7 @@ function AfterMergeCallout({
                 <>
                   Eine GitHub-Action erkennt Admin-PRs an ihrem Branch-Namen
                   (<code>add-etf/</code>, <code>add-lookthrough-pool/</code>,{" "}
-                  <code>update-app-defaults/</code>) und mergt sie automatisch,
+                  <code>update-app-defaults/</code>, <code>backfill-</code>) und mergt sie automatisch,
                   sobald sie konfliktfrei sind. Der Branch wird danach
                   gelöscht. Wenn du einen PR <em>vor</em> dem Merge selbst
                   prüfen willst, konvertiere ihn auf GitHub in einen{" "}
@@ -649,7 +649,7 @@ function AfterMergeCallout({
                 <>
                   A GitHub Action recognizes admin PRs by their branch name
                   (<code>add-etf/</code>, <code>add-lookthrough-pool/</code>,{" "}
-                  <code>update-app-defaults/</code>) and squash-merges them as
+                  <code>update-app-defaults/</code>, <code>backfill-</code>) and squash-merges them as
                   soon as they are conflict-free. The branch is deleted
                   afterwards. If you want to review a PR <em>before</em> it
                   merges, convert it to a <strong>Draft</strong> on GitHub —
