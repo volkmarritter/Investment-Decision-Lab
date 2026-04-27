@@ -1846,6 +1846,29 @@ function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
                                   {cat.key}
                                 </div>
                               </>
+                            ) : e.name ? (
+                              // Auto-Refresh-Eintrag, der nicht im Katalog
+                              // (etfs.ts) steht: zeige den von justETF
+                              // gescrapeten offiziellen ETF-Namen, damit
+                              // der Operator die ISIN identifizieren kann
+                              // ohne sie extern nachschlagen zu müssen.
+                              // Italic + "(justETF)"-Hinweis grenzt visuell
+                              // gegenüber kuratierten Katalog-Namen ab.
+                              <>
+                                <div
+                                  className="truncate max-w-[28ch] italic"
+                                  title={e.name}
+                                  data-testid={`pool-name-${e.isin}`}
+                                >
+                                  {e.name}
+                                </div>
+                                <div className="text-[10px] text-muted-foreground">
+                                  {t({
+                                    de: "justETF · nicht im Katalog",
+                                    en: "justETF · not in catalog",
+                                  })}
+                                </div>
+                              </>
                             ) : (
                               <span className="text-muted-foreground italic">
                                 {t({

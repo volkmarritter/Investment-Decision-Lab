@@ -160,6 +160,10 @@ export async function openUpdateAppDefaultsPr(args: {
 // a clear error.
 // ---------------------------------------------------------------------------
 export interface LookthroughPoolEntry {
+  // Offizieller ETF-Name vom justETF-Profilkopf (z.B. "iShares Nasdaq 100
+  // UCITS ETF (Acc)"). Optional, weil ältere Pool-Einträge den Namen noch
+  // nicht haben — der monatliche Refresh-Job backfillt sie automatisch.
+  name?: string;
   topHoldings: Array<{ name: string; pct: number }>;
   topHoldingsAsOf: string;
   geo: Record<string, number>;

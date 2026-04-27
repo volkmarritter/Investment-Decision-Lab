@@ -307,6 +307,11 @@ router.get("/admin/lookthrough-pool", async (_req, res) => {
       return {
         isin,
         source,
+        // Offizieller ETF-Name (vom justETF-Scrape persistiert). Nur in
+        // pool-Einträgen befüllt — overrides-only-Einträge sind die
+        // kuratierte PROFILES-Baseline und nutzen die Katalog-Namen aus
+        // etfs.ts (das Frontend joint dort). Pool gewinnt bei Kollision.
+        name: p?.name ?? o?.name ?? null,
         topHoldingsAsOf: src.topHoldingsAsOf ?? null,
         breakdownsAsOf: src.breakdownsAsOf ?? null,
         topHoldingCount: src.topHoldings?.length ?? 0,
@@ -314,7 +319,19 @@ router.get("/admin/lookthrough-pool", async (_req, res) => {
         sectorCount: src.sector ? Object.keys(src.sector).length : 0,
       };
     });
-    entries.sort((a, b) => a.isin.localeCompare(b.isin));
+    // Primär nach Quelle gruppieren (Auto-Refresh zuerst, dann Beide,
+    // dann Kuratiert), sekundär nach ISIN. So sieht der Operator alle
+    // dynamisch gescrapeten Einträge zusammen oben — genau die, für die
+    // der gescrapete Name die einzige Identifikation ist.
+    const sourceRank: Record<typeof entries[number]["source"], number> = {
+      pool: 0,
+      both: 1,
+      overrides: 2,
+    };
+    entries.sort((a, b) => {
+      const r = sourceRank[a.source] - sourceRank[b.source];
+      return r !== 0 ? r : a.isin.localeCompare(b.isin);
+    });
     res.json({ entries });
   } catch (err) {
     res.status(500).json({
@@ -410,6 +427,10 @@ router.post("/admin/lookthrough-pool/:isin", async (req, res) => {
     const pr = await openAddLookthroughPoolPr({
       isin,
       entry: {
+        // Offizieller ETF-Name vom justETF-Profilkopf — wird im Admin-
+        // Pool-Tabellen-Render neben der ISIN angezeigt, damit Auto-
+        // Refresh-Einträge (nicht im Katalog) identifizierbar sind.
+        ...(scraped.name ? { name: scraped.name } : {}),
         topHoldings: scraped.topHoldings,
         topHoldingsAsOf: scraped.asOf,
         geo: scraped.geo,

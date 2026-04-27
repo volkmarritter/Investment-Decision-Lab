@@ -286,6 +286,12 @@ export interface LookthroughPoolEntry {
   //   "both"      = ISIN existiert in beiden Sektionen (pool gewinnt
   //                 inhaltlich, weil frischer).
   source: "overrides" | "pool" | "both";
+  // Offizieller ETF-Name vom justETF-Profilkopf, persistiert beim Scrape.
+  // null für Pool-Einträge die vor Einführung des Name-Felds (2026-04-27)
+  // geschrieben wurden — der monatliche Refresh-Job backfillt sie auf
+  // dem nächsten Lauf. Für overrides-only-Einträge meist null, weil dort
+  // der Katalog (etfs.ts) den Namen liefert.
+  name: string | null;
   topHoldingsAsOf: string | null;
   breakdownsAsOf: string | null;
   topHoldingCount: number;
