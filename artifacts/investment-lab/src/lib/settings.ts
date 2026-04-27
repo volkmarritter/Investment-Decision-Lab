@@ -218,6 +218,23 @@ export function resetCMAOverrides() {
   window.dispatchEvent(new CustomEvent(CMA_EVENT, { detail: {} }));
 }
 
+// Reset just one asset class back to its seed/consensus default. Symmetric to
+// `resetRiskFreeRate(ccy)` so the editor UI can offer a per-row reset action
+// instead of forcing the user into an all-or-nothing wipe.
+export function resetCMAOverride(key: string) {
+  if (typeof window === "undefined") return;
+  if (!CMA_VALID_KEYS.has(key)) return;
+  const current = getCMAOverrides();
+  if (current[key] === undefined) return;
+  delete current[key];
+  if (Object.keys(current).length === 0) {
+    window.localStorage.removeItem(CMA_KEY);
+  } else {
+    window.localStorage.setItem(CMA_KEY, JSON.stringify(current));
+  }
+  window.dispatchEvent(new CustomEvent(CMA_EVENT, { detail: current }));
+}
+
 export function subscribeCMAOverrides(cb: (o: CMAUserOverrides) => void): () => void {
   if (typeof window === "undefined") return () => {};
   const handler = (e: Event) => {
@@ -308,6 +325,23 @@ export function resetHomeBiasOverrides() {
   if (typeof window === "undefined") return;
   window.localStorage.removeItem(HB_KEY);
   window.dispatchEvent(new CustomEvent(HB_EVENT, { detail: {} }));
+}
+
+// Reset just one currency back to its HOME_BIAS_DEFAULTS value. Symmetric to
+// `resetRiskFreeRate(ccy)` so the editor UI can offer per-currency revert
+// instead of forcing an all-or-nothing wipe.
+export function resetHomeBiasOverride(ccy: HomeBiasCurrency) {
+  if (typeof window === "undefined") return;
+  if (!HB_VALID_KEYS.has(ccy)) return;
+  const current = getHomeBiasOverrides();
+  if (current[ccy] === undefined) return;
+  delete current[ccy];
+  if (Object.keys(current).length === 0) {
+    window.localStorage.removeItem(HB_KEY);
+  } else {
+    window.localStorage.setItem(HB_KEY, JSON.stringify(current));
+  }
+  window.dispatchEvent(new CustomEvent(HB_EVENT, { detail: current }));
 }
 
 export function subscribeHomeBiasOverrides(cb: (o: HomeBiasOverrides) => void): () => void {

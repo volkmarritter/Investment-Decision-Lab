@@ -1532,6 +1532,84 @@ describe("CMA layered overrides", () => {
     }
   });
 
+  it("per-currency Home Bias: resetHomeBiasOverride(ccy) reverts only that currency, leaves siblings untouched", async () => {
+    const settings = await import("../src/lib/settings");
+    const fakeStore: Record<string, string> = {};
+    const orig = (globalThis as { window?: unknown }).window;
+    (globalThis as unknown as { window: { localStorage: Storage; dispatchEvent: () => boolean } }).window = {
+      localStorage: {
+        getItem: (k: string) => fakeStore[k] ?? null,
+        setItem: (k: string, v: string) => { fakeStore[k] = v; },
+        removeItem: (k: string) => { delete fakeStore[k]; },
+        clear: () => { for (const k of Object.keys(fakeStore)) delete fakeStore[k]; },
+        key: () => null,
+        length: 0,
+      } as Storage,
+      dispatchEvent: () => true,
+    };
+    try {
+      // Override two currencies; reset only one.
+      settings.setHomeBiasOverrides({ CHF: 4.0, USD: 1.8 });
+      expect(settings.resolvedHomeBias("CHF")).toBe(4.0);
+      expect(settings.resolvedHomeBias("USD")).toBe(1.8);
+      settings.resetHomeBiasOverride("CHF");
+      // CHF back to its default (2.5); USD override still active.
+      expect(settings.resolvedHomeBias("CHF")).toBe(settings.HOME_BIAS_DEFAULTS.CHF);
+      expect(settings.resolvedHomeBias("USD")).toBe(1.8);
+      // Reset the second one too — storage key must be removed and overrides empty.
+      settings.resetHomeBiasOverride("USD");
+      expect(settings.resolvedHomeBias("USD")).toBe(settings.HOME_BIAS_DEFAULTS.USD);
+      expect(settings.getHomeBiasOverrides()).toEqual({});
+      // No-op on an unknown currency must not throw and must not mutate state.
+      settings.resetHomeBiasOverride("CHF");
+      expect(settings.getHomeBiasOverrides()).toEqual({});
+    } finally {
+      if (orig) (globalThis as unknown as { window: typeof orig }).window = orig;
+      else delete (globalThis as { window?: unknown }).window;
+    }
+  });
+
+  it("per-asset CMA: resetCMAOverride(key) reverts only that asset, leaves siblings untouched", async () => {
+    const settings = await import("../src/lib/settings");
+    const fakeStore: Record<string, string> = {};
+    const orig = (globalThis as { window?: unknown }).window;
+    (globalThis as unknown as { window: { localStorage: Storage; dispatchEvent: () => boolean } }).window = {
+      localStorage: {
+        getItem: (k: string) => fakeStore[k] ?? null,
+        setItem: (k: string, v: string) => { fakeStore[k] = v; },
+        removeItem: (k: string) => { delete fakeStore[k]; },
+        clear: () => { for (const k of Object.keys(fakeStore)) delete fakeStore[k]; },
+        key: () => null,
+        length: 0,
+      } as Storage,
+      dispatchEvent: () => true,
+    };
+    try {
+      // Override two assets; reset only one.
+      settings.setCMAOverrides({
+        equity_us: { expReturn: 0.09, vol: 0.18 },
+        equity_em: { expReturn: 0.11, vol: 0.22 },
+      });
+      let ov = settings.getCMAOverrides();
+      expect(ov.equity_us?.expReturn).toBeCloseTo(0.09, 6);
+      expect(ov.equity_em?.expReturn).toBeCloseTo(0.11, 6);
+      settings.resetCMAOverride("equity_us");
+      ov = settings.getCMAOverrides();
+      expect(ov.equity_us).toBeUndefined();
+      expect(ov.equity_em?.expReturn).toBeCloseTo(0.11, 6);
+      // Reset the last one — storage key must be removed and overrides empty.
+      settings.resetCMAOverride("equity_em");
+      expect(settings.getCMAOverrides()).toEqual({});
+      // Unknown / not-present keys are silent no-ops.
+      settings.resetCMAOverride("equity_us");
+      settings.resetCMAOverride("not_a_real_asset");
+      expect(settings.getCMAOverrides()).toEqual({});
+    } finally {
+      if (orig) (globalThis as unknown as { window: typeof orig }).window = orig;
+      else delete (globalThis as { window?: unknown }).window;
+    }
+  });
+
   it("per-currency RF: editing one currency leaves the other three on their defaults (cross-currency isolation)", async () => {
     const settings = await import("../src/lib/settings");
     const fakeStore: Record<string, string> = {};

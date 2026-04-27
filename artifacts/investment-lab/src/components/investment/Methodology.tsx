@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { CMA, BENCHMARK, buildCorrelationMatrix, getCMAConsensus, getCMASources, getCMASeed, applyCMALayers, AssetKey, CMA_BUILDING_BLOCKS, sumBuildingBlocks } from "@/lib/metrics";
 import { SCENARIOS } from "@/lib/scenarios";
-import { getRiskFreeRates, getRiskFreeRateOverrides, setRiskFreeRate, resetRiskFreeRate, subscribeRiskFreeRate, RF_DEFAULTS, RFCurrency, getCMAOverrides, setCMAOverrides, resetCMAOverrides, subscribeCMAOverrides, CMAUserOverrides, getHomeBiasOverrides, setHomeBiasOverrides, resetHomeBiasOverrides, subscribeHomeBiasOverrides, resolvedHomeBias, HOME_BIAS_DEFAULTS, HomeBiasCurrency, getLastAllocation, subscribeLastAllocation } from "@/lib/settings";
+import { getRiskFreeRates, getRiskFreeRateOverrides, setRiskFreeRate, resetRiskFreeRate, resetAllRiskFreeRates, subscribeRiskFreeRate, RF_DEFAULTS, RFCurrency, getCMAOverrides, setCMAOverrides, resetCMAOverrides, resetCMAOverride, subscribeCMAOverrides, CMAUserOverrides, getHomeBiasOverrides, setHomeBiasOverrides, resetHomeBiasOverrides, resetHomeBiasOverride, subscribeHomeBiasOverrides, resolvedHomeBias, HOME_BIAS_DEFAULTS, HomeBiasCurrency, getLastAllocation, subscribeLastAllocation } from "@/lib/settings";
 import type { AssetAllocation } from "@/lib/types";
 import { useT } from "@/lib/i18n";
 import { parseDecimalInput } from "@/lib/manualWeights";
@@ -395,6 +395,18 @@ export function Methodology() {
                 ? "Tipp: Sie können hier die Rendite einer kurzlaufenden Staatsanleihe / eines Geldmarktsatzes Ihrer Basiswährung eingeben (z. B. SARON für CHF, ESTR/EZB für EUR, SONIA für GBP, T-Bills für USD)."
                 : "Tip: enter the yield of a short-term government bill / money-market rate in your base currency (e.g. SARON for CHF, ESTR/ECB for EUR, SONIA for GBP, T-Bills for USD)."}
             </p>
+            <div className="flex items-center justify-end pt-1 border-t">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={resetAllRiskFreeRates}
+                disabled={Object.keys(rfOverrides).length === 0}
+                data-testid="button-rf-reset-all"
+              >
+                <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                {de ? "Alle auf Defaults zurücksetzen" : "Reset all to defaults"}
+              </Button>
+            </div>
           </div>
           <Alert>
             <AlertTriangle className="h-4 w-4" />
@@ -632,15 +644,29 @@ export function Methodology() {
                         </Badge>
                       )}
                     </Label>
-                    <Input
-                      id={`hb-${c}`}
-                      type="text"
-                      inputMode="decimal"
-                      value={hbDraft[c]}
-                      onChange={(e) => setHbDraft((d) => ({ ...d, [c]: e.target.value }))}
-                      className="h-8 font-mono text-sm"
-                      data-testid={`input-home-bias-${c}`}
-                    />
+                    <div className="flex items-center gap-1">
+                      <Input
+                        id={`hb-${c}`}
+                        type="text"
+                        inputMode="decimal"
+                        value={hbDraft[c]}
+                        onChange={(e) => setHbDraft((d) => ({ ...d, [c]: e.target.value }))}
+                        className="h-8 font-mono text-sm flex-1"
+                        data-testid={`input-home-bias-${c}`}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0 shrink-0"
+                        onClick={() => resetHomeBiasOverride(c)}
+                        disabled={!isOverride}
+                        title={de ? `Auf Default × ${def.toFixed(1)} zurücksetzen` : `Reset to default × ${def.toFixed(1)}`}
+                        aria-label={de ? `Home-Bias ${c} auf Default zurücksetzen` : `Reset home bias ${c} to default`}
+                        data-testid={`button-home-bias-reset-${c}`}
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                     <div className="text-[10px] text-muted-foreground">
                       {de ? "Default" : "default"} × {def.toFixed(1)}
                     </div>
@@ -753,12 +779,14 @@ export function Methodology() {
                   <TableHead className="w-[120px]">{de ? "Eigene μ %" : "Custom μ %"}</TableHead>
                   <TableHead className="w-[120px]">{de ? "Eigene σ %" : "Custom σ %"}</TableHead>
                   <TableHead>{de ? "Quelle" : "Source"}</TableHead>
+                  <TableHead className="text-right w-[90px]">{de ? "Aktion" : "Action"}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {(Object.keys(CMA) as AssetKey[]).map((k) => {
                   const seed = getCMASeed(k);
                   const src = cmaSources[k];
+                  const isOverride = overrides[k] !== undefined;
                   return (
                     <TableRow key={k}>
                       <TableCell className="font-medium text-xs">
@@ -773,7 +801,7 @@ export function Methodology() {
                         <Input
                           type="text"
                           inputMode="decimal"
-                          placeholder={fmtPct(CMA[k].expReturn)}
+                          placeholder={fmtPct(seed.expReturn)}
                           value={cmaDraft[k].mu}
                           onChange={(e) => setCmaDraft((d) => ({ ...d, [k]: { ...d[k], mu: e.target.value } }))}
                           className="h-7 text-xs font-mono w-full"
@@ -784,7 +812,7 @@ export function Methodology() {
                         <Input
                           type="text"
                           inputMode="decimal"
-                          placeholder={fmtPct(CMA[k].vol, 1)}
+                          placeholder={fmtPct(seed.vol, 1)}
                           value={cmaDraft[k].sigma}
                           onChange={(e) => setCmaDraft((d) => ({ ...d, [k]: { ...d[k], sigma: e.target.value } }))}
                           className="h-7 text-xs font-mono w-full"
@@ -796,6 +824,20 @@ export function Methodology() {
                           <span className="text-[10px] text-muted-foreground">μ</span>{sourceBadge(src.expReturnSource)}
                           <span className="text-[10px] text-muted-foreground ml-1">σ</span>{sourceBadge(src.volSource)}
                         </div>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-7 px-2"
+                          onClick={() => resetCMAOverride(k)}
+                          disabled={!isOverride}
+                          title={de ? `Auf Seed ${fmtPct(seed.expReturn)}% / ${fmtPct(seed.vol, 1)}% zurücksetzen` : `Reset to seed ${fmtPct(seed.expReturn)}% / ${fmtPct(seed.vol, 1)}%`}
+                          data-testid={`cma-reset-${k}`}
+                        >
+                          <RotateCcw className="h-3 w-3 mr-1" />
+                          {de ? "Reset" : "Reset"}
+                        </Button>
                       </TableCell>
                     </TableRow>
                   );
