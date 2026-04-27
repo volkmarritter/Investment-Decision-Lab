@@ -35,6 +35,7 @@ import { Separator } from "@/components/ui/separator";
 import { PortfolioInput, PortfolioOutput, ValidationResult } from "@/lib/types";
 import { runValidation } from "@/lib/validation";
 import { buildPortfolio, computeNaturalBucketCount } from "@/lib/portfolio";
+import { mapAllocationToAssetsLookthrough, CMA } from "@/lib/metrics";
 import { defaultExchangeFor } from "@/lib/exchange";
 import { setLastAllocation, setLastEtfImplementation } from "@/lib/settings";
 import { StressTest } from "./StressTest";
@@ -229,10 +230,28 @@ export function BuildPortfolio() {
     }, 100);
   };
 
-  const chartData = output?.allocation.map(a => ({
+  const baseChartData = output?.allocation.map(a => ({
     name: `${a.assetClass} - ${a.region}`,
     value: a.weight
   })) || [];
+
+  // When Look-Through is ON and an ETF implementation exists, decompose the
+  // pie/stacked-bar into the underlying country buckets (e.g. Equity-Europe
+  // splits into UK / CH / Continental EU based on the actual MSCI Europe
+  // holdings). When OFF or no implementation yet, use the row-level buckets.
+  const chartData = (() => {
+    if (!output || !watchedLookThroughView || output.etfImplementation.length === 0) {
+      return baseChartData;
+    }
+    const lt = mapAllocationToAssetsLookthrough(
+      output.allocation,
+      output.etfImplementation,
+      watchedBaseCcy,
+    );
+    return lt
+      .filter(e => e.weight > 0)
+      .map(e => ({ name: CMA[e.key].label, value: e.weight * 100 }));
+  })();
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">

@@ -25,6 +25,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PortfolioInput, PortfolioOutput, ValidationResult } from "@/lib/types";
 import { runValidation } from "@/lib/validation";
 import { buildPortfolio } from "@/lib/portfolio";
+import { mapAllocationToAssetsLookthrough, CMA } from "@/lib/metrics";
 import { defaultExchangeFor } from "@/lib/exchange";
 import { diffPortfolios } from "@/lib/compare";
 import type { ManualWeights } from "@/lib/manualWeights";
@@ -162,8 +163,30 @@ export function ComparePortfolios() {
     }, 100);
   };
 
-  const chartDataA = outputA?.allocation.map(a => ({ name: `${a.assetClass} - ${a.region}`, value: a.weight })) || [];
-  const chartDataB = outputB?.allocation.map(a => ({ name: `${a.assetClass} - ${a.region}`, value: a.weight })) || [];
+  // When Look-Through is ON for a portfolio (per-portfolio toggle, mirrors
+  // BuildPortfolio behavior), decompose the pie into the underlying country
+  // buckets via the actual ETF holdings. Otherwise use the row-level buckets.
+  const buildChartData = (
+    out: PortfolioOutput | null,
+    input: PortfolioInput | null,
+  ): { name: string; value: number }[] => {
+    if (!out) return [];
+    const base = out.allocation.map(a => ({
+      name: `${a.assetClass} - ${a.region}`,
+      value: a.weight,
+    }));
+    if (!input || !input.lookThroughView || out.etfImplementation.length === 0) return base;
+    const lt = mapAllocationToAssetsLookthrough(
+      out.allocation,
+      out.etfImplementation,
+      input.baseCurrency,
+    );
+    return lt
+      .filter(e => e.weight > 0)
+      .map(e => ({ name: CMA[e.key].label, value: e.weight * 100 }));
+  };
+  const chartDataA = buildChartData(outputA, inputA);
+  const chartDataB = buildChartData(outputB, inputB);
 
   const diff = (outputA && outputB) ? diffPortfolios(outputA, outputB) : null;
 

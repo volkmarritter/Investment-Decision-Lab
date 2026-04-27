@@ -1065,6 +1065,7 @@ export function Methodology() {
           <div className="rounded-md border bg-muted/30 p-3 space-y-2">
             <p className="text-xs font-semibold">{de ? "Wo das Routing greift" : "Where the routing applies"}</p>
             <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+              <li>{de ? "Allokations-Pie-Chart und Stacked-Bar (Aktien-Buckets werden in Länder zerlegt, z. B. Equity-Europe → UK / CH / Kontinental-EU)" : "Allocation pie chart and stacked bar (equity buckets are decomposed into countries, e.g. Equity-Europe → UK / CH / Continental EU)"}</li>
               <li>{de ? "Risiko- & Performance-Kennzahlen im Tab Build (Vola, Beta, TE, Alpha, Sharpe)" : "Risk & Performance metrics in the Build tab (Vol, Beta, TE, Alpha, Sharpe)"}</li>
               <li>{de ? "TE-Contribution-Tabelle (Treiberzuordnung pro Bucket)" : "TE-Contribution table (per-bucket driver attribution)"}</li>
               <li>{de ? "Effiziente Frontier (Marker-Position des Portfolios)" : "Efficient Frontier (portfolio marker position)"}</li>
@@ -1076,7 +1077,7 @@ export function Methodology() {
           <div className="rounded-md border bg-muted/30 p-3 space-y-2">
             <p className="text-xs font-semibold">{de ? "Wo das Routing (bewusst) NICHT greift" : "Where the routing (intentionally) does NOT apply"}</p>
             <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
-              <li>{de ? "Allokations-Pie-Chart: zeigt weiterhin die Top-Level-Buckets der Allokation (kein Drill-Down — UX-Design-Entscheidung)." : "Allocation pie chart: still shows the top-level allocation buckets (no drill-down — UX design choice)."}</li>
+              <li>{de ? "Allokations-Tabelle (unter dem Pie-Chart): zeigt bewusst die vom Nutzer gewählten Buckets, damit „was ich ausgewählt habe\u201C nachvollziehbar bleibt." : "Allocation table (below the pie chart): intentionally shows the user-selected buckets, so that “what I picked” stays traceable."}</li>
               <li>{de ? "Monte-Carlo-Simulation: nutzt einen eigenen, älteren Bucket-Pfad (`monteCarlo.ts`); Look-Through dort als bekannter Folge-Schritt offen." : "Monte Carlo simulation: uses its own older bucket path (`monteCarlo.ts`); look-through there is a known follow-up."}</li>
               <li>{de ? "Stress-Test: schockt direkt die deklarierten Buckets, da die historischen Schock-Vektoren auf Region/Asset-Klassen-Ebene kalibriert sind." : "Stress test: shocks the declared buckets directly, because the historical shock vectors are calibrated at region / asset-class level."}</li>
             </ul>
