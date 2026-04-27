@@ -613,7 +613,7 @@ export function ComparePortfolios() {
                                     <Cell key={`cell-${index}`} fill={colorForBucket(entry.name)} />
                                   ))}
                                 </Pie>
-                                <RechartsTooltip formatter={(value: number) => [`${value}%`, tr("Weight", "Gewicht")]} contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }} />
+                                <RechartsTooltip formatter={(value: number) => [`${value.toFixed(1)}%`, tr("Weight", "Gewicht")]} contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }} />
                               </PieChart>
                             </ResponsiveContainer>
                           </div>

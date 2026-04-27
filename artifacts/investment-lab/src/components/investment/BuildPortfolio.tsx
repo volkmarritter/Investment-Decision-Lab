@@ -877,7 +877,7 @@ export function BuildPortfolio() {
                               ))}
                             </Pie>
                             <RechartsTooltip
-                              formatter={(value: number) => [`${value}%`, 'Weight']}
+                              formatter={(value: number) => [`${value.toFixed(1)}%`, 'Weight']}
                               contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }}
                             />
                           </PieChart>
