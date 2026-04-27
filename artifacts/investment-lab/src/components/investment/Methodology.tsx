@@ -1093,6 +1093,15 @@ export function Methodology() {
           </div>
 
           <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+            <p className="text-xs font-semibold">{de ? "Wenn AUS: feste Aufteilung für \u201EEquity-Global\u201C-Zeilen" : "When OFF: fixed split for “Equity-Global” rows"}</p>
+            <p className="text-xs text-muted-foreground">
+              {de
+                ? "Auch ohne Look-Through braucht die Risiko-Engine konkrete Länder-Buckets. Eine Allokationszeile vom Typ Equity-Global (typischerweise ein einzelner Welt-ETF wie ACWI / FTSE All-World) wird daher gemäss einem festen ACWI-ähnlichen Schlüssel verteilt: US 60 % · Europa 14 % · UK 4 % · CH 4 % · Japan 4 % · EM 14 %. Ohne diesen Fallback würde die Zeile in den Default-Bucket Equity-Thematic fallen (σ ≈ 22 %, niedrige ACWI-Korrelation), und Vola, Beta und TE würden für ein nahezu reines ACWI-Portfolio massiv überzeichnet. Equity-Home-Zeilen (Sleeve-Compaction bei knappem ETF-Budget) routen analog auf den Home-Markt-Bucket der Basiswährung (CHF → Equity-Switzerland, EUR → Equity-Europe, USD → Equity-USA). Bei einem reinen Welt-ETF-Portfolio sind die Kennzahlen mit AN und AUS daher nahezu identisch; der Unterschied wird erst bei Länder-Tilts sichtbar."
+                : "Even without look-through, the risk engine needs concrete country buckets. An allocation row of type Equity-Global (typically a single global ETF such as ACWI / FTSE All-World) is therefore distributed via a fixed ACWI-like split: US 60 % · Europe 14 % · UK 4 % · CH 4 % · Japan 4 % · EM 14 %. Without this fallback the row would land in the default Equity-Thematic bucket (σ ≈ 22 %, low ACWI correlation), and Vol, Beta and TE would be massively overstated for a near-pure ACWI portfolio. Equity-Home rows (sleeve compaction under tight ETF budget) route analogously onto the home-market bucket of the base currency (CHF → Equity-Switzerland, EUR → Equity-Europe, USD → Equity-USA). For a pure global-ETF portfolio the metrics with the toggle ON vs OFF are therefore nearly identical; the difference only becomes visible once country tilts are added."}
+            </p>
+          </div>
+
+          <div className="rounded-md border bg-muted/30 p-3 space-y-2">
             <p className="text-xs font-semibold">{de ? "Konservativer Länder-Map (worauf wird zerlegt)" : "Conservative country map (what gets decomposed)"}</p>
             <p className="text-xs text-muted-foreground">
               {de
