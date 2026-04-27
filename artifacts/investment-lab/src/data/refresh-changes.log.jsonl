@@ -14,3 +14,4 @@
 {"ts":"2026-04-26T08:47:25.311Z","source":"justetf-listings","isin":"IE00BYZK4776","field":"listings","before":null,"after":{"LSE":{"ticker":"HEAL"},"XETRA":{"ticker":"2B78"}}}
 {"ts":"2026-04-26T08:47:25.311Z","source":"justetf-listings","isin":"IE00B1XNHC34","field":"listings","before":null,"after":{"LSE":{"ticker":"INRG"},"XETRA":{"ticker":"IQQH"}}}
 {"ts":"2026-04-26T08:47:25.311Z","source":"justetf-listings","isin":"IE00BG0J4C88","field":"listings","before":null,"after":{"LSE":{"ticker":"LOCK"},"XETRA":{"ticker":"L0CK"}}}
+{"ts":"2026-04-27T05:31:49.260Z","source":"justetf-listings","isin":"IE00B53HP851","field":"listings","before":null,"after":{"LSE":{"ticker":"CSUKX"},"XETRA":{"ticker":"SXRW"}}}
