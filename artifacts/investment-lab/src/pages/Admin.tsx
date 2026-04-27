@@ -52,6 +52,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LangToggle } from "@/components/lang-toggle";
+import { DocsPanel } from "@/components/admin/DocsPanel";
+import { useAdminT } from "@/lib/admin-i18n";
 import { ChevronDown, ChevronRight, Layers, LogOut, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -73,6 +76,7 @@ const DISTRIBUTIONS: Distribution[] = ["Accumulating", "Distributing"];
 const EXCHANGES: Exchange[] = ["LSE", "XETRA", "SIX", "Euronext"];
 
 export default function Admin() {
+  const { t } = useAdminT();
   const [token, setLocalToken] = useState<string | null>(getToken());
   const [authError, setAuthError] = useState<string | null>(null);
   const [githubConfigured, setGithubConfigured] = useState(false);
@@ -130,14 +134,18 @@ export default function Admin() {
             </div>
             <div>
               <h1 className="text-lg font-bold leading-none tracking-tight">
-                Admin
+                {t({ de: "Admin", en: "Admin" })}
               </h1>
               <p className="text-xs text-muted-foreground">
-                Investment Decision Lab — Operator-Bereich
+                {t({
+                  de: "Investment Decision Lab — Operator-Bereich",
+                  en: "Investment Decision Lab — Operator console",
+                })}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
+            <LangToggle />
             <ThemeToggle />
             <Button
               variant="outline"
@@ -147,13 +155,15 @@ export default function Admin() {
                 setLocalToken(null);
               }}
             >
-              <LogOut className="h-4 w-4 mr-1" /> Abmelden
+              <LogOut className="h-4 w-4 mr-1" />{" "}
+              {t({ de: "Abmelden", en: "Sign out" })}
             </Button>
           </div>
         </div>
       </header>
 
       <main className="container mx-auto px-4 py-8 space-y-6">
+        <DocsPanel />
         <BrowseBucketsPanel catalog={catalog} catalogError={catalogError} />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <SuggestIsinPanel
@@ -180,22 +190,45 @@ function TokenPrompt({
   error: string | null;
   onSubmit: (token: string) => void;
 }) {
+  const { t, lang, setLang } = useAdminT();
   const [value, setValue] = useState("");
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Admin-Anmeldung</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>
+              {t({ de: "Admin-Anmeldung", en: "Admin sign-in" })}
+            </CardTitle>
+            <button
+              type="button"
+              onClick={() => setLang(lang === "de" ? "en" : "de")}
+              className="text-xs text-muted-foreground underline"
+              data-testid="button-token-lang-toggle"
+            >
+              {lang === "de" ? "EN" : "DE"}
+            </button>
+          </div>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-muted-foreground">
-            Bitte das Admin-Token eingeben (auf dem api-server als{" "}
-            <code>ADMIN_TOKEN</code> hinterlegt). Das Token wird nur für
-            diesen Browser-Tab gespeichert.
+            {lang === "de" ? (
+              <>
+                Bitte das Admin-Token eingeben (auf dem api-server als{" "}
+                <code>ADMIN_TOKEN</code> hinterlegt). Das Token wird nur für
+                diesen Browser-Tab gespeichert.
+              </>
+            ) : (
+              <>
+                Enter the admin token (configured on the api-server as{" "}
+                <code>ADMIN_TOKEN</code>). The token is stored for this browser
+                tab only.
+              </>
+            )}
           </p>
           <Input
             type="password"
-            placeholder="Admin-Token"
+            placeholder={t({ de: "Admin-Token", en: "Admin token" })}
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {
@@ -214,7 +247,7 @@ function TokenPrompt({
             onClick={() => onSubmit(value.trim())}
             data-testid="button-admin-signin"
           >
-            Anmelden
+            {t({ de: "Anmelden", en: "Sign in" })}
           </Button>
         </CardContent>
       </Card>
@@ -237,6 +270,7 @@ function BrowseBucketsPanel({
   catalog: CatalogSummary | null;
   catalogError: string | null;
 }) {
+  const { t, lang } = useAdminT();
   const [open, setOpen] = useState<boolean>(() => {
     try {
       return sessionStorage.getItem("admin.browseBuckets.open") === "1";
@@ -314,16 +348,22 @@ function BrowseBucketsPanel({
             ) : (
               <ChevronRight className="h-4 w-4" />
             )}
-            Bestehende Buckets durchsuchen
+            {t({
+              de: "Bestehende Buckets durchsuchen",
+              en: "Browse existing buckets",
+            })}
             {total > 0 && (
               <span className="text-xs font-normal text-muted-foreground">
-                {total} Bucket{total === 1 ? "" : "s"} in {groups.length}{" "}
-                Asset-Klasse{groups.length === 1 ? "" : "n"}
+                {lang === "de"
+                  ? `${total} Bucket${total === 1 ? "" : "s"} in ${groups.length} Asset-Klasse${groups.length === 1 ? "" : "n"}`
+                  : `${total} bucket${total === 1 ? "" : "s"} across ${groups.length} asset class${groups.length === 1 ? "" : "es"}`}
               </span>
             )}
           </CardTitle>
           <span className="text-xs text-muted-foreground">
-            {open ? "Verbergen" : "Anzeigen"}
+            {open
+              ? t({ de: "Verbergen", en: "Hide" })
+              : t({ de: "Anzeigen", en: "Show" })}
           </span>
         </button>
       </CardHeader>
@@ -331,21 +371,39 @@ function BrowseBucketsPanel({
         <CardContent className="pt-0">
           {catalogError && (
             <Alert variant="destructive" className="mb-4">
-              <AlertTitle>Katalog konnte nicht geladen werden</AlertTitle>
+              <AlertTitle>
+                {t({
+                  de: "Katalog konnte nicht geladen werden",
+                  en: "Catalog could not be loaded",
+                })}
+              </AlertTitle>
               <AlertDescription>{catalogError}</AlertDescription>
             </Alert>
           )}
           {!catalog && !catalogError && (
-            <p className="text-sm text-muted-foreground">Lade …</p>
+            <p className="text-sm text-muted-foreground">
+              {t({ de: "Lade …", en: "Loading …" })}
+            </p>
           )}
           {catalog && groups.length > 0 && (
             <>
               <div className="flex items-center justify-between mb-3 gap-3">
                 <p className="text-xs text-muted-foreground">
-                  Namens­konvention:{" "}
-                  <code>&lt;AssetClass&gt;-&lt;Region oder Thema&gt;[-&lt;Hedge oder Variante&gt;]</code>
-                  . Auf einen Key klicken, um ihn ins Katalog-Key-Feld unten
-                  zu kopieren.
+                  {lang === "de" ? (
+                    <>
+                      Namens­konvention:{" "}
+                      <code>&lt;AssetClass&gt;-&lt;Region oder Thema&gt;[-&lt;Hedge oder Variante&gt;]</code>
+                      . Auf einen Key klicken, um ihn ins Katalog-Key-Feld
+                      unten zu kopieren.
+                    </>
+                  ) : (
+                    <>
+                      Naming convention:{" "}
+                      <code>&lt;AssetClass&gt;-&lt;Region or theme&gt;[-&lt;Hedge or variant&gt;]</code>
+                      . Click a key to copy it into the catalog-key field
+                      below.
+                    </>
+                  )}
                 </p>
                 <BucketTreeBulkToggle
                   groups={groups}
@@ -389,7 +447,9 @@ function copyBucketKey(key: string) {
     input.dispatchEvent(new Event("input", { bubbles: true }));
     input.focus();
   }
-  toast.success(`${key} kopiert`);
+  // The toast lives outside any React component so it has no access to
+  // useAdminT(). Use a single string that works in both languages.
+  toast.success(`${key} → copied / kopiert`);
 }
 
 // ---------------------------------------------------------------------------
@@ -404,6 +464,7 @@ function SuggestIsinPanel({
   catalog: CatalogSummary | null;
   catalogError: string | null;
 }) {
+  const { t, lang } = useAdminT();
   const [isin, setIsin] = useState("");
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -433,9 +494,12 @@ function SuggestIsinPanel({
     setErrMsg(null);
     try {
       const r = await adminApi.addIsin(draft);
-      toast.success("Pull-Request geöffnet", {
+      toast.success(t({ de: "Pull-Request geöffnet", en: "Pull request opened" }), {
         description: r.prUrl,
-        action: { label: "Öffnen", onClick: () => window.open(r.prUrl, "_blank") },
+        action: {
+          label: t({ de: "Öffnen", en: "Open" }),
+          onClick: () => window.open(r.prUrl, "_blank"),
+        },
       });
       setIsin("");
       setPreview(null);
@@ -450,12 +514,12 @@ function SuggestIsinPanel({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>ISIN vorschlagen</CardTitle>
+        <CardTitle>{t({ de: "ISIN vorschlagen", en: "Suggest ISIN" })}</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex gap-2">
           <Input
-            placeholder="z. B. IE00B5BMR087"
+            placeholder={t({ de: "z. B. IE00B5BMR087", en: "e.g. IE00B5BMR087" })}
             value={isin}
             onChange={(e) => setIsin(e.target.value)}
             onKeyDown={(e) => {
@@ -471,32 +535,61 @@ function SuggestIsinPanel({
             {loading ? (
               <RefreshCw className="h-4 w-4 animate-spin" />
             ) : (
-              "Vorschau"
+              t({ de: "Vorschau", en: "Preview" })
             )}
           </Button>
         </div>
         {errMsg && (
           <Alert variant="destructive">
-            <AlertTitle>Fehler</AlertTitle>
+            <AlertTitle>{t({ de: "Fehler", en: "Error" })}</AlertTitle>
             <AlertDescription>{errMsg}</AlertDescription>
           </Alert>
         )}
         {catalogError && (
           <Alert variant="destructive">
-            <AlertTitle>Katalog konnte nicht geladen werden</AlertTitle>
+            <AlertTitle>
+              {t({
+                de: "Katalog konnte nicht geladen werden",
+                en: "Catalog could not be loaded",
+              })}
+            </AlertTitle>
             <AlertDescription>
-              {catalogError} — der Replace-vs-Add-Vergleich ist nicht
-              verfügbar, bis dies behoben ist.
+              {lang === "de" ? (
+                <>
+                  {catalogError} — der Replace-vs-Add-Vergleich ist nicht
+                  verfügbar, bis dies behoben ist.
+                </>
+              ) : (
+                <>
+                  {catalogError} — the replace-vs-add comparison is not
+                  available until this is fixed.
+                </>
+              )}
             </AlertDescription>
           </Alert>
         )}
         {!githubConfigured && draft && (
           <Alert>
-            <AlertTitle>GitHub nicht konfiguriert</AlertTitle>
+            <AlertTitle>
+              {t({
+                de: "GitHub nicht konfiguriert",
+                en: "GitHub not configured",
+              })}
+            </AlertTitle>
             <AlertDescription>
-              Setze <code>GITHUB_PAT</code>, <code>GITHUB_OWNER</code> und{" "}
-              <code>GITHUB_REPO</code> auf dem api-server, um PRs erzeugen
-              zu können.
+              {lang === "de" ? (
+                <>
+                  Setze <code>GITHUB_PAT</code>, <code>GITHUB_OWNER</code> und{" "}
+                  <code>GITHUB_REPO</code> auf dem api-server, um PRs erzeugen
+                  zu können.
+                </>
+              ) : (
+                <>
+                  Set <code>GITHUB_PAT</code>, <code>GITHUB_OWNER</code> and{" "}
+                  <code>GITHUB_REPO</code> on the api-server to enable opening
+                  PRs.
+                </>
+              )}
             </AlertDescription>
           </Alert>
         )}
@@ -533,6 +626,7 @@ function PreviewEditor({
   githubConfigured: boolean;
   catalog: CatalogSummary | null;
 }) {
+  const { t, lang } = useAdminT();
   const set = <K extends keyof AddEtfRequest>(k: K, v: AddEtfRequest[K]) =>
     onChange({ ...draft, [k]: v });
 
@@ -547,15 +641,24 @@ function PreviewEditor({
     <div className="space-y-4 border rounded-md p-4 bg-muted/30">
       <div className="flex items-center justify-between">
         <div>
-          <div className="font-medium">{draft.name || "(kein Name erkannt)"}</div>
+          <div className="font-medium">
+            {draft.name ||
+              t({ de: "(kein Name erkannt)", en: "(no name detected)" })}
+          </div>
           <div className="text-xs text-muted-foreground">{draft.isin}</div>
         </div>
         <div className="flex gap-2">
           <Badge variant={preview.policyFit.aumOk ? "default" : "destructive"}>
-            AUM {preview.policyFit.aumOk ? "OK" : "ungenügend"}
+            AUM{" "}
+            {preview.policyFit.aumOk
+              ? "OK"
+              : t({ de: "ungenügend", en: "insufficient" })}
           </Badge>
           <Badge variant={preview.policyFit.terOk ? "default" : "destructive"}>
-            TER {preview.policyFit.terOk ? "OK" : "ungenügend"}
+            TER{" "}
+            {preview.policyFit.terOk
+              ? "OK"
+              : t({ de: "ungenügend", en: "insufficient" })}
           </Badge>
         </div>
       </div>
@@ -566,13 +669,13 @@ function PreviewEditor({
         rel="noreferrer"
         className="text-xs text-primary underline"
       >
-        Auf justETF ansehen →
+        {t({ de: "Auf justETF ansehen →", en: "View on justETF →" })}
       </a>
 
       <Separator />
 
       <div className="grid grid-cols-2 gap-3">
-        <Field label="Katalog-Key">
+        <Field label={t({ de: "Katalog-Key", en: "Catalog key" })}>
           <Input
             value={draft.key}
             onChange={(e) => set("key", e.target.value)}
@@ -596,26 +699,36 @@ function PreviewEditor({
               : null}
           </datalist>
           <p className="text-[11px] text-muted-foreground mt-1">
-            Existierenden Key wählen, um einen Bucket zu{" "}
-            <strong>ersetzen</strong>, oder einen neuen tippen (z. B.{" "}
-            <code>Equity-AI</code>), um einen neuen Bucket{" "}
-            <strong>hinzuzufügen</strong>.
+            {lang === "de" ? (
+              <>
+                Existierenden Key wählen, um einen Bucket zu{" "}
+                <strong>ersetzen</strong>, oder einen neuen tippen (z. B.{" "}
+                <code>Equity-AI</code>), um einen neuen Bucket{" "}
+                <strong>hinzuzufügen</strong>.
+              </>
+            ) : (
+              <>
+                Pick an existing key to <strong>replace</strong> a bucket, or
+                type a new one (e.g. <code>Equity-AI</code>) to{" "}
+                <strong>add</strong> a new bucket.
+              </>
+            )}
           </p>
         </Field>
-        <Field label="Name">
+        <Field label={t({ de: "Name", en: "Name" })}>
           <Input
             value={draft.name}
             onChange={(e) => set("name", e.target.value)}
           />
         </Field>
-        <Field label="TER (bps)">
+        <Field label={t({ de: "TER (bps)", en: "TER (bps)" })}>
           <Input
             type="number"
             value={draft.terBps}
             onChange={(e) => set("terBps", Number(e.target.value))}
           />
         </Field>
-        <Field label="AUM (Mio. EUR)">
+        <Field label={t({ de: "AUM (Mio. EUR)", en: "AUM (EUR mn)" })}>
           <Input
             type="number"
             value={draft.aumMillionsEUR ?? ""}
@@ -627,19 +740,19 @@ function PreviewEditor({
             }
           />
         </Field>
-        <Field label="Domizil">
+        <Field label={t({ de: "Domizil", en: "Domicile" })}>
           <Input
             value={draft.domicile}
             onChange={(e) => set("domicile", e.target.value)}
           />
         </Field>
-        <Field label="Währung">
+        <Field label={t({ de: "Währung", en: "Currency" })}>
           <Input
             value={draft.currency}
             onChange={(e) => set("currency", e.target.value.toUpperCase())}
           />
         </Field>
-        <Field label="Replikation">
+        <Field label={t({ de: "Replikation", en: "Replication" })}>
           <Select
             value={draft.replication}
             onValueChange={(v) => set("replication", v as Replication)}
@@ -656,7 +769,7 @@ function PreviewEditor({
             </SelectContent>
           </Select>
         </Field>
-        <Field label="Ausschüttung">
+        <Field label={t({ de: "Ausschüttung", en: "Distribution" })}>
           <Select
             value={draft.distribution}
             onValueChange={(v) => set("distribution", v as Distribution)}
@@ -673,16 +786,16 @@ function PreviewEditor({
             </SelectContent>
           </Select>
         </Field>
-        <Field label="Auflagedatum">
+        <Field label={t({ de: "Auflagedatum", en: "Inception date" })}>
           <Input
-            placeholder="JJJJ-MM-TT"
+            placeholder={t({ de: "JJJJ-MM-TT", en: "YYYY-MM-DD" })}
             value={draft.inceptionDate ?? ""}
             onChange={(e) =>
               set("inceptionDate", e.target.value || undefined)
             }
           />
         </Field>
-        <Field label="Standard-Börse">
+        <Field label={t({ de: "Standard-Börse", en: "Default exchange" })}>
           <Select
             value={draft.defaultExchange}
             onValueChange={(v) => set("defaultExchange", v as Exchange)}
@@ -701,7 +814,12 @@ function PreviewEditor({
         </Field>
       </div>
 
-      <Field label="Kommentar (wird in Tooltips angezeigt)">
+      <Field
+        label={t({
+          de: "Kommentar (wird in Tooltips angezeigt)",
+          en: "Comment (shown in tooltips)",
+        })}
+      >
         <Textarea
           rows={2}
           value={draft.comment}
@@ -710,13 +828,18 @@ function PreviewEditor({
       </Field>
 
       <div>
-        <Label className="text-xs">Listings (Ticker je Börse)</Label>
+        <Label className="text-xs">
+          {t({
+            de: "Listings (Ticker je Börse)",
+            en: "Listings (ticker per exchange)",
+          })}
+        </Label>
         <div className="grid grid-cols-2 gap-2 mt-1">
           {EXCHANGES.map((ex) => (
             <div key={ex} className="flex items-center gap-2">
               <span className="text-xs w-16">{ex}</span>
               <Input
-                placeholder="(keine)"
+                placeholder={t({ de: "(keine)", en: "(none)" })}
                 value={draft.listings[ex]?.ticker ?? ""}
                 onChange={(e) => {
                   const next = { ...draft.listings };
@@ -742,12 +865,21 @@ function PreviewEditor({
         data-testid="button-submit-pr"
       >
         {submitting
-          ? "PR wird geöffnet …"
+          ? t({ de: "PR wird geöffnet …", en: "Opening PR …" })
           : blockedByDuplicate
-            ? "ISIN-Konflikt oben beheben, um fortzufahren"
+            ? t({
+                de: "ISIN-Konflikt oben beheben, um fortzufahren",
+                en: "Resolve the ISIN conflict above to continue",
+              })
             : classification?.state === "REPLACE"
-              ? "PR öffnen: bestehenden Eintrag ersetzen"
-              : "PR öffnen: zum Katalog hinzufügen"}
+              ? t({
+                  de: "PR öffnen: bestehenden Eintrag ersetzen",
+                  en: "Open PR: replace existing entry",
+                })
+              : t({
+                  de: "PR öffnen: zum Katalog hinzufügen",
+                  en: "Open PR: add to catalog",
+                })}
       </Button>
     </div>
   );
@@ -763,10 +895,11 @@ function DiffPanel({
   classification: ClassifyResult | null;
   draft: AddEtfRequest;
 }) {
+  const { t, lang } = useAdminT();
   if (!classification) {
     return (
       <div className="text-xs text-muted-foreground" data-testid="diff-panel-loading">
-        Katalog wird geladen …
+        {t({ de: "Katalog wird geladen …", en: "Loading catalog …" })}
       </div>
     );
   }
@@ -778,20 +911,46 @@ function DiffPanel({
         data-testid="diff-panel-duplicate"
       >
         <div className="flex items-center gap-2">
-          <Badge variant="destructive">Doppelte ISIN</Badge>
+          <Badge variant="destructive">
+            {t({ de: "Doppelte ISIN", en: "Duplicate ISIN" })}
+          </Badge>
           <span className="text-sm">
-            Diese ISIN wird bereits von{" "}
-            <code className="font-mono text-xs">
-              {classification.conflictKey}
-            </code>{" "}
-            verwendet.
+            {lang === "de" ? (
+              <>
+                Diese ISIN wird bereits von{" "}
+                <code className="font-mono text-xs">
+                  {classification.conflictKey}
+                </code>{" "}
+                verwendet.
+              </>
+            ) : (
+              <>
+                This ISIN is already used by{" "}
+                <code className="font-mono text-xs">
+                  {classification.conflictKey}
+                </code>
+                .
+              </>
+            )}
           </span>
         </div>
         <p className="text-xs text-muted-foreground">
-          Bestehender Eintrag: <strong>{classification.conflict.name}</strong>{" "}
-          ({classification.conflict.isin}). Vor dem PR die ISIN ändern — oder
-          den Katalog-Key auf <code>{classification.conflictKey}</code>{" "}
-          setzen, um den bestehenden Eintrag zu ersetzen.
+          {lang === "de" ? (
+            <>
+              Bestehender Eintrag: <strong>{classification.conflict.name}</strong>{" "}
+              ({classification.conflict.isin}). Vor dem PR die ISIN ändern —
+              oder den Katalog-Key auf <code>{classification.conflictKey}</code>{" "}
+              setzen, um den bestehenden Eintrag zu ersetzen.
+            </>
+          ) : (
+            <>
+              Existing entry: <strong>{classification.conflict.name}</strong>{" "}
+              ({classification.conflict.isin}). Either change the ISIN before
+              opening the PR, or set the catalog key to{" "}
+              <code>{classification.conflictKey}</code> to replace the existing
+              entry.
+            </>
+          )}
         </p>
         {/* Still expose the generated TS even while the PR is blocked,
             so the operator can sanity-check what would have been written
@@ -809,11 +968,16 @@ function DiffPanel({
       >
         <div className="flex items-center gap-2">
           <Badge className="bg-emerald-600 hover:bg-emerald-600">
-            Neuer Bucket
+            {t({ de: "Neuer Bucket", en: "New bucket" })}
           </Badge>
           <span className="text-sm">
-            <code className="font-mono text-xs">{draft.key || "(kein Key)"}</code>{" "}
-            existiert noch nicht — dieser PR legt einen neuen Eintrag an.
+            <code className="font-mono text-xs">
+              {draft.key || t({ de: "(kein Key)", en: "(no key)" })}
+            </code>{" "}
+            {t({
+              de: "existiert noch nicht — dieser PR legt einen neuen Eintrag an.",
+              en: "does not exist yet — this PR adds a new entry.",
+            })}
           </span>
         </div>
         <GeneratedCodeDisclosure draft={draft} />
@@ -829,11 +993,17 @@ function DiffPanel({
     >
       <div className="flex items-center gap-2">
         <Badge className="bg-amber-600 hover:bg-amber-600">
-          Ersetzt bestehenden Eintrag
+          {t({
+            de: "Ersetzt bestehenden Eintrag",
+            en: "Replaces existing entry",
+          })}
         </Badge>
         <span className="text-sm">
-          <code className="font-mono text-xs">{draft.key}</code> existiert
-          bereits im Katalog. Diff bitte vor dem Öffnen des PRs prüfen.
+          <code className="font-mono text-xs">{draft.key}</code>{" "}
+          {t({
+            de: "existiert bereits im Katalog. Diff bitte vor dem Öffnen des PRs prüfen.",
+            en: "already exists in the catalog. Please review the diff before opening the PR.",
+          })}
         </span>
       </div>
       <SideBySideDiff existing={classification.existing} draft={draft} />
@@ -924,15 +1094,28 @@ function SideBySideDiff({
   existing: Extract<ClassifyResult, { state: "REPLACE" }>["existing"];
   draft: AddEtfRequest;
 }) {
+  const { t } = useAdminT();
   const rows = useMemo(() => buildDiffRows(existing, draft), [existing, draft]);
   return (
     <div className="overflow-x-auto" data-testid="diff-table">
       <table className="text-xs w-full border-collapse">
         <thead>
           <tr className="text-left border-b">
-            <th className="py-1 pr-2 font-medium w-32">Feld</th>
-            <th className="py-1 pr-2 font-medium">Aktuell (im Katalog)</th>
-            <th className="py-1 pr-2 font-medium">Vorgeschlagen (dieser PR)</th>
+            <th className="py-1 pr-2 font-medium w-32">
+              {t({ de: "Feld", en: "Field" })}
+            </th>
+            <th className="py-1 pr-2 font-medium">
+              {t({
+                de: "Aktuell (im Katalog)",
+                en: "Current (in catalog)",
+              })}
+            </th>
+            <th className="py-1 pr-2 font-medium">
+              {t({
+                de: "Vorgeschlagen (dieser PR)",
+                en: "Proposed (this PR)",
+              })}
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -961,10 +1144,10 @@ function SideBySideDiff({
         </tbody>
       </table>
       <p className="text-[10px] text-muted-foreground mt-1">
-        Hinweis: <code>aumMillionsEUR</code> und <code>inceptionDate</code>{" "}
-        liegen in der Override-Schicht (nächtlicher Refresh), nicht im
-        statischen Katalog — die Spalte „Aktuell" zeigt „—", wenn nicht
-        manuell gepflegt.
+        {t({
+          de: 'Hinweis: aumMillionsEUR und inceptionDate liegen in der Override-Schicht (nächtlicher Refresh), nicht im statischen Katalog — die Spalte „Aktuell" zeigt „—", wenn nicht manuell gepflegt.',
+          en: "Note: aumMillionsEUR and inceptionDate live in the override layer (nightly refresh), not the static catalog — the 'Current' column shows '—' when not manually maintained.",
+        })}
       </p>
     </div>
   );
@@ -975,6 +1158,7 @@ function SideBySideDiff({
 // Lazy: we only fire the request when the disclosure is opened, then
 // re-fetch (debounced) while it stays open and the draft changes.
 function GeneratedCodeDisclosure({ draft }: { draft: AddEtfRequest }) {
+  const { t } = useAdminT();
   const [open, setOpen] = useState(false);
   const [code, setCode] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -1017,12 +1201,22 @@ function GeneratedCodeDisclosure({ draft }: { draft: AddEtfRequest }) {
         ) : (
           <ChevronRight className="h-3 w-3" />
         )}
-        {open ? "Generierten Code verbergen" : "Generierten Code anzeigen"}
+        {open
+          ? t({
+              de: "Generierten Code verbergen",
+              en: "Hide generated code",
+            })
+          : t({
+              de: "Generierten Code anzeigen",
+              en: "Show generated code",
+            })}
       </button>
       {open && (
         <div className="mt-2" data-testid="generated-code-block">
           {loading && !code && (
-            <p className="text-xs text-muted-foreground">Wird gerendert …</p>
+            <p className="text-xs text-muted-foreground">
+              {t({ de: "Wird gerendert …", en: "Rendering …" })}
+            </p>
           )}
           {error && (
             <Alert variant="destructive">
@@ -1121,26 +1315,35 @@ function normalizeDistribution(v: unknown): Distribution {
 // Scrape jünger als 60 Tage ist. Älter → "stale". Mindestens eine Quelle
 // leer → "missing". Damit der Operator auf einen Blick sieht, welche
 // Pool-Einträge nachgepflegt werden müssen.
+type PoolStatusTone = "ok" | "stale" | "missing";
 type PoolStatus = {
-  tone: "ok" | "stale" | "missing";
-  label: string;
+  tone: PoolStatusTone;
 };
 function computePoolStatus(e: LookthroughPoolEntry): PoolStatus {
   const hasAll = e.topHoldingCount > 0 && e.geoCount > 0 && e.sectorCount > 0;
-  if (!hasAll) return { tone: "missing", label: "Daten fehlen" };
+  if (!hasAll) return { tone: "missing" };
   // OK setzt voraus, dass es einen *gültigen* Zeitstempel ≤ 60 Tage gibt.
   // Ein fehlender oder unparsbarer asOf-Wert wird absichtlich als "Veraltet"
   // klassifiziert — wir können die Frische sonst nicht garantieren.
   const asOf = e.topHoldingsAsOf || e.breakdownsAsOf;
-  if (!asOf) return { tone: "stale", label: "Veraltet" };
+  if (!asOf) return { tone: "stale" };
   const ts = Date.parse(asOf);
-  if (Number.isNaN(ts)) return { tone: "stale", label: "Veraltet" };
+  if (Number.isNaN(ts)) return { tone: "stale" };
   const ageDays = (Date.now() - ts) / (1000 * 60 * 60 * 24);
-  if (ageDays > 60) return { tone: "stale", label: "Veraltet" };
-  return { tone: "ok", label: "Daten OK" };
+  if (ageDays > 60) return { tone: "stale" };
+  return { tone: "ok" };
+}
+
+// Lokalisiert das Tone-Label am Render-Zeitpunkt — die Logik bleibt rein,
+// nur die UI weiß, welche Sprache aktiv ist.
+function poolStatusLabel(tone: PoolStatusTone, lang: "de" | "en"): string {
+  if (tone === "ok") return lang === "de" ? "Daten OK" : "Data OK";
+  if (tone === "stale") return lang === "de" ? "Veraltet" : "Stale";
+  return lang === "de" ? "Daten fehlen" : "Data missing";
 }
 
 function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
+  const { t, lang } = useAdminT();
   const [isin, setIsin] = useState("");
   const [entries, setEntries] = useState<LookthroughPoolEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -1191,10 +1394,21 @@ function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
     try {
       const r = await adminApi.addLookthroughPoolIsin(trimmed);
       setLastPr({ url: r.prUrl, number: r.prNumber, isin: r.isin });
-      toast.success(`PR #${r.prNumber} geöffnet für ${r.isin}`, {
-        description: `${r.topHoldingCount} Holdings · ${r.geoCount} Länder · ${r.sectorCount} Sektoren — Review + merge erforderlich, dann redeploy.`,
-        action: { label: "Öffnen", onClick: () => window.open(r.prUrl, "_blank") },
-      });
+      toast.success(
+        lang === "de"
+          ? `PR #${r.prNumber} geöffnet für ${r.isin}`
+          : `PR #${r.prNumber} opened for ${r.isin}`,
+        {
+          description:
+            lang === "de"
+              ? `${r.topHoldingCount} Holdings · ${r.geoCount} Länder · ${r.sectorCount} Sektoren — Review + merge erforderlich, dann redeploy.`
+              : `${r.topHoldingCount} holdings · ${r.geoCount} countries · ${r.sectorCount} sectors — review + merge required, then redeploy.`,
+          action: {
+            label: t({ de: "Öffnen", en: "Open" }),
+            onClick: () => window.open(r.prUrl, "_blank"),
+          },
+        },
+      );
       setIsin("");
       await load();
     } catch (e: unknown) {
@@ -1207,23 +1421,47 @@ function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Look-through-Datenpool</CardTitle>
+        <CardTitle className="text-base">
+          {t({
+            de: "Look-through-Datenpool",
+            en: "Look-through data pool",
+          })}
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground">
-          ISINs hier sind <em>bucket-unabhängig</em> für Methodology-Overrides
-          verfügbar. Beim Hinzufügen werden Top-Holdings sowie Länder- und
-          Sektor-Aufteilung von justETF gescraped und ein <strong>GitHub-PR</strong>{" "}
-          geöffnet, der den neuen Eintrag zur <code>pool</code>-Sektion von{" "}
-          <code>lookthrough.overrides.json</code> hinzufügt. Erst nach Merge +
-          Redeploy ist die ISIN sowohl in dieser Tabelle (Quelle „Auto-Refresh")
-          als auch in der Methodology-Tausch-Ansicht (kein „No look-through
-          data"-Hinweis mehr) sichtbar. Der monatliche Refresh-Job hält die
-          Daten danach automatisch aktuell.
+          {lang === "de" ? (
+            <>
+              ISINs hier sind <em>bucket-unabhängig</em> für
+              Methodology-Overrides verfügbar. Beim Hinzufügen werden
+              Top-Holdings sowie Länder- und Sektor-Aufteilung von justETF
+              gescraped und ein <strong>GitHub-PR</strong> geöffnet, der den
+              neuen Eintrag zur <code>pool</code>-Sektion von{" "}
+              <code>lookthrough.overrides.json</code> hinzufügt. Erst nach
+              Merge + Redeploy ist die ISIN sowohl in dieser Tabelle (Quelle
+              „Auto-Refresh") als auch in der Methodology-Tausch-Ansicht
+              (kein „No look-through data"-Hinweis mehr) sichtbar. Der
+              monatliche Refresh-Job hält die Daten danach automatisch
+              aktuell.
+            </>
+          ) : (
+            <>
+              ISINs added here are available <em>bucket-agnostically</em> for
+              Methodology overrides. When you add one, top holdings as well
+              as country and sector breakdowns are scraped from justETF and a{" "}
+              <strong>GitHub PR</strong> is opened that adds the new entry to
+              the <code>pool</code> section of{" "}
+              <code>lookthrough.overrides.json</code>. Only after merge +
+              redeploy does the ISIN show up in this table (source
+              'Auto-refresh') and in the Methodology swap view (no more
+              'No look-through data' warning). After that the monthly
+              refresh job keeps the data fresh automatically.
+            </>
+          )}
         </p>
         <div className="flex gap-2">
           <Input
-            placeholder="z. B. IE00B5BMR087"
+            placeholder={t({ de: "z. B. IE00B5BMR087", en: "e.g. IE00B5BMR087" })}
             value={isin}
             onChange={(e) => setIsin(e.target.value)}
             onKeyDown={(e) => {
@@ -1240,13 +1478,13 @@ function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
             {submitting ? (
               <RefreshCw className="h-4 w-4 animate-spin" />
             ) : (
-              "Aufnehmen"
+              t({ de: "Aufnehmen", en: "Add" })
             )}
           </Button>
         </div>
         {errMsg && (
           <Alert variant="destructive">
-            <AlertTitle>Fehler</AlertTitle>
+            <AlertTitle>{t({ de: "Fehler", en: "Error" })}</AlertTitle>
             <AlertDescription>{errMsg}</AlertDescription>
           </Alert>
         )}
@@ -1255,11 +1493,26 @@ function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
             className="border-emerald-600/40 text-emerald-900 dark:text-emerald-200"
             data-testid="alert-pool-pr-success"
           >
-            <AlertTitle>PR #{lastPr.number} geöffnet</AlertTitle>
+            <AlertTitle>
+              {lang === "de"
+                ? `PR #${lastPr.number} geöffnet`
+                : `PR #${lastPr.number} opened`}
+            </AlertTitle>
             <AlertDescription className="text-xs">
-              {lastPr.isin} wartet auf Review &amp; Merge. Erst nach Merge +
-              Redeploy taucht die ISIN unten in der Tabelle (Quelle
-              „Auto-Refresh") und in der Methodology-Tausch-Ansicht auf.{" "}
+              {lang === "de" ? (
+                <>
+                  {lastPr.isin} wartet auf Review &amp; Merge. Erst nach
+                  Merge + Redeploy taucht die ISIN unten in der Tabelle
+                  (Quelle „Auto-Refresh") und in der
+                  Methodology-Tausch-Ansicht auf.{" "}
+                </>
+              ) : (
+                <>
+                  {lastPr.isin} is waiting for review &amp; merge. Only after
+                  merge + redeploy will the ISIN appear in the table below
+                  (source 'Auto-refresh') and in the Methodology swap view.{" "}
+                </>
+              )}
               <a
                 href={lastPr.url}
                 target="_blank"
@@ -1267,52 +1520,100 @@ function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
                 className="underline font-medium"
                 data-testid={`link-pool-pr-${lastPr.isin}`}
               >
-                PR auf GitHub öffnen →
+                {t({
+                  de: "PR auf GitHub öffnen →",
+                  en: "Open PR on GitHub →",
+                })}
               </a>
             </AlertDescription>
           </Alert>
         )}
         <div data-testid="lookthrough-pool-list">
           {loading && (
-            <p className="text-sm text-muted-foreground">Lade …</p>
+            <p className="text-sm text-muted-foreground">
+              {t({ de: "Lade …", en: "Loading …" })}
+            </p>
           )}
           {!loading && entries && entries.length === 0 && (
             <p className="text-sm text-muted-foreground">
-              Noch keine ISINs im Datenpool.
+              {t({
+                de: "Noch keine ISINs im Datenpool.",
+                en: "No ISINs in the data pool yet.",
+              })}
             </p>
           )}
           {!loading && entries && entries.length > 0 && (
             <>
               <p className="text-xs text-muted-foreground mb-1">
-                {entries.length} ETF{entries.length === 1 ? "" : "s"} mit
-                Look-through-Daten. Status pro Eintrag:{" "}
-                <Badge variant="outline" className="border-emerald-600 text-emerald-700 dark:text-emerald-400">
-                  Daten OK
-                </Badge>{" "}
-                = Holdings + Länder + Sektoren vorhanden,{" "}
-                <Badge variant="outline" className="border-amber-600 text-amber-700 dark:text-amber-400">
-                  Veraltet
-                </Badge>{" "}
-                = letzter Scrape &gt; 60 Tage,{" "}
-                <Badge variant="outline" className="border-rose-600 text-rose-700 dark:text-rose-400">
-                  Daten fehlen
-                </Badge>{" "}
-                = mindestens eine Quelle leer. Quelle: <em>Kuratiert</em> =
-                manuell im Repo gepflegt; <em>Auto-Refresh</em> = vom
-                monatlichen Scrape-Job geschrieben.
+                {lang === "de" ? (
+                  <>
+                    {entries.length} ETF{entries.length === 1 ? "" : "s"} mit
+                    Look-through-Daten. Status pro Eintrag:{" "}
+                    <Badge variant="outline" className="border-emerald-600 text-emerald-700 dark:text-emerald-400">
+                      Daten OK
+                    </Badge>{" "}
+                    = Holdings + Länder + Sektoren vorhanden,{" "}
+                    <Badge variant="outline" className="border-amber-600 text-amber-700 dark:text-amber-400">
+                      Veraltet
+                    </Badge>{" "}
+                    = letzter Scrape &gt; 60 Tage,{" "}
+                    <Badge variant="outline" className="border-rose-600 text-rose-700 dark:text-rose-400">
+                      Daten fehlen
+                    </Badge>{" "}
+                    = mindestens eine Quelle leer. Quelle: <em>Kuratiert</em>{" "}
+                    = manuell im Repo gepflegt; <em>Auto-Refresh</em> = vom
+                    monatlichen Scrape-Job geschrieben.
+                  </>
+                ) : (
+                  <>
+                    {entries.length} ETF{entries.length === 1 ? "" : "s"}{" "}
+                    with look-through data. Per-entry status:{" "}
+                    <Badge variant="outline" className="border-emerald-600 text-emerald-700 dark:text-emerald-400">
+                      Data OK
+                    </Badge>{" "}
+                    = holdings + countries + sectors present,{" "}
+                    <Badge variant="outline" className="border-amber-600 text-amber-700 dark:text-amber-400">
+                      Stale
+                    </Badge>{" "}
+                    = last scrape &gt; 60 days,{" "}
+                    <Badge variant="outline" className="border-rose-600 text-rose-700 dark:text-rose-400">
+                      Data missing
+                    </Badge>{" "}
+                    = at least one source empty. Source: <em>Curated</em> =
+                    maintained manually in the repo; <em>Auto-refresh</em> =
+                    written by the monthly scrape job.
+                  </>
+                )}
               </p>
               <div className="overflow-auto max-h-96 border rounded">
                 <table className="text-xs w-full">
                   <thead className="bg-muted/40 sticky top-0">
                     <tr className="text-left">
-                      <th className="px-2 py-1 font-medium">Status</th>
-                      <th className="px-2 py-1 font-medium">Quelle</th>
+                      <th className="px-2 py-1 font-medium">
+                        {t({ de: "Status", en: "Status" })}
+                      </th>
+                      <th className="px-2 py-1 font-medium">
+                        {t({ de: "Quelle", en: "Source" })}
+                      </th>
                       <th className="px-2 py-1 font-medium">ISIN</th>
-                      <th className="px-2 py-1 font-medium">Name (Katalog)</th>
-                      <th className="px-2 py-1 font-medium">Positionen</th>
-                      <th className="px-2 py-1 font-medium">Länder</th>
-                      <th className="px-2 py-1 font-medium">Sektoren</th>
-                      <th className="px-2 py-1 font-medium">Letzter Scrape</th>
+                      <th className="px-2 py-1 font-medium">
+                        {t({ de: "Name (Katalog)", en: "Name (catalog)" })}
+                      </th>
+                      <th className="px-2 py-1 font-medium">
+                        {t({ de: "Positionen", en: "Holdings" })}
+                      </th>
+                      <th className="px-2 py-1 font-medium">
+                        {t({ de: "Länder", en: "Countries" })}
+                      </th>
+                      <th className="px-2 py-1 font-medium">
+                        {t({ de: "Sektoren", en: "Sectors" })}
+                      </th>
+                      <th className="px-2 py-1 font-medium">
+                        {t({
+                          de: "Letzter Scrape",
+                          en: "Last scrape",
+                        })}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1333,7 +1634,7 @@ function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
                               }
                               data-testid={`badge-pool-status-${e.isin}`}
                             >
-                              {status.label}
+                              {poolStatusLabel(status.tone, lang)}
                             </Badge>
                           </td>
                           <td className="px-2 py-1">
@@ -1349,10 +1650,13 @@ function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
                               data-testid={`badge-pool-source-${e.isin}`}
                             >
                               {e.source === "pool"
-                                ? "Auto-Refresh"
+                                ? t({
+                                    de: "Auto-Refresh",
+                                    en: "Auto-refresh",
+                                  })
                                 : e.source === "both"
-                                  ? "Beide"
-                                  : "Kuratiert"}
+                                  ? t({ de: "Beide", en: "Both" })
+                                  : t({ de: "Kuratiert", en: "Curated" })}
                             </Badge>
                           </td>
                           <td className="px-2 py-1 font-mono">{e.isin}</td>
@@ -1368,7 +1672,10 @@ function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
                               </>
                             ) : (
                               <span className="text-muted-foreground italic">
-                                — nicht im Katalog
+                                {t({
+                                  de: "— nicht im Katalog",
+                                  en: "— not in catalog",
+                                })}
                               </span>
                             )}
                           </td>
@@ -1393,6 +1700,7 @@ function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
 }
 
 function DataUpdatesColumn() {
+  const { t } = useAdminT();
   const [changes, setChanges] = useState<ChangeEntry[]>([]);
   const [runs, setRuns] = useState<RunLogRow[]>([]);
   const [fresh, setFresh] = useState<FreshnessResponse | null>(null);
@@ -1435,7 +1743,7 @@ function DataUpdatesColumn() {
           <RefreshCw
             className={`h-4 w-4 mr-1 ${refreshing ? "animate-spin" : ""}`}
           />
-          Aktualisieren
+          {t({ de: "Aktualisieren", en: "Refresh" })}
         </Button>
       </div>
 
@@ -1453,13 +1761,20 @@ function DataUpdatesColumn() {
 }
 
 function FreshnessCard({ fresh }: { fresh: FreshnessResponse | null }) {
+  const { t } = useAdminT();
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Datenaktualität</CardTitle>
+        <CardTitle className="text-base">
+          {t({ de: "Datenaktualität", en: "Data freshness" })}
+        </CardTitle>
       </CardHeader>
       <CardContent className="space-y-2 text-sm">
-        {!fresh && <p className="text-muted-foreground">Lade …</p>}
+        {!fresh && (
+          <p className="text-muted-foreground">
+            {t({ de: "Lade …", en: "Loading …" })}
+          </p>
+        )}
         {fresh && (
           <>
             <Row
@@ -1488,6 +1803,7 @@ function FreshnessCard({ fresh }: { fresh: FreshnessResponse | null }) {
 }
 
 function RecentChangesCard({ changes }: { changes: ChangeEntry[] }) {
+  const { t } = useAdminT();
   const grouped = useMemo(() => {
     const byIsin = new Map<string, ChangeEntry[]>();
     for (const c of changes) {
@@ -1501,14 +1817,20 @@ function RecentChangesCard({ changes }: { changes: ChangeEntry[] }) {
     <Card>
       <CardHeader>
         <CardTitle className="text-base">
-          Aktuelle Datenänderungen ({changes.length})
+          {t({
+            de: "Aktuelle Datenänderungen",
+            en: "Recent data changes",
+          })}{" "}
+          ({changes.length})
         </CardTitle>
       </CardHeader>
       <CardContent>
         {grouped.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            Noch keine Änderungen. Der nächste geplante Scrape füllt diese
-            Liste, sobald er Feld-Unterschiede erkennt.
+            {t({
+              de: "Noch keine Änderungen. Der nächste geplante Scrape füllt diese Liste, sobald er Feld-Unterschiede erkennt.",
+              en: "No changes yet. The next scheduled scrape fills this list as soon as it detects field differences.",
+            })}
           </p>
         )}
         <div className="space-y-3 max-h-96 overflow-auto">
@@ -1538,16 +1860,22 @@ function RecentChangesCard({ changes }: { changes: ChangeEntry[] }) {
 }
 
 function RecentRunsCard({ runs }: { runs: RunLogRow[] }) {
+  const { t } = useAdminT();
   const cols = runs[0] ? Object.keys(runs[0]).slice(0, 6) : [];
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Letzte Läufe ({runs.length})</CardTitle>
+        <CardTitle className="text-base">
+          {t({ de: "Letzte Läufe", en: "Recent runs" })} ({runs.length})
+        </CardTitle>
       </CardHeader>
       <CardContent>
         {runs.length === 0 && (
           <p className="text-sm text-muted-foreground">
-            Noch keine Läufe protokolliert.
+            {t({
+              de: "Noch keine Läufe protokolliert.",
+              en: "No runs logged yet.",
+            })}
           </p>
         )}
         {runs.length > 0 && (
@@ -1640,6 +1968,7 @@ type FieldState = string;
 type CmaRow = { expReturn: FieldState; vol: FieldState };
 
 function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
+  const { t, lang } = useAdminT();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -1721,23 +2050,42 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
   function onApplyPreset() {
     const preset = findPresetById(presetId);
     if (!preset) {
-      toast.error("Bitte zuerst eine Vorlage auswaehlen.");
+      toast.error(
+        t({
+          de: "Bitte zuerst eine Vorlage auswaehlen.",
+          en: "Please pick a preset first.",
+        }),
+      );
       return;
     }
     const next = applyPresetToFields(preset, { rf, hb, cma });
     setRf(next.rf);
     setHb(next.hb);
     setCma(next.cma);
-    toast.success(`Vorlage angewendet: ${preset.label}. Bitte vor dem PR pruefen.`);
+    toast.success(
+      lang === "de"
+        ? `Vorlage angewendet: ${preset.label}. Bitte vor dem PR pruefen.`
+        : `Preset applied: ${preset.label}. Please review before opening the PR.`,
+    );
   }
 
   async function onRevert() {
     setPresetId("");
     const ok = await loadFromServer();
     if (ok) {
-      toast.success("Editor auf aktuell ausgelieferte Werte zurueckgesetzt.");
+      toast.success(
+        t({
+          de: "Editor auf aktuell ausgelieferte Werte zurueckgesetzt.",
+          en: "Editor reverted to currently shipped values.",
+        }),
+      );
     } else {
-      toast.error("Konnte aktuelle Werte nicht laden — siehe Fehlermeldung im Panel.");
+      toast.error(
+        t({
+          de: "Konnte aktuelle Werte nicht laden — siehe Fehlermeldung im Panel.",
+          en: "Could not load current values — see error message in the panel.",
+        }),
+      );
     }
   }
 
@@ -1781,7 +2129,9 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
     for (const k of RF_KEYS_UI) {
       const n = parsePct(rf[k]);
       if (n === "invalid") {
-        invalidFields.push(`Risikoloser Zins ${k}`);
+        invalidFields.push(
+          (lang === "de" ? "Risikoloser Zins " : "Risk-free rate ") + k,
+        );
         continue;
       }
       if (n !== undefined) {
@@ -1795,7 +2145,9 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
     for (const k of HB_KEYS_UI) {
       const n = parseDecimal(hb[k]);
       if (n === "invalid") {
-        invalidFields.push(`Home-Bias ${k}`);
+        invalidFields.push(
+          (lang === "de" ? "Home-Bias " : "Home bias ") + k,
+        );
         continue;
       }
       if (n !== undefined) {
@@ -1810,8 +2162,18 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
       const row = cma[c.key];
       const mu = parsePct(row.expReturn);
       const sg = parsePct(row.vol);
-      if (mu === "invalid") invalidFields.push(`CMA ${c.label} → Erw. Rendite`);
-      if (sg === "invalid") invalidFields.push(`CMA ${c.label} → Volatilität`);
+      if (mu === "invalid")
+        invalidFields.push(
+          lang === "de"
+            ? `CMA ${c.label} → Erw. Rendite`
+            : `CMA ${c.label} → Exp. return`,
+        );
+      if (sg === "invalid")
+        invalidFields.push(
+          lang === "de"
+            ? `CMA ${c.label} → Volatilität`
+            : `CMA ${c.label} → Volatility`,
+        );
       const muVal = mu === "invalid" ? undefined : mu;
       const sgVal = sg === "invalid" ? undefined : sg;
       if (muVal === undefined && sgVal === undefined) continue;
@@ -1835,7 +2197,12 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
     setLastPr(null);
     const trimmed = summary.trim();
     if (!trimmed) {
-      toast.error("Kurze Beschreibung erforderlich (für PR-Titel).");
+      toast.error(
+        t({
+          de: "Kurze Beschreibung erforderlich (für PR-Titel).",
+          en: "Short description required (used as the PR title).",
+        }),
+      );
       return;
     }
     const { value, touched, invalidFields } = buildPayload();
@@ -1843,12 +2210,21 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
       // Mindestens ein Feld enthält Text, der nicht als Zahl interpretiert
       // werden konnte. Dem Operator EXPLIZIT melden statt stillschweigend
       // ignorieren — sonst öffnet sich ein leerer PR ohne Hinweis.
-      toast.error(
-        `Ungültige Eingabe in ${invalidFields.length} Feld${invalidFields.length === 1 ? "" : "ern"}: ` +
-          invalidFields.slice(0, 5).join(", ") +
-          (invalidFields.length > 5 ? ` (+${invalidFields.length - 5} weitere)` : "") +
-          ". Erlaubt: Zahl mit optionalem Vorzeichen und einem Dezimaltrennzeichen (z.B. 7,5 oder 7.5 oder -2,3).",
-      );
+      const head =
+        lang === "de"
+          ? `Ungültige Eingabe in ${invalidFields.length} Feld${invalidFields.length === 1 ? "" : "ern"}: `
+          : `Invalid input in ${invalidFields.length} field${invalidFields.length === 1 ? "" : "s"}: `;
+      const more =
+        invalidFields.length > 5
+          ? lang === "de"
+            ? ` (+${invalidFields.length - 5} weitere)`
+            : ` (+${invalidFields.length - 5} more)`
+          : "";
+      const tail =
+        lang === "de"
+          ? ". Erlaubt: Zahl mit optionalem Vorzeichen und einem Dezimaltrennzeichen (z.B. 7,5 oder 7.5 oder -2,3)."
+          : ". Allowed: a number with optional sign and a single decimal separator (e.g. 7.5 or 7,5 or -2.3).";
+      toast.error(head + invalidFields.slice(0, 5).join(", ") + more + tail);
       return;
     }
     if (touched === 0) {
@@ -1859,7 +2235,10 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
       // eingetragen (z.B. Komma-Bug aus früherer Build, oder vergessen
       // zu speichern nach Browser-Reload).
       const ok = window.confirm(
-        "Kein Feld hat einen Wert. Wenn du jetzt fortsetzt, wird ein PR erzeugt, der ALLE globalen Defaults entfernt und auf die eingebauten Built-in-Werte zurücksetzt. Wirklich fortfahren?",
+        t({
+          de: "Kein Feld hat einen Wert. Wenn du jetzt fortsetzt, wird ein PR erzeugt, der ALLE globalen Defaults entfernt und auf die eingebauten Built-in-Werte zurücksetzt. Wirklich fortfahren?",
+          en: "No field has a value. If you continue, a PR will be opened that removes ALL global defaults and falls back to the built-in values. Really proceed?",
+        }),
       );
       if (!ok) return;
     }
@@ -1869,8 +2248,12 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
       setLastPr({ url: res.prUrl, number: res.prNumber });
       toast.success(
         touched === 0
-          ? `PR #${res.prNumber} geöffnet (alle Overrides entfernt).`
-          : `PR #${res.prNumber} geöffnet (${touched} Feld${touched === 1 ? "" : "er"} übermittelt).`,
+          ? lang === "de"
+            ? `PR #${res.prNumber} geöffnet (alle Overrides entfernt).`
+            : `PR #${res.prNumber} opened (all overrides removed).`
+          : lang === "de"
+            ? `PR #${res.prNumber} geöffnet (${touched} Feld${touched === 1 ? "" : "er"} übermittelt).`
+            : `PR #${res.prNumber} opened (${touched} field${touched === 1 ? "" : "s"} submitted).`,
       );
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
@@ -1883,10 +2266,16 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
     <Card data-testid="card-app-defaults">
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
-          <span>Globale Defaults (Risikoloser Zins / Home-Bias / Kapitalmarkt­annahmen)</span>
+          <span>
+            {t({
+              de: "Globale Defaults (Risikoloser Zins / Home-Bias / Kapitalmarkt­annahmen)",
+              en: "Global defaults (Risk-free rate / Home bias / Capital market assumptions)",
+            })}
+          </span>
           {meta?.lastUpdated && (
             <span className="text-xs font-normal text-muted-foreground">
-              zuletzt geändert: {meta.lastUpdated}
+              {t({ de: "zuletzt geändert: ", en: "last changed: " })}
+              {meta.lastUpdated}
               {meta.lastUpdatedBy ? ` (${meta.lastUpdatedBy})` : ""}
             </span>
           )}
@@ -1894,20 +2283,40 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
       </CardHeader>
       <CardContent className="space-y-6">
         <p className="text-sm text-muted-foreground">
-          Werte hier werden über einen GitHub-PR in{" "}
-          <code>artifacts/investment-lab/src/data/app-defaults.json</code>{" "}
-          geschrieben. Nach Merge + Redeploy gelten sie als Default für alle
-          Nutzer. Felder leer lassen = bisheriger Built-in-Default greift.
-          Per-User-Overrides aus dem Methodology-Tab (localStorage) bleiben
-          unverändert oben drauf wirksam.
+          {lang === "de" ? (
+            <>
+              Werte hier werden über einen GitHub-PR in{" "}
+              <code>artifacts/investment-lab/src/data/app-defaults.json</code>{" "}
+              geschrieben. Nach Merge + Redeploy gelten sie als Default für
+              alle Nutzer. Felder leer lassen = bisheriger Built-in-Default
+              greift. Per-User-Overrides aus dem Methodology-Tab
+              (localStorage) bleiben unverändert oben drauf wirksam.
+            </>
+          ) : (
+            <>
+              Values here are written via a GitHub PR to{" "}
+              <code>artifacts/investment-lab/src/data/app-defaults.json</code>.
+              After merge + redeploy they apply as the default for all users.
+              Leave a field empty = the existing built-in default applies.
+              Per-user overrides from the Methodology tab (localStorage)
+              continue to apply on top, unchanged.
+            </>
+          )}
         </p>
 
         {loading && (
-          <p className="text-sm text-muted-foreground">Lade aktuelle Werte…</p>
+          <p className="text-sm text-muted-foreground">
+            {t({
+              de: "Lade aktuelle Werte…",
+              en: "Loading current values…",
+            })}
+          </p>
         )}
         {loadError && (
           <Alert variant="destructive">
-            <AlertTitle>Fehler beim Laden</AlertTitle>
+            <AlertTitle>
+              {t({ de: "Fehler beim Laden", en: "Error while loading" })}
+            </AlertTitle>
             <AlertDescription>{loadError}</AlertDescription>
           </Alert>
         )}
@@ -1915,7 +2324,12 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
         {!loading && !loadError && (
           <>
             <section className="space-y-2">
-              <Label htmlFor="app-defaults-preset">Vorlage anwenden (optional)</Label>
+              <Label htmlFor="app-defaults-preset">
+                {t({
+                  de: "Vorlage anwenden (optional)",
+                  en: "Apply preset (optional)",
+                })}
+              </Label>
               <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
                 <div className="flex-1 min-w-0">
                   <Select
@@ -1926,7 +2340,12 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
                       id="app-defaults-preset"
                       data-testid="select-app-defaults-preset"
                     >
-                      <SelectValue placeholder="— keine Vorlage —" />
+                      <SelectValue
+                        placeholder={t({
+                          de: "— keine Vorlage —",
+                          en: "— no preset —",
+                        })}
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       {APP_DEFAULTS_PRESETS.map((p) => (
@@ -1948,7 +2367,7 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
                     disabled={!presetId || loading}
                     data-testid="button-apply-preset"
                   >
-                    Vorlage anwenden
+                    {t({ de: "Vorlage anwenden", en: "Apply preset" })}
                   </Button>
                   <Button
                     variant="outline"
@@ -1956,7 +2375,10 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
                     disabled={loading}
                     data-testid="button-revert-defaults"
                   >
-                    Aktuelle Werte neu laden
+                    {t({
+                      de: "Aktuelle Werte neu laden",
+                      en: "Reload current values",
+                    })}
                   </Button>
                 </div>
               </div>
@@ -1966,19 +2388,27 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
                 </p>
               )}
               <p className="text-xs text-muted-foreground">
-                Vorlagen erst auswählen, dann mit "Vorlage anwenden" in den
-                Editor laden. Sektionen, die die Vorlage nicht berührt,
-                bleiben unverändert; "Aktuelle Werte neu laden" verwirft
-                manuelle Änderungen und holt den Stand vom Server.
+                {t({
+                  de: 'Vorlagen erst auswählen, dann mit "Vorlage anwenden" in den Editor laden. Sektionen, die die Vorlage nicht berührt, bleiben unverändert; "Aktuelle Werte neu laden" verwirft manuelle Änderungen und holt den Stand vom Server.',
+                  en: "Pick a preset first, then click 'Apply preset' to load it into the editor. Sections the preset doesn't touch stay unchanged; 'Reload current values' discards manual changes and refetches the server state.",
+                })}
               </p>
             </section>
 
             <Separator />
 
             <section className="space-y-2">
-              <h3 className="text-sm font-semibold">Risikofreie Zinssätze (in %)</h3>
+              <h3 className="text-sm font-semibold">
+                {t({
+                  de: "Risikofreie Zinssätze (in %)",
+                  en: "Risk-free rates (in %)",
+                })}
+              </h3>
               <p className="text-xs text-muted-foreground">
-                Leeres Feld = Built-in-Default greift.
+                {t({
+                  de: "Leeres Feld = Built-in-Default greift.",
+                  en: "Empty field = built-in default applies.",
+                })}
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {RF_KEYS_UI.map((k) => (
@@ -1999,7 +2429,8 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
                       className="text-[10px] text-muted-foreground font-mono"
                       data-testid={`builtin-rf-${k}`}
                     >
-                      Built-in: {(BUILT_IN_RF[k] * 100).toFixed(3)} %
+                      {t({ de: "Built-in: ", en: "Built-in: " })}
+                      {(BUILT_IN_RF[k] * 100).toFixed(3)} %
                     </p>
                   </div>
                 ))}
@@ -2010,10 +2441,16 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
 
             <section className="space-y-2">
               <h3 className="text-sm font-semibold">
-                Home-Bias-Multiplikator (0–5)
+                {t({
+                  de: "Home-Bias-Multiplikator (0–5)",
+                  en: "Home bias multiplier (0–5)",
+                })}
               </h3>
               <p className="text-xs text-muted-foreground">
-                Leeres Feld = Built-in-Default greift.
+                {t({
+                  de: "Leeres Feld = Built-in-Default greift.",
+                  en: "Empty field = built-in default applies.",
+                })}
               </p>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {HB_KEYS_UI.map((k) => (
@@ -2034,7 +2471,8 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
                       className="text-[10px] text-muted-foreground font-mono"
                       data-testid={`builtin-hb-${k}`}
                     >
-                      Built-in: {BUILT_IN_HB[k].toFixed(1)}×
+                      {t({ de: "Built-in: ", en: "Built-in: " })}
+                      {BUILT_IN_HB[k].toFixed(1)}×
                     </p>
                   </div>
                 ))}
@@ -2045,19 +2483,39 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
 
             <section className="space-y-2">
               <h3 className="text-sm font-semibold">
-                CMA — erwartete Rendite & Volatilität (in %)
+                {t({
+                  de: "CMA — erwartete Rendite & Volatilität (in %)",
+                  en: "CMA — expected return & volatility (in %)",
+                })}
               </h3>
               <p className="text-xs text-muted-foreground">
-                Leere Felder erben den Built-in-Default (Spalte „Built-in").
+                {t({
+                  de: 'Leere Felder erben den Built-in-Default (Spalte „Built-in").',
+                  en: "Empty fields inherit the built-in default (column 'Built-in').",
+                })}
               </p>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="border-b border-border text-left">
-                      <th className="pb-2 pr-3 font-medium">Anlageklasse</th>
-                      <th className="pb-2 pr-3 font-medium">Built-in μ / σ</th>
-                      <th className="pb-2 pr-3 font-medium">Erw. Rendite %</th>
-                      <th className="pb-2 font-medium">Volatilität %</th>
+                      <th className="pb-2 pr-3 font-medium">
+                        {t({ de: "Anlageklasse", en: "Asset class" })}
+                      </th>
+                      <th className="pb-2 pr-3 font-medium">
+                        {t({
+                          de: "Built-in μ / σ",
+                          en: "Built-in μ / σ",
+                        })}
+                      </th>
+                      <th className="pb-2 pr-3 font-medium">
+                        {t({
+                          de: "Erw. Rendite %",
+                          en: "Exp. return %",
+                        })}
+                      </th>
+                      <th className="pb-2 font-medium">
+                        {t({ de: "Volatilität %", en: "Volatility %" })}
+                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -2119,12 +2577,18 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
 
             <section className="space-y-2">
               <Label htmlFor="app-defaults-summary">
-                Kurze Beschreibung der Änderung (für PR-Titel)
+                {t({
+                  de: "Kurze Beschreibung der Änderung (für PR-Titel)",
+                  en: "Short description of the change (used as PR title)",
+                })}
               </Label>
               <Input
                 id="app-defaults-summary"
                 data-testid="input-app-defaults-summary"
-                placeholder="z. B. RF nach EZB-Sitzung 04/2026"
+                placeholder={t({
+                  de: "z. B. RF nach EZB-Sitzung 04/2026",
+                  en: "e.g. RF after ECB meeting 04/2026",
+                })}
                 value={summary}
                 onChange={(e) => setSummary(e.target.value)}
               />
@@ -2132,33 +2596,53 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
 
             {!githubConfigured && (
               <Alert>
-                <AlertTitle>GitHub nicht konfiguriert</AlertTitle>
+                <AlertTitle>
+                  {t({
+                    de: "GitHub nicht konfiguriert",
+                    en: "GitHub not configured",
+                  })}
+                </AlertTitle>
                 <AlertDescription>
-                  Setze <code>GITHUB_PAT</code>, <code>GITHUB_OWNER</code>,{" "}
-                  <code>GITHUB_REPO</code> auf dem api-server, um PRs öffnen
-                  zu können.
+                  {lang === "de" ? (
+                    <>
+                      Setze <code>GITHUB_PAT</code>, <code>GITHUB_OWNER</code>,{" "}
+                      <code>GITHUB_REPO</code> auf dem api-server, um PRs
+                      öffnen zu können.
+                    </>
+                  ) : (
+                    <>
+                      Set <code>GITHUB_PAT</code>, <code>GITHUB_OWNER</code>,{" "}
+                      <code>GITHUB_REPO</code> on the api-server to enable
+                      opening PRs.
+                    </>
+                  )}
                 </AlertDescription>
               </Alert>
             )}
 
             <div className="flex items-center justify-between gap-3">
               <p className="text-xs text-muted-foreground">
-                Hinweis: Werte werden vor dem Commit serverseitig validiert
-                (Bereiche wie Methodology). Ungültige Eingaben werden als
-                Fehler gemeldet und es entsteht kein PR.
+                {t({
+                  de: "Hinweis: Werte werden vor dem Commit serverseitig validiert (Bereiche wie Methodology). Ungültige Eingaben werden als Fehler gemeldet und es entsteht kein PR.",
+                  en: "Note: values are validated server-side before commit (same bounds as Methodology). Invalid input is reported as an error and no PR is created.",
+                })}
               </p>
               <Button
                 data-testid="button-app-defaults-submit"
                 onClick={onSubmit}
                 disabled={submitting || !githubConfigured}
               >
-                {submitting ? "PR wird geöffnet…" : "PR öffnen"}
+                {submitting
+                  ? t({ de: "PR wird geöffnet…", en: "Opening PR…" })
+                  : t({ de: "PR öffnen", en: "Open PR" })}
               </Button>
             </div>
 
             {lastPr && (
               <Alert>
-                <AlertTitle>PR geöffnet</AlertTitle>
+                <AlertTitle>
+                  {t({ de: "PR geöffnet", en: "PR opened" })}
+                </AlertTitle>
                 <AlertDescription>
                   <a
                     href={lastPr.url}
@@ -2167,7 +2651,9 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
                     className="underline text-primary"
                     data-testid="link-app-defaults-pr"
                   >
-                    PR #{lastPr.number} auf GitHub öffnen
+                    {lang === "de"
+                      ? `PR #${lastPr.number} auf GitHub öffnen`
+                      : `Open PR #${lastPr.number} on GitHub`}
                   </a>
                 </AlertDescription>
               </Alert>
