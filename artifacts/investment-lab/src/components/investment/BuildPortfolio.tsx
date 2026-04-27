@@ -36,7 +36,7 @@ import { PortfolioInput, PortfolioOutput, ValidationResult } from "@/lib/types";
 import { runValidation } from "@/lib/validation";
 import { buildPortfolio, computeNaturalBucketCount } from "@/lib/portfolio";
 import { mapAllocationToAssetsLookthrough, CMA } from "@/lib/metrics";
-import { colorForBucket, bucketOrderKey } from "@/lib/chartColors";
+import { colorForBucket, compareBuckets } from "@/lib/chartColors";
 import { defaultExchangeFor } from "@/lib/exchange";
 import { setLastAllocation, setLastEtfImplementation } from "@/lib/settings";
 import { StressTest } from "./StressTest";
@@ -225,7 +225,7 @@ export function BuildPortfolio() {
   const baseChartData = (output?.allocation.map(a => ({
     name: `${a.assetClass} - ${a.region}`,
     value: a.weight
-  })) || []).slice().sort((x, y) => bucketOrderKey(x.name) - bucketOrderKey(y.name));
+  })) || []).slice().sort(compareBuckets);
 
   // When Look-Through is ON and an ETF implementation exists, decompose the
   // pie/stacked-bar into the underlying country buckets (e.g. Equity-Europe
@@ -243,7 +243,7 @@ export function BuildPortfolio() {
     return lt
       .filter(e => e.weight > 0)
       .map(e => ({ name: CMA[e.key].label, value: e.weight * 100 }))
-      .sort((x, y) => bucketOrderKey(x.name) - bucketOrderKey(y.name));
+      .sort(compareBuckets);
   })();
 
   return (
@@ -949,7 +949,10 @@ export function BuildPortfolio() {
                         <TableBody>
                           {output.allocation
                             .slice()
-                            .sort((a, b) => bucketOrderKey(`${a.assetClass} - ${a.region}`) - bucketOrderKey(`${b.assetClass} - ${b.region}`))
+                            .sort((a, b) => compareBuckets(
+                              { name: `${a.assetClass} - ${a.region}`, value: a.weight },
+                              { name: `${b.assetClass} - ${b.region}`, value: b.weight },
+                            ))
                             .map((alloc, i) => (
                             <TableRow key={i}>
                               <TableCell className="font-medium">{alloc.assetClass}</TableCell>

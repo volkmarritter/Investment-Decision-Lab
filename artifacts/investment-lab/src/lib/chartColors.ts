@@ -58,23 +58,28 @@ export function colorForBucket(name: string): string {
 
 // Canonical display order for asset-class buckets across pie chart, legend,
 // stacked bar and bucket table. Operator convention (defensive → growth →
-// satellites): Cash → Bonds → Equity (by region) → Satellites (Real Estate /
-// Gold / Thematic Equity / Crypto). Lower number = shown first.
+// satellites): Cash → Bonds → Equity → Satellites (Real Estate / Gold /
+// Thematic Equity / Crypto). Within the equity group all sub-buckets share
+// the same group rank — the secondary sort by weight descending (see
+// `compareBuckets` below) puts the largest equity slice first.
+// Lower number = shown first.
 const ORDER_RULES: Array<{ test: RegExp; rank: number }> = [
   { test: /(cash|geldmarkt|liquid)/i,                                                                   rank: 10 },
   { test: /(bond|fixed income|anleihen|renten)/i,                                                       rank: 20 },
-  { test: /(us equity|equity\s*[-–]\s*usa|us[\s-]?aktien|aktien\s*us)/i,                                rank: 31 },
-  { test: /(europe equity|equity\s*[-–]\s*europe|europ.*aktien|aktien.*europ)/i,                        rank: 32 },
-  { test: /(uk equity|equity\s*[-–]\s*(uk|united kingdom)|aktien\s*(uk|gb))/i,                          rank: 33 },
-  { test: /(swiss equity|equity\s*[-–]\s*switzerland|aktien\s*ch|schweiz)/i,                            rank: 34 },
-  { test: /(japan equity|equity\s*[-–]\s*japan|aktien\s*japan)/i,                                       rank: 35 },
-  { test: /(em equity|equity\s*[-–]\s*em|emerging|schwellen)/i,                                         rank: 36 },
-  { test: /(global equity|equity\s*[-–]\s*global)/i,                                                    rank: 37 },
-  { test: /(equity\s*[-–]\s*home)/i,                                                                    rank: 38 },
-  { test: /(equity|aktien|stock)/i,                                                                     rank: 39 },
+  // Thematic must match BEFORE the generic equity rule so it lands in the
+  // satellite group, not the core-equity group.
+  { test: /(thematic equity|equity\s*[-–]\s*thematic|themat)/i,                                         rank: 70 },
+  { test: /(us equity|equity\s*[-–]\s*usa|us[\s-]?aktien|aktien\s*us)/i,                                rank: 30 },
+  { test: /(europe equity|equity\s*[-–]\s*europe|europ.*aktien|aktien.*europ)/i,                        rank: 30 },
+  { test: /(uk equity|equity\s*[-–]\s*(uk|united kingdom)|aktien\s*(uk|gb))/i,                          rank: 30 },
+  { test: /(swiss equity|equity\s*[-–]\s*switzerland|aktien\s*ch|schweiz)/i,                            rank: 30 },
+  { test: /(japan equity|equity\s*[-–]\s*japan|aktien\s*japan)/i,                                       rank: 30 },
+  { test: /(em equity|equity\s*[-–]\s*em|emerging|schwellen)/i,                                         rank: 30 },
+  { test: /(global equity|equity\s*[-–]\s*global)/i,                                                    rank: 30 },
+  { test: /(equity\s*[-–]\s*home)/i,                                                                    rank: 30 },
+  { test: /(equity|aktien|stock)/i,                                                                     rank: 30 },
   { test: /(real estate|reit|immobilien)/i,                                                             rank: 50 },
   { test: /(gold|commodit|rohstoff)/i,                                                                  rank: 60 },
-  { test: /(thematic equity|equity\s*[-–]\s*thematic|themat)/i,                                         rank: 70 },
   { test: /(crypto|digital)/i,                                                                          rank: 80 },
 ];
 
@@ -83,5 +88,18 @@ export function bucketOrderKey(name: string): number {
     if (r.test.test(name)) return r.rank;
   }
   return 99;
+}
+
+// Comparator used by every chart / table that displays buckets.
+// Primary: group rank (Cash 10 → Bonds 20 → Equity 30 → RealEstate 50 →
+// Gold 60 → Thematic 70 → Crypto 80). Secondary: weight DESCENDING — so
+// within the equity group the largest slice comes first.
+export function compareBuckets(
+  a: { name: string; value: number },
+  b: { name: string; value: number },
+): number {
+  const dr = bucketOrderKey(a.name) - bucketOrderKey(b.name);
+  if (dr !== 0) return dr;
+  return b.value - a.value;
 }
 
