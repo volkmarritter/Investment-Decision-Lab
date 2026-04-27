@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-04-27 (admin-app-defaults)
+Last updated: 2026-04-27 (admin-app-defaults-presets)
 
 ---
 
@@ -619,6 +619,21 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-04-27 (admin-app-defaults-presets)
+- **Vorlagen ("Preset-Sets") für die Globale-Defaults-Karte.** Operators can now load a pre-canned configuration into the `/admin` Globale-Defaults editor with a single click instead of typing every number by hand. New module `src/lib/appDefaultsPresets.ts` exposes a registry of named presets and a pure `applyPresetToFields(preset, current)` helper used by the panel. The dropdown only sets the selected preset; an explicit **"Vorlage anwenden"** button performs the merge into the editor fields, and **"Aktuelle Werte neu laden"** discards any manual edits and re-fetches the server state. Applying a preset never auto-submits — the operator can still tweak fields, then writes the actual PR through the same `POST /admin/app-defaults` endpoint that already validates strictly server-side.
+  - **Preset shape**: `{ id, label, description, clear?: ('rf'|'hb'|'cma')[], payload?: AppDefaultsPayload }`.
+  - **Application semantics** (two phases, in order, per RF / HB / CMA section):
+    1. **Clear**: every section listed in `clear` is wiped to all-empty fields.
+    2. **Merge**: each key in `payload` overwrites the matching editor field; keys that the payload does NOT mention stay as they are (after phase 1). For CMA the merge is per-key AND per-attribute, so a preset that sets only `expReturn` for a given asset leaves that asset's `vol` untouched.
+  - This composes cleanly: a preset can wipe a whole section (`clear: ['rf']` + no `payload`), set one or two values without touching anything else (just `payload`), or do both ("clear RF then set USD/EUR/GBP/CHF" — the canonical "scenario" preset shape).
+  - **Shipped presets** (5):
+    - `reset-builtin` — "Built-in-Defaults wiederherstellen". `clear: ['rf','hb','cma']`, no payload → submitting this clears every global override and reverts to the in-code built-ins.
+    - `rf-low-rate` — "Niedrigzins-Umfeld (Beispiel)". `clear: ['rf']` + RF payload USD 1.0 % / EUR 0.5 % / GBP 1.0 % / CHF 0.0 %.
+    - `rf-high-rate` — "Hochzins-Umfeld (Beispiel)". `clear: ['rf']` + RF payload USD 5.5 % / EUR 4.0 % / GBP 5.25 % / CHF 1.75 %.
+    - `hb-global` — "Home-Bias neutral / global (Beispiel)". `clear: ['hb']` + HB payload set to 1.0 across all currencies (no home tilt).
+    - `cma-conservative-equity` — "Konservative Equity-CMA (Beispiel)". Payload only (no clear): equity `expReturn` ~1.5 pp below built-in across US/EU/UK/CH/JP/EM/Thematic + REITs. Volatilities and bonds/cash/gold/crypto are NOT in the payload, so they remain whatever the editor showed before the preset was applied — matching the description text exactly.
+  - **Tests** — 15 cases in `tests/app-defaults-presets.test.ts` enforce both **registry validity** (ids unique kebab-case, non-empty label & ≥20-char description, every payload value passes the frontend sanitiser unchanged so the backend strict validator can never reject it, only whitelisted RF/HB/asset keys, all values within the documented bounds RF [0, 0.20] / HB [0, 5] / CMA mu [-0.5, 1] / vol [0, 2]) and **`applyPresetToFields` semantics** (reset wipes everything; RF preset replaces RF and leaves HB/CMA alone; CMA preset preserves vol + non-equity rows; HB preset sets all currencies to 1; custom `clear`-only blanks listed sections; `clear` + `payload` does clear-then-merge in that order; payload-only preserves untouched keys including manual edits). Total 330 / 330 (was 315), typecheck clean for both packages, e2e 2/2 green.
 
 ### 2026-04-27 (admin-app-defaults)
 - **New "Globale Defaults" admin section.** The Methodology editor (per-user, localStorage) now has a server-backed counterpart at `/admin`. Operators can edit the ship-wide defaults for **Risk-Free Rates**, **Home-Bias multipliers**, and **CMA** (expReturn / vol per asset) and submit them via a single GitHub PR. After merge + redeploy the values become the new built-in defaults for **all** users, while per-user Methodology overrides keep layering on top — same priority ladder as before, just with one additional rung between built-in and consensus.

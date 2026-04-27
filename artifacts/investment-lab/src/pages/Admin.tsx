@@ -31,8 +31,8 @@ import {
 import { classifyDraft, type ClassifyResult } from "@/lib/catalog-classify";
 import {
   APP_DEFAULTS_PRESETS,
+  applyPresetToFields,
   findPresetById,
-  type AppDefaultsPreset,
 } from "@/lib/appDefaultsPresets";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -1501,63 +1501,91 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
   );
   const [summary, setSummary] = useState("");
   const [lastPr, setLastPr] = useState<{ url: string; number: number } | null>(null);
+  const [presetId, setPresetId] = useState<string>("");
+
+  // Lade-Logik als benannte Funktion, damit der "Aktuelle Werte neu laden"-
+  // Button sie auch nach manuellen Edits noch einmal triggern kann (Revert-
+  // Pfad nach versehentlichem Preset-Klick).
+  async function loadFromServer(): Promise<boolean> {
+    setLoading(true);
+    try {
+      const res = await adminApi.getAppDefaults();
+      const v = res.value ?? {};
+      setMeta(v._meta ? { lastUpdated: v._meta.lastUpdated ?? null, lastUpdatedBy: v._meta.lastUpdatedBy ?? null } : null);
+      // Editor immer auf einen sauberen "leer = built-in"-Stand zuruecksetzen,
+      // dann die Server-Werte einsetzen — damit ein Revert auch Felder
+      // leert, die der Operator zwischenzeitlich hineingeschrieben hat.
+      setRf(() => {
+        const next = { USD: "", EUR: "", GBP: "", CHF: "" } as Record<AppDefaultsRfCurrency, FieldState>;
+        for (const k of RF_KEYS_UI) {
+          const n = v.riskFreeRates?.[k];
+          if (typeof n === "number") next[k] = (n * 100).toFixed(3);
+        }
+        return next;
+      });
+      setHb(() => {
+        const next = { USD: "", EUR: "", GBP: "", CHF: "" } as Record<AppDefaultsHbCurrency, FieldState>;
+        for (const k of HB_KEYS_UI) {
+          const n = v.homeBias?.[k];
+          if (typeof n === "number") next[k] = String(n);
+        }
+        return next;
+      });
+      setCma(() => {
+        const next = Object.fromEntries(
+          CMA_KEYS_UI.map((c) => [c.key, { expReturn: "", vol: "" }]),
+        ) as Record<AppDefaultsAssetKey, CmaRow>;
+        for (const c of CMA_KEYS_UI) {
+          const entry = v.cma?.[c.key];
+          if (!entry) continue;
+          next[c.key] = {
+            expReturn: typeof entry.expReturn === "number" ? (entry.expReturn * 100).toFixed(3) : "",
+            vol: typeof entry.vol === "number" ? (entry.vol * 100).toFixed(3) : "",
+          };
+        }
+        return next;
+      });
+      setLoadError(null);
+      return true;
+    } catch (err) {
+      setLoadError(err instanceof Error ? err.message : String(err));
+      return false;
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    adminApi
-      .getAppDefaults()
-      .then((res) => {
-        if (cancelled) return;
-        const v = res.value ?? {};
-        if (v._meta) setMeta({ lastUpdated: v._meta.lastUpdated ?? null, lastUpdatedBy: v._meta.lastUpdatedBy ?? null });
-        if (v.riskFreeRates) {
-          setRf((prev) => {
-            const next = { ...prev };
-            for (const k of RF_KEYS_UI) {
-              const n = v.riskFreeRates?.[k];
-              if (typeof n === "number") next[k] = (n * 100).toFixed(3);
-            }
-            return next;
-          });
-        }
-        if (v.homeBias) {
-          setHb((prev) => {
-            const next = { ...prev };
-            for (const k of HB_KEYS_UI) {
-              const n = v.homeBias?.[k];
-              if (typeof n === "number") next[k] = String(n);
-            }
-            return next;
-          });
-        }
-        if (v.cma) {
-          setCma((prev) => {
-            const next = { ...prev };
-            for (const c of CMA_KEYS_UI) {
-              const entry = v.cma?.[c.key];
-              if (!entry) continue;
-              next[c.key] = {
-                expReturn: typeof entry.expReturn === "number" ? (entry.expReturn * 100).toFixed(3) : "",
-                vol: typeof entry.vol === "number" ? (entry.vol * 100).toFixed(3) : "",
-              };
-            }
-            return next;
-          });
-        }
-        setLoadError(null);
-      })
-      .catch((err: Error) => {
-        if (cancelled) return;
-        setLoadError(err.message);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
+    void loadFromServer();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Wendet das aktuell ausgewaehlte Preset an. Reine Logik liegt in
+  // applyPresetToFields (testbar, ohne React zu mounten). Apply ist
+  // bewusst NICHT auto-on-change: ein eigener Button macht den Effekt
+  // sichtbar und vermeidet versehentliches Ueberschreiben.
+  function onApplyPreset() {
+    const preset = findPresetById(presetId);
+    if (!preset) {
+      toast.error("Bitte zuerst eine Vorlage auswaehlen.");
+      return;
+    }
+    const next = applyPresetToFields(preset, { rf, hb, cma });
+    setRf(next.rf);
+    setHb(next.hb);
+    setCma(next.cma);
+    toast.success(`Vorlage angewendet: ${preset.label}. Bitte vor dem PR pruefen.`);
+  }
+
+  async function onRevert() {
+    setPresetId("");
+    const ok = await loadFromServer();
+    if (ok) {
+      toast.success("Editor auf aktuell ausgelieferte Werte zurueckgesetzt.");
+    } else {
+      toast.error("Konnte aktuelle Werte nicht laden — siehe Fehlermeldung im Panel.");
+    }
+  }
 
   function parsePct(s: string): number | undefined {
     const t = s.trim();
@@ -1675,6 +1703,67 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
 
         {!loading && !loadError && (
           <>
+            <section className="space-y-2">
+              <Label htmlFor="app-defaults-preset">Vorlage anwenden (optional)</Label>
+              <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+                <div className="flex-1 min-w-0">
+                  <Select
+                    value={presetId || undefined}
+                    onValueChange={(v) => setPresetId(v)}
+                  >
+                    <SelectTrigger
+                      id="app-defaults-preset"
+                      data-testid="select-app-defaults-preset"
+                    >
+                      <SelectValue placeholder="— keine Vorlage —" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {APP_DEFAULTS_PRESETS.map((p) => (
+                        <SelectItem
+                          key={p.id}
+                          value={p.id}
+                          data-testid={`option-preset-${p.id}`}
+                        >
+                          {p.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="secondary"
+                    onClick={onApplyPreset}
+                    disabled={!presetId || loading}
+                    data-testid="button-apply-preset"
+                  >
+                    Vorlage anwenden
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={onRevert}
+                    disabled={loading}
+                    data-testid="button-revert-defaults"
+                  >
+                    Aktuelle Werte neu laden
+                  </Button>
+                </div>
+              </div>
+              {presetId && (
+                <p className="text-xs text-muted-foreground">
+                  {findPresetById(presetId)?.description}
+                </p>
+              )}
+              <p className="text-xs text-muted-foreground">
+                Vorlagen erst auswählen, dann mit "Vorlage anwenden" in den
+                Editor laden. Sektionen, die die Vorlage nicht berührt,
+                bleiben unverändert; "Aktuelle Werte neu laden" verwirft
+                manuelle Änderungen und holt den Stand vom Server.
+              </p>
+            </section>
+
+            <Separator />
+
             <section className="space-y-2">
               <h3 className="text-sm font-semibold">Risk-Free Rates (in %)</h3>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
