@@ -371,6 +371,10 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "mc.tail.cvar95": "CVaR(95) — avg. of worst 5%",
     "mc.tail.cvar99": "CVaR(99) — avg. of worst 1%",
     "mc.tail.desc": "Average horizon outcome across the worst 5 % / 1 % of simulated paths. CVaR is a stricter risk measure than P10 (which is only the threshold) and is the standard tail-loss metric in CFA, Solvency II and Basel reports.",
+    "mc.mdd.title": "Realized Max Drawdown — path-based",
+    "mc.mdd.median": "Median path",
+    "mc.mdd.p05": "5th-percentile path",
+    "mc.mdd.desc": "Worst peak-to-trough loss observed *along* each simulated path (not just at the horizon). Median = the typical path's worst drop; P5 = the bad-tail history. Replaces the older analytical heuristic for the simulation view.",
 
     // Building-Block decomposition (CMA transparency)
     "bb.section.title": "Building-Block decomposition",
@@ -798,6 +802,10 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "mc.tail.cvar95": "CVaR(95) — Mittelwert der schlechtesten 5 %",
     "mc.tail.cvar99": "CVaR(99) — Mittelwert der schlechtesten 1 %",
     "mc.tail.desc": "Durchschnittliches Endergebnis über die schlechtesten 5 % bzw. 1 % der simulierten Pfade. CVaR ist ein strengeres Risikomaß als P10 (nur die Schwelle) und Standard für Tail-Verluste in CFA-, Solvency-II- und Basel-Reports.",
+    "mc.mdd.title": "Realisierter Max Drawdown — pfadbasiert",
+    "mc.mdd.median": "Median-Pfad",
+    "mc.mdd.p05": "5.-Perzentil-Pfad",
+    "mc.mdd.desc": "Schlimmster Peak-to-Trough-Verlust *entlang* jedes simulierten Pfads (nicht nur am Horizontende). Median = typischer Pfad-Worst-Case; P5 = Bad-Tail-Geschichte. Ersetzt die ältere analytische Heuristik für die Simulationsansicht.",
 
     // Building-Block-Zerlegung (CMA-Transparenz)
     "bb.section.title": "Building-Block-Zerlegung",

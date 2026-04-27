@@ -1,5 +1,5 @@
-import { AssetAllocation } from "./types";
-import { CMA, AssetKey, corr, BENCHMARK } from "./metrics";
+import { AssetAllocation, BaseCurrency } from "./types";
+import { CMA, AssetKey, corr, BENCHMARK, whtDragForKey } from "./metrics";
 
 // Map an (assetClass, region) pair to the CMA key. Mirrors the logic in
 // metrics.mapAllocationToAssets so Monte Carlo, Sharpe and the frontier all
@@ -63,17 +63,30 @@ export interface MonteCarloResult {
   cvar95Return: number;
   cvar99Final: number;
   cvar99Return: number;
+  // Path-based realized maximum drawdown. For each simulated path we track
+  // the running peak across all years and record the worst peak-to-trough
+  // drop; we then summarise the distribution across paths.
+  // - realizedMddP50: median realized MDD (the "typical" path's worst drop)
+  // - realizedMddP05: 5th-percentile realized MDD — a true tail measure that
+  //   answers "how bad does it get in the worst 5 % of histories?"
+  // Both are negative numbers (e.g. -0.32 = -32 %). Replaces the older
+  // analytical heuristic `MDD ≈ -(1.8 + 1.4·equityShare)·σ` for the MC view.
+  realizedMddP50: number;
+  realizedMddP05: number;
 }
 
 function bucketAssumption(
   assetClass: string,
   region: string,
   hedged: boolean = false,
-  baseCurrency: string = "USD"
+  baseCurrency: BaseCurrency = "USD"
 ): BucketAssumption {
-  const key = bucketKey(assetClass, region);
+  const key = bucketKey(assetClass, region, baseCurrency);
   const cma = CMA[key];
-  let mu = cma.expReturn;
+  // Net of irrecoverable WHT on dividends — same drag definition used by
+  // computeMetrics, so MC paths and the analytical Risk & Performance
+  // metrics agree on the headline expected return.
+  let mu = cma.expReturn - whtDragForKey(key, baseCurrency);
   let sigma = cma.vol;
 
   // FX-hedge sigma reduction for foreign equity. Applied after reading CMA so
@@ -128,13 +141,13 @@ export function runMonteCarlo(
     paths?: number;
     seed?: number;
     hedged?: boolean;
-    baseCurrency?: string;
+    baseCurrency?: BaseCurrency;
   } = {}
 ): MonteCarloResult {
   const numPaths = options.paths ?? 2000;
   const seed = options.seed ?? 42;
   const hedged = options.hedged ?? false;
-  const baseCurrency = options.baseCurrency ?? "USD";
+  const baseCurrency: BaseCurrency = options.baseCurrency ?? "USD";
 
   let portfolioMu = 0;
 
@@ -243,6 +256,28 @@ export function runMonteCarlo(
   const cvar95Return = initial > 0 ? cvar95Final / initial - 1 : 0;
   const cvar99Return = initial > 0 ? cvar99Final / initial - 1 : 0;
 
+  // Path-based realized maximum drawdown. For each path, walk the full
+  // value series, track the running peak, and record the worst (current/
+  // peak − 1). This replaces the analytical heuristic from metrics.ts for
+  // the MC view — it is simulation-honest, properly tail-aware, and
+  // independent of the equity-share scaler. Note finalsPerYear[y][p] is
+  // the value of path p at year y; `years + 1` rows including y = 0.
+  const pathMdds: number[] = new Array(numPaths);
+  for (let p = 0; p < numPaths; p++) {
+    let peak = -Infinity;
+    let worstDd = 0;
+    for (let y = 0; y <= years; y++) {
+      const v = finalsPerYear[y][p];
+      if (v > peak) peak = v;
+      const dd = peak > 0 ? v / peak - 1 : 0;
+      if (dd < worstDd) worstDd = dd;
+    }
+    pathMdds[p] = worstDd;
+  }
+  const sortedMdds = [...pathMdds].sort((a, b) => a - b); // most-negative first
+  const realizedMddP05 = quantile(sortedMdds, 0.05);
+  const realizedMddP50 = quantile(sortedMdds, 0.5);
+
   return {
     expectedReturn: portfolioMu,
     expectedVol: portfolioSigma,
@@ -257,5 +292,7 @@ export function runMonteCarlo(
     cvar95Return,
     cvar99Final,
     cvar99Return,
+    realizedMddP50,
+    realizedMddP05,
   };
 }

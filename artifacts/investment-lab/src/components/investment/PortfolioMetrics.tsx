@@ -121,7 +121,7 @@ export function PortfolioMetrics({ allocation, baseCurrency, etfImplementation }
           <MetricTile label={t("metrics.expReturn")} value={pct(m.expReturn)} sub={de ? "p.a." : "p.a."} info={explain.expReturn} />
           <MetricTile label={t("metrics.vol")} value={pct(m.vol)} sub={de ? "Standardabw." : "stdev"} info={explain.vol} />
           <MetricTile label={t("metrics.sharpe")} value={num(m.sharpe)} sub={`Rf ${pct(rf, 1)}`} accent={m.sharpe >= 0.4 ? "good" : m.sharpe >= 0.2 ? "neutral" : "warn"} info={explain.sharpe} />
-          <MetricTile label={t("metrics.maxDD")} value={pct(m.maxDrawdown, 1)} sub={de ? "geschätzt" : "estimated"} accent="warn" info={explain.maxDD} />
+          <MetricTile label={t("metrics.maxDD")} value={pct(m.maxDrawdown, 1)} sub={de ? "Heuristik · MC-Tab für Pfad-MDD" : "heuristic · see MC tab for path-based MDD"} accent="warn" info={explain.maxDD} />
           <MetricTile label={t("metrics.beta")} value={num(m.beta)} sub={de ? "vs. ACWI" : "vs ACWI"} info={explain.beta} />
           <MetricTile label={t("metrics.alpha")} value={pct(m.alpha)} sub={de ? "p.a. vs. ACWI" : "p.a. vs ACWI"} accent={m.alpha >= 0 ? "good" : "warn"} info={explain.alpha} />
           <MetricTile label={t("metrics.te")} value={pct(m.trackingError, 1)} sub={de ? "p.a." : "p.a."} info={explain.te} />

@@ -18,6 +18,8 @@ import {
   BENCHMARK,
   portfolioReturn,
   portfolioVol,
+  portfolioWhtDrag,
+  WHT_DRAG,
 } from "../src/lib/metrics";
 import type { AssetAllocation, ETFImplementation } from "../src/lib/types";
 import { diffPortfolios } from "../src/lib/compare";
@@ -1173,7 +1175,10 @@ describe("metrics", () => {
     const m = computeMetrics(benchAlloc, "USD");
     expect(m.beta).toBeCloseTo(1, 2);
     expect(m.trackingError).toBeLessThan(0.001);
-    expect(m.expReturn).toBeCloseTo(portfolioReturn(BENCHMARK), 4);
+    // expReturn is reported NET of withholding-tax drag (see metrics.ts:WHT_DRAG).
+    // Apply the same drag to the benchmark side so the assertion is symmetric.
+    const expectedNet = portfolioReturn(BENCHMARK) - portfolioWhtDrag(BENCHMARK, "USD");
+    expect(m.expReturn).toBeCloseTo(expectedNet, 4);
     expect(m.vol).toBeCloseTo(portfolioVol(BENCHMARK), 4);
   });
 
@@ -1571,7 +1576,12 @@ describe("CMA layered overrides", () => {
     const { CMA } = await import("../src/lib/metrics");
     const alloc = [{ assetClass: "Equity", region: "USA", weight: 100 }];
     const baseline = runMonteCarlo(alloc, 5, 100_000, { paths: 200, seed: 1 });
-    expect(baseline.expectedReturn).toBeCloseTo(CMA.equity_us.expReturn, 6);
+    // MC reports NET of WHT drag — single-asset US-equity baseline must
+    // therefore equal CMA.equity_us.expReturn − WHT_DRAG.equity_us.
+    expect(baseline.expectedReturn).toBeCloseTo(
+      CMA.equity_us.expReturn - WHT_DRAG.equity_us,
+      6,
+    );
   });
 
   it("manually mutating CMA leaves immediately changes Monte Carlo expected return", async () => {
@@ -1583,8 +1593,62 @@ describe("CMA layered overrides", () => {
     CMA.equity_us.expReturn = 0.123;
     const after = runMonteCarlo(alloc, 5, 100_000, { paths: 200, seed: 1 }).expectedReturn;
     CMA.equity_us.expReturn = original; // restore for downstream tests
-    expect(after).toBeCloseTo(0.123, 6);
+    // After mutating CMA, MC should reflect 0.123 NET of WHT drag.
+    expect(after).toBeCloseTo(0.123 - WHT_DRAG.equity_us, 6);
     expect(after).not.toBeCloseTo(before, 4);
+  });
+
+  it("path-based realized MDD obeys ordering invariants and is non-positive", async () => {
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    // Mixed allocation so we have meaningful drawdown distribution
+    const alloc = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Fixed Income", region: "Global", weight: 30 },
+      { assetClass: "Cash", region: "Global", weight: 10 },
+    ];
+    const r = runMonteCarlo(alloc, 10, 100_000, { paths: 1000, seed: 42 });
+    // Both quantiles must be in (-1, 0] (drawdown is a loss, capped at -100 %).
+    expect(r.realizedMddP05).toBeLessThanOrEqual(0);
+    expect(r.realizedMddP50).toBeLessThanOrEqual(0);
+    expect(r.realizedMddP05).toBeGreaterThan(-1);
+    expect(r.realizedMddP50).toBeGreaterThan(-1);
+    // Bad-tail (P05) must be at least as deep as the typical path (P50).
+    expect(r.realizedMddP05).toBeLessThanOrEqual(r.realizedMddP50);
+    // For a 60/30/10 portfolio over 10y the median drawdown should be
+    // materially negative — sanity bound that catches accidental zeroing.
+    expect(r.realizedMddP50).toBeLessThan(-0.02);
+  });
+
+  it("WHT drag affects expReturn / alpha / outperformance but leaves vol / beta / TE unchanged", async () => {
+    // Snapshot WHT_DRAG, zero it out, recompute, then restore. Vol/beta/TE
+    // depend only on σ and correlations — they MUST be invariant to the drag.
+    const allocation = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Equity", region: "Europe", weight: 25 },
+      { assetClass: "Fixed Income", region: "Global", weight: 15 },
+    ];
+    const before = computeMetrics(allocation, "USD");
+    const snapshot: Record<string, number> = {};
+    for (const k of Object.keys(WHT_DRAG)) {
+      snapshot[k] = WHT_DRAG[k as keyof typeof WHT_DRAG];
+      (WHT_DRAG as Record<string, number>)[k] = 0;
+    }
+    try {
+      const after = computeMetrics(allocation, "USD");
+      // Drag-sensitive metrics should differ.
+      expect(after.expReturn).toBeGreaterThan(before.expReturn);
+      expect(after.alpha).not.toBeCloseTo(before.alpha, 6);
+      expect(after.outperformance).not.toBeCloseTo(before.outperformance, 6);
+      // Drag-INSENSITIVE metrics must be bit-identical (no σ, no covariance,
+      // no benchmark-vol changes flow through WHT).
+      expect(after.vol).toBeCloseTo(before.vol, 10);
+      expect(after.beta).toBeCloseTo(before.beta, 10);
+      expect(after.trackingError).toBeCloseTo(before.trackingError, 10);
+    } finally {
+      for (const k of Object.keys(snapshot)) {
+        (WHT_DRAG as Record<string, number>)[k as keyof typeof WHT_DRAG] = snapshot[k];
+      }
+    }
   });
 
   it("FX-hedge sigma reduction stays composable on top of CMA σ for foreign equity", async () => {

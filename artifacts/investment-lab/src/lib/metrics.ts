@@ -612,6 +612,61 @@ export function portfolioReturn(exp: AssetExposure[]): number {
   return r;
 }
 
+// ---------------------------------------------------------------------------
+// Withholding-tax (WHT) drag on dividends — the "irrecoverable" tax that an
+// IE-domiciled UCITS ETF investor pays even after applying the most generous
+// double-tax treaty. Subtracted from the gross expReturn so headline metrics
+// (Sharpe, alpha, MC paths) reflect what actually hits the investor's
+// account, not the index-level gross return.
+//
+// Defaults assume IE-domiciled UCITS ETFs (the dominant CH/EU retail vehicle).
+// Values are net-net drag in decimal-of-NAV per year. Sources:
+//   - US equity: 15 % WHT on ~2 % div yield → ~30 bps p.a. (US-IE treaty;
+//     a US-domiciled ETF would face 30 % WHT for a non-US investor → 60 bps).
+//   - EM equity: blended ~20 % WHT on ~2.5 % div yield → ~50 bps; we round
+//     to 40 bps to stay slightly conservative on EM yield assumptions.
+//   - DM ex-US (EU / UK / JP / Thematic): 15 % WHT on ~2 % div yield → 20 bps.
+//   - CH equity: nominal 35 % CH WHT, but a CHF-resident reclaims 100 %
+//     via the annual tax return → 0 bps; non-CHF residents face the full
+//     drag (treated below as 20 bps after partial treaty refund).
+//   - Bonds / Cash: coupons largely WHT-free in major treaties → 0 bps.
+//   - Real Estate / Gold / Crypto: 0 bps in this model (REIT WHT is real
+//     but our reits bucket is global-blended and small; flagged as a known
+//     simplification in the Methodology tab).
+//
+// The drag enters every public-facing metric (computeMetrics, runMonteCarlo,
+// buildPortfolio rationale via computeMetrics, frontier) so the entire app
+// reports NET expected returns. Tests that previously asserted equality with
+// CMA[k].expReturn must subtract the corresponding drag.
+export const WHT_DRAG: Record<AssetKey, number> = {
+  equity_us:        0.0030,
+  equity_eu:        0.0020,
+  equity_uk:        0.0020,
+  equity_ch:        0.0020, // overridden to 0 for CHF residents — see whtDragForKey
+  equity_jp:        0.0020,
+  equity_em:        0.0040,
+  equity_thematic:  0.0020,
+  bonds:            0,
+  cash:             0,
+  gold:             0,
+  reits:            0,
+  crypto:           0,
+};
+
+export function whtDragForKey(key: AssetKey, baseCurrency: BaseCurrency): number {
+  // CH equity is fully WHT-reclaimable for CHF residents (annual tax return
+  // refunds the 35 % federal anticipatory tax). For all other base currencies
+  // the standard partial-treaty residual applies.
+  if (key === "equity_ch" && baseCurrency === "CHF") return 0;
+  return WHT_DRAG[key];
+}
+
+export function portfolioWhtDrag(exp: AssetExposure[], baseCurrency: BaseCurrency): number {
+  let d = 0;
+  for (const e of exp) d += e.weight * whtDragForKey(e.key, baseCurrency);
+  return d;
+}
+
 export function portfolioVol(exp: AssetExposure[]): number {
   let v = 0;
   for (let i = 0; i < exp.length; i++) {
@@ -672,9 +727,12 @@ export function computeMetrics(
   const exp = etfImplementation
     ? mapAllocationToAssetsLookthrough(allocation, etfImplementation, baseCurrency)
     : mapAllocationToAssets(allocation, baseCurrency);
-  const r = portfolioReturn(exp);
+  // Net of irrecoverable withholding-tax drag on dividends — applied
+  // symmetrically to the portfolio AND the benchmark so alpha / outperformance
+  // aren't artificially inflated by a tax the benchmark can't escape either.
+  const r = portfolioReturn(exp) - portfolioWhtDrag(exp, baseCurrency);
   const v = portfolioVol(exp);
-  const rB = portfolioReturn(BENCHMARK);
+  const rB = portfolioReturn(BENCHMARK) - portfolioWhtDrag(BENCHMARK, baseCurrency);
   const vB = portfolioVol(BENCHMARK);
 
   const cov_pb = covariance(exp, BENCHMARK);
@@ -822,7 +880,9 @@ export function computeFrontier(
       ...eqMix.map((e) => ({ key: e.key, weight: e.weight * w })),
       ...defMix.map((e) => ({ key: e.key, weight: e.weight * (1 - w) })),
     ];
-    const r = portfolioReturn(blended);
+    // Net of WHT drag — keeps the frontier on the same return scale as the
+    // metric tile and rationale strings (see computeMetrics above).
+    const r = portfolioReturn(blended) - portfolioWhtDrag(blended, baseCurrency);
     const v = portfolioVol(blended);
     points.push({
       equityPct: pct,
@@ -833,7 +893,7 @@ export function computeFrontier(
   }
 
   const currentEqPct = Math.round(eqWeightSum * 100);
-  const r = portfolioReturn(exp);
+  const r = portfolioReturn(exp) - portfolioWhtDrag(exp, baseCurrency);
   const v = portfolioVol(exp);
   const current: FrontierPoint = {
     equityPct: currentEqPct,

@@ -17,7 +17,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AssetAllocation } from "@/lib/types";
+import { AssetAllocation, BaseCurrency } from "@/lib/types";
 import { runMonteCarlo } from "@/lib/monteCarlo";
 import { parseDecimalInput } from "@/lib/manualWeights";
 import { useT } from "@/lib/i18n";
@@ -25,7 +25,7 @@ import { useT } from "@/lib/i18n";
 interface MonteCarloSimulationProps {
   allocation: AssetAllocation[];
   horizonYears: number;
-  baseCurrency: string;
+  baseCurrency: BaseCurrency;
   hedged?: boolean;
 }
 
@@ -211,6 +211,45 @@ export function MonteCarloSimulation({
           </div>
           <p className="text-[10px] text-muted-foreground mt-2 leading-snug">
             {t("mc.tail.desc")}
+          </p>
+        </div>
+
+        {/* Path-based realized Max Drawdown — replaces the analytical
+            heuristic from metrics.ts for the simulation view. We report
+            the median (typical path) and the 5th-percentile (bad-tail
+            path) of the worst peak-to-trough drop observed *along* each
+            simulated path. Honest tail measure, simulation-consistent. */}
+        <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3" data-testid="mc-realized-mdd">
+          <div className="flex items-center gap-2 mb-2 text-[11px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+            <TrendingDown className="h-3 w-3" />
+            {t("mc.mdd.title")}
+          </div>
+          <div className="grid grid-cols-2 gap-4 text-center">
+            <div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                {t("mc.mdd.median")}
+              </div>
+              <div
+                className="text-base font-semibold mt-1 font-mono"
+                data-testid="mc-mdd-p50"
+              >
+                {(result.realizedMddP50 * 100).toFixed(1)}%
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                {t("mc.mdd.p05")}
+              </div>
+              <div
+                className="text-base font-semibold mt-1 font-mono text-amber-600 dark:text-amber-400"
+                data-testid="mc-mdd-p05"
+              >
+                {(result.realizedMddP05 * 100).toFixed(1)}%
+              </div>
+            </div>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-2 leading-snug">
+            {t("mc.mdd.desc")}
           </p>
         </div>
 

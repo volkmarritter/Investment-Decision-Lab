@@ -1171,12 +1171,50 @@ export function Methodology() {
             <li>{de ? "Verteilung: log-normale jährliche Renditen pro Anlageklasse, gezogen aus der CMA-Tabelle (μ und σ wie oben)." : "Distribution: log-normal annual returns per asset class, drawn from the CMA table above (μ and σ as listed)."}</li>
             <li>{de ? "Korrelation: die Portfolio-Volatilität σₚ wird vorab aus der vollständigen Korrelationsmatrix berechnet (Formel im Abschnitt „Formeln“); anschließend wird das Portfolio als Ganzes simuliert (eine Gauß-Ziehung pro Jahr)." : "Correlation: portfolio volatility σₚ is computed up front from the full correlation matrix (formula in the \"Formulas\" section); the portfolio is then simulated as a single asset (one Gaussian draw per year)."}</li>
             <li>{de ? "Pfade: 2.000 unabhängige Pfade über den Anlagehorizont des Nutzers." : "Paths: 2,000 independent paths over the user's chosen horizon."}</li>
-            <li>{de ? "Ausgewiesen: Median, P10, P90, Wahrscheinlichkeit eines Verlusts." : "Reported: median, P10, P90, probability of loss."}</li>
+            <li>{de ? "Ausgewiesen: Median, P10, P90, Wahrscheinlichkeit eines Verlusts, CVaR(95)/CVaR(99) am Horizont und pfadbasierter realisierter Max-Drawdown (Median + 5.-Perzentil)." : "Reported: median, P10, P90, probability of loss, CVaR(95)/CVaR(99) at horizon, and path-based realized Max Drawdown (median + 5th-percentile)."}</li>
           </ul>
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 my-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400 mb-1">
+              {de ? "Pfadbasierter Max Drawdown (v1.4, Apr 2026)" : "Path-based Max Drawdown (v1.4, Apr 2026)"}
+            </p>
+            <p className="text-xs text-muted-foreground leading-snug">
+              {de
+                ? "Für jeden simulierten Pfad wird der schlimmste Peak-to-Trough-Verlust *entlang* des Pfads berechnet (laufendes Maximum bis zum Jahr y, dann (Wert/Peak − 1)). Über alle Pfade berichten wir Median (typischer Pfad-Worst-Case) und 5.-Perzentil (Bad-Tail). Ersetzt für die Simulationsansicht die ältere analytische Heuristik MDD ≈ −min(0.85, (1.8 + 1.4·equityShare)·σₚ), die auf der Risk-&-Performance-Kachel weiterhin als Grobschätzung dient (markiert als „Heuristik“)."
+                : "For every simulated path we compute the worst peak-to-trough loss *along* the path (running max up to year y, then (value/peak − 1)). Across all paths we report the median (typical path's worst case) and the 5th-percentile (bad-tail). Replaces the older analytical heuristic MDD ≈ −min(0.85, (1.8 + 1.4·equityShare)·σₚ) for the simulation view; the heuristic is kept on the Risk & Performance tile as a quick analytical proxy (labeled \"heuristic\")."}
+            </p>
+          </div>
           <p className="text-xs text-muted-foreground">
             {de
-              ? "Limitierung: ohne Tail-Korrelationen, ohne Inflations-/Steuermodell, ohne Sequence-of-Returns-Pfade über Cash-Flows."
-              : "Limitations: no tail correlations, no inflation/tax model, no cash-flow sequence-of-returns modelling."}
+              ? "Limitierung: ohne Tail-Korrelationen, ohne Inflations-/Steuermodell (außer der WHT-Drag — siehe Abschnitt „Quellensteuer-Drag“), ohne Sequence-of-Returns-Pfade über Cash-Flows."
+              : "Limitations: no tail correlations, no inflation/tax model (apart from the WHT drag — see \"Withholding-Tax Drag\" section), no cash-flow sequence-of-returns modelling."}
+          </p>
+        </Section>
+
+        <Section value="wht" icon={<Coins className="h-4 w-4" />} title={de ? "Quellensteuer-Drag (v1.4, Apr 2026)" : "Withholding-Tax Drag (v1.4, Apr 2026)"}>
+          <p className="text-sm text-muted-foreground">
+            {de
+              ? "Jede ausgewiesene erwartete Rendite (Risk-&-Performance-Kachel, effiziente Frontier, Monte-Carlo-Pfade, Vergleichstab) ist NETTO der nicht-rückforderbaren Quellensteuer auf Dividenden — die Steuer, die ein typischer CH/EU-Privatanleger über IE-domizilierte UCITS-ETFs trotz aller Doppelbesteuerungs-Treaties tatsächlich zahlt. Symmetrisch wird derselbe Drag auch auf den ACWI-Benchmark angewandt, sodass Alpha und Outperformance nicht künstlich erhöht werden."
+              : "Every reported expected return (Risk & Performance tile, efficient frontier, Monte Carlo paths, Compare tab) is NET of irrecoverable withholding tax on dividends — the tax a typical CH/EU retail investor actually pays via IE-domiciled UCITS ETFs even after the most favorable double-taxation treaty. The same drag is applied symmetrically to the ACWI benchmark so alpha and outperformance aren't artificially inflated."}
+          </p>
+          <div className="rounded-md border border-border bg-muted/30 p-3 text-xs">
+            <p className="font-semibold mb-2">{de ? "Default-Drag-Sätze (jährlich, in bp):" : "Default drag rates (annual, in bps):"}</p>
+            <ul className="space-y-1 list-disc pl-5">
+              <li>{de ? "US-Equity: 30 bp (15 % WHT auf ~2 % Div-Yield, IE-Treaty). US-domizilierte ETFs würden 60 bp produzieren." : "US Equity: 30 bps (15 % WHT on ~2 % div yield, IE treaty). US-domiciled ETFs would yield 60 bps."}</li>
+              <li>{de ? "EM-Equity: 40 bp (gemischt ~20 % WHT auf ~2.5 % Div-Yield, leicht konservativ gerundet)." : "EM Equity: 40 bps (blended ~20 % WHT on ~2.5 % div yield, rounded slightly conservative)."}</li>
+              <li>{de ? "DM ex-US (EU / UK / JP / Thematic): 20 bp." : "DM ex-US (EU / UK / JP / Thematic): 20 bps."}</li>
+              <li>{de ? "CH-Equity: 20 bp regulär — aber 0 bp bei Basiswährung CHF (CH-Resident kann die 35 % Verrechnungssteuer voll zurückfordern)." : "CH Equity: 20 bps standard — but 0 bps when base currency is CHF (CH residents can fully reclaim the 35 % federal anticipatory tax)."}</li>
+              <li>{de ? "Bonds, Cash, Gold, Real Estate, Crypto: 0 bp (Coupons in den meisten Treaties WHT-frei; REITs vereinfacht)." : "Bonds, Cash, Gold, Real Estate, Crypto: 0 bps (coupons largely WHT-free in major treaties; REITs simplified)."}</li>
+            </ul>
+            <p className="mt-2 text-muted-foreground">
+              {de
+                ? "Quelle: WHT_DRAG-Konstante in src/lib/metrics.ts, dort werden die Sätze und Quellen-Annahmen versioniert."
+                : "Source: WHT_DRAG constant in src/lib/metrics.ts — rates and source assumptions are versioned there."}
+            </p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {de
+              ? "Limitierung: Modell unterstellt IE-domizilierte Vehikel und einen CH-Resident als Default-Anleger. Für US-domizilierte ETFs, EU-Resident-Setups oder andere Domizil-Kombinationen sind die Sätze konservativ und teilweise zu niedrig (US-domiziliert: ~60 bp statt 30 bp). Kapitalgewinn- und Vermögenssteuer (kantonal, CH) sind weiterhin nicht modelliert."
+              : "Limitation: model assumes IE-domiciled vehicles and a CH-resident default investor. For US-domiciled ETFs, EU-resident setups or other domicile combinations the rates are conservative and partly too low (US-domiciled: ~60 bps instead of 30 bps). Capital-gains and wealth tax (cantonal, CH) are still not modelled."}
           </p>
         </Section>
 
@@ -1227,7 +1265,9 @@ export function Methodology() {
             <Formula label="Beta vs benchmark" expr="βₚ = Cov(Rₚ, R_b) / Var(R_b)" />
             <Formula label="Alpha (Jensen)" expr="αₚ = E[Rₚ] − [Rf + βₚ · (E[R_b] − Rf)]" />
             <Formula label="Tracking Error" expr="TE = √(σₚ² + σ_b² − 2·Cov(Rₚ, R_b))" />
-            <Formula label="Max Drawdown (heuristic)" expr="MDD ≈ −min(0.85, (1.8 + 1.4 · equityShare) · σₚ)" />
+            <Formula label="Max Drawdown (heuristic — Risk & Performance tile)" expr="MDD ≈ −min(0.85, (1.8 + 1.4 · equityShare) · σₚ)" />
+            <Formula label="Max Drawdown (path-based — MC tile)" expr="MDDₚₐₜₕ = minₜ (Vₜ / maxₛ≤ₜ Vₛ − 1);  reported = quantileₚ(MDDₚₐₜₕ)  for p ∈ {0.50, 0.05}" />
+            <Formula label="WHT-net Expected Return" expr="E[Rₚ]ₙₑₜ = Σᵢ wᵢ · (μᵢ − whtᵢ)" />
           </div>
         </Section>
 
