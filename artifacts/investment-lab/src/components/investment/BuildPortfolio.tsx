@@ -52,6 +52,7 @@ import { ETFDetailsDialog } from "./ETFDetailsDialog";
 import { ETFSnapshotFreshness } from "./SnapshotFreshness";
 import { SavedScenariosUI } from "./SavedScenariosUI";
 import { DisclaimerPdfBlock } from "./Disclaimer";
+import { PortfolioReport } from "./PortfolioReport";
 import { useT } from "@/lib/i18n";
 
 const defaultValues: PortfolioInput = {
@@ -773,12 +774,12 @@ export function BuildPortfolio() {
                   ) : (
                     <Download className="h-4 w-4 mr-2" />
                   )}
-                  {isExporting ? "Generating PDF..." : "Export PDF"}
+                  {isExporting ? t("build.btn.exportingPdf") : t("build.btn.exportPdf")}
                 </Button>
               )}
             </div>
 
-            <div ref={pdfRef} className="space-y-6 bg-background">
+            <div className="space-y-6 bg-background">
               {/* Section 2: Validation */}
             {validation.errors.length > 0 && (
               <Alert variant="destructive">
@@ -1245,6 +1246,32 @@ export function BuildPortfolio() {
             )}
             <DisclaimerPdfBlock />
             </div>
+
+            {/* Off-screen curated one-page PDF report. The export pipeline
+             *  (handleExportPDF -> exportToPdf) photographs THIS container
+             *  rather than the screen-visible cards, so the resulting PDF is a
+             *  banker-style single-page summary instead of a stacked
+             *  screenshot of every card. Positioned off-screen so html2canvas
+             *  can still measure layout, while the user never sees it. */}
+            {output && validation.isValid && (
+              <div
+                ref={pdfRef}
+                aria-hidden="true"
+                style={{
+                  position: "fixed",
+                  left: "-99999px",
+                  top: 0,
+                  width: "210mm",
+                  pointerEvents: "none",
+                }}
+              >
+                <PortfolioReport
+                  output={output}
+                  input={form.getValues()}
+                  generatedAt={new Date()}
+                />
+              </div>
+            )}
           </motion.div>
         )}
       </div>

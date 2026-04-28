@@ -32,8 +32,11 @@ export async function exportToPdf(
       logging: false,
     });
 
-    const imgData = canvas.toDataURL("image/png");
-    
+    // JPEG at q=0.92 is dramatically smaller than PNG (often 10×) for a
+    // print-style report and the loss is invisible for typical use
+    // (printing, sharing, email). Keep scale=2 so text stays crisp.
+    const imgData = canvas.toDataURL("image/jpeg", 0.92);
+
     // A4 dimensions in mm
     const pdf = new jsPDF({
       orientation: "portrait",
@@ -50,19 +53,26 @@ export async function exportToPdf(
     const ratio = pdfWidth / imgWidth;
     const totalImgHeightInMm = imgHeight * ratio;
 
-    let heightLeft = totalImgHeightInMm;
-    let position = 0;
+    // Tolerance for the single-page detection only (NOT applied to mid-
+    // pagination). html2canvas can produce a height that is fractionally
+    // larger than one A4 page due to sub-pixel rendering or borders; treat
+    // anything within 2mm of a single page as fitting on one so we don't
+    // emit a near-empty second page. For genuinely longer content, we slice
+    // at the true page boundaries to avoid clipping content.
+    const SINGLE_PAGE_TOLERANCE_MM = 2;
 
-    // First page
-    pdf.addImage(imgData, "PNG", 0, position, pdfWidth, totalImgHeightInMm);
-    heightLeft -= pdfHeight;
+    // First page (always written)
+    pdf.addImage(imgData, "JPEG", 0, 0, pdfWidth, totalImgHeightInMm);
 
-    // Subsequent pages
-    while (heightLeft > 0) {
-      position = heightLeft - totalImgHeightInMm; // Shift image up
-      pdf.addPage();
-      pdf.addImage(imgData, "PNG", 0, position, pdfWidth, totalImgHeightInMm);
-      heightLeft -= pdfHeight;
+    if (totalImgHeightInMm > pdfHeight + SINGLE_PAGE_TOLERANCE_MM) {
+      // Multi-page slice pagination using true page boundaries.
+      let heightLeft = totalImgHeightInMm - pdfHeight;
+      while (heightLeft > 0) {
+        const position = heightLeft - totalImgHeightInMm; // Shift image up
+        pdf.addPage();
+        pdf.addImage(imgData, "JPEG", 0, position, pdfWidth, totalImgHeightInMm);
+        heightLeft -= pdfHeight;
+      }
     }
 
     pdf.save(filename);
