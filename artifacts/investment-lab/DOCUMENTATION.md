@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-04-28 (build-pdf-report-weight-and-lookthrough-fix)
+Last updated: 2026-04-28 (build-pdf-report-detailed-variant)
 
 ---
 
@@ -619,6 +619,18 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-04-28 (build-pdf-report-detailed-variant) — Zweiter „ausführlicher" PDF-Report-Button + Look-Through-Status im Header
+- **Operator-Folgewunsch nach dem One-Pager:** „look through only when enabled" (verifizieren) und „bauen Sie einen zweiten Knopf für einen ausführlicheren Report mit zusätzlich Top-10 Equity Holdings (immer Look-Through), Monte-Carlo-Chart + wichtigste Kennzahlen, und Fee-Estimator-Zusammenfassung".
+- **Punkt 1 (Look-Through nur wenn aktiviert):** der bestehende `mapAllocationToAssetsLookthrough()`-Fix von früher heute ist korrekt (Look-Through wird im Report nur dann angewendet, wenn `input.lookThroughView === true`); zusätzlich neuer sichtbarer Status-Hinweis im Report-Subtitle: „Einseitiger Portfolio-Report · Look-Through-Sicht" oder „· Surface-Allokation". So sieht der Operator beim Öffnen jeder PDF auf einen Blick, welche View exportiert wurde.
+- **Punkt 2 (zweiter Button):** `PortfolioReport` bekommt einen neuen `variant?: "basic" | "detailed"` Prop (Default `"basic"`, voll rückwärtskompatibel). `BuildPortfolio.tsx` rendert einen zweiten off-screen Mount (`pdfDetailedRef`, `position:fixed; left:-99999px; width:210mm`) mit `<PortfolioReport variant="detailed" />` und einen zweiten Button („Ausführlicher PDF-Report" / „Detailed PDF", primary-Variante neben dem outline-Variante-Basic-Button). `handleExportDetailedPDF` wiederverwendet `exportToPdf(pdfDetailedRef.current, filename)` — die Pagination-Logik handhabt automatisch den Mehr-Seiten-Output.
+- **Drei neue Sektionen im Detailed-Report (zwischen ETF-Tabelle und Methodik-Footer):**
+  - **Top 10 Equity Holdings (Look-Through):** Tabelle aus `buildLookthrough(etfs, lang, baseCurrency).topConcentrations.slice(0, 10)` mit Position/Quelle/% Portfolio/% Aktienteil. „immer Look-Through" ist automatisch erfüllt: `buildLookthrough()` IST der Look-Through-Engine, unabhängig vom on-screen-Toggle.
+  - **Monte-Carlo-Projektion:** `runMonteCarlo(allocation, horizonYears, 100'000, { hedged, baseCurrency, syntheticUsEffective, riskRegime: "normal", tailModel: "gauss" })` mit illustrativem Anlagebetrag von **100'000 in Basiswährung** (matcht den on-screen Default des MC-Widgets). Vier MetricTiles (Erw. Rendite p.a., Erw. Vol p.a., Endwert P50 mit P10/P90 als Sub-Text, P(Verlust)/P(Verdoppelung)) plus Inline-SVG-Mini-Chart `MonteCarloMiniChart` mit drei Polylinien (P10/P90 in Slate-300, P50-Median in Slate-900), Y-Achse mit 5 Ticks (Compact-Notation), gestrichelter Referenz-Linie auf den initialen Anlagebetrag, X-Achsen-Labels für Y0/Mid/YN. Inline-SVG (kein Recharts) — off-screen-stabiler weil keine ResponsiveContainer-Messung benötigt wird.
+  - **Fee-Estimator-Zusammenfassung:** `estimateFees(allocation, horizonYears, 100'000, { hedged: hedged && baseCurrency !== "USD" })` mit drei MetricTiles (Mittlere TER %, Jährliche Gebühr in Basiswährung, Projizierter Drag % vom Endwert) plus Bucket-Breakdown-Tabelle (Bucket/Gewicht/TER bps/Beitrag bps), sortiert nach Beitrag absteigend (kommt aus `estimateFees`).
+- **i18n:** 6 neue Keys (DE+EN): `build.btn.exportPdfDetailed`, `build.pdf.successDetailed`, `report.subtitle.detailed`, `report.feature.surfaceView`. Die DetailedSections-Strings sind inline-bilingual (`de ? "..." : "..."`), parallel zur Konvention im Disclaimer-Block.
+- **Bewusste Nicht-Änderungen:** Investitionsbetrag ist NICHT konfigurierbar (Snapshot-Determinismus, illustrativer Vergleichswert in Basiswährung mit Hinweis im Sektions-Titel). Der Basic-Report ist unverändert (Default-Verhalten bleibt One-Pager). Kein Risk-Regime-Toggle (wie beim Basic: bewusst auf `"normal"` festgenagelt). MC-Pfade fest auf 2'000 (Default von `runMonteCarlo`). Kein Stress-Test im Detailed-Report (das passt nicht in den Snapshot-Charakter — Stress ist eine explorative on-screen-Ansicht).
+- **352/352 Tests grün, Typecheck clean. e2e bestätigt:** Klick auf „Ausführlicher PDF-Report" zeigt Loading-State, lädt eine Multi-Page-PDF, Toast „Ausführlicher PDF-Report erfolgreich exportiert" erscheint, Basic-Button bleibt parallel verfügbar und disabled-while-other-running, keine Console-Errors.
 
 ### 2026-04-28 (build-pdf-report-weight-and-lookthrough-fix) — Zwei Bugs im neuen PDF-Report
 - **Operator-Befund unmittelbar nach Release:** „gewichte sind 100 mal zu hoch und ohne look through" — beides bestätigt.

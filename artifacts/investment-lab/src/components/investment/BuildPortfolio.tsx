@@ -82,10 +82,12 @@ export function BuildPortfolio() {
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [hasGenerated, setHasGenerated] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingDetailed, setIsExportingDetailed] = useState(false);
   const [numETFsMode, setNumETFsMode] = useState<"auto" | "manual">("auto");
   const [detailsEtf, setDetailsEtf] = useState<import("@/lib/types").ETFImplementation | null>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const pdfRef = useRef<HTMLDivElement>(null);
+  const pdfDetailedRef = useRef<HTMLDivElement>(null);
 
   // Auto-adjust the Number of ETFs to match the natural bucket count whenever
   // the user toggles satellite asset classes (Commodities, REITs, Crypto) or
@@ -195,6 +197,32 @@ export function BuildPortfolio() {
       toast.error(t("build.pdf.error"));
     } finally {
       setIsExporting(false);
+    }
+  };
+
+  // Detailed PDF export — same off-screen pattern as the basic report, but
+  // points at the second pdfDetailedRef which mounts a <PortfolioReport
+  // variant="detailed" />. The detailed variant adds Top 10 Equity Holdings
+  // (always look-through), Monte Carlo summary + chart, and Fee Estimator
+  // summary, so the resulting PDF naturally spans two pages — exportToPdf's
+  // pagination already handles multi-page output cleanly.
+  const handleExportDetailedPDF = async () => {
+    if (!pdfDetailedRef.current || !output) return;
+
+    setIsExportingDetailed(true);
+    try {
+      const { baseCurrency, riskAppetite } = form.getValues();
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `investment-decision-lab_detailed_${baseCurrency}_${riskAppetite}_${timestamp}.pdf`;
+
+      const { exportToPdf } = await import("@/lib/exportPdf");
+      await exportToPdf(pdfDetailedRef.current, filename);
+      toast.success(t("build.pdf.successDetailed"));
+    } catch (error) {
+      console.error(error);
+      toast.error(t("build.pdf.error"));
+    } finally {
+      setIsExportingDetailed(false);
     }
   };
 
@@ -763,19 +791,36 @@ export function BuildPortfolio() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <h2 className="text-2xl font-bold tracking-tight">Portfolio Results</h2>
               {output && validation.isValid && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleExportPDF}
-                  disabled={isExporting}
-                >
-                  {isExporting ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Download className="h-4 w-4 mr-2" />
-                  )}
-                  {isExporting ? t("build.btn.exportingPdf") : t("build.btn.exportPdf")}
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExportPDF}
+                    disabled={isExporting || isExportingDetailed}
+                  >
+                    {isExporting ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4 mr-2" />
+                    )}
+                    {isExporting ? t("build.btn.exportingPdf") : t("build.btn.exportPdf")}
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={handleExportDetailedPDF}
+                    disabled={isExporting || isExportingDetailed}
+                  >
+                    {isExportingDetailed ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4 mr-2" />
+                    )}
+                    {isExportingDetailed
+                      ? t("build.btn.exportingPdf")
+                      : t("build.btn.exportPdfDetailed")}
+                  </Button>
+                </div>
               )}
             </div>
 
@@ -1269,6 +1314,32 @@ export function BuildPortfolio() {
                   output={output}
                   input={form.getValues()}
                   generatedAt={new Date()}
+                />
+              </div>
+            )}
+
+            {/* Off-screen detailed PDF report. Same off-screen pattern as the
+             *  basic report above, but mounts <PortfolioReport
+             *  variant="detailed" /> which adds Top 10 Holdings (always
+             *  look-through), Monte Carlo summary + chart, and Fee Estimator
+             *  summary. The exporter naturally paginates across two pages. */}
+            {output && validation.isValid && (
+              <div
+                ref={pdfDetailedRef}
+                aria-hidden="true"
+                style={{
+                  position: "fixed",
+                  left: "-99999px",
+                  top: 0,
+                  width: "210mm",
+                  pointerEvents: "none",
+                }}
+              >
+                <PortfolioReport
+                  output={output}
+                  input={form.getValues()}
+                  generatedAt={new Date()}
+                  variant="detailed"
                 />
               </div>
             )}
