@@ -51,6 +51,37 @@ const sectionVersionLong = (id: string): string | undefined => {
   return v ? `${v.version} · ${v.month}` : undefined;
 };
 
+// Allow-list of accordion section ids that hash routing (Task #43) is
+// permitted to expand. Mirrors the `value=` props of every <Section> below
+// — if you add a new <Section value="foo" …>, append "foo" here so deep
+// links like `?tab=methodology#foo` light it up. Keeping this as an
+// explicit set (rather than deriving from tocBlocks at runtime) means an
+// arbitrary or stale fragment in the URL can't auto-open the wrong
+// section, and it also documents the public surface of shareable links.
+//
+// Exported so InvestmentLab can fall back to the Methodology tab when the
+// URL carries a valid section hash but no explicit `?tab=` parameter (so
+// short-form links like `/#tail-realism` still work).
+export const VALID_SECTION_IDS = new Set<string>([
+  // Your settings
+  "etf-catalog",
+  "cma",
+  "risk-free",
+  "home-bias",
+  // How results are calculated
+  "corr",
+  "lookthrough",
+  "hedging",
+  "wht",
+  "mc",
+  "tail-realism",
+  "stress",
+  "formulas",
+  // Reference & context
+  "bench",
+  "limits",
+]);
+
 export function Methodology() {
   const { lang, t } = useT();
   const de = lang === "de";
@@ -258,18 +289,59 @@ export function Methodology() {
   // ------------------------------------------------------------- Jump menu /
   // Controlled accordion state so the top-of-page Table of Contents and the
   // Editable Overview bullets can both open the matching section and scroll
-  // it into view.
+  // it into view. The current section is also mirrored into the URL hash
+  // (Task #43) so links like `/?tab=methodology#tail-realism` are
+  // shareable, refresh-stable and survive browser back/forward.
   const [openSections, setOpenSections] = useState<string[]>([]);
-  const openAndScrollTo = (sectionValue: string) => {
-    setOpenSections((prev) => (prev.includes(sectionValue) ? prev : [...prev, sectionValue]));
-    // Defer the scroll to the next frame so the AccordionItem has actually
-    // expanded before we measure its position; otherwise we land at the
-    // collapsed location.
+
+  // Defer the scroll until the AccordionItem (and, on initial load, the
+  // tab panel itself) has been rendered. A single requestAnimationFrame is
+  // enough for in-page jumps, but on first paint the tab may flip from
+  // hidden→visible in the same React commit as the section opens, and an
+  // immediate scrollIntoView would target a still-hidden element. Two
+  // back-to-back frames cover both cases reliably.
+  const scrollToSection = (sectionValue: string) => {
     requestAnimationFrame(() => {
-      const el = document.getElementById(`methodology-anchor-${sectionValue}`);
-      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      requestAnimationFrame(() => {
+        const el = document.getElementById(`methodology-anchor-${sectionValue}`);
+        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
     });
   };
+
+  const openAndScrollTo = (sectionValue: string) => {
+    setOpenSections((prev) => (prev.includes(sectionValue) ? prev : [...prev, sectionValue]));
+    // Push a new history entry so browser back/forward navigates between
+    // sections. pushState (unlike `location.hash = "..."`) does not trigger
+    // an automatic browser jump, so our smooth scroll wins. It also does
+    // not fire `hashchange`, so the listener below won't double-handle it.
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      url.hash = sectionValue;
+      if (url.hash !== window.location.hash) {
+        window.history.pushState(null, "", url.toString());
+      }
+    }
+    scrollToSection(sectionValue);
+  };
+
+  // Hash routing: read the URL hash on mount and on browser back/forward
+  // so that loading `/?tab=methodology#tail-realism` (or navigating back
+  // to it) opens the matching section and scrolls to it. Only known
+  // section ids are honoured — unknown hashes are ignored so a stray `#`
+  // or third-party tracker fragment can't expand a random accordion.
+  useEffect(() => {
+    const apply = () => {
+      if (typeof window === "undefined") return;
+      const id = window.location.hash.replace(/^#/, "");
+      if (!id || !VALID_SECTION_IDS.has(id)) return;
+      setOpenSections((prev) => (prev.includes(id) ? prev : [...prev, id]));
+      scrollToSection(id);
+    };
+    apply();
+    window.addEventListener("hashchange", apply);
+    return () => window.removeEventListener("hashchange", apply);
+  }, []);
 
   // Stable labels for the Table of Contents (mirrors the section titles
   // below so renaming them keeps the ToC in sync — keep this small map and
