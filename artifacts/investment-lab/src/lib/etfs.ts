@@ -175,6 +175,22 @@ const CATALOG: Record<string, ETFRecord> = {
       "Swap-based replication eliminates the 15% US dividend withholding-tax leakage that physical Irish-domiciled ETFs incur, structurally adding ~20–30 bps/yr; introduces counterparty risk to the swap counterparties.",
     listings: { LSE: { ticker: "SPXS" }, XETRA: { ticker: "SC0J" }, SIX: { ticker: "SPXS" }, Euronext: { ticker: "SPXS" } },
     defaultExchange: "LSE",
+    alternatives: [
+      {
+        name: "Xtrackers MSCI World Swap UCITS ETF 1C",
+        isin: "LU0274208692",
+        terBps: 45,
+        domicile: "Luxembourg",
+        replication: "Synthetic",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment: "Xtrackers MSCI USA Swap — synthetic alternative.",
+        listings: { "LSE": { ticker: "XMWD" }, "XETRA": { ticker: "DBXW" } },
+        defaultExchange: "XETRA",
+        aumMillionsEUR: 4904,
+        inceptionDate: "2006-12-19",
+      },
+    ],
   }),
   "Equity-Europe": E({
     name: "iShares Core MSCI Europe UCITS",
