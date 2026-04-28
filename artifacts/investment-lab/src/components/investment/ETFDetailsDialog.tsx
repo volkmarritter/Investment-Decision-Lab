@@ -31,7 +31,7 @@ function justEtfUrl(isin: string, lang: string): string {
   return `https://www.justetf.com/${locale}/etf-profile.html?isin=${encodeURIComponent(isin)}`;
 }
 
-function formatStamp(stamp: string): string {
+export function formatStamp(stamp: string): string {
   // Stamp may be a full ISO timestamp ("2026-04-24T19:43:14.034Z") written by
   // scripts/refresh-lookthrough.mjs, or a curated label like "Q4 2024".
   // For ISO timestamps, show only the YYYY-MM-DD date — the time-of-day is
@@ -40,7 +40,7 @@ function formatStamp(stamp: string): string {
   return isoDateMatch ? isoDateMatch[1] : stamp;
 }
 
-function sortedTop(map: ExposureMap | undefined, n = 12): Array<[string, number]> {
+export function sortedTop(map: ExposureMap | undefined, n = 12): Array<[string, number]> {
   if (!map) return [];
   return Object.entries(map)
     .filter(([, v]) => v > 0)
@@ -48,7 +48,7 @@ function sortedTop(map: ExposureMap | undefined, n = 12): Array<[string, number]
     .slice(0, n);
 }
 
-function ExposureList({
+export function ExposureList({
   title,
   rows,
   emptyLabel,

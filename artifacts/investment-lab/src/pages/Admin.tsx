@@ -58,6 +58,7 @@ import {
 import { ThemeToggle } from "@/components/theme-toggle";
 import { LangToggle } from "@/components/lang-toggle";
 import { DocsPanel } from "@/components/admin/DocsPanel";
+import { EtfLookthroughDialog } from "@/components/investment/EtfLookthroughDialog";
 import { useAdminT } from "@/lib/admin-i18n";
 import { ChevronDown, ChevronRight, ExternalLink, GitPullRequest, Layers, LogOut, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
@@ -5164,6 +5165,11 @@ function UnclassifiedRow({
   const { t, lang } = useAdminT();
   const isOpen = attaching?.isin === poolEntry.isin;
   const [pickedBucket, setPickedBucket] = useState<string>("");
+  // State for the look-through detail dialog (same content as the
+  // ETFDetailsDialog used in the portfolio view) — operator opens it
+  // before deciding whether to attach the ISIN to a bucket so they can
+  // inspect the geo/sector/currency/top-holdings data we already have.
+  const [lookthroughOpen, setLookthroughOpen] = useState(false);
 
   return (
     <div
@@ -5194,20 +5200,41 @@ function UnclassifiedRow({
           </span>
           <PoolSourceBadge entry={poolEntry} />
         </div>
-        {githubConfigured && (
+        <div className="flex items-center gap-2 shrink-0">
           <Button
             type="button"
             size="sm"
-            variant={isOpen ? "secondary" : "outline"}
-            onClick={onAttachOpen}
-            data-testid={`button-tree-attach-${poolEntry.isin}`}
+            variant="ghost"
+            onClick={() => setLookthroughOpen(true)}
+            data-testid={`button-tree-lookthrough-${poolEntry.isin}`}
+            title={t({
+              de: "Look-through-Daten ansehen",
+              en: "View look-through data",
+            })}
           >
-            {isOpen
-              ? t({ de: "Schließen", en: "Close" })
-              : t({ de: "Bucket zuordnen", en: "Attach to bucket" })}
+            {t({ de: "Look-through", en: "Look-through" })}
           </Button>
-        )}
+          {githubConfigured && (
+            <Button
+              type="button"
+              size="sm"
+              variant={isOpen ? "secondary" : "outline"}
+              onClick={onAttachOpen}
+              data-testid={`button-tree-attach-${poolEntry.isin}`}
+            >
+              {isOpen
+                ? t({ de: "Schließen", en: "Close" })
+                : t({ de: "Bucket zuordnen", en: "Attach to bucket" })}
+            </Button>
+          )}
+        </div>
       </div>
+      <EtfLookthroughDialog
+        isin={lookthroughOpen ? poolEntry.isin : null}
+        name={poolEntry.name}
+        open={lookthroughOpen}
+        onOpenChange={setLookthroughOpen}
+      />
       {isOpen && (
         <div className="mt-2 border-t pt-2 space-y-2">
           <div className="flex items-center gap-2 text-xs">
