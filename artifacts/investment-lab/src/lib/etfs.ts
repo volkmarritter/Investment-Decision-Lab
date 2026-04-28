@@ -598,6 +598,22 @@ const CATALOG: Record<string, ETFRecord> = {
       "Concentrated global clean-energy basket; historically high volatility and sector concentration.",
     listings: { LSE: { ticker: "INRG" }, XETRA: { ticker: "IQQH" }, SIX: { ticker: "INRG" }, Euronext: { ticker: "INRG" } },
     defaultExchange: "LSE",
+    alternatives: [
+      {
+        name: "iShares MSCI World Screened UCITS ETF USD (Acc)",
+        isin: "IE00BFNM3J75",
+        terBps: 20,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment: "iShares MSCI World ESG Screened — broad ESG alternative.",
+        listings: { "LSE": { ticker: "SAWD" }, "XETRA": { ticker: "SNAW" } },
+        defaultExchange: "XETRA",
+        aumMillionsEUR: 4602,
+        inceptionDate: "2018-10-19",
+      },
+    ],
   }),
   "Equity-Cybersecurity": E({
     name: "iShares Digital Security UCITS",
