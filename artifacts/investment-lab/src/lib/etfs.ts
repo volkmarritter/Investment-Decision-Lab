@@ -412,6 +412,22 @@ const CATALOG: Record<string, ETFRecord> = {
     comment: "GBP-hedged global aggregate for sterling portfolios.",
     listings: { LSE: { ticker: "AGBP" } },
     defaultExchange: "LSE",
+    alternatives: [
+      {
+        name: "Vanguard Global Aggregate Bond UCITS ETF USD Hedged Accumulating",
+        isin: "IE00BG47KJ78",
+        terBps: 8,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment: "Vanguard Global Aggregate Bond GBP Hedged — alternative provider.",
+        listings: { "LSE": { ticker: "VAGU" } },
+        defaultExchange: "LSE",
+        aumMillionsEUR: 555,
+        inceptionDate: "2019-06-18",
+      },
+    ],
   }),
   // ---------- Commodities ----------
   "Commodities-Gold": E({
