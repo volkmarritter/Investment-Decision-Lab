@@ -2381,6 +2381,70 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B5L01S80",
       "_addedAt": "2026-04-28T14:16:04.365Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
+    },
+    "IE00B43HR379": {
+      "name": "iShares S&P 500 Health Care Sector UCITS ETF (Acc)",
+      "topHoldings": [
+        {
+          "name": "Eli Lilly & Co.",
+          "pct": 13.75
+        },
+        {
+          "name": "Johnson & Johnson",
+          "pct": 11.11
+        },
+        {
+          "name": "AbbVie, Inc.",
+          "pct": 7.25
+        },
+        {
+          "name": "Merck & Co., Inc.",
+          "pct": 5.63
+        },
+        {
+          "name": "UnitedHealth Group",
+          "pct": 4.62
+        },
+        {
+          "name": "Amgen, Inc.",
+          "pct": 3.57
+        },
+        {
+          "name": "Thermo Fisher Scientific",
+          "pct": 3.49
+        },
+        {
+          "name": "Abbott Laboratories",
+          "pct": 3.36
+        },
+        {
+          "name": "Gilead Sciences, Inc.",
+          "pct": 3.27
+        },
+        {
+          "name": "Intuitive Surgical",
+          "pct": 3.09
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-28T14:32:20.063Z",
+      "geo": {
+        "United States": 95.88,
+        "Ireland": 2.51,
+        "Other": 1.61
+      },
+      "sector": {
+        "Health Care": 98.39,
+        "Other": 1.61
+      },
+      "currency": {
+        "USD": 95.88,
+        "EUR": 2.51,
+        "Other": 1.61
+      },
+      "breakdownsAsOf": "2026-04-28T14:32:20.063Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B43HR379",
+      "_addedAt": "2026-04-28T14:32:20.063Z",
+      "_addedVia": "admin/bucket-alternatives (auto)"
     }
   }
 }
