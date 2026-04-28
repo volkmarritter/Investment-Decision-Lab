@@ -27,6 +27,7 @@ import {
   injectAlternative,
   listOpenPrs,
   openAddBucketAlternativePr,
+  openRemoveBucketAlternativePr,
   openAddEtfPr,
   openAddLookthroughPoolPr,
   openUpdateAppDefaultsPr,
@@ -339,13 +340,172 @@ router.post("/admin/bucket-alternatives", async (req, res) => {
     return;
   }
 
+  let prUrl: string;
+  let prNumber: number;
   try {
     const pr = await openAddBucketAlternativePr(parentKey, entry);
-    res.json({ ok: true, prUrl: pr.url, prNumber: pr.number });
+    prUrl = pr.url;
+    prNumber = pr.number;
   } catch (err) {
     res.status(502).json({
       error: "pr_creation_failed",
       message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+
+  // Best-effort: also gather look-through reference data for this ISIN
+  // and open a separate look-through-pool PR. This makes the alt usable
+  // immediately on day 1 (top holdings, geo, sector breakdowns) instead
+  // of waiting for the next monthly refresh-lookthrough cron tick. The
+  // two PRs are independent: if look-through scraping fails (no data,
+  // already in pool, scrape error) the etfs.ts PR still stands and the
+  // operator just sees a non-blocking message in the response.
+  //
+  // Why best-effort: requirement is "Look-through data should be
+  // gathered for all alternatives". The monthly cron already covers
+  // every ISIN in etfs.ts via regex extraction, so missing the immediate
+  // scrape just means a one-cron-tick delay — never a permanent gap.
+  let lookthroughPrUrl: string | undefined;
+  let lookthroughPrNumber: number | undefined;
+  let lookthroughError: string | undefined;
+  try {
+    const norm = entry.isin.trim().toUpperCase();
+    const sources = await readLookthroughSources();
+    if (sources.pool[norm] || sources.overrides[norm]) {
+      lookthroughError = `ISIN ${norm} ist bereits im Look-through-Datenpool — kein zusätzlicher PR nötig.`;
+    } else {
+      const scraped = await scrapeLookthrough(norm);
+      // Pull all four required fields into locals first so TS narrows
+      // their type from `T | undefined` to `T` after the guard below.
+      // Inline `&& length > 0` checks would compile but wouldn't narrow
+      // the field types — see the existing /lookthrough-pool flow which
+      // assumes presence implicitly.
+      const top = scraped.topHoldings;
+      const geo = scraped.geo;
+      const sector = scraped.sector;
+      const currency = scraped.currency;
+      if (
+        !top ||
+        top.length === 0 ||
+        !geo ||
+        Object.keys(geo).length === 0 ||
+        !sector ||
+        Object.keys(sector).length === 0 ||
+        !currency
+      ) {
+        lookthroughError = `Look-through-Scrape unvollständig für ${norm} — Methodology-Override-Daten fehlen, der Pool-PR wird übersprungen. Der monatliche Refresh-Job kann es später erneut versuchen.`;
+      } else {
+        const ltPr = await openAddLookthroughPoolPr({
+          isin: norm,
+          entry: {
+            ...(scraped.name ? { name: scraped.name } : {}),
+            topHoldings: top,
+            topHoldingsAsOf: scraped.asOf,
+            geo,
+            sector,
+            currency,
+            breakdownsAsOf: scraped.asOf,
+            _source: scraped.sourceUrl,
+            _addedAt: scraped.asOf,
+            _addedVia: "admin/bucket-alternatives (auto)",
+          },
+        });
+        if (ltPr.alreadyInBaseFile) {
+          lookthroughError = `ISIN ${norm} ist bereits im Look-through-Datenpool auf dem Base-Branch.`;
+        } else {
+          lookthroughPrUrl = ltPr.url;
+          lookthroughPrNumber = ltPr.number;
+        }
+      }
+    }
+  } catch (err) {
+    lookthroughError = err instanceof Error ? err.message : String(err);
+  }
+
+  res.json({
+    ok: true,
+    prUrl,
+    prNumber,
+    ...(lookthroughPrUrl
+      ? { lookthroughPrUrl, lookthroughPrNumber }
+      : {}),
+    ...(lookthroughError ? { lookthroughError } : {}),
+  });
+});
+
+// DELETE /admin/bucket-alternatives/:parentKey/:isin — opens a PR that
+// removes the alternative from etfs.ts only. The ETF's look-through
+// profile in lookthrough.overrides.json is intentionally untouched
+// (operator-promised contract: "remove from picker, keep in pool").
+router.delete("/admin/bucket-alternatives/:parentKey/:isin", async (req, res) => {
+  const parentKey = String(req.params.parentKey ?? "");
+  if (!parentKey || !/^[A-Z][A-Za-z0-9-]{2,40}$/.test(parentKey)) {
+    res.status(400).json({
+      error: "invalid_parent_key",
+      message: "parentKey must match the catalog key format.",
+    });
+    return;
+  }
+  let isin: string;
+  try {
+    isin = normalizeIsin(req.params.isin);
+  } catch (err) {
+    res.status(400).json({
+      error: "invalid_isin",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+
+  try {
+    const catalog = await loadCatalog();
+    const parent = catalog[parentKey];
+    if (!parent) {
+      res.status(404).json({
+        error: "parent_missing",
+        message: `Parent bucket "${parentKey}" not found in catalog.`,
+      });
+      return;
+    }
+    const alts = parent.alternatives ?? [];
+    const found = alts.find((a) => a.isin.toUpperCase() === isin);
+    if (!found) {
+      res.status(404).json({
+        error: "isin_not_found",
+        message: `ISIN ${isin} is not an alternative under "${parentKey}".`,
+      });
+      return;
+    }
+  } catch (err) {
+    res.status(500).json({
+      error: "catalog_parse_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+
+  if (!githubConfigured()) {
+    res.status(503).json({
+      error: "github_not_configured",
+      message:
+        "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
+    });
+    return;
+  }
+
+  try {
+    const pr = await openRemoveBucketAlternativePr(parentKey, isin);
+    res.json({ ok: true, prUrl: pr.url, prNumber: pr.number });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/already exists/i.test(msg)) {
+      res.status(409).json({ error: "pr_already_open", message: msg });
+      return;
+    }
+    res.status(502).json({
+      error: "pr_creation_failed",
+      message: msg,
     });
   }
 });

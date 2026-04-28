@@ -17,6 +17,7 @@
 import { describe, it, expect } from "vitest";
 import {
   injectAlternative,
+  removeAlternative,
   type NewAlternativeEntry,
 } from "../../api-server/src/lib/github";
 import { parseCatalogFromSource } from "../../api-server/src/lib/catalog-parser";
@@ -180,6 +181,126 @@ describe("injectAlternative", () => {
       ...NEW_ALT,
       isin: "IE00BFMXXD54",
     });
+    expect(r.status).toBe("ok");
+    expect(() => parseCatalogFromSource(r.content)).not.toThrow();
+  });
+});
+
+describe("removeAlternative", () => {
+  // Two-alt fixture so we can prove we cleanly remove the first vs the
+  // last vs the middle without disturbing siblings.
+  const TWO_ALTS = FIXTURE_WITH_ALTS.replace(
+    "    ],\n  }),\n  \"Equity-USA\":",
+    `      {
+        name: "Filler Alt",
+        isin: "IE00FFFFFFF1",
+        terBps: 25,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment: "Filler.",
+        listings: { LSE: { ticker: "FILL" } },
+        defaultExchange: "LSE",
+      },
+    ],
+  }),
+  "Equity-USA":`,
+  );
+
+  it("removes the only alternative from a single-alt bucket", () => {
+    const r = removeAlternative(
+      FIXTURE_WITH_ALTS,
+      "Equity-Global",
+      "IE00BK5BQT80",
+    );
+    expect(r.status).toBe("ok");
+    const parsed = parseCatalogFromSource(r.content);
+    // Bucket itself stays intact.
+    expect(parsed["Equity-Global"].isin).toBe("IE00B3YLTY66");
+    expect(parsed["Equity-Global"].name).toContain("SPDR");
+    // Alternatives are now empty (or undefined — both mean "no alts left").
+    const alts = parsed["Equity-Global"].alternatives ?? [];
+    expect(alts.length).toBe(0);
+    // Sibling bucket untouched.
+    expect(parsed["Equity-USA"].isin).toBe("IE00B5BMR087");
+  });
+
+  it("removes the first of two alternatives, keeping the second", () => {
+    const r = removeAlternative(TWO_ALTS, "Equity-Global", "IE00BK5BQT80");
+    expect(r.status).toBe("ok");
+    const parsed = parseCatalogFromSource(r.content);
+    expect(parsed["Equity-Global"].alternatives?.length).toBe(1);
+    expect(parsed["Equity-Global"].alternatives?.[0].isin).toBe(
+      "IE00FFFFFFF1",
+    );
+  });
+
+  it("removes the last of two alternatives, keeping the first", () => {
+    const r = removeAlternative(TWO_ALTS, "Equity-Global", "IE00FFFFFFF1");
+    expect(r.status).toBe("ok");
+    const parsed = parseCatalogFromSource(r.content);
+    expect(parsed["Equity-Global"].alternatives?.length).toBe(1);
+    expect(parsed["Equity-Global"].alternatives?.[0].isin).toBe(
+      "IE00BK5BQT80",
+    );
+  });
+
+  it("normalises ISIN comparison case-insensitively", () => {
+    const r = removeAlternative(
+      FIXTURE_WITH_ALTS,
+      "Equity-Global",
+      "ie00bk5bqt80",
+    );
+    expect(r.status).toBe("ok");
+  });
+
+  it("returns parent_missing when the bucket key doesn't exist", () => {
+    const r = removeAlternative(
+      FIXTURE_WITH_ALTS,
+      "Equity-Mars",
+      "IE00BK5BQT80",
+    );
+    expect(r.status).toBe("parent_missing");
+    expect(r.content).toBe(FIXTURE_WITH_ALTS);
+  });
+
+  it("returns isin_not_found when the bucket has no alternatives field", () => {
+    const r = removeAlternative(
+      FIXTURE_WITH_ALTS,
+      "Equity-USA",
+      "IE00BK5BQT80",
+    );
+    expect(r.status).toBe("isin_not_found");
+    expect(r.content).toBe(FIXTURE_WITH_ALTS);
+  });
+
+  it("returns isin_not_found when the ISIN is not among the alternatives", () => {
+    const r = removeAlternative(
+      FIXTURE_WITH_ALTS,
+      "Equity-Global",
+      "IE00BNONE9999",
+    );
+    expect(r.status).toBe("isin_not_found");
+    expect(r.content).toBe(FIXTURE_WITH_ALTS);
+  });
+
+  it("does not match an ISIN that appears only inside a comment", () => {
+    // A comment containing the target ISIN must not trick the walker
+    // into picking the wrong block. Without the string/comment-aware
+    // skipping in the array walker this test would silently delete the
+    // first alt instead of refusing to find a match.
+    const tricky = FIXTURE_WITH_ALTS.replace(
+      `comment: "Vanguard.",`,
+      `comment: "see also IE00BTRICKY01 in docs",`,
+    );
+    const r = removeAlternative(tricky, "Equity-Global", "IE00BTRICKY01");
+    expect(r.status).toBe("isin_not_found");
+    expect(r.content).toBe(tricky);
+  });
+
+  it("produces output that round-trips through the parser cleanly", () => {
+    const r = removeAlternative(TWO_ALTS, "Equity-Global", "IE00BK5BQT80");
     expect(r.status).toBe("ok");
     expect(() => parseCatalogFromSource(r.content)).not.toThrow();
   });

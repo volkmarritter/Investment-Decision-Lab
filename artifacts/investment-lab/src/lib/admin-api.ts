@@ -276,13 +276,35 @@ export const adminApi = {
       method: "POST",
       body: JSON.stringify({ parentKey, entry }),
     }),
+  // Adds a curated alternative under `parentKey`. The server opens TWO
+  // PRs (best-effort): one against etfs.ts (always) and one against
+  // lookthrough.overrides.json (only if justETF returns complete data).
+  // The look-through PR is non-blocking — if scraping fails the etfs PR
+  // still goes through and `lookthroughError` carries the explanation.
   addBucketAlternative: (parentKey: string, entry: AddBucketAlternativeRequest) =>
-    call<{ ok: boolean; prUrl: string; prNumber: number }>(
+    call<{
+      ok: boolean;
+      prUrl: string;
+      prNumber: number;
+      lookthroughPrUrl?: string;
+      lookthroughPrNumber?: number;
+      lookthroughError?: string;
+    }>(
       "/admin/bucket-alternatives",
       {
         method: "POST",
         body: JSON.stringify({ parentKey, entry }),
       },
+    ),
+  // Removes a curated alternative from `parentKey` via PR. The
+  // per-ISIN look-through profile in lookthrough.overrides.json is
+  // intentionally NOT touched — operators can re-attach the same ISIN
+  // later (or reference it from a different bucket) without losing the
+  // expensive scrape data.
+  removeBucketAlternative: (parentKey: string, isin: string) =>
+    call<{ ok: boolean; prUrl: string; prNumber: number }>(
+      `/admin/bucket-alternatives/${encodeURIComponent(parentKey)}/${encodeURIComponent(isin)}`,
+      { method: "DELETE" },
     ),
   // Lists currently-open PRs on the configured GitHub repo, optionally
   // scoped to a single admin flow via branch prefix:

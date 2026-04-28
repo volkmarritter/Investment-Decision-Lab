@@ -1315,6 +1315,50 @@ function buildDraftFromPreview(p: PreviewResponse): AddEtfRequest {
   };
 }
 
+// Same projection as buildDraftFromPreview, but for the alternative
+// shape (no `key` field — alts are positional inside their parent).
+// Merges into an existing draft so a user-typed `comment` survives the
+// autofill (justETF doesn't supply that field).
+function mergePreviewIntoAlternativeDraft(
+  current: AddBucketAlternativeRequest,
+  p: PreviewResponse,
+): AddBucketAlternativeRequest {
+  const f = p.fields;
+  const listings: AddBucketAlternativeRequest["listings"] = {};
+  if (p.listings && typeof p.listings === "object") {
+    for (const ex of EXCHANGES) {
+      const v = p.listings[ex];
+      if (v?.ticker) listings[ex] = { ticker: v.ticker };
+    }
+  }
+  // Prefer scraped listings; fall back to whatever the user already set.
+  const mergedListings =
+    Object.keys(listings).length > 0 ? listings : current.listings;
+  const defaultExchange =
+    (Object.keys(mergedListings)[0] as Exchange | undefined) ??
+    current.defaultExchange ??
+    "LSE";
+  return {
+    ...current,
+    name: typeof f.name === "string" ? (f.name as string) : current.name,
+    isin: p.isin,
+    terBps:
+      typeof f.terBps === "number" ? (f.terBps as number) : current.terBps,
+    domicile:
+      typeof f.domicile === "string"
+        ? (f.domicile as string)
+        : current.domicile,
+    replication: normalizeReplication(f.replication),
+    distribution: normalizeDistribution(f.distribution),
+    currency:
+      typeof f.currency === "string"
+        ? (f.currency as string)
+        : current.currency,
+    listings: mergedListings,
+    defaultExchange,
+  };
+}
+
 function normalizeReplication(v: unknown): Replication {
   const s = String(v ?? "").toLowerCase();
   if (s.includes("sampl")) return "Physical (sampled)";
@@ -3233,6 +3277,51 @@ function BucketAlternativesPanel({
     setPrsRefreshKey((k) => k + 1);
   }
 
+  // Removal flow: confirm with the operator (browser confirm — same
+  // pattern used elsewhere in the admin pane), POST to the DELETE
+  // endpoint, then refresh the panel. Server-side this opens an
+  // `rm-alt/<isin>` PR that touches etfs.ts only — the look-through
+  // pool entry stays put.
+  async function handleRemoveAlt(
+    parentKey: string,
+    isin: string,
+    name: string,
+  ) {
+    const confirmed = window.confirm(
+      lang === "de"
+        ? `Eine Pull-Request öffnen, die "${name}" (${isin}) als Alternative aus "${parentKey}" entfernt?\n\nDer Look-through-Datenpool wird NICHT angetastet — die Holdings/Geo/Sektor-Daten bleiben erhalten und können weiter genutzt werden.`
+        : `Open a pull request removing "${name}" (${isin}) from "${parentKey}"?\n\nThe look-through data pool is NOT touched — the holdings/geo/sector data stay available and can keep being referenced.`,
+    );
+    if (!confirmed) return;
+    try {
+      const r = await adminApi.removeBucketAlternative(parentKey, isin);
+      toast.success(
+        t({
+          de: "Pull-Request geöffnet (Entfernen)",
+          en: "Pull request opened (remove)",
+        }),
+        {
+          description: r.prUrl,
+          action: {
+            label: t({ de: "Öffnen", en: "Open" }),
+            onClick: () => window.open(r.prUrl, "_blank"),
+          },
+        },
+      );
+      setPrsRefreshKey((k) => k + 1);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : String(e);
+      toast.error(
+        t({
+          de: "Entfernen fehlgeschlagen",
+          en: "Remove failed",
+        }),
+        { description: msg },
+      );
+      setPrsRefreshKey((k) => k + 1);
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -3341,14 +3430,29 @@ function BucketAlternativesPanel({
                           {alts.map((alt, i) => (
                             <li
                               key={`${alt.isin}-${i}`}
-                              className="text-xs pl-3 border-l-2 border-primary/40"
+                              className="text-xs pl-3 border-l-2 border-primary/40 flex items-start justify-between gap-2"
+                              data-testid={`alt-row-${key}-${alt.isin}`}
                             >
-                              <span className="font-medium">{alt.name}</span>
-                              <span className="text-muted-foreground">
-                                {" "}
-                                · {alt.isin} · {alt.terBps} bps ·{" "}
-                                {alt.currency}
+                              <span className="min-w-0 flex-1">
+                                <span className="font-medium">{alt.name}</span>
+                                <span className="text-muted-foreground">
+                                  {" "}
+                                  · {alt.isin} · {alt.terBps} bps ·{" "}
+                                  {alt.currency}
+                                </span>
                               </span>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-6 px-2 text-[10px] text-destructive hover:bg-destructive/10"
+                                disabled={!githubConfigured}
+                                onClick={() =>
+                                  handleRemoveAlt(key, alt.isin, alt.name)
+                                }
+                                data-testid={`button-remove-alt-${key}-${alt.isin}`}
+                              >
+                                {t({ de: "Entfernen", en: "Remove" })}
+                              </Button>
                             </li>
                           ))}
                         </ul>
@@ -3416,8 +3520,37 @@ function AddAlternativeForm({
   );
   const [submitting, setSubmitting] = useState(false);
   const [previewing, setPreviewing] = useState(false);
+  const [autofilling, setAutofilling] = useState(false);
   const [code, setCode] = useState<string | null>(null);
   const [errMsg, setErrMsg] = useState<string | null>(null);
+
+  // Auto-fill from justETF — same backend (`/admin/preview-isin`) as the
+  // SuggestIsinPanel uses, just adapted to the alt-shape (no `key`
+  // field). Saves the operator from typing 8 fields by hand for an ISIN
+  // already on justETF. Listings/defaultExchange come from the scrape;
+  // the operator can still tweak everything before submitting.
+  async function runAutofill() {
+    const isinTrim = draft.isin.trim().toUpperCase();
+    if (!/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(isinTrim)) {
+      setErrMsg(
+        t({
+          de: "ISIN ungültig — gib eine gültige ISIN ein, bevor du Vorab-Daten holst.",
+          en: "ISIN invalid — enter a valid ISIN before fetching defaults.",
+        }),
+      );
+      return;
+    }
+    setErrMsg(null);
+    setAutofilling(true);
+    try {
+      const p = await adminApi.preview(isinTrim);
+      setDraft((d) => mergePreviewIntoAlternativeDraft(d, p));
+    } catch (e: unknown) {
+      setErrMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAutofilling(false);
+    }
+  }
 
   const set = <K extends keyof AddBucketAlternativeRequest>(
     k: K,
@@ -3493,10 +3626,28 @@ function AddAlternativeForm({
     setSubmitting(true);
     try {
       const r = await adminApi.addBucketAlternative(parentKey, draft);
+      // Two PRs may have been opened: the etfs.ts one always (that's
+      // `r.prUrl`), and the look-through pool one only if the justETF
+      // scrape succeeded server-side. Surface both — the operator
+      // shouldn't have to dig through the open-PRs list to find the
+      // sibling PR.
+      const lookthroughLine = r.lookthroughPrUrl
+        ? t({
+            de: `Look-through-PR: ${r.lookthroughPrUrl}`,
+            en: `Look-through PR: ${r.lookthroughPrUrl}`,
+          })
+        : r.lookthroughError
+          ? t({
+              de: `Look-through-PR übersprungen: ${r.lookthroughError}`,
+              en: `Look-through PR skipped: ${r.lookthroughError}`,
+            })
+          : null;
       toast.success(
         t({ de: "Pull-Request geöffnet", en: "Pull request opened" }),
         {
-          description: r.prUrl,
+          description: lookthroughLine
+            ? `${r.prUrl}\n${lookthroughLine}`
+            : r.prUrl,
           action: {
             label: t({ de: "Öffnen", en: "Open" }),
             onClick: () => window.open(r.prUrl, "_blank"),
@@ -3521,12 +3672,30 @@ function AddAlternativeForm({
     <div className="mt-3 pt-3 border-t space-y-3">
       <div className="grid grid-cols-2 gap-3">
         <Field label="ISIN">
-          <Input
-            value={draft.isin}
-            onChange={(e) => set("isin", e.target.value.trim().toUpperCase())}
-            placeholder="IE00B5BMR087"
-            data-testid={`input-alt-isin-${parentKey}`}
-          />
+          <div className="flex gap-2">
+            <Input
+              value={draft.isin}
+              onChange={(e) => set("isin", e.target.value.trim().toUpperCase())}
+              placeholder="IE00B5BMR087"
+              data-testid={`input-alt-isin-${parentKey}`}
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={runAutofill}
+              disabled={autofilling || !draft.isin.trim()}
+              data-testid={`button-autofill-alt-${parentKey}`}
+              title={t({
+                de: "Felder aus justETF vorbefüllen (TER, Domizil, Replikation, Listings …). Kommentar bleibt erhalten.",
+                en: "Pre-fill fields from justETF (TER, domicile, replication, listings …). Comment stays untouched.",
+              })}
+            >
+              {autofilling
+                ? t({ de: "Lädt …", en: "Loading…" })
+                : t({ de: "Vorab-Daten", en: "Autofill" })}
+            </Button>
+          </div>
         </Field>
         <Field label={t({ de: "Name", en: "Name" })}>
           <Input

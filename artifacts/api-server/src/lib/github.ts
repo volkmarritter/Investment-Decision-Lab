@@ -910,6 +910,268 @@ export async function openAddBucketAlternativePr(
   return { url: pr.html_url, number: pr.number };
 }
 
+// ---------------------------------------------------------------------------
+// removeAlternative — pure mirror of injectAlternative for deletion (2026-04-28)
+// ---------------------------------------------------------------------------
+// Locates the matching `{ ... }` block by ISIN inside the parent's
+// `alternatives:[…]` array and excises it (along with the trailing comma
+// + newline, mirroring the hand-written catalog style). Look-through pool
+// data lives in lookthrough.overrides.json — completely separate from
+// etfs.ts — so removing an alt here NEVER touches the look-through data
+// pool. That is the contract operators rely on: "remove from picker but
+// keep the per-ISIN holdings/geo/sector profile so the engine still has
+// data if anyone references that ISIN elsewhere".
+// ---------------------------------------------------------------------------
+export type RemoveAlternativeStatus =
+  | "ok"
+  | "parent_missing"
+  | "isin_not_found";
+
+export interface RemoveAlternativeResult {
+  content: string;
+  status: RemoveAlternativeStatus;
+}
+
+export function removeAlternative(
+  source: string,
+  parentKey: string,
+  isin: string,
+): RemoveAlternativeResult {
+  const parentLine = new RegExp(
+    `^(\\s*)"${escapeRegex(parentKey)}":\\s*E\\(\\{`,
+    "m",
+  );
+  const parentMatch = parentLine.exec(source);
+  if (!parentMatch) {
+    return { content: source, status: "parent_missing" };
+  }
+
+  const eOpenIdx = parentMatch.index + parentMatch[0].length - 1;
+  const eCloseIdx = findMatchingClose(source, eOpenIdx);
+  if (eCloseIdx < 0) {
+    throw new Error(
+      `Unbalanced braces inside catalog entry "${parentKey}" — refusing to edit.`,
+    );
+  }
+  const recordBody = source.slice(eOpenIdx + 1, eCloseIdx);
+
+  const altsIdx = findFieldIndex(recordBody, "alternatives");
+  if (altsIdx < 0) {
+    return { content: source, status: "isin_not_found" };
+  }
+
+  let openBracketRel = altsIdx + "alternatives:".length;
+  while (
+    openBracketRel < recordBody.length &&
+    /\s/.test(recordBody[openBracketRel])
+  ) {
+    openBracketRel++;
+  }
+  if (recordBody[openBracketRel] !== "[") {
+    throw new Error(
+      `\`alternatives\` field of "${parentKey}" is not an array literal — refusing to edit.`,
+    );
+  }
+  const closeBracketRel = findMatchingBracket(recordBody, openBracketRel);
+  if (closeBracketRel < 0) {
+    throw new Error(
+      `Unbalanced brackets in \`alternatives\` array of "${parentKey}".`,
+    );
+  }
+
+  // Walk the array body looking for the `{ ... }` whose body has
+  // `isin: "<TARGET>"`. Use the same string/comment-aware scanner used by
+  // countTopLevelObjects so a comment containing the target ISIN can't
+  // fool us into deleting the wrong block.
+  const arrayBodyStart = openBracketRel + 1;
+  const arrayBodyEnd = closeBracketRel;
+  const arrayBody = recordBody.slice(arrayBodyStart, arrayBodyEnd);
+  const target = isin.trim().toUpperCase();
+  const isinNeedle = new RegExp(
+    `isin:\\s*"${escapeRegex(target)}"`,
+    "i",
+  );
+
+  let i = 0;
+  while (i < arrayBody.length) {
+    const ch = arrayBody[i];
+    // Skip strings/comments at depth 0 so we don't open a brace mid-token.
+    if (ch === '"') {
+      i++;
+      while (i < arrayBody.length) {
+        const c = arrayBody[i];
+        if (c === "\\") {
+          i += 2;
+          continue;
+        }
+        if (c === '"') {
+          i++;
+          break;
+        }
+        i++;
+      }
+      continue;
+    }
+    if (ch === "/" && arrayBody[i + 1] === "/") {
+      while (i < arrayBody.length && arrayBody[i] !== "\n") i++;
+      continue;
+    }
+    if (ch === "/" && arrayBody[i + 1] === "*") {
+      i += 2;
+      while (
+        i < arrayBody.length - 1 &&
+        !(arrayBody[i] === "*" && arrayBody[i + 1] === "/")
+      ) {
+        i++;
+      }
+      i += 2;
+      continue;
+    }
+    if (ch === "{") {
+      const close = findMatchingClose(arrayBody, i);
+      if (close < 0) break;
+      const block = arrayBody.slice(i, close + 1);
+      if (isinNeedle.test(block)) {
+        // Found it. Now compute the delete range, including the trailing
+        // comma + newline (or the leading comma + newline if this is the
+        // last entry) so we don't leave orphan punctuation behind.
+        let delStart = i;
+        let delEnd = close + 1;
+
+        // Eat trailing comma.
+        let j = delEnd;
+        while (j < arrayBody.length && /[ \t]/.test(arrayBody[j])) j++;
+        if (arrayBody[j] === ",") {
+          delEnd = j + 1;
+        }
+        // Eat trailing newline.
+        if (arrayBody[delEnd] === "\n") delEnd++;
+
+        // Eat leading whitespace on the same line as the `{`. The catalog
+        // convention indents alts at "      " (6 spaces). Removing the
+        // indent keeps the surrounding lines clean.
+        let k = delStart - 1;
+        while (k >= 0 && /[ \t]/.test(arrayBody[k])) k--;
+        if (k >= 0 && arrayBody[k] === "\n") {
+          delStart = k + 1;
+        }
+
+        const newArrayBody =
+          arrayBody.slice(0, delStart) + arrayBody.slice(delEnd);
+        const absStart = eOpenIdx + 1 + arrayBodyStart;
+        const absEnd = eOpenIdx + 1 + arrayBodyEnd;
+        const content =
+          source.slice(0, absStart) + newArrayBody + source.slice(absEnd);
+        return { content, status: "ok" };
+      }
+      i = close + 1;
+      continue;
+    }
+    i++;
+  }
+  return { content: source, status: "isin_not_found" };
+}
+
+// ---------------------------------------------------------------------------
+// openRemoveBucketAlternativePr — orchestration mirroring openAddBucketAlternativePr
+// ---------------------------------------------------------------------------
+// Branch name: `rm-alt/<isin-lower>` so listOpenPrs can scope to the
+// removal flow distinctly from add-alt.
+// ---------------------------------------------------------------------------
+export async function openRemoveBucketAlternativePr(
+  parentKey: string,
+  isin: string,
+): Promise<{ url: string; number: number }> {
+  if (!githubConfigured()) {
+    throw new Error(
+      "GitHub PR creation is not configured. Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO.",
+    );
+  }
+  const owner = process.env.GITHUB_OWNER!;
+  const repo = process.env.GITHUB_REPO!;
+  const base = process.env.GITHUB_BASE_BRANCH ?? "main";
+  const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
+
+  const { data: baseRef } = await octokit.git.getRef({
+    owner,
+    repo,
+    ref: `heads/${base}`,
+  });
+  const baseSha = baseRef.object.sha;
+
+  const { data: fileMeta } = await octokit.repos.getContent({
+    owner,
+    repo,
+    path: ETFS_FILE_PATH,
+    ref: baseSha,
+  });
+  if (Array.isArray(fileMeta) || fileMeta.type !== "file") {
+    throw new Error(`Unexpected GitHub response for ${ETFS_FILE_PATH}.`);
+  }
+  const currentContent = Buffer.from(fileMeta.content, "base64").toString(
+    "utf8",
+  );
+
+  const result = removeAlternative(currentContent, parentKey, isin);
+  if (result.status === "parent_missing") {
+    throw new Error(`Parent bucket "${parentKey}" not found in catalog.`);
+  }
+  if (result.status === "isin_not_found") {
+    throw new Error(
+      `ISIN ${isin} is not an alternative under "${parentKey}". Nothing to remove.`,
+    );
+  }
+
+  const branch = `rm-alt/${isin.toLowerCase()}`;
+  try {
+    await octokit.git.createRef({
+      owner,
+      repo,
+      ref: `refs/heads/${branch}`,
+      sha: baseSha,
+    });
+  } catch (err: unknown) {
+    const status = (err as { status?: number }).status;
+    if (status === 422) {
+      throw new Error(
+        `Branch ${branch} already exists. Delete it on GitHub or rename, then retry.`,
+      );
+    }
+    throw err;
+  }
+
+  await octokit.repos.createOrUpdateFileContents({
+    owner,
+    repo,
+    path: ETFS_FILE_PATH,
+    branch,
+    message: `Remove ${isin} from alternatives under ${parentKey}`,
+    content: Buffer.from(result.content, "utf8").toString("base64"),
+    sha: fileMeta.sha,
+  });
+
+  const { data: pr } = await octokit.pulls.create({
+    owner,
+    repo,
+    head: branch,
+    base,
+    title: `Remove ${isin} from alternatives under ${parentKey}`,
+    body: [
+      `Removes ISIN \`${isin}\` from the curated alternatives of bucket \`${parentKey}\`.`,
+      "",
+      "Generated from the in-app admin pane (Bucket Alternatives editor).",
+      "",
+      "**Note:** the per-ISIN look-through profile in `lookthrough.overrides.json` is intentionally **not** touched. The ETF disappears from the per-bucket picker but its holdings / country / sector breakdown stays in the look-through data pool, so any other reference (look-through aggregation, methodology overrides) keeps working.",
+      "",
+      "**Reviewer checklist**",
+      `- Confirm the operator intended to retire this alternative for \`${parentKey}\`.`,
+      "- After merging the picker no longer offers this ISIN — verify with a Build-tab refresh.",
+    ].join("\n"),
+  });
+
+  return { url: pr.html_url, number: pr.number };
+}
+
 function buildAlternativePrBody(
   parentKey: string,
   entry: NewAlternativeEntry,
