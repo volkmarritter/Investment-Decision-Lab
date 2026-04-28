@@ -202,6 +202,18 @@ const CATALOG: Record<string, ETFRecord> = {
         listings: { LSE: { ticker: "VEUA" }, XETRA: { ticker: "VGEA" }, Euronext: { ticker: "VGEA" } },
         defaultExchange: "XETRA",
       },
+      {
+        name: "Amundi EURO STOXX 50 II UCITS ETF Acc",
+        isin: "FR0007054358",
+        terBps: 20,
+        domicile: "France",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "EUR",
+        comment: "",
+        listings: { "XETRA": { ticker: "LYSX" }, "SIX": { ticker: "MSE" }, "Euronext": { ticker: "MSE" } },
+        defaultExchange: "XETRA",
+      },
     ],
   }),
   "Equity-Switzerland": E({
