@@ -103,32 +103,55 @@ describe("getETFDetails resolution with selection", () => {
     investmentAmount: 100_000,
   };
 
+  // --------------------------------------------------------------------------
+  // Slot-N integration tests against the live Equity-USA bucket.
+  //
+  // These tests verify the end-to-end wiring: getETFDetails() -> lookupKey()
+  // -> resolvePickerSelection() -> localStorage. We deliberately do NOT
+  // hard-code the slot-0/slot-1/slot-2 ISINs here — earlier revisions did
+  // (e.g. `expect(d.isin).toBe("IE00BFMXXD54")` for slot 1), which silently
+  // broke whenever an operator-curated PR reordered the bucket's
+  // alternatives or inserted a new alternative at the front of the list
+  // (same root cause as the recent add-alt/fr0007054358 and
+  // add-alt/lu1681044993 breakages). Instead we read the curated entry at
+  // test-setup time and assert that getETFDetails() returns whatever ISIN
+  // the catalog currently has at that slot. Reordering or inserting a new
+  // alternative in Equity-USA can no longer break these assertions.
+  // --------------------------------------------------------------------------
   it("default slot returns the curated default ETF", async () => {
-    const { getETFDetails } = await import("../src/lib/etfs");
+    const { getETFDetails, getCatalogEntry } = await import("../src/lib/etfs");
+    const curated = getCatalogEntry("Equity-USA");
+    expect(curated).toBeDefined();
     const d = getETFDetails("Equity", "USA", baseInput as any);
     expect(d.catalogKey).toBe("Equity-USA");
     expect(d.selectedSlot).toBe(0);
-    expect(d.isin).toBe("IE00B5BMR087"); // iShares CSPX
+    expect(d.isin).toBe(curated!.isin); // curated default, whatever it is today
     expect(d.selectableOptions.length).toBeGreaterThanOrEqual(2);
-    expect(d.selectableOptions[0].isin).toBe("IE00B5BMR087");
+    // The picker dropdown lists the curated default first, then alternatives
+    // in their declared order — independent of which specific ISINs they are.
+    expect(d.selectableOptions[0].isin).toBe(curated!.isin);
   });
 
   it("slot 1 returns the first alternative", async () => {
     const { setETFSelection } = await import("../src/lib/etfSelection");
     setETFSelection("Equity-USA", 1);
-    const { getETFDetails } = await import("../src/lib/etfs");
+    const { getETFDetails, getCatalogEntry } = await import("../src/lib/etfs");
+    const curated = getCatalogEntry("Equity-USA");
+    expect(curated?.alternatives?.length ?? 0).toBeGreaterThanOrEqual(1);
     const d = getETFDetails("Equity", "USA", baseInput as any);
     expect(d.selectedSlot).toBe(1);
-    expect(d.isin).toBe("IE00BFMXXD54"); // Vanguard VUAA
+    expect(d.isin).toBe(curated!.alternatives![0].isin);
   });
 
   it("slot 2 returns the second alternative", async () => {
     const { setETFSelection } = await import("../src/lib/etfSelection");
     setETFSelection("Equity-USA", 2);
-    const { getETFDetails } = await import("../src/lib/etfs");
+    const { getETFDetails, getCatalogEntry } = await import("../src/lib/etfs");
+    const curated = getCatalogEntry("Equity-USA");
+    expect(curated?.alternatives?.length ?? 0).toBeGreaterThanOrEqual(2);
     const d = getETFDetails("Equity", "USA", baseInput as any);
     expect(d.selectedSlot).toBe(2);
-    expect(d.isin).toBe("IE00B6YX5C33"); // SPDR SPY5
+    expect(d.isin).toBe(curated!.alternatives![1].isin);
   });
 
   // --------------------------------------------------------------------------
@@ -237,7 +260,7 @@ describe("getETFDetails resolution with selection", () => {
     const { setETFOverride, clearETFOverride } = await import(
       "../src/lib/etfOverrides"
     );
-    setETFSelection("Equity-USA", 2); // stored: SPDR SPY5 alt
+    setETFSelection("Equity-USA", 2); // stored: whichever ETF is slot 2 today
     setETFOverride("Equity-USA", {
       name: "Override",
       isin: "IE00OVERRIDE99",
@@ -250,16 +273,21 @@ describe("getETFDetails resolution with selection", () => {
       listings: { LSE: { ticker: "OVRD" } },
       defaultExchange: "LSE",
     });
-    const { getETFDetails } = await import("../src/lib/etfs");
+    const { getETFDetails, getCatalogEntry } = await import("../src/lib/etfs");
     expect(getETFDetails("Equity", "USA", baseInput as any).isin).toBe(
       "IE00OVERRIDE99",
     );
     // Clearing the override must hand control back to the picker; the
-    // previously-stored slot 2 (SPDR SPY5) becomes active again rather
-    // than silently snapping back to the curated default.
+    // previously-stored slot 2 alternative becomes active again rather
+    // than silently snapping back to the curated default. The expected
+    // slot-2 ISIN is read from the live catalog at test time so that
+    // reordering/inserting alternatives in Equity-USA doesn't break this
+    // assertion.
+    const curated = getCatalogEntry("Equity-USA");
+    expect(curated?.alternatives?.length ?? 0).toBeGreaterThanOrEqual(2);
     clearETFOverride("Equity-USA");
     const after = getETFDetails("Equity", "USA", baseInput as any);
-    expect(after.isin).toBe("IE00B6YX5C33"); // SPDR SPY5 (slot 2)
+    expect(after.isin).toBe(curated!.alternatives![1].isin);
     expect(after.selectedSlot).toBe(2);
     expect(after.selectableOptions.length).toBeGreaterThanOrEqual(2);
   });
