@@ -1,4 +1,4 @@
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, CalendarClock } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +10,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { ETFImplementation } from "@/lib/types";
 import {
   profileFor,
@@ -30,6 +29,15 @@ interface ETFDetailsDialogProps {
 function justEtfUrl(isin: string, lang: string): string {
   const locale = lang === "de" ? "de" : "en";
   return `https://www.justetf.com/${locale}/etf-profile.html?isin=${encodeURIComponent(isin)}`;
+}
+
+function formatStamp(stamp: string): string {
+  // Stamp may be a full ISO timestamp ("2026-04-24T19:43:14.034Z") written by
+  // scripts/refresh-lookthrough.mjs, or a curated label like "Q4 2024".
+  // For ISO timestamps, show only the YYYY-MM-DD date — the time-of-day is
+  // noise for UI consumers and clutters the header line.
+  const isoDateMatch = stamp.match(/^(\d{4}-\d{2}-\d{2})T/);
+  return isoDateMatch ? isoDateMatch[1] : stamp;
 }
 
 function sortedTop(map: ExposureMap | undefined, n = 12): Array<[string, number]> {
@@ -94,10 +102,10 @@ export function ETFDetailsDialog({ etf, open, onOpenChange }: ETFDetailsDialogPr
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-3xl max-h-[85vh] flex flex-col"
+        className="max-w-3xl max-h-[85vh] flex flex-col p-0 gap-0"
         data-testid="etf-details-dialog"
       >
-        <DialogHeader>
+        <DialogHeader className="p-6 pb-3 space-y-2">
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
               <DialogTitle className="text-base">{etf.exampleETF}</DialogTitle>
@@ -115,10 +123,41 @@ export function ETFDetailsDialog({ etf, open, onOpenChange }: ETFDetailsDialogPr
               {etf.assetClass}
             </Badge>
           </div>
+          {profile && (
+            <div
+              className="flex items-center gap-1.5 text-[11px] text-muted-foreground"
+              data-testid="etf-details-asof"
+            >
+              <CalendarClock className="h-3 w-3 shrink-0" aria-hidden="true" />
+              <span>
+                {t("etf.details.asof.label")}{" "}
+                <span className="font-medium text-foreground/80">
+                  {breakdownsStamp ? formatStamp(breakdownsStamp) : LOOKTHROUGH_REFERENCE_DATE}
+                </span>
+                {topHoldings.length > 0 && (
+                  <>
+                    {" · "}
+                    {t("etf.details.asof.holdings")}{" "}
+                    <span className="font-medium text-foreground/80">
+                      {topStamp ? formatStamp(topStamp) : LOOKTHROUGH_REFERENCE_DATE}
+                    </span>
+                  </>
+                )}
+                {!breakdownsStamp && (
+                  <span className="ml-1 italic">
+                    ({t("etf.details.asof.curated")})
+                  </span>
+                )}
+              </span>
+            </div>
+          )}
         </DialogHeader>
 
-        <ScrollArea className="flex-1 -mx-6 px-6">
-          <div className="space-y-5 py-2">
+        <div
+          className="flex-1 min-h-0 overflow-y-auto px-6 border-t border-b"
+          data-testid="etf-details-scroll"
+        >
+          <div className="space-y-5 py-4">
             {/* Quick facts grid */}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-2 text-xs">
               <FactCell label={t("build.impl.col.ter")}>
@@ -196,33 +235,6 @@ export function ETFDetailsDialog({ etf, open, onOpenChange }: ETFDetailsDialogPr
                   </div>
                 </div>
 
-                {/* Freshness footer */}
-                <div className="text-[10px] text-muted-foreground space-y-0.5 pt-1 border-t">
-                  <div>
-                    {breakdownsStamp
-                      ? t("etf.details.freshness.breakdowns").replace(
-                          "{date}",
-                          breakdownsStamp,
-                        )
-                      : t("etf.details.freshness.breakdownsCurated").replace(
-                          "{date}",
-                          LOOKTHROUGH_REFERENCE_DATE,
-                        )}
-                  </div>
-                  {topHoldings.length > 0 && (
-                    <div>
-                      {topStamp
-                        ? t("etf.details.freshness.topHoldings").replace(
-                            "{date}",
-                            topStamp,
-                          )
-                        : t("etf.details.freshness.topHoldingsCurated").replace(
-                            "{date}",
-                            LOOKTHROUGH_REFERENCE_DATE,
-                          )}
-                    </div>
-                  )}
-                </div>
               </>
             ) : (
               <div className="text-xs text-muted-foreground italic">
@@ -230,9 +242,9 @@ export function ETFDetailsDialog({ etf, open, onOpenChange }: ETFDetailsDialogPr
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
 
-        <DialogFooter className="border-t pt-3 gap-2 sm:justify-between">
+        <DialogFooter className="p-4 gap-2 sm:justify-between">
           <span className="text-[10px] text-muted-foreground italic self-center">
             {t("etf.details.justetfDisclaimer")}
           </span>
