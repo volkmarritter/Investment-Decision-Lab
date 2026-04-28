@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-04-28 (etf-details-dialog-ux-polish)
+Last updated: 2026-04-28 (admin-recent-runs-readable-timestamps)
 
 ---
 
@@ -619,6 +619,14 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-04-28 (admin-recent-runs-readable-timestamps) — „Recent runs"-Tabelle: ISO → leserlich
+- **Operator-Beschwerde:** in der Admin-Konsole zeigte die Karte „Letzte Läufe / Recent runs" rohe ISO-Strings wie `2026-04-27T05:31:06.809Z` in der ersten Spalte. Korrekt (UTC ist die ehrlichste Speicherform für ein cron-getriebenes Log), aber für Augenüberflug ungeeignet. Jetzt zweizeilige Zelle, lokal-zentriert.
+- **Neue Helpers in `Admin.tsx` direkt vor `RecentRunsCard`:** `ISO_TIMESTAMP_RX` (strikter Regex `^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$` — matched nur echte ISO-Z-Strings, lässt andere Werte unberührt), `TIMESTAMP_COL_NAMES` Set + Substring-Check auf `started`/`finished` (deckt aktuelle UND mögliche zukünftige Spaltennamen wie „Finished (UTC)" ab), `formatRelative(diffMs, lang)` mit DE/EN-Branches und Pluralformen (gerade eben/Min./Std./Tag/Tagen bzw. just now/min/mins/hour/hours/day/days), und `formatRunTimestamp(iso, lang)` das `{ local, relative, utc }` zurückgibt — `local` via `toLocaleString("de-CH" | "en-GB", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })`, `utc` via `getUTCHours/Minutes`-padded (kein Re-Parse, kein Locale-Zufall — der Operator soll im UTC-Tail das Original wiedererkennen).
+- **Neue `RunCell`-Subkomponente** rendert für Timestamp-Spalten zwei Zeilen: oben `font-medium tabular-nums` mit „28.04.2026 07:37"-Stil (lokale Zeit), unten `text-[10px] text-muted-foreground` mit „vor X Std. · 05:37 UTC". Volles Original-ISO im `title=`-Tooltip, damit der Operator beim Korrelieren mit `refresh-runs.log.md` oder einer CI-Run-URL die exakte Sub-Sekunden-Genauigkeit per Hover bekommt. Nicht-Timestamp-Zellen verbleiben als plain `<span>` — keine Verhaltensänderung für „Script", „Mode", „ISINs", „OK", „Fail".
+- **Spaltenüberschrift mitgewandelt:** „Started (UTC)" → „Gestartet (lokal)" / „Started (local)", da der primär dargestellte Wert jetzt Lokalzeit ist (UTC bleibt im Sub-Label sichtbar). Inline `headerFor()`-Mapping in `RecentRunsCard`, kein neuer i18n-Key nötig (Pattern matched bereits etablierten Inline-`t({de,en})`-Stil im File).
+- **Bewusste Nicht-Änderungen:** `runs[0]` Spalten-Slice bleibt bei `.slice(0, 6)` (Operator hat nichts an Spaltenmenge moniert, nur an Lesbarkeit); `refresh-runs.log.md` und alle Scraper-Scripts bleiben unverändert (UTC ist die korrekte persistente Form, Lokalisierung ist reine Präsentationsschicht); kein Test-Touch (visuelle Polish ohne neue Logik in der Engine oder im Datenpfad).
+- **352/352 Tests grün, Typecheck clean. e2e bestätigt:** Row 1 zeigt „28/04/2026, 05:37" + „1 hour ago · 05:37 UTC", Row 2 zeigt „27/04/2026, 05:31" + „25 hours ago · 05:31 UTC", `title`-Hover liefert das volle Original-ISO. (Test-Browser nutzt `en-GB`-Format mit Slashes; in der DE-App-Sprache mit `de-CH` rendert der Browser des Operators dieselben Felder mit Dot-Separator.)
 
 ### 2026-04-28 (etf-details-dialog-ux-polish) — Sichtbarer Scroll + Datums-Anzeige nach oben
 - **Native Scrollbar im Detail-Modal.** Operator-Feedback: Radix-`ScrollArea` versteckt die Scrollleiste bis zum Hover, deshalb war für viele Nutzer nicht erkennbar, dass das Modal weiter unten noch Top-Holdings + den justETF-Button enthält. `ScrollArea` durch nativen `overflow-y-auto`-Container (`min-h-0 flex-1`) ersetzt — die Browser-Scrollleiste ist jetzt immer sichtbar, sobald der Inhalt überläuft. Header und Footer haben jetzt zudem sichtbare Border-Lines (`border-t border-b` am Body), so sieht man auf einen Blick, wo der scrollbare Bereich anfängt und endet. `data-testid="etf-details-scroll"` für e2e.

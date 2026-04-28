@@ -2058,9 +2058,115 @@ function RecentChangesCard({ changes }: { changes: ChangeEntry[] }) {
   );
 }
 
+// Detect ISO-8601 UTC timestamps (e.g. "2026-04-28T05:37:10.006Z") so we can
+// render them in a much more readable form than the raw value the scraper
+// scripts append to refresh-runs.log.md. The scripts log UTC for unambiguity
+// (CI / cron run anywhere) but the operator reads the table in their own
+// timezone — so we present *both*: a primary local-time line, a tiny relative
+// "vor X Min." hint, and a "UTC HH:MM" fallback so anyone correlating with the
+// log file or a CI run URL can still see the original value at a glance.
+const ISO_TIMESTAMP_RX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
+const TIMESTAMP_COL_NAMES = new Set([
+  "Started (UTC)",
+  "Started",
+  "Finished (UTC)",
+  "Finished",
+  "Timestamp",
+]);
+
+function formatRelative(diffMs: number, lang: "de" | "en"): string {
+  const past = diffMs >= 0;
+  const abs = Math.abs(diffMs);
+  // floor-based unit derivation: e.g. 59m30s stays "vor 59 Min." instead of
+  // jumping to "vor 1 Std.". Operator-friendly: we want the label to undershoot
+  // the boundary, not overshoot it.
+  const sec = Math.floor(abs / 1000);
+  const min = Math.floor(sec / 60);
+  const hr = Math.floor(min / 60);
+  const day = Math.floor(hr / 24);
+  const de = lang === "de";
+  const ago = (n: number, unit: string) =>
+    de ? `vor ${n} ${unit}` : `${n} ${unit} ago`;
+  const fwd = (n: number, unit: string) =>
+    de ? `in ${n} ${unit}` : `in ${n} ${unit}`;
+  const wrap = past ? ago : fwd;
+  if (sec < 60) return de ? (past ? "gerade eben" : "in Kürze") : past ? "just now" : "soon";
+  if (min < 60) return wrap(min, de ? "Min." : min === 1 ? "min" : "mins");
+  if (hr < 48) return wrap(hr, de ? (hr === 1 ? "Std." : "Std.") : hr === 1 ? "hour" : "hours");
+  return wrap(day, de ? (day === 1 ? "Tag" : "Tagen") : day === 1 ? "day" : "days");
+}
+
+function formatRunTimestamp(iso: string, lang: "de" | "en"): {
+  local: string;
+  relative: string;
+  utc: string;
+} {
+  const date = new Date(iso);
+  if (isNaN(date.getTime())) return { local: iso, relative: "", utc: "" };
+  const locale = lang === "de" ? "de-CH" : "en-GB";
+  const local = date.toLocaleString(locale, {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+  const utc =
+    `${String(date.getUTCHours()).padStart(2, "0")}:${String(
+      date.getUTCMinutes(),
+    ).padStart(2, "0")} UTC`;
+  const relative = formatRelative(Date.now() - date.getTime(), lang);
+  return { local, relative, utc };
+}
+
+function RunCell({
+  col,
+  value,
+  lang,
+}: {
+  col: string;
+  value: string;
+  lang: "de" | "en";
+}) {
+  const isTimestampCol =
+    TIMESTAMP_COL_NAMES.has(col) ||
+    col.toLowerCase().includes("started") ||
+    col.toLowerCase().includes("finished");
+
+  if (isTimestampCol && value && ISO_TIMESTAMP_RX.test(value)) {
+    const { local, relative, utc } = formatRunTimestamp(value, lang);
+    return (
+      <div className="leading-tight whitespace-nowrap" title={value}>
+        <div className="font-medium tabular-nums">{local}</div>
+        <div className="text-[10px] text-muted-foreground tabular-nums">
+          {relative}
+          {utc && ` · ${utc}`}
+        </div>
+      </div>
+    );
+  }
+  return <span className="whitespace-nowrap">{value}</span>;
+}
+
 function RecentRunsCard({ runs }: { runs: RunLogRow[] }) {
-  const { t } = useAdminT();
+  const { t, lang } = useAdminT();
   const cols = runs[0] ? Object.keys(runs[0]).slice(0, 6) : [];
+  // Localised header label for the timestamp column — the raw "Started (UTC)"
+  // is technically still accurate (the underlying value IS UTC) but it is no
+  // longer the primary thing displayed in the cell, so we soften it.
+  const headerFor = (c: string) => {
+    if (c === "Started (UTC)" || c === "Started") {
+      return t({ de: "Gestartet (lokal)", en: "Started (local)" });
+    }
+    if (c === "Finished (UTC)" || c === "Finished") {
+      return t({ de: "Beendet (lokal)", en: "Finished (local)" });
+    }
+    if (c === "Timestamp") {
+      return t({ de: "Zeitpunkt (lokal)", en: "Timestamp (local)" });
+    }
+    return c;
+  };
   return (
     <Card>
       <CardHeader>
@@ -2084,7 +2190,7 @@ function RecentRunsCard({ runs }: { runs: RunLogRow[] }) {
                 <tr className="text-left">
                   {cols.map((c) => (
                     <th key={c} className="pr-2 py-1 font-medium">
-                      {c}
+                      {headerFor(c)}
                     </th>
                   ))}
                 </tr>
@@ -2094,7 +2200,7 @@ function RecentRunsCard({ runs }: { runs: RunLogRow[] }) {
                   <tr key={i} className="border-t">
                     {cols.map((c) => (
                       <td key={c} className="pr-2 py-1 align-top">
-                        {r[c]}
+                        <RunCell col={c} value={r[c]} lang={lang} />
                       </td>
                     ))}
                   </tr>
