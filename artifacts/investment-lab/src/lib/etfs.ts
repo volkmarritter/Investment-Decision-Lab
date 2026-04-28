@@ -375,6 +375,21 @@ const CATALOG: Record<string, ETFRecord> = {
         listings: { LSE: { ticker: "XGGB" }, XETRA: { ticker: "DBZB" }, Euronext: { ticker: "XGGB" } },
         defaultExchange: "XETRA",
       },
+
+      {
+        name: "Vanguard Global Aggregate Bond UCITS ETF EUR Hedged Accumulating",
+        isin: "IE00BG47KH54",
+        terBps: 8,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "EUR",
+        comment: "Vanguard Global Aggregate Bond — alternative provider.",
+        listings: { "XETRA": { ticker: "VAGF" } },
+        defaultExchange: "XETRA",
+        aumMillionsEUR: 1952,
+        inceptionDate: "2019-06-18",
+      },
     ],
   }),
   "FixedIncome-Global-EUR": E({
