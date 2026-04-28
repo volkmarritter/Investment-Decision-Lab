@@ -30,6 +30,15 @@ export async function exportToPdf(
   // the off-screen mount returns to its pristine state.
   const PDF_PAGE_HEIGHT_MM = 297; // A4 portrait
   const PDF_PAGE_WIDTH_MM = 210;
+  // Top inset applied to every page-break landing point. The off-screen
+  // report container has padding-top: 12mm, but that padding is captured
+  // into the canvas only ONCE (at the very top of page 1) — every
+  // subsequent page slice begins flush against the next strip of content,
+  // with zero whitespace above. Without this inset the page-break section
+  // title would sit hard against the upper edge of the new PDF page,
+  // breaking the visual rhythm established by page 1's header margin.
+  // 12mm matches the container's own top padding for consistency.
+  const PDF_PAGE_BREAK_TOP_INSET_MM = 12;
   const insertedSpacers: HTMLElement[] = [];
   const markers = Array.from(
     element.querySelectorAll<HTMLElement>('[data-pdf-page-break="before"]'),
@@ -55,7 +64,11 @@ export async function exportToPdf(
         const overshootMm = markerTopMm % PDF_PAGE_HEIGHT_MM;
         // Already at (or within 1mm of) the top of a page — nothing to do.
         if (overshootMm < 1) continue;
-        const padMm = PDF_PAGE_HEIGHT_MM - overshootMm;
+        // Pad to (next page top) + a fixed top inset, so the section title
+        // gets visual breathing room instead of sitting hard against the
+        // page edge. See PDF_PAGE_BREAK_TOP_INSET_MM comment above.
+        const padMm =
+          PDF_PAGE_HEIGHT_MM - overshootMm + PDF_PAGE_BREAK_TOP_INSET_MM;
         // Skip pads smaller than a content-line height to avoid awkward
         // slivers of whitespace.
         if (padMm < 3) continue;

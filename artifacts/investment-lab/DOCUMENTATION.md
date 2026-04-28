@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-04-28 (build-pdf-report-page-break-primitive)
+Last updated: 2026-04-28 (build-pdf-report-page-break-top-inset)
 
 ---
 
@@ -619,6 +619,12 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-04-28 (build-pdf-report-page-break-top-inset) — Header-Atemluft auf Page-Break-Seite
+- **Operator-Folgewunsch:** „some header space" — nach dem Page-Break klebte der Section-Titel „MONTE CARLO PROJECTION" hart am oberen Rand der zweiten PDF-Seite.
+- **Ursache:** der Off-Screen-Container hat `padding-top: 12mm`, aber dieses Padding existiert nur einmal im rasterisierten Bild (am Beginn der ersten Seite). Beim Slicing an festen 297mm-Grenzen beginnt jede weitere Seite mitten im Content-Strom mit Null Top-Inset, sodass der Page-Break-Marker exakt auf der Page-Top-Linie landet.
+- **Fix in `exportPdf.ts`:** neue Konstante `PDF_PAGE_BREAK_TOP_INSET_MM = 12`. Spacer-Höhe wird jetzt mit `padMm = (297 − overshoot) + 12` statt nur `(297 − overshoot)` berechnet, sodass der Marker im PDF auf `nextPageStart + 12mm` landet — derselbe visuelle Atemraum wie auf Seite 1. Die 12mm matchen das Container-Top-Padding für konsistente Vertikal-Rhythmik.
+- **352/352 Tests grün, Typecheck clean.** Bewusste Nicht-Änderungen: keine Anpassung am Container-Padding (würde bei jedem Export greifen, nicht nur bei Page-Breaks); keine zusätzlichen Markup-Änderungen am Report; das Inset bleibt eine reine Exporter-Konzern-Konstante.
 
 ### 2026-04-28 (build-pdf-report-page-break-primitive) — `data-pdf-page-break="before"` Primitive + Page-Break vor Monte-Carlo-Sektion
 - **Operator-Folgewunsch nach dem Detailed-Report-Release:** „page break before monte carlo" — die Monte-Carlo-Sektion soll nicht mitten zwischen Seite 1 und Seite 2 zerschnitten werden, sondern auf einer frischen A4-Seite starten.
