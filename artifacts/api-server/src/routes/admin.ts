@@ -1048,7 +1048,7 @@ router.post("/admin/bucket-alternatives/bulk", async (req, res) => {
         : prRow.status === "isin_present"
           ? "duplicate_isin"
           : "cap_exceeded";
-    outcomes[v.outcomeIdx].message = `Race condition vs origin/${process.env.GITHUB_BASE_BRANCH ?? "main"}: ${prRow.status}${prRow.conflict ? ` (${prRow.conflict})` : ""}`;
+    outcomes[v.outcomeIdx].message = `Race condition vs origin/${process.env.GITHUB_BASE_BRANCH ?? "main"}: ${prRow.status}${prRow.status === "cap_exceeded" ? ` (max ${MAX_ALTERNATIVES_PER_BUCKET} alternatives per bucket)` : ""}${prRow.conflict ? ` (${prRow.conflict})` : ""}`;
     if (prRow.conflict) outcomes[v.outcomeIdx].conflict = prRow.conflict;
   }
 

@@ -434,7 +434,7 @@ export interface BulkBucketAlternativeRow {
 //   "ok"             — green (will be / was added)
 //   "parent_missing" — red   (catalog key typo)
 //   "duplicate_isin" — amber (already in that bucket OR another)
-//   "cap_exceeded"   — amber (bucket already has 2 alts)
+//   "cap_exceeded"   — amber (bucket has reached the per-bucket alts cap)
 //   "invalid_isin"   — red   (12-char format check failed)
 //   "scrape_failed"  — red   (justETF returned an error)
 //   "scrape_invalid" — red   (scrape worked but data missed validation)
