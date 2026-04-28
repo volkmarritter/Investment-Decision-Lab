@@ -522,6 +522,22 @@ const CATALOG: Record<string, ETFRecord> = {
     comment: "Global healthcare-innovation theme spanning biotech, devices and digital health.",
     listings: { LSE: { ticker: "HEAL" }, XETRA: { ticker: "2B77" }, Euronext: { ticker: "HEAL" } },
     defaultExchange: "LSE",
+    alternatives: [
+      {
+        name: "Xtrackers MSCI World Health Care UCITS ETF 1C",
+        isin: "IE00BM67HK77",
+        terBps: 25,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment: "Xtrackers MSCI World Health Care — broad healthcare exposure.",
+        listings: { "LSE": { ticker: "XDWH" }, "XETRA": { ticker: "XDWH" } },
+        defaultExchange: "XETRA",
+        aumMillionsEUR: 2699,
+        inceptionDate: "2016-03-04",
+      },
+    ],
   }),
   "Equity-Sustainability": E({
     name: "iShares Global Clean Energy UCITS",
