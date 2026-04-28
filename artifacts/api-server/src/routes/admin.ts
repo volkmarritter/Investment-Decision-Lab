@@ -1181,13 +1181,22 @@ router.post("/admin/bucket-alternatives/bulk", async (req, res) => {
 //
 // GET  → snapshot of HEAD sha, branch, behind/ahead vs origin/main,
 //        dirty workdir counts, and whether `.git/index.lock` is sitting
-//        around. Also runs `git fetch origin <base>` best-effort so the
-//        behind/ahead counts reflect reality (`fetchOk: false` means the
-//        fetch failed and the counts are based on the last cached ref).
-// POST → runs `git fetch origin <base>` then `git merge --ff-only`. On
-//        success returns { ok, oldSha, newSha, changedFiles[] }. On
-//        refusal returns 409 with a typed `reason` and a plain-language
-//        `message` the UI renders verbatim. Refusal categories:
+//        around. Returns INSTANTLY without contacting the network — the
+//        behind/ahead counters reflect the locally cached origin ref
+//        (i.e. the result of the last successful fetch). The operator
+//        triggers a fresh fetch on demand via the dedicated POST below
+//        (Task #54, 2026-04-28: previously we ran `git fetch` on every
+//        GET which always failed — and briefly hung the panel — in
+//        sandboxes with no `origin` remote).
+// POST /admin/workspace-sync/fetch → runs `git fetch origin <base>` and
+//        returns the same status payload with the freshly-updated
+//        behind/ahead counters. Sets `fetchAttempted: true` so the UI
+//        knows to render the (success or failure) result.
+// POST /admin/workspace-sync       → runs `git fetch origin <base>` then
+//        `git merge --ff-only`. On success returns
+//        { ok, oldSha, newSha, changedFiles[] }. On refusal returns 409
+//        with a typed `reason` and a plain-language `message` the UI
+//        renders verbatim. Refusal categories:
 //          - not_a_git_checkout    (production bundle, no .git)
 //          - uncommitted_changes   (staged or modified files in workdir)
 //          - index_lock_present    (.git/index.lock blocks the merge)
@@ -1200,11 +1209,26 @@ router.post("/admin/bucket-alternatives/bulk", async (req, res) => {
 // situation, suggest the next step, let the operator act.
 router.get("/admin/workspace-sync", async (_req, res) => {
   try {
-    const status = await getWorkspaceSyncStatus();
+    const status = await getWorkspaceSyncStatus({ fetch: false });
     res.json(status);
   } catch (err) {
     res.status(500).json({
       error: "workspace_sync_status_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+// On-demand fetch: triggers `git fetch origin <base>` and returns the
+// refreshed status. Defined BEFORE the catch-all POST below so Express
+// matches the more specific path first.
+router.post("/admin/workspace-sync/fetch", async (_req, res) => {
+  try {
+    const status = await getWorkspaceSyncStatus({ fetch: true });
+    res.json(status);
+  } catch (err) {
+    res.status(500).json({
+      error: "workspace_sync_fetch_failed",
       message: err instanceof Error ? err.message : String(err),
     });
   }

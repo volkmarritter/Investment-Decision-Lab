@@ -362,11 +362,18 @@ export const adminApi = {
     ),
   // Workspace-sync panel (Task #51, 2026-04-28). GET returns the
   // current state (HEAD sha, behind/ahead vs origin/main, dirty
-  // workdir, lock-file presence). POST runs `git fetch origin main`
-  // + `git merge --ff-only origin/main`; refusal cases return 409 with
-  // a typed `error` and a plain-language `message` the UI surfaces
-  // verbatim.
+  // workdir, lock-file presence) WITHOUT contacting the network — the
+  // counters reflect the locally cached origin ref from the last
+  // successful fetch (Task #54, 2026-04-28). The dedicated `fetch`
+  // POST below triggers a fresh `git fetch` on demand. The bare POST
+  // runs `git fetch` + `git merge --ff-only origin/main`; refusal cases
+  // return 409 with a typed `error` and a plain-language `message` the
+  // UI surfaces verbatim.
   workspaceSyncStatus: () => call<WorkspaceSyncStatus>("/admin/workspace-sync"),
+  workspaceSyncFetch: () =>
+    call<WorkspaceSyncStatus>("/admin/workspace-sync/fetch", {
+      method: "POST",
+    }),
   workspaceSyncPull: () =>
     call<WorkspaceSyncPullResponse>("/admin/workspace-sync", {
       method: "POST",
@@ -610,8 +617,20 @@ export interface WorkspaceSyncStatus {
   branch?: string;
   headSha?: string;
   headShortSha?: string;
+  // Behind / ahead counters reflect the LAST successful `git fetch`
+  // (Task #54, 2026-04-28). They stay populated across status GETs even
+  // if the network is offline; the operator triggers a fresh fetch via
+  // the "Refresh from origin" button to update them.
   behind?: number;
   ahead?: number;
+  // True iff a git remote named `origin` is configured. When false the
+  // "Refresh from origin" button has nothing to fetch and is disabled.
+  originConfigured?: boolean;
+  // Whether THIS status response actually attempted a `git fetch`. Set
+  // by the `/admin/workspace-sync/fetch` endpoint; the routine GET
+  // never fetches. The two fetch fields below carry the result of that
+  // attempt and are only set when `fetchAttempted === true`.
+  fetchAttempted?: boolean;
   fetchOk?: boolean;
   fetchError?: string;
   dirty?: { staged: number; modified: number; untracked: number };

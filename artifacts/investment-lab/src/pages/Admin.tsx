@@ -5460,28 +5460,39 @@ function PoolSourceBadge({
 // surface as `parent_missing` even though the bucket exists on
 // origin/main. Sync FIRST, then queue alternatives.
 //
-// Visible state (GET):
+// Visible state (GET — instant, no network call as of Task #54):
 //   - Branch name + 7-char HEAD sha
-//   - Commits behind / ahead of origin/main (badge)
+//   - Commits behind / ahead of origin/main (badge) — derived from the
+//     locally cached origin ref, i.e. the result of the last successful
+//     fetch. Stay populated even when offline.
 //   - Dirty workdir counts (staged / modified / untracked)
-//   - "Could not refresh remote" hint when the best-effort fetch on
-//     GET failed (offline, no creds)
+//   - "No origin remote configured" hint in checkouts (e.g. the default
+//     Replit dev sandbox) where the fetch button is disabled.
 //   - "Lock file present" hint when .git/index.lock exists
 //   - "Workspace sync unavailable" message in production deploys
 //     (no .git directory)
 //
-// Action (POST):
-//   "Sync workspace from main" — runs git fetch + git merge --ff-only.
-//   On success shows oldSha → newSha + the changed files. On refusal
-//   surfaces the typed reason as a plain-language message rendered
-//   verbatim (the server message ends with the next step the operator
-//   should take).
+// Actions:
+//   "Refresh from origin" (POST /workspace-sync/fetch, Task #54) — runs
+//     `git fetch origin <base>` on demand. Sets `fetchAttempted: true`
+//     on the response so the panel surfaces a "Could not refresh remote"
+//     warning if (and only if) the fetch failed. Disabled when origin
+//     is not configured.
+//   "Sync workspace from main" (POST /workspace-sync) — runs git fetch
+//     + git merge --ff-only. On success shows oldSha → newSha + the
+//     changed files. On refusal surfaces the typed reason as a plain-
+//     language message rendered verbatim (the server message ends with
+//     the next step the operator should take).
 // ===========================================================================
 function WorkspaceSyncPanel() {
   const { t, lang } = useAdminT();
   const [status, setStatus] = useState<WorkspaceSyncStatus | null>(null);
   const [statusErr, setStatusErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // `fetching` (Task #54, 2026-04-28) is the dedicated "Refresh from
+  // origin" spinner — separate from `loading` so the routine instant
+  // status refresh doesn't flash the (slower) network-bound spinner.
+  const [fetching, setFetching] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [result, setResult] = useState<WorkspaceSyncPullResponse | null>(null);
   const [refusal, setRefusal] = useState<string | null>(null);
@@ -5496,6 +5507,23 @@ function WorkspaceSyncPanel() {
       setStatusErr(e instanceof Error ? e.message : String(e));
     } finally {
       setLoading(false);
+    }
+  }, []);
+
+  // Operator-initiated `git fetch origin <base>` (Task #54). Hits the
+  // dedicated POST endpoint, which returns the same status payload with
+  // `fetchAttempted: true` plus an updated behind/ahead derived from
+  // the freshly-pulled remote ref.
+  const fetchFromOrigin = useCallback(async () => {
+    setFetching(true);
+    setStatusErr(null);
+    try {
+      const s = await adminApi.workspaceSyncFetch();
+      setStatus(s);
+    } catch (e: unknown) {
+      setStatusErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setFetching(false);
     }
   }, []);
 
@@ -5540,17 +5568,52 @@ function WorkspaceSyncPanel() {
             })}
           </p>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => void refresh()}
-          disabled={loading || syncing}
-        >
-          <RefreshCw
-            className={"h-3.5 w-3.5 mr-1.5" + (loading ? " animate-spin" : "")}
-          />
-          {t({ de: "Aktualisieren", en: "Refresh" })}
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void fetchFromOrigin()}
+            disabled={
+              fetching ||
+              syncing ||
+              !status?.available ||
+              status?.originConfigured === false
+            }
+            title={
+              status?.originConfigured === false
+                ? t({
+                    de: "Kein origin-Remote konfiguriert — nichts zum Abrufen.",
+                    en: "No origin remote configured — nothing to fetch.",
+                  })
+                : undefined
+            }
+            data-testid="button-workspace-sync-fetch"
+          >
+            <RefreshCw
+              className={
+                "h-3.5 w-3.5 mr-1.5" + (fetching ? " animate-spin" : "")
+              }
+            />
+            {t({
+              de: "Vom Remote abrufen",
+              en: "Refresh from origin",
+            })}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void refresh()}
+            disabled={loading || syncing}
+            data-testid="button-workspace-sync-refresh"
+          >
+            <RefreshCw
+              className={
+                "h-3.5 w-3.5 mr-1.5" + (loading ? " animate-spin" : "")
+              }
+            />
+            {t({ de: "Status neu laden", en: "Reload status" })}
+          </Button>
+        </div>
       </CardHeader>
       <CardContent className="space-y-3">
         {statusErr && (
@@ -5668,7 +5731,12 @@ function WorkspaceSyncPanel() {
                 {t({ de: "Hinweise", en: "Hints" })}
               </div>
               <div className="space-y-1">
-                {status.fetchOk === false && (
+                {/* "Could not refresh remote" only fires AFTER the
+                    operator clicks "Refresh from origin" and the fetch
+                    fails (Task #54, 2026-04-28) — the routine GET
+                    never fetches, so we never spam this hint in the
+                    default sandbox where origin is unconfigured. */}
+                {status.fetchAttempted && status.fetchOk === false && (
                   <div className="text-amber-700 dark:text-amber-400">
                     {t({
                       de: "Konnte Remote nicht abrufen — Zähler basieren auf dem letzten Cache.",
@@ -5682,6 +5750,14 @@ function WorkspaceSyncPanel() {
                     )}
                   </div>
                 )}
+                {status.originConfigured === false && (
+                  <div className="text-muted-foreground">
+                    {t({
+                      de: "Kein origin-Remote konfiguriert — Remote-Abruf nicht möglich.",
+                      en: "No origin remote configured — fetching from origin is unavailable.",
+                    })}
+                  </div>
+                )}
                 {status.indexLockPresent && (
                   <div className="text-amber-700 dark:text-amber-400">
                     {t({
@@ -5690,11 +5766,11 @@ function WorkspaceSyncPanel() {
                     })}
                   </div>
                 )}
-                {!status.fetchOk === false &&
+                {status.fetchOk !== false &&
                   !status.indexLockPresent &&
                   status.dirty &&
                   status.dirty.staged + status.dirty.modified === 0 &&
-                  (status.behind ?? 0) === 0 && (
+                  status.behind === 0 && (
                     <div className="text-muted-foreground">
                       {t({
                         de: "Aktuell — nichts zu synchronisieren.",

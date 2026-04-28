@@ -38,11 +38,24 @@ export interface WorkspaceSyncStatus {
   branch?: string;
   headSha?: string;
   headShortSha?: string;
-  // Commits behind / ahead of `origin/main`. If we couldn't fetch the
-  // remote (offline, no permission), values stay undefined and `fetchOk`
-  // is false — the UI shows a "could not refresh remote" hint.
+  // Commits behind / ahead of `origin/main`, derived from the locally
+  // cached `origin/<base>` ref. They reflect the LAST successful fetch
+  // (which the operator triggers explicitly via "Refresh from origin")
+  // — not the live remote. Stay undefined only when the cached ref
+  // doesn't exist yet (fresh checkout that has never fetched).
   behind?: number;
   ahead?: number;
+  // True iff a git remote named `origin` is configured. The Replit dev
+  // sandbox typically has none, so the "Refresh from origin" button
+  // disables itself in that case rather than firing a guaranteed-failure
+  // network call.
+  originConfigured?: boolean;
+  // Whether THIS status response actually attempted a `git fetch`. The
+  // routine GET endpoint never fetches (so the panel doesn't briefly
+  // hang on a network call); the operator triggers a fetch on demand
+  // via the "Refresh from origin" button. The two fetch fields below
+  // are set only when `fetchAttempted === true`.
+  fetchAttempted?: boolean;
   fetchOk?: boolean;
   fetchError?: string;
   // Snapshot of `git status --porcelain` bucketed into the three groups
@@ -58,6 +71,14 @@ export interface WorkspaceSyncStatus {
   // The configured base branch we sync against (always `main` unless
   // GITHUB_BASE_BRANCH is overridden — surfaced so the UI label matches).
   baseBranch: string;
+}
+
+// Options for `getWorkspaceSyncStatus`. The default (`fetch: false`)
+// returns instantly without touching the network; pass `fetch: true`
+// from the dedicated "Refresh from origin" endpoint when the operator
+// explicitly asks for fresh behind/ahead numbers.
+export interface GetWorkspaceSyncStatusOptions {
+  fetch?: boolean;
 }
 
 export type WorkspaceSyncRefusal =
@@ -144,7 +165,27 @@ function countPorcelain(porcelain: string): DirtyCounts {
   return counts;
 }
 
-export async function getWorkspaceSyncStatus(): Promise<WorkspaceSyncStatus> {
+// Has the local checkout got a `git remote` named "origin"? Used to
+// short-circuit `git fetch origin` calls in dev sandboxes (e.g. the
+// default Replit workspace) where the fetch is guaranteed to fail and
+// would otherwise add a noisy "could not refresh remote" hint plus a
+// brief network-bound hang to every status GET.
+async function hasOriginRemote(root: string): Promise<boolean> {
+  try {
+    const { stdout } = await gitRun(root, [
+      "config",
+      "--get",
+      "remote.origin.url",
+    ]);
+    return stdout.trim().length > 0;
+  } catch {
+    return false;
+  }
+}
+
+export async function getWorkspaceSyncStatus(
+  options: GetWorkspaceSyncStatusOptions = {},
+): Promise<WorkspaceSyncStatus> {
   const baseBranch = baseBranchName();
   const root = await resolveGitRoot();
   if (!root) {
@@ -156,17 +197,34 @@ export async function getWorkspaceSyncStatus(): Promise<WorkspaceSyncStatus> {
     };
   }
 
-  // Best-effort: fetch the remote so the behind count reflects reality.
-  // We swallow fetch errors (offline, no remote configured, network
-  // hiccup) and surface them as `fetchOk: false` — the rest of the
-  // status payload is still useful (HEAD sha, dirty counts, lock).
-  let fetchOk = true;
+  // Detect `origin` up-front so we can (a) decide whether the optional
+  // fetch in this call has any chance of succeeding, and (b) tell the
+  // UI whether to enable its "Refresh from origin" button.
+  const originConfigured = await hasOriginRemote(root);
+
+  // Optional best-effort fetch. The routine GET endpoint passes
+  // `fetch: false` and returns instantly; the dedicated "Refresh from
+  // origin" endpoint passes `fetch: true`. Skipping the fetch leaves
+  // the cached `origin/<base>` ref untouched, so behind/ahead keep
+  // reflecting the LAST successful fetch instead of going blank.
+  let fetchAttempted = false;
+  let fetchOk: boolean | undefined;
   let fetchError: string | undefined;
-  try {
-    await gitRun(root, ["fetch", "origin", baseBranch]);
-  } catch (err) {
-    fetchOk = false;
-    fetchError = stderrOf(err);
+  if (options.fetch) {
+    fetchAttempted = true;
+    if (!originConfigured) {
+      fetchOk = false;
+      fetchError =
+        'No git remote named "origin" is configured for this checkout.';
+    } else {
+      try {
+        await gitRun(root, ["fetch", "origin", baseBranch]);
+        fetchOk = true;
+      } catch (err) {
+        fetchOk = false;
+        fetchError = stderrOf(err);
+      }
+    }
   }
 
   let branch = "";
@@ -241,7 +299,8 @@ export async function getWorkspaceSyncStatus(): Promise<WorkspaceSyncStatus> {
     headShortSha: headSha.slice(0, 7),
     behind,
     ahead,
-    fetchOk,
+    originConfigured,
+    ...(fetchAttempted ? { fetchAttempted, fetchOk } : {}),
     ...(fetchError ? { fetchError } : {}),
     dirty,
     indexLockPresent,
