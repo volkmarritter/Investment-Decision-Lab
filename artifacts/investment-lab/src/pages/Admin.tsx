@@ -1563,6 +1563,18 @@ function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
   // angezeigt mit klickbarem Link, damit der Operator direkt review +
   // merge kann. Auf null gesetzt bei jedem neuen Submit-Versuch.
   const [lastPr, setLastPr] = useState<{ url: string; number: number; isin: string } | null>(null);
+  // Backfill-State: läuft long-running (~1-2 min für ~20 ISINs), separates
+  // Submitting-Flag damit der Add-Button nicht versehentlich blockiert wird.
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<{
+    scanned: number;
+    missing: number;
+    added: string[];
+    scrapeFailures: Array<{ isin: string; reason: string }>;
+    skippedAlreadyPresent: string[];
+    prUrl?: string;
+    prNumber?: number;
+  } | null>(null);
 
   // ISIN -> Katalog-Eintrag-Lookup. Damit kann die Tabelle den jeweiligen
   // ETF-Namen + Bucket-Key neben der ISIN anzeigen, statt nur eine nackte
@@ -1633,6 +1645,58 @@ function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
     }
   }
 
+  // Bulk-Backfill für alle Katalog-ISINs ohne Look-through-Daten. Öffnet
+  // EINEN gemeinsamen PR — operativ viel angenehmer als 15-20 Einzel-PRs.
+  // Long-running (~1-2 min); UI muss klar signalisieren dass das Backend
+  // arbeitet und der Tab nicht versehentlich geschlossen werden sollte.
+  async function backfill() {
+    setBackfilling(true);
+    setErrMsg(null);
+    setBackfillResult(null);
+    try {
+      const r = await adminApi.backfillLookthroughPool();
+      setBackfillResult({
+        scanned: r.scanned,
+        missing: r.missing,
+        added: r.added,
+        scrapeFailures: r.scrapeFailures,
+        skippedAlreadyPresent: r.skippedAlreadyPresent,
+        prUrl: r.prUrl,
+        prNumber: r.prNumber,
+      });
+      if (r.prNumber && r.prUrl) {
+        toast.success(
+          lang === "de"
+            ? `PR #${r.prNumber} mit ${r.added.length} ISIN${r.added.length === 1 ? "" : "s"} geöffnet`
+            : `PR #${r.prNumber} opened with ${r.added.length} ISIN${r.added.length === 1 ? "" : "s"}`,
+          {
+            description:
+              lang === "de"
+                ? `${r.added.length} von ${r.missing} fehlenden ISINs erfolgreich gescraped${r.scrapeFailures.length > 0 ? `, ${r.scrapeFailures.length} fehlgeschlagen` : ""}.`
+                : `${r.added.length} of ${r.missing} missing ISINs scraped successfully${r.scrapeFailures.length > 0 ? `, ${r.scrapeFailures.length} failed` : ""}.`,
+            action: {
+              label: t({ de: "Öffnen", en: "Open" }),
+              onClick: () => window.open(r.prUrl, "_blank"),
+            },
+          },
+        );
+        setPrsRefreshKey((k) => k + 1);
+      } else if (r.missing === 0) {
+        toast.success(
+          lang === "de"
+            ? "Keine fehlenden Look-through-Daten — alle Katalog-ISINs sind abgedeckt."
+            : "No missing look-through data — every catalog ISIN is covered.",
+        );
+      }
+      await load();
+    } catch (e: unknown) {
+      setErrMsg(e instanceof Error ? e.message : String(e));
+      setPrsRefreshKey((k) => k + 1);
+    } finally {
+      setBackfilling(false);
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -1697,6 +1761,146 @@ function LookthroughPoolPanel({ catalog }: { catalog: CatalogSummary | null }) {
             )}
           </Button>
         </div>
+        {/* Bulk-Backfill: zweiter Action-Block separat vom Single-Add, damit
+            kein versehentliches Klicken bei einer ISIN-Eingabe passiert.
+            Der Hint-Text erklärt was der Button macht (scannt Katalog,
+            scrapet alle fehlenden ISINs, EIN gemeinsamer PR), warum es
+            long-running ist und dass kein zweiter Klick nötig ist. */}
+        <div className="rounded-md border border-dashed p-3 space-y-2">
+          <div className="flex items-start justify-between gap-3">
+            <div className="text-xs text-muted-foreground flex-1">
+              {lang === "de" ? (
+                <>
+                  <strong>Bulk-Backfill:</strong> scannt alle Katalog-ISINs
+                  (Defaults + Alternativen), scrapet jede ISIN ohne
+                  Look-through-Daten von justETF und öffnet{" "}
+                  <strong>EINEN gemeinsamen PR</strong> mit allen Treffern.
+                  Dauert je nach Anzahl fehlender ISINs ~1-2 Minuten — bitte
+                  Tab nicht schließen.
+                </>
+              ) : (
+                <>
+                  <strong>Bulk backfill:</strong> scans every catalog ISIN
+                  (defaults + alternatives), scrapes any ISIN without
+                  look-through data from justETF and opens{" "}
+                  <strong>ONE combined PR</strong> with all hits. Takes
+                  ~1-2 minutes depending on how many are missing — please
+                  keep this tab open.
+                </>
+              )}
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void backfill()}
+              disabled={backfilling || submitting}
+              data-testid="button-pool-backfill"
+            >
+              {backfilling ? (
+                <>
+                  <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                  {t({ de: "Läuft …", en: "Running …" })}
+                </>
+              ) : (
+                t({
+                  de: "Fehlende Daten holen",
+                  en: "Fetch missing data",
+                })
+              )}
+            </Button>
+          </div>
+        </div>
+        {backfillResult && (
+          <Alert
+            className={
+              backfillResult.prUrl
+                ? "border-emerald-600/40 text-emerald-900 dark:text-emerald-200"
+                : "border-amber-600/40 text-amber-900 dark:text-amber-200"
+            }
+            data-testid="alert-pool-backfill-result"
+          >
+            <AlertTitle>
+              {backfillResult.prUrl
+                ? lang === "de"
+                  ? `Bulk-PR #${backfillResult.prNumber} geöffnet`
+                  : `Bulk PR #${backfillResult.prNumber} opened`
+                : backfillResult.missing === 0
+                ? t({
+                    de: "Alle Katalog-ISINs sind bereits abgedeckt",
+                    en: "All catalog ISINs are already covered",
+                  })
+                : t({
+                    de: "Backfill abgeschlossen — kein PR geöffnet",
+                    en: "Backfill finished — no PR opened",
+                  })}
+            </AlertTitle>
+            <AlertDescription className="text-xs space-y-1">
+              <div>
+                {lang === "de"
+                  ? `${backfillResult.scanned} Katalog-ISINs gescannt, ${backfillResult.missing} ohne Daten, ${backfillResult.added.length} erfolgreich gescraped${backfillResult.scrapeFailures.length > 0 ? `, ${backfillResult.scrapeFailures.length} fehlgeschlagen` : ""}.`
+                  : `${backfillResult.scanned} catalog ISINs scanned, ${backfillResult.missing} without data, ${backfillResult.added.length} scraped successfully${backfillResult.scrapeFailures.length > 0 ? `, ${backfillResult.scrapeFailures.length} failed` : ""}.`}
+              </div>
+              {backfillResult.added.length > 0 && (
+                <div>
+                  <span className="font-medium">
+                    {t({
+                      de: "Hinzugefügt: ",
+                      en: "Added: ",
+                    })}
+                  </span>
+                  <code className="text-[11px]">
+                    {backfillResult.added.join(", ")}
+                  </code>
+                </div>
+              )}
+              {backfillResult.skippedAlreadyPresent.length > 0 && (
+                <div>
+                  <span className="font-medium">
+                    {t({
+                      de: "Übersprungen (bereits vorhanden): ",
+                      en: "Skipped (already present): ",
+                    })}
+                  </span>
+                  <code className="text-[11px]">
+                    {backfillResult.skippedAlreadyPresent.join(", ")}
+                  </code>
+                </div>
+              )}
+              {backfillResult.scrapeFailures.length > 0 && (
+                <div>
+                  <span className="font-medium">
+                    {t({
+                      de: "Fehlgeschlagen: ",
+                      en: "Failed: ",
+                    })}
+                  </span>
+                  <ul className="list-disc list-inside ml-2">
+                    {backfillResult.scrapeFailures.map((f) => (
+                      <li key={f.isin}>
+                        <code className="text-[11px]">{f.isin}</code>{" "}
+                        — {f.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {backfillResult.prUrl && (
+                <a
+                  href={backfillResult.prUrl}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="underline font-medium inline-block mt-1"
+                  data-testid="link-pool-backfill-pr"
+                >
+                  {t({
+                    de: "Bulk-PR auf GitHub öffnen →",
+                    en: "Open bulk PR on GitHub →",
+                  })}
+                </a>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
         {errMsg && (
           <Alert variant="destructive">
             <AlertTitle>{t({ de: "Fehler", en: "Error" })}</AlertTitle>

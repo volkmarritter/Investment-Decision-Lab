@@ -251,6 +251,21 @@ export const adminApi = {
     }>(`/admin/lookthrough-pool/${encodeURIComponent(isin)}`, {
       method: "POST",
     }),
+  // Bulk-Backfill: scannt den Katalog nach ISINs ohne Look-through-Daten
+  // (weder in `overrides` noch im `pool`), scrapet jede einzeln und öffnet
+  // EINEN gemeinsamen PR. Long-running (~1-2 min für 15-20 ISINs).
+  backfillLookthroughPool: () =>
+    call<{
+      ok: boolean;
+      scanned: number;
+      missing: number;
+      attempted: string[];
+      added: string[];
+      skippedAlreadyPresent: string[];
+      scrapeFailures: Array<{ isin: string; reason: string }>;
+      prUrl?: string;
+      prNumber?: number;
+    }>("/admin/backfill-lookthrough-pool", { method: "POST" }),
   // Global defaults editor (RF rates, Home-Bias, CMA). GET returns the
   // currently-shipped JSON; POST validates the payload server-side and
   // opens a GitHub PR replacing app-defaults.json. After merge + redeploy

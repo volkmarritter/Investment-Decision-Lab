@@ -333,6 +333,186 @@ export async function openAddLookthroughPoolPr(args: {
   return { url: pr.html_url, number: pr.number, alreadyInBaseFile: false };
 }
 
+// ---------------------------------------------------------------------------
+// openBulkAddLookthroughPoolPr — admin "backfill missing look-through data"
+// ---------------------------------------------------------------------------
+// Adds N entries to the `pool` section of lookthrough.overrides.json in a
+// single PR. Used by the admin "backfill" flow which scans the catalog
+// for ISINs that have no look-through data yet and scrapes them.
+//
+// Why one PR (not N): operationally a flat ~20 PRs would crush the
+// reviewer. One PR with a clear list of ISINs and per-ISIN scrape stats
+// is easier to audit and merge.
+//
+// Concurrency: deterministic branch name `add-lookthrough-pool/bulk-{N}-{stamp}`.
+// The timestamp lets the operator re-run the flow later (after some are
+// merged) without colliding with the earlier branch — each run targets
+// only the still-missing ISINs.
+//
+// Idempotency: filters out any ISIN that has reappeared in the base file
+// between scrape and PR open (race window). The returned `skipped` array
+// tells the caller which entries fell into that race.
+// ---------------------------------------------------------------------------
+export async function openBulkAddLookthroughPoolPr(args: {
+  entries: Array<{ isin: string; entry: LookthroughPoolEntry }>;
+}): Promise<{
+  url: string;
+  number: number;
+  added: string[];
+  skippedAlreadyPresent: string[];
+}> {
+  if (!githubConfigured()) {
+    throw new Error(
+      "GitHub PR creation is not configured. Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO.",
+    );
+  }
+  if (args.entries.length === 0) {
+    throw new Error("openBulkAddLookthroughPoolPr called with zero entries.");
+  }
+  const owner = process.env.GITHUB_OWNER!;
+  const repo = process.env.GITHUB_REPO!;
+  const base = process.env.GITHUB_BASE_BRANCH ?? "main";
+  const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
+
+  // 1. Read base SHA + current file from the base branch.
+  const { data: baseRef } = await octokit.git.getRef({
+    owner,
+    repo,
+    ref: `heads/${base}`,
+  });
+  const baseSha = baseRef.object.sha;
+
+  const { data: fileMeta } = await octokit.repos.getContent({
+    owner,
+    repo,
+    path: LOOKTHROUGH_OVERRIDES_FILE_PATH,
+    ref: baseSha,
+  });
+  if (Array.isArray(fileMeta) || fileMeta.type !== "file") {
+    throw new Error(
+      `Unexpected GitHub response for ${LOOKTHROUGH_OVERRIDES_FILE_PATH}.`,
+    );
+  }
+  const currentContent = Buffer.from(fileMeta.content, "base64").toString(
+    "utf8",
+  );
+
+  // 2. Parse, filter, mutate, re-serialise.
+  let parsed: {
+    _meta?: unknown;
+    overrides?: Record<string, unknown>;
+    pool?: Record<string, unknown>;
+    [k: string]: unknown;
+  };
+  try {
+    parsed = JSON.parse(currentContent);
+  } catch (err) {
+    throw new Error(
+      `lookthrough.overrides.json on ${base} is not valid JSON: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+  const overrides = (parsed.overrides ?? {}) as Record<string, unknown>;
+  const pool = (parsed.pool ?? {}) as Record<string, unknown>;
+
+  const added: string[] = [];
+  const skippedAlreadyPresent: string[] = [];
+  for (const { isin, entry } of args.entries) {
+    if (overrides[isin] || pool[isin]) {
+      skippedAlreadyPresent.push(isin);
+      continue;
+    }
+    pool[isin] = entry;
+    added.push(isin);
+  }
+  if (added.length === 0) {
+    // Nothing to add — caller should treat as "all already present".
+    // Rare, but possible if a parallel admin run beat us to it.
+    throw new Error(
+      "Bulk look-through PR aborted: all requested ISINs are already in the base file.",
+    );
+  }
+  parsed.pool = pool;
+  const nextContent = JSON.stringify(parsed, null, 2) + "\n";
+
+  // 3. Create the branch. Stamp encodes UTC YYYYMMDDHHmmss so consecutive
+  //    runs don't collide and the branch name is human-readable.
+  const stamp = new Date()
+    .toISOString()
+    .replace(/[-:T]/g, "")
+    .slice(0, 14);
+  const branch = `add-lookthrough-pool/bulk-${added.length}-${stamp}`;
+  await octokit.git.createRef({
+    owner,
+    repo,
+    ref: `refs/heads/${branch}`,
+    sha: baseSha,
+  });
+
+  // 4. Commit the new file content on the branch.
+  await octokit.repos.createOrUpdateFileContents({
+    owner,
+    repo,
+    path: LOOKTHROUGH_OVERRIDES_FILE_PATH,
+    branch,
+    message: `Add ${added.length} ISINs to lookthrough pool (bulk backfill)`,
+    content: Buffer.from(nextContent, "utf8").toString("base64"),
+    sha: fileMeta.sha,
+  });
+
+  // 5. Open the PR. Body lists every ISIN added so the reviewer can spot
+  //    surprises quickly. Per-ISIN scrape stats kept on one line each.
+  const isinLines = args.entries
+    .filter((e) => added.includes(e.isin))
+    .map((e) => {
+      const top = e.entry.topHoldings.length;
+      const geo = Object.keys(e.entry.geo).length;
+      const sec = Object.keys(e.entry.sector).length;
+      const name = e.entry.name ? ` — ${e.entry.name}` : "";
+      return `- \`${e.isin}\`${name} (top=${top}, geo=${geo}, sector=${sec})`;
+    });
+  const skippedLines = skippedAlreadyPresent.map((i) => `- \`${i}\``);
+
+  const body = [
+    `Bulk-adds **${added.length}** ISINs to the look-through data pool (\`pool\` section of \`lookthrough.overrides.json\`).`,
+    "",
+    "Generated from `/admin` → Look-through-Datenpool → **Fehlende Daten holen**. Triggered when the operator wants every catalog ISIN covered immediately, instead of waiting for the next monthly cron tick.",
+    "",
+    "**Added**",
+    ...isinLines,
+    ...(skippedLines.length > 0
+      ? [
+          "",
+          "**Skipped (already in base file at PR-open time)**",
+          ...skippedLines,
+        ]
+      : []),
+    "",
+    "After merge + redeploy:",
+    "- The admin pool table will list each new ISIN with `Quelle = Auto-Refresh`.",
+    "- The Methodology override dialog will return a full profile for each, so the amber \"no look-through data\" warning auto-clears.",
+    "",
+    "The monthly refresh job will keep these entries up to date going forward.",
+  ].join("\n");
+
+  const { data: pr } = await octokit.pulls.create({
+    owner,
+    repo,
+    head: branch,
+    base,
+    title: `Backfill ${added.length} ISINs into lookthrough pool`,
+    body,
+  });
+
+  return {
+    url: pr.html_url,
+    number: pr.number,
+    added,
+    skippedAlreadyPresent,
+  };
+}
+
 export async function openAddEtfPr(
   entry: NewEtfEntry,
   ctx: PrCreationContext,

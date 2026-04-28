@@ -30,9 +30,11 @@ import {
   openRemoveBucketAlternativePr,
   openAddEtfPr,
   openAddLookthroughPoolPr,
+  openBulkAddLookthroughPoolPr,
   openUpdateAppDefaultsPr,
   renderAlternativeBlock,
   renderEntryBlock,
+  type LookthroughPoolEntry,
   type NewAlternativeEntry,
   type NewEtfEntry,
 } from "../lib/github";
@@ -826,6 +828,180 @@ router.post("/admin/lookthrough-pool/:isin", async (req, res) => {
     res.status(500).json({
       error: "internal",
       message: msg,
+    });
+  }
+});
+
+// POST /admin/lookthrough-pool/backfill — scan the catalog for ISINs
+// that are NOT yet in `overrides` or `pool`, scrape each from justETF,
+// and open ONE PR adding all complete results to `pool` at once.
+//
+// Why one PR (not N): a flat 15-20 PR queue is hostile to review.
+// One PR with a clear ISIN list is easier to audit and merge.
+//
+// Why not just wait for the monthly cron: the cron fills `pool` once a
+// month. Operators often add new ETFs and want look-through data
+// available the next day, not 30 days later. This endpoint gives them
+// the manual lever.
+//
+// Long-running: ~1-2 minutes for 15-20 ISINs at ~5s scrape each. We do
+// scrapes sequentially (justETF rate-limit politeness) so the operator
+// gets a single deterministic summary rather than partial parallel
+// failures. Express server timeout handles the upper bound.
+// NB: path is `/admin/backfill-lookthrough-pool` (NOT
+// `/admin/lookthrough-pool/backfill`) — the latter would collide with
+// the parameterised route `POST /admin/lookthrough-pool/:isin`
+// registered earlier; Express would match `:isin = "backfill"` and the
+// bulk handler would be unreachable.
+router.post("/admin/backfill-lookthrough-pool", async (_req, res) => {
+  if (!githubConfigured()) {
+    res.status(503).json({
+      error: "github_not_configured",
+      message: "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
+    });
+    return;
+  }
+
+  // 1. Catalog ISINs (defaults + alternatives), de-duplicated.
+  let catalogIsins: string[];
+  try {
+    const catalog = await loadCatalog();
+    const set = new Set<string>();
+    for (const entry of Object.values(catalog)) {
+      if (entry?.isin) set.add(entry.isin.toUpperCase());
+      for (const alt of entry?.alternatives ?? []) {
+        if (alt?.isin) set.add(alt.isin.toUpperCase());
+      }
+    }
+    catalogIsins = [...set];
+  } catch (err) {
+    res.status(500).json({
+      error: "catalog_parse_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+
+  // 2. Filter to those NOT already covered by look-through data.
+  const sources = await readLookthroughSources();
+  const have = new Set([
+    ...Object.keys(sources.overrides),
+    ...Object.keys(sources.pool),
+  ]);
+  const missing = catalogIsins.filter((i) => !have.has(i));
+
+  if (missing.length === 0) {
+    res.json({
+      ok: true,
+      scanned: catalogIsins.length,
+      missing: 0,
+      attempted: [],
+      added: [],
+      skippedAlreadyPresent: [],
+      scrapeFailures: [],
+    });
+    return;
+  }
+
+  // 3. Scrape each missing ISIN sequentially. Collect both successes
+  //    (entries ready for the PR) and per-ISIN failures (incomplete
+  //    scrape, network error, justETF returned nothing).
+  type ScrapeFailure = { isin: string; reason: string };
+  const entries: Array<{ isin: string; entry: LookthroughPoolEntry }> = [];
+  const scrapeFailures: ScrapeFailure[] = [];
+  for (const isin of missing) {
+    try {
+      const scraped = await scrapeLookthrough(isin);
+      const top = scraped.topHoldings;
+      const geo = scraped.geo;
+      const sector = scraped.sector;
+      const currency = scraped.currency;
+      if (
+        !top ||
+        top.length === 0 ||
+        !geo ||
+        Object.keys(geo).length === 0 ||
+        !sector ||
+        Object.keys(sector).length === 0 ||
+        !currency
+      ) {
+        const missingFields = [
+          (!top || top.length === 0) && "Top-Holdings",
+          (!geo || Object.keys(geo).length === 0) && "Geo",
+          (!sector || Object.keys(sector).length === 0) && "Sektor",
+          !currency && "Währung",
+        ]
+          .filter(Boolean)
+          .join(", ");
+        scrapeFailures.push({
+          isin,
+          reason: `Scrape unvollständig — fehlende Felder: ${missingFields}`,
+        });
+        continue;
+      }
+      entries.push({
+        isin,
+        entry: {
+          ...(scraped.name ? { name: scraped.name } : {}),
+          topHoldings: top,
+          topHoldingsAsOf: scraped.asOf,
+          geo,
+          sector,
+          currency,
+          breakdownsAsOf: scraped.asOf,
+          _source: scraped.sourceUrl,
+          _addedAt: scraped.asOf,
+          _addedVia: "admin/lookthrough-pool/backfill",
+        },
+      });
+    } catch (err) {
+      scrapeFailures.push({
+        isin,
+        reason: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  if (entries.length === 0) {
+    res.status(422).json({
+      error: "no_complete_scrapes",
+      message: `Keine der ${missing.length} fehlenden ISINs lieferte vollständige Look-through-Daten. Kein PR geöffnet.`,
+      scanned: catalogIsins.length,
+      missing: missing.length,
+      attempted: missing,
+      scrapeFailures,
+    });
+    return;
+  }
+
+  // 4. Open one PR with all complete entries.
+  try {
+    const pr = await openBulkAddLookthroughPoolPr({ entries });
+    res.json({
+      ok: true,
+      scanned: catalogIsins.length,
+      missing: missing.length,
+      attempted: missing,
+      added: pr.added,
+      skippedAlreadyPresent: pr.skippedAlreadyPresent,
+      scrapeFailures,
+      prUrl: pr.url,
+      prNumber: pr.number,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/already exists/i.test(msg)) {
+      res.status(409).json({
+        error: "pr_already_open",
+        message: msg,
+        scrapeFailures,
+      });
+      return;
+    }
+    res.status(502).json({
+      error: "pr_creation_failed",
+      message: msg,
+      scrapeFailures,
     });
   }
 });
