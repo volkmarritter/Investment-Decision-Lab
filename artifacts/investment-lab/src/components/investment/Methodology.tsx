@@ -236,6 +236,59 @@ export function Methodology() {
     setDialogBucket({ key: leaf.key, current: etfOverrides[leaf.key] ?? current });
   };
 
+  // ------------------------------------------------------------- Jump menu /
+  // Controlled accordion state so the top-of-page Table of Contents and the
+  // Editable Overview bullets can both open the matching section and scroll
+  // it into view.
+  const [openSections, setOpenSections] = useState<string[]>([]);
+  const openAndScrollTo = (sectionValue: string) => {
+    setOpenSections((prev) => (prev.includes(sectionValue) ? prev : [...prev, sectionValue]));
+    // Defer the scroll to the next frame so the AccordionItem has actually
+    // expanded before we measure its position; otherwise we land at the
+    // collapsed location.
+    requestAnimationFrame(() => {
+      const el = document.getElementById(`methodology-anchor-${sectionValue}`);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+
+  // Stable labels for the Table of Contents (mirrors the section titles
+  // below so renaming them keeps the ToC in sync — keep this small map and
+  // the Section invocations next to each other when refactoring).
+  const tocBlocks = [
+    {
+      id: "settings",
+      title: de ? "Deine Einstellungen" : "Your settings",
+      items: [
+        { value: "etf-catalog", label: de ? "ETF-Katalog & Overrides" : "ETF Catalog & Overrides", editable: true },
+        { value: "cma", label: de ? "Kapitalmarktannahmen (CMAs)" : "Capital Market Assumptions (CMAs)", editable: true },
+        { value: "risk-free", label: de ? "Risikofreier Zinssatz" : "Risk-Free Rates", editable: true },
+        { value: "home-bias", label: de ? "Home-Bias-Multiplikatoren" : "Home-Bias Multipliers", editable: true },
+      ],
+    },
+    {
+      id: "calc",
+      title: de ? "Wie Ergebnisse berechnet werden" : "How results are calculated",
+      items: [
+        { value: "corr", label: de ? "Korrelationsmatrix" : "Correlation Matrix" },
+        { value: "lookthrough", label: de ? "Look-Through-Routing" : "Look-Through Routing" },
+        { value: "hedging", label: de ? "Währungs-Hedging" : "FX Hedging" },
+        { value: "wht", label: de ? "Quellensteuer-Drag" : "Withholding-Tax Drag", version: "v1.5" },
+        { value: "mc", label: de ? "Monte-Carlo-Simulation" : "Monte Carlo Simulation" },
+        { value: "tail-realism", label: de ? "Tail-Realismus" : "Tail Realism", version: "v1.6" },
+        { value: "stress", label: de ? "Stress-Test-Szenarien" : "Stress Test Scenarios" },
+        { value: "formulas", label: de ? "Formeln" : "Formulas" },
+      ],
+    },
+    {
+      id: "reference",
+      title: de ? "Referenz & Kontext" : "Reference & context",
+      items: [
+        { value: "bench", label: de ? "Benchmark (MSCI ACWI Proxy)" : "Benchmark (MSCI ACWI Proxy)" },        { value: "limits", label: de ? "Was diese App NICHT tut" : "What this app does NOT do" },
+      ],
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <Card>
@@ -294,500 +347,268 @@ export function Methodology() {
             <ul className="text-xs space-y-1 pl-1">
               <li className="flex items-start gap-2">
                 <Pencil className="h-3 w-3 mt-0.5 text-primary shrink-0" />
-                <span>
-                  <span className="font-semibold">{de ? "Risikofreier Zinssatz (je Basiswährung)" : "Risk-Free Rate (per base currency)"}</span>
+                <button
+                  type="button"
+                  onClick={() => openAndScrollTo("risk-free")}
+                  className="text-left hover:underline focus:underline focus:outline-none rounded-sm"
+                  data-testid="editable-overview-link-risk-free"
+                >
+                  <span className="font-semibold text-primary">{de ? "Risikofreier Zinssatz (je Basiswährung)" : "Risk-Free Rate (per base currency)"}</span>
                   {" — "}
                   <span className="text-muted-foreground">
                     {de
                       ? "Sharpe-Ratio, Alpha und Aktien-Sharpe-Tilt. Defaults: USD 4,25 % / EUR 2,50 % / GBP 4,00 % / CHF 0,50 %."
                       : "Sharpe Ratio, Alpha and equity Sharpe-tilt. Defaults: USD 4.25% / EUR 2.50% / GBP 4.00% / CHF 0.50%."}
                   </span>
-                </span>
+                </button>
               </li>
               <li className="flex items-start gap-2">
                 <Pencil className="h-3 w-3 mt-0.5 text-primary shrink-0" />
-                <span>
-                  <span className="font-semibold">{de ? "Home-Bias-Multiplikatoren" : "Home-Bias Multipliers"}</span>
+                <button
+                  type="button"
+                  onClick={() => openAndScrollTo("home-bias")}
+                  className="text-left hover:underline focus:underline focus:outline-none rounded-sm"
+                  data-testid="editable-overview-link-home-bias"
+                >
+                  <span className="font-semibold text-primary">{de ? "Home-Bias-Multiplikatoren" : "Home-Bias Multipliers"}</span>
                   {" — "}
                   <span className="text-muted-foreground">
                     {de
-                      ? "im Abschnitt „Portfolio-Konstruktion\". Verstärkungsfaktor pro Basiswährung (USD / EUR / GBP / CHF), Bereich 0,0 – 5,0."
-                      : "inside \"Portfolio Construction\". Amplification factor per base currency (USD / EUR / GBP / CHF), range 0.0 – 5.0."}
+                      ? "Verstärkungsfaktor pro Basiswährung (USD / EUR / GBP / CHF), Bereich 0,0 – 5,0."
+                      : "Amplification factor per base currency (USD / EUR / GBP / CHF), range 0.0 – 5.0."}
                   </span>
-                </span>
+                </button>
               </li>
               <li className="flex items-start gap-2">
                 <Pencil className="h-3 w-3 mt-0.5 text-primary shrink-0" />
-                <span>
-                  <span className="font-semibold">{de ? "Kapitalmarktannahmen (CMAs)" : "Capital Market Assumptions (CMAs)"}</span>
+                <button
+                  type="button"
+                  onClick={() => openAndScrollTo("cma")}
+                  className="text-left hover:underline focus:underline focus:outline-none rounded-sm"
+                  data-testid="editable-overview-link-cma"
+                >
+                  <span className="font-semibold text-primary">{de ? "Kapitalmarktannahmen (CMAs)" : "Capital Market Assumptions (CMAs)"}</span>
                   {" — "}
                   <span className="text-muted-foreground">
                     {de
                       ? "eigene erwartete Rendite μ und Volatilität σ je Anlageklasse."
                       : "custom expected return μ and volatility σ per asset class."}
                   </span>
-                </span>
+                </button>
               </li>
             </ul>
           </div>
         </CardContent>
       </Card>
 
-      <Accordion type="multiple" defaultValue={[]} className="space-y-3">
+      <JumpMenu blocks={tocBlocks} de={de} onJump={openAndScrollTo} />
+
+      <Accordion
+        type="multiple"
+        value={openSections}
+        onValueChange={setOpenSections}
+        className="space-y-3"
+      >
+        <SectionGroupHeading
+          id="settings"
+          tone="settings"
+          title={de ? "Deine Einstellungen" : "Your settings"}
+          description={de ? "Eingaben, die Sie hier live anpassen können — die Werte werden lokal gespeichert und überschreiben die Defaults überall in der App." : "Inputs you can edit live in this view — values are stored locally and override the defaults everywhere in the app."}
+        />
+
         <Section
-          value="rf"
-          icon={<Activity className="h-4 w-4" />}
-          title={de ? "Risikofreier Zinssatz (je Basiswährung)" : "Risk-Free Rate (per base currency)"}
+          value="etf-catalog"
+          icon={<Building2 className="h-4 w-4" />}
+          title={de ? "ETF-Katalog & Overrides" : "ETF Catalog & Overrides"}
           editable
-          editableLabel={de ? "Editierbar" : "Editable"}
+          editableLabel={de ? "Lokal überschreibbar" : "Locally overridable"}
         >
           <p className="text-sm text-muted-foreground">
             {de
-              ? "Pro Basiswährung ein eigener risikofreier Zinssatz, weil die kurzfristigen Geldmarkt-Renditen je Region deutlich auseinanderlaufen (USD T-Bills, EUR ESTR, GBP SONIA, CHF SARON). Der Wert der jeweiligen Basiswährung des Portfolios fließt in Sharpe-Ratio, Alpha und in den Sharpe-Tilt-Schritt der Aktienregion-Konstruktion ein."
-              : "One risk-free rate per base currency, because short-term money-market yields diverge meaningfully by region (USD T-Bills, EUR ESTR, GBP SONIA, CHF SARON). The value matching the portfolio's base currency feeds into Sharpe ratio, Alpha, and the Sharpe-tilt step of equity-region construction."}
+              ? "Reale UCITS-ETFs der Emittenten iShares, SPDR, Invesco, UBS und CoinShares mit ISIN, Tickern je Börse, Domizil, Replikationsmethode, Ausschüttungspolitik, Fondswährung, TER, Fondsvolumen, Auflagedatum und einer kurzen redaktionellen Auswahlbegründung."
+              : "Real UCITS ETFs from the issuers iShares, SPDR, Invesco, UBS and CoinShares with ISIN, per-exchange tickers, domicile, replication method, distribution policy, fund currency, TER, fund size, inception date and a short editorial rationale for why the fund was picked."}
           </p>
-          <div className="rounded-md border bg-muted/30 p-3 space-y-3" data-testid="rf-editor">
-            <div className="flex flex-wrap items-center gap-2">
-              <Activity className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-semibold">
-                {de ? "Risikofreie Zinssätze" : "Risk-free rates"}
-              </span>
-              <Badge variant="outline" className="text-[10px]">
-                {de ? "Bereich 0,00 – 20,00 %" : "range 0.00 – 20.00%"}
-              </Badge>
-            </div>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[120px]">{de ? "Währung" : "Currency"}</TableHead>
-                    <TableHead className="w-[180px]">{de ? "Wert (%)" : "Value (%)"}</TableHead>
-                    <TableHead className="text-right">{de ? "Default" : "Default"}</TableHead>
-                    <TableHead className="text-right">{de ? "Status" : "Status"}</TableHead>
-                    <TableHead className="text-right w-[120px]">{de ? "Aktion" : "Action"}</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {RF_CURRENCIES.map((c) => {
-                    const isOverride = rfOverrides[c] !== undefined;
-                    const def = RF_DEFAULTS[c];
-                    return (
-                      <TableRow key={`rf-${c}`}>
-                        <TableCell className="font-mono text-xs font-semibold">{c}</TableCell>
-                        <TableCell>
-                          <Input
-                            id={`rf-${c}`}
-                            type="text"
-                            inputMode="decimal"
-                            value={rfDraft[c]}
-                            onChange={(e) => setRfDraft((d) => ({ ...d, [c]: e.target.value }))}
-                            onBlur={() => applyRf(c)}
-                            onKeyDown={(e) => { if (e.key === "Enter") applyRf(c); }}
-                            className="h-8 w-28 font-mono text-sm"
-                            data-testid={`input-rf-${c}`}
-                          />
-                        </TableCell>
-                        <TableCell className="text-right text-xs text-muted-foreground font-mono">
-                          {(def * 100).toFixed(2)}%
-                        </TableCell>
-                        <TableCell className="text-right">
-                          {isOverride
-                            ? <Badge variant="default" className="text-[10px] px-1.5 py-0">{de ? "Eigene" : "Custom"}</Badge>
-                            : <Badge variant="outline" className="text-[10px] px-1.5 py-0">{de ? "Default" : "Default"}</Badge>}
-                        </TableCell>
-                        <TableCell className="text-right">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="h-7 px-2"
-                            onClick={() => resetRiskFreeRate(c)}
-                            disabled={!isOverride}
-                            data-testid={`button-rf-reset-${c}`}
-                          >
-                            <RotateCcw className="h-3 w-3 mr-1" />
-                            {de ? "Reset" : "Reset"}
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    );
-                  })}
-                </TableBody>
-              </Table>
-            </div>
-            <p className="text-[10px] text-muted-foreground leading-relaxed">
-              {de
-                ? "Tipp: Sie können hier die Rendite einer kurzlaufenden Staatsanleihe / eines Geldmarktsatzes Ihrer Basiswährung eingeben (z. B. SARON für CHF, ESTR/EZB für EUR, SONIA für GBP, T-Bills für USD)."
-                : "Tip: enter the yield of a short-term government bill / money-market rate in your base currency (e.g. SARON for CHF, ESTR/ECB for EUR, SONIA for GBP, T-Bills for USD)."}
-            </p>
-            <div className="flex items-center justify-end pt-1 border-t">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={resetAllRiskFreeRates}
-                disabled={Object.keys(rfOverrides).length === 0}
-                data-testid="button-rf-reset-all"
-              >
-                <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                {de ? "Alle auf Defaults zurücksetzen" : "Reset all to defaults"}
-              </Button>
-            </div>
-          </div>
-          <Alert>
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>{de ? "Bekannte Einschränkung" : "Known limitation"}</AlertTitle>
-            <AlertDescription className="text-xs leading-relaxed">
-              {de
-                ? "Der RF wird je Basiswährung gewählt, aber die Kapitalmarkt-Annahmen (μ je Anlageklasse, siehe Abschnitt CMAs) sind währungs-nominal und werden nicht in die Basiswährung umgerechnet. In der Praxis ist die FX-Translation kleiner als die Streuung zwischen den LTCMA-Anbietern; bei größeren RF-Spreads (z. B. CHF gegen USD) führt das jedoch zu leicht unterschiedlichen Sharpe-Werten als bei einer streng FX-konsistenten Berechnung."
-                : "RF is selected per base currency, but the capital-market assumptions (μ per asset class — see CMAs section) are currency-nominal and are not FX-translated into the base currency. In practice the FX translation is smaller than the dispersion across LTCMA providers; with larger RF spreads (e.g. CHF vs. USD) this still produces slightly different Sharpe values than a strictly FX-consistent calculation would."}
-            </AlertDescription>
-          </Alert>
-
-          {/* Why CHF Sharpe looks higher — frequent operator question. The
-              difference is mechanical (denominator of (r − rf)/σ shrinks
-              when rf is small), not a property of the portfolio. We show
-              the same r/σ across base currencies and let the rf column do
-              the explaining. Numbers match a typical 60/40 expectation set
-              and the Defaults shown in the table above. */}
-          <div
-            className="rounded-md border border-border bg-muted/20 p-3 space-y-3"
-            data-testid="rf-chf-sharpe-explainer"
-          >
-            <div className="flex items-center gap-2">
-              <Activity className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-semibold">
-                {de ? "Warum CHF-Strategien einen höheren Sharpe zeigen" : "Why CHF strategies show a higher Sharpe"}
-              </span>
-            </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              {de
-                ? "Die Sharpe-Ratio ist (r − rf) / σ. Die Asset-Renditen μ und Volatilitäten σ sind in dieser App währungs-nominal modelliert — sie verschieben sich zwischen Basiswährungen kaum. Was sich stark verschiebt, ist der Abzug rf: der CHF-Geldmarktsatz liegt mit ~0,50 % deutlich unter USD (~4,25 %) oder EUR (~2,50 %). Bei identischem Portfolio bleibt deshalb für CHF ein viel größerer Excess-Return übrig — und damit ein höherer Sharpe."
-                : "Sharpe is (r − rf) / σ. Asset returns μ and volatilities σ are modelled currency-nominal in this app — they barely shift between base currencies. What does shift sharply is the rf deduction: the CHF cash rate at ~0.50% sits well below USD (~4.25%) or EUR (~2.50%). For the same portfolio, the CHF view therefore has a much larger excess return left over — and thus a higher Sharpe."}
-            </p>
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-[80px]">{de ? "Basis" : "Base"}</TableHead>
-                    <TableHead className="text-right">{de ? "Portfolio-Rendite r" : "Portfolio return r"}</TableHead>
-                    <TableHead className="text-right">rf</TableHead>
-                    <TableHead className="text-right">{de ? "Excess (r − rf)" : "Excess (r − rf)"}</TableHead>
-                    <TableHead className="text-right">σ</TableHead>
-                    <TableHead className="text-right font-semibold">Sharpe</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody className="text-xs font-mono">
-                  <TableRow>
-                    <TableCell className="font-semibold">USD</TableCell>
-                    <TableCell className="text-right">5.50%</TableCell>
-                    <TableCell className="text-right">4.25%</TableCell>
-                    <TableCell className="text-right">1.25%</TableCell>
-                    <TableCell className="text-right">9.50%</TableCell>
-                    <TableCell className="text-right font-semibold">0.13</TableCell>
-                  </TableRow>
-                  <TableRow>
-                    <TableCell className="font-semibold">EUR</TableCell>
-                    <TableCell className="text-right">5.50%</TableCell>
-                    <TableCell className="text-right">2.50%</TableCell>
-                    <TableCell className="text-right">3.00%</TableCell>
-                    <TableCell className="text-right">9.50%</TableCell>
-                    <TableCell className="text-right font-semibold">0.32</TableCell>
-                  </TableRow>
-                  <TableRow className="bg-muted/40">
-                    <TableCell className="font-semibold">CHF</TableCell>
-                    <TableCell className="text-right">5.50%</TableCell>
-                    <TableCell className="text-right">0.50%</TableCell>
-                    <TableCell className="text-right">5.00%</TableCell>
-                    <TableCell className="text-right">9.50%</TableCell>
-                    <TableCell className="text-right font-semibold">0.53</TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-            </div>
-            <p className="text-[11px] text-muted-foreground leading-relaxed">
-              {de
-                ? <><span className="font-semibold text-foreground">Wichtig:</span> Das ist <span className="italic">kein</span> Free Lunch und kein Argument für eine bestimmte Basiswährung. Die Sharpe-Ratio misst, was eine Anlage relativ zur risikolosen Cash-Alternative <span className="italic">in derselben Währung</span> liefert. Ein CHF-Investor hat eine niedrigere Cash-Hürde — also wirkt jede Risiko-Anlage gegen diese Hürde besser. Eine CHF-Sharpe und eine USD-Sharpe sind nicht direkt vergleichbar; sie bewerten unterschiedliche Spielfelder.</>
-                : <><span className="font-semibold text-foreground">Important:</span> This is <span className="italic">not</span> a free lunch and not an argument for any specific base currency. Sharpe measures what an investment delivers relative to the risk-free cash alternative <span className="italic">in the same currency</span>. A CHF investor has a lower cash hurdle, so any risk asset looks better against that hurdle. A CHF Sharpe and a USD Sharpe are not directly comparable; they grade different fields.</>}
-            </p>
-            <p className="text-[11px] text-muted-foreground leading-relaxed">
-              {de
-                ? <><span className="font-semibold text-foreground">Schneller Selbsttest:</span> Setzen Sie oben in der Tabelle den CHF-RF testweise auf 4,25 % (US-Niveau) und beobachten Sie, wie der CHF-Sharpe in der Build-Kachel auf das Niveau von USD zusammenfällt. Das beweist: Der Unterschied stammt vollständig aus dem Cash-Diskont, nicht aus einer Eigenschaft der Allokation.</>
-                : <><span className="font-semibold text-foreground">Quick self-test:</span> in the table above, temporarily set the CHF RF to 4.25% (US level) and watch the CHF Sharpe in the Build tile collapse to the USD level. This proves the gap comes entirely from the cash discount, not from any property of the allocation.</>}
-            </p>
-          </div>
-        </Section>
-
-        <Section
-          value="data-refresh"
-          icon={<RefreshCw className="h-4 w-4" />}
-          title={de ? "Datenpflege & Aktualität (Snapshot-Build)" : "Data Refresh & Freshness (snapshot build)"}
-        >
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            {de
-              ? "Wie und wie oft die ETF-Stammdaten aktualisiert werden — und welche Werte hand-kuratiert bleiben."
-              : "How and how often the ETF reference data is refreshed — and which values stay hand-curated."}
-          </p>
-          <p className="text-sm text-muted-foreground leading-relaxed">
-            {de
-              ? "Die App ist bewusst frontend-only und ruft zur Laufzeit keine fremden Server. Stattdessen aktualisieren drei automatische Snapshot-Builds die ETF-Stammdaten in unterschiedlicher Frequenz, je nachdem wie oft sich der jeweilige Wert in der Praxis bewegt. Ein Skript holt die Daten von justETF, schreibt sie als JSON ins Repository und der nächste Build backt den frischen Stand ins Bundle — im Browser des Nutzers wird also weiterhin keine Live-Verbindung benötigt, er bekommt aber stets die zuletzt geprüften Werte."
-              : "The app is intentionally frontend-only and makes no remote calls at runtime. Three automatic snapshot builds refresh the ETF reference data instead, each at a different cadence depending on how often the underlying value actually moves in practice. A script pulls the data from justETF, writes it as JSON into the repository, and the next build bakes the fresh snapshot into the bundle — the user's browser still never makes a live call, but always sees the most recently verified values."}
-          </p>
-          <div className="rounded-md border bg-muted/30 p-3 text-xs leading-relaxed space-y-2">
-            <div><span className="font-semibold">{de ? "Quelle" : "Source"}:</span> justetf.com (public ETF profile pages)</div>
-            <div className="border-t pt-2">
-              <div className="font-semibold mb-0.5">{de ? "1) Wöchentlich — Stammdaten" : "1) Weekly — core fund metadata"}</div>
-              <div>{de ? "Sonntags 03:00 UTC · " : "Sundays 03:00 UTC · "}<code className="font-mono">refresh-justetf.mjs --mode=core</code> · <code className="font-mono">.github/workflows/refresh-data.yml</code></div>
-              <div className="text-muted-foreground">
-                {de
-                  ? "Aktualisierte Felder: TER (Basispunkte), Fondsgröße (Mio. EUR), Auflagedatum (ISO), Ertragsverwendung (thesaurierend / ausschüttend), Replikationsmethode (physisch / physisch (Sampling) / synthetisch). Schreibt nach src/data/etfs.overrides.json."
-                  : "Refreshed fields: TER (basis points), fund size (EUR millions), inception date (ISO), distribution policy (accumulating / distributing), replication method (physical / physical (sampled) / synthetic). Writes to src/data/etfs.overrides.json."}
-              </div>
-            </div>
-            <div className="border-t pt-2">
-              <div className="font-semibold mb-0.5">{de ? "2) Nächtlich — Notierungen je Börse" : "2) Nightly — per-exchange listings"}</div>
-              <div>{de ? "Täglich 02:00 UTC · " : "Daily 02:00 UTC · "}<code className="font-mono">refresh-justetf.mjs --mode=listings</code> · <code className="font-mono">.github/workflows/refresh-listings.yml</code></div>
-              <div className="text-muted-foreground">
-                {de
-                  ? "Aktualisierter Wert: Ticker-Map je Börse (LSE / XETRA / SIX / Euronext). Bei mehreren Share-Klassen pro Börse wird die Notierung in der primären Fondswährung bevorzugt (z. B. an LSE der USD-Ticker statt GBX). Schreibt ebenfalls nach src/data/etfs.overrides.json."
-                  : "Refreshed value: per-exchange ticker map (LSE / XETRA / SIX / Euronext). When several share classes trade on the same venue, the listing in the fund's primary currency is preferred (e.g. on LSE the USD ticker rather than GBX). Also writes to src/data/etfs.overrides.json."}
-              </div>
-            </div>
-            <div className="border-t pt-2">
-              <div className="font-semibold mb-0.5">{de ? "3) Monatlich — Top-10 Holdings" : "3) Monthly — top-10 holdings"}</div>
-              <div>{de ? "Am 1. des Monats, 04:00 UTC · " : "1st of month, 04:00 UTC · "}<code className="font-mono">refresh-lookthrough.mjs</code> · <code className="font-mono">.github/workflows/refresh-lookthrough.yml</code></div>
-              <div className="text-muted-foreground">
-                {de
-                  ? "Aktualisierter Wert: Top-10 Einzelwerte mit Gewichten je Aktien-ETF (Name, Anteil in %), plus eine ISIN-genaue Stichtag-Markierung pro Datensatz. Schreibt nach src/data/lookthrough.overrides.json. Nicht-Aktien-ETFs (Gold, Krypto) werden übersprungen."
-                  : "Refreshed value: top-10 holdings with weights for each equity ETF (name, weight in %), plus a per-ISIN as-of stamp on every record. Writes to src/data/lookthrough.overrides.json. Non-equity ETFs (gold, crypto) are skipped."}
-              </div>
-            </div>
-            <div className="border-t pt-2">
-              <div className="font-semibold mb-0.5">{de ? "4) Monatlich — Länder-, Sektor- & Währungs-Aufteilung (Look-Through)" : "4) Monthly — country, sector & currency breakdown (look-through)"}</div>
-              <div>{de ? "Am 1. des Monats, 04:00 UTC · " : "1st of month, 04:00 UTC · "}<code className="font-mono">refresh-lookthrough.mjs</code> · <code className="font-mono">.github/workflows/refresh-lookthrough.yml</code></div>
-              <div className="text-muted-foreground">
-                {de
-                  ? "Aktualisierte Werte je Aktien-ETF: Länder-Aufteilung, Sektor-Aufteilung und Währungs-Aufteilung, plus ein gemeinsamer ISIN-genauer Stichtag (breakdownsAsOf). Länder & Sektoren werden direkt aus den justETF-Tabellen geholt — zuerst aus dem statischen Profil-HTML (das genügt bei thematischen / Einzel-Sektor-ETFs); sobald justETF einen „Show more“-Link rendert, zusätzlich aus dem Wicket-Ajax-Endpoint loadMoreCountries / loadMoreSectors mit dem Session-Cookie aus dem Profilseiten-GET, damit die volle Tabelle erfasst wird. Die Währungs-Aufteilung wird im Refresh-Skript aus der frisch geholten Länder-Aufteilung über eine Land→Lokalwährungs-Tabelle umgebucht (justETF veröffentlicht keine eigene Währungstabelle); für währungsgesicherte Anteilsklassen (HEDGED_ISINS) bleibt die kuratierte Hedge-Währungskarte stehen. Schreibt in dieselbe src/data/lookthrough.overrides.json wie die Top-10-Holdings."
-                  : "Refreshed values per equity ETF: country breakdown, sector breakdown and currency breakdown, sharing a single per-ISIN as-of stamp (breakdownsAsOf). Country and sector are scraped straight from the justETF tables — the static profile HTML first (sufficient for thematic / single-sector ETFs); when justETF renders a “Show more” link, the Wicket Ajax loadMoreCountries / loadMoreSectors endpoint is also called using the session cookie captured from the profile-page GET, so the full table is captured. The currency breakdown is re-bucketed inside the refresh script from the just-refreshed country map via a country → local-listing-currency table (justETF doesn't publish a per-ETF currency table). For currency-hedged share classes (HEDGED_ISINS) the curated hedge-currency map is left in place. Writes into the same src/data/lookthrough.overrides.json as the top-10 holdings."}
-              </div>
-            </div>
-          </div>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            {de
-              ? "Hand-kuratiert (von keinem Snapshot überschrieben) bleiben: Default-Börse pro ETF, redaktioneller Kommentar, sowie die Währungs-Aufteilung der währungsgesicherten Anteilsklassen (HEDGED_ISINS) — dort entspricht die FX-Belastung nach Hedging der Anteilsklassen-Währung, nicht dem Länder-Mix. Bei nicht in der Refresh-Liste enthaltenen ISINs (z. B. Gold/Krypto, Anleihen-ETFs ohne Aktien-Look-Through) gilt der Stichtag Q4 2024."
-              : "Curated by hand (not overwritten by any snapshot): default exchange per ETF, editorial comment, and the currency breakdown for the currency-hedged share classes (HEDGED_ISINS) — there the post-hedging FX exposure is the share-class currency, not the underlying country mix. For ISINs that aren't in the refresh list (e.g. gold / crypto, bond ETFs without equity look-through) the Q4 2024 reference date applies."}
-          </p>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            {de
-              ? "Auch nicht automatisiert: die Kapitalmarkt-Annahmen (langfristige erwartete Renditen, Volatilitäten, Korrelationen) und die Stress-Szenarien. Diese stammen aus den öffentlich publizierten Long-Term Capital Market Assumptions großer Asset-Manager und werden bewusst stabil gehalten, damit Vergleichsanalysen über die Zeit konsistent bleiben."
-              : "Also not automated: the capital market assumptions (long-term expected returns, volatilities, correlations) and the stress scenarios. These are drawn from the publicly published Long-Term Capital Market Assumptions of major asset managers and are deliberately kept stable so that comparison analyses stay consistent over time."}
-          </p>
-          <p className="text-xs text-muted-foreground leading-relaxed">
-            {de
-              ? "Bei Standardauslieferung sind beide Snapshot-Dateien leer — die App nutzt dann die im Code hinterlegten Default-Werte. Sobald die Refresh-Jobs erstmals liefen, werden die geholten Felder per ISIN auf die Default-Werte gelegt; alles andere bleibt deterministisch. Schlägt ein einzelner Scrape-Lauf fehl (z. B. justETF ändert das Markup), bleibt der zuletzt erfolgreiche Wert stehen — es wird kein Müll geschrieben."
-              : "On a fresh checkout both snapshot files are empty — the app then uses the in-code default values. Once the refresh jobs have run at least once, the fetched fields override the defaults per ISIN; everything else stays deterministic. If a single scrape run fails (e.g. justETF changes its markup), the last successful value is preserved — no junk is ever written."}
-          </p>
-        </Section>
-
-        <Section
-          value="construction"
-          icon={<Layers className="h-4 w-4" />}
-          title={de ? "Portfolio-Konstruktion" : "Portfolio Construction"}
-          editable
-          editableLabel={de ? "Home-Bias editierbar" : "Home-bias editable"}
-        >
           <p className="text-sm text-muted-foreground">
             {de
-              ? "Die regionalen Aktiengewichte sind nicht hartkodiert. Basis ist das globale Marktportfolio (annähernd MSCI-ACWI-Anteile) — die kanonische 'neutrale' Allokation der modernen Portfoliotheorie. Darauf werden dokumentierte Aktiv-Tilts angewandt: Sharpe-Aufschlag, Heimatmarkt-Bias, Horizont- und Themen-Tilt, sowie eine Konzentrationsobergrenze."
-              : "Regional equity weights are not hard-coded. The baseline is the global market portfolio (approximate MSCI ACWI shares) — the canonical 'neutral' allocation in modern portfolio theory. Documented active tilts are then applied: Sharpe overlay, home-bias, horizon and theme tilts, and a concentration cap."}
+              ? "Hybrider Pflegemodus: Werte, die sich häufig bewegen, werden automatisch aus justETF aktualisiert (TER, AUM, Auflagedatum, Ausschüttung, Replikation – wöchentlich; Listings je Börse – täglich; Look-Through-Daten und Top-10-Holdings – monatlich). Werte, die redaktionelle Entscheidungen darstellen (Fondsauswahl je Anlageklasse, Standardbörse, Auswahlbegründung, Hedge-Währung), bleiben in Code gepflegt. Details siehe Abschnitt „Datenpflege & Aktualität (Snapshot-Build)“ oben."
+              : "Hybrid maintenance mode: values that move regularly are refreshed automatically from justETF (TER, AUM, inception, distribution and replication — weekly; per-exchange listings — daily; look-through breakdowns and top-10 holdings — monthly). Values that represent editorial decisions (which fund to use per asset class, the default exchange, the selection rationale, and the hedge-currency mapping) stay curated in code. See the \"Data Refresh & Freshness (snapshot build)\" section above for the full schedule."}
           </p>
-          <div className="rounded-md border overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{de ? "Region" : "Region"}</TableHead>
-                  <TableHead className="text-right">{de ? "Anker (USD/EUR)" : "Anchor (USD/EUR)"}</TableHead>
-                  <TableHead className="text-right">{de ? "Anker (GBP)" : "Anchor (GBP)"}</TableHead>
-                  <TableHead className="text-right">{de ? "Anker (CHF)" : "Anchor (CHF)"}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow><TableCell className="text-xs">USA</TableCell><TableCell className="text-right font-mono text-xs">60%</TableCell><TableCell className="text-right font-mono text-xs">60%</TableCell><TableCell className="text-right font-mono text-xs">60%</TableCell></TableRow>
-                <TableRow><TableCell className="text-xs">{de ? "Europa" : "Europe"}</TableCell><TableCell className="text-right font-mono text-xs">13%</TableCell><TableCell className="text-right font-mono text-xs">10%</TableCell><TableCell className="text-right font-mono text-xs">10%</TableCell></TableRow>
-                <TableRow><TableCell className="text-xs">{de ? "Vereinigtes Königreich" : "United Kingdom"}</TableCell><TableCell className="text-right font-mono text-xs">—</TableCell><TableCell className="text-right font-mono text-xs">4%</TableCell><TableCell className="text-right font-mono text-xs">—</TableCell></TableRow>
-                <TableRow><TableCell className="text-xs">{de ? "Schweiz" : "Switzerland"}</TableCell><TableCell className="text-right font-mono text-xs">—</TableCell><TableCell className="text-right font-mono text-xs">—</TableCell><TableCell className="text-right font-mono text-xs">4%</TableCell></TableRow>
-                <TableRow><TableCell className="text-xs">Japan</TableCell><TableCell className="text-right font-mono text-xs">5%</TableCell><TableCell className="text-right font-mono text-xs">5%</TableCell><TableCell className="text-right font-mono text-xs">5%</TableCell></TableRow>
-                <TableRow><TableCell className="text-xs">{de ? "Schwellenländer" : "Emerging Markets"}</TableCell><TableCell className="text-right font-mono text-xs">11%</TableCell><TableCell className="text-right font-mono text-xs">11%</TableCell><TableCell className="text-right font-mono text-xs">11%</TableCell></TableRow>
-              </TableBody>
-            </Table>
+          <div className="text-xs text-muted-foreground space-y-1">
+            <div>{de ? "Quelle" : "Source"}: {de ? "Offizielle Emittenten-Factsheets (für die kuratierten Felder) und justETF (für alle automatisch aktualisierten Felder; öffentlich, indikativ)." : "Issuer official factsheets (for the curated fields) and justETF (for every automatically refreshed field; public, indicative)."}</div>
+            <div className="text-amber-700 dark:text-amber-400">
+              {de
+                ? "Wichtig: Auch die automatischen Snapshots sind nur so frisch wie der letzte erfolgreiche Refresh-Lauf. Vor jedem Kauf bitte die Live-Daten beim Emittenten oder Broker prüfen — insbesondere TER, Listings und Verfügbarkeit in Ihrer Jurisdiktion."
+                : "Important: even the automatic snapshots are only as fresh as the last successful refresh run. Always verify live data with the issuer or broker before any purchase — especially TER, listings and availability in your jurisdiction."}
+            </div>
           </div>
-          <ol className="text-sm space-y-2 list-decimal pl-5">
-            <li>
-              <span className="font-semibold">{de ? "Marktkapitalisierungs-Anker" : "Market-cap anchor"}</span>{" — "}
-              {de
-                ? "Ausgangsgewichte folgen dem globalen Marktportfolio (MSCI-ACWI-Proxy oben). In CHF- und GBP-Portfolios wird der heimische Markt (Schweiz bzw. Vereinigtes Königreich) als eigener Eimer aus Europa herausgelöst."
-                : "Starting weights follow the global market portfolio (MSCI ACWI proxy above). For CHF and GBP portfolios, the home market (Switzerland or United Kingdom respectively) is carved out of Europe into its own bucket."}
-            </li>
-            <li>
-              <span className="font-semibold">{de ? "Sharpe-Tilt (gedämpft)" : "Sharpe tilt (damped)"}</span>{" — "}
-              {de
-                ? "Multiplikator (Sharpe / 0,25)^0,4 begünstigt Märkte mit besserer risikoadjustierter Renditeerwartung, ohne die Anker-Allokation auszuhebeln."
-                : "Multiplier (Sharpe / 0.25)^0.4 favours markets with better risk-adjusted expected return without overriding the anchor allocation."}
-            </li>
-            <li>
-              <span className="font-semibold">{de ? "Heimatmarkt-Bias" : "Home-bias overlay"}</span>{" — "}
-              {de
-                ? "Verstärkt die heimische Aktien-Region je Basiswährung. Multiplikatoren in der Tabelle unten, je Währung live editierbar; Änderungen wirken beim nächsten Klick auf „Portfolio generieren“."
-                : "Amplifies the home equity region per base currency. Multipliers in the table below, live-editable per currency; changes take effect the next time you click \"Generate Portfolio\"."}
-            </li>
-            <li>
-              <span className="font-semibold">{de ? "Horizont- & Themen-Tilts" : "Horizon & theme tilts"}</span>{" — "}
-              {de
-                ? "Lange Anlagehorizonte erhöhen EM, das Nachhaltigkeits-Thema dämpft USA (exakte Faktoren in der Tabelle unten)."
-                : "Long horizons lift EM, the sustainability theme dampens USA (exact factors in the table below)."}
-            </li>
-            <li>
-              <span className="font-semibold">{de ? "Konzentrationsgrenze" : "Concentration cap"}</span>{" — "}
-              {de
-                ? "Pro Aktien-Region greift eine Obergrenze; Überschuss wird proportional auf die übrigen Regionen verteilt."
-                : "A per-region cap applies on the equity sleeve; excess is redistributed proportionally to the other regions."}
-            </li>
-          </ol>
-          <Formula
-            label={de ? "Roh-Gewicht je Region" : "Raw weight per region"}
-            expr="rawᵢ = anchorᵢ · ((Sharpeᵢ/0.25)^0.4) · home · horizon · theme  →  normalize  →  cap at 65%"
-          />
-          <div className="rounded-md border overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{de ? "Overlay-Konstante" : "Overlay constant"}</TableHead>
-                  <TableHead className="text-right">{de ? "Wert" : "Value"}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {HB_CURRENCIES.map((c) => {
-                  const live = resolvedHomeBias(c);
-                  const isOverride = hbOverrides[c] !== undefined;
-                  const region = de ? HB_REGION_LABEL_DE[c] : HB_REGION_LABEL[c];
-                  return (
-                    <TableRow key={`hb-${c}`}>
-                      <TableCell className="text-xs">
-                        {de ? "Home-Bias" : "Home tilt"} {c} → {region}
-                        {isOverride && (
-                          <Badge variant="default" className="ml-2 text-[10px] px-1.5 py-0">
-                            {de ? "Eigene" : "Custom"}
-                          </Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right font-mono text-xs">× {live.toFixed(2)}</TableCell>
-                    </TableRow>
-                  );
-                })}
-                <TableRow><TableCell className="text-xs">Long-horizon EM tilt (h ≥ 10)</TableCell><TableCell className="text-right font-mono text-xs">× 1.3</TableCell></TableRow>
-                <TableRow><TableCell className="text-xs">Sustainability theme on USA</TableCell><TableCell className="text-right font-mono text-xs">× 0.85</TableCell></TableRow>
-                <TableRow><TableCell className="text-xs">{de ? "Konzentrationsgrenze pro Region" : "Concentration cap per region"}</TableCell><TableCell className="text-right font-mono text-xs">≤ 65%</TableCell></TableRow>
-                <TableRow>
-                  <TableCell className="text-xs">
-                    {de ? "Risikofreier Zins (Sharpe-Tilt, je Basiswährung)" : "Risk-free rate (Sharpe tilt, per base currency)"}
-                    <div className="text-[10px] text-muted-foreground font-normal mt-0.5">
-                      {de
-                        ? "Verwendet je Basiswährung denselben oben editierbaren RF wie die Report-Kennzahlen. Eine Änderung verschiebt die Bucket-Gewichte beim nächsten Klick auf „Portfolio generieren\u201C."
-                        : "Uses, per base currency, the same editable RF as the report metrics. Changing it shifts the bucket weights on the next \"Generate Portfolio\" click."}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-xs align-top">
-                    {RF_CURRENCIES.map((c) => (
-                      <div key={`construction-rf-${c}`}>{c} {(rfRates[c] * 100).toFixed(2)}%</div>
-                    ))}
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </div>
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-muted-foreground pt-2">
             {de
-              ? "Defensiv-Sleeve (Cash & Anleihen), Satelliten-Sleeves (REIT 6 %, Krypto 1–3 %, Thematik 3–5 %, Gold ≤ 5 %) und Risikoobergrenzen sind weiterhin regelbasiert wie im übrigen Methodik-Dokument beschrieben."
-              : "The defensive sleeve (cash & bonds), satellite sleeves (REIT 6%, Crypto 1–3%, Thematic 3–5%, Gold ≤ 5%) and risk caps remain rule-based as documented in the rest of this methodology."}
+              ? "Vollständige Übersicht aller Allokations-Buckets der Engine, gruppiert nach Anlageklasse. Pro Bucket zeigt der Baum den aktuell hinterlegten ETF (Name + Katalog-Schlüssel). Über „Ersetzen“ können Sie eine eigene ISIN eintragen, mit den Live-Daten von justETF vergleichen und den Bucket lokal in Ihrem Browser umstellen — die Empfehlungs-Liste, die Gebühren-Berechnung (TER) und der Look-Through-Tab übernehmen den Wechsel sofort. Die Monte-Carlo-Simulation rechnet bewusst auf Asset-Class-Ebene (μ/σ aus den CMA-Annahmen je Bucket) und ändert sich daher nicht, wenn Sie innerhalb desselben Buckets einen anderen ETF wählen."
+              : "Full view of every allocation bucket the engine knows about, grouped by asset class. Each leaf shows the currently selected ETF (name + catalog key). The Override button lets you type a new ISIN, compare it side-by-side with the live justETF data and swap the bucket locally in your browser — the recommendation list, the fee calculation (TER) and the look-through tab reflect the change immediately. The Monte Carlo simulation deliberately runs at the asset-class level (μ/σ from the CMA assumptions per bucket), so it does not move when you swap one ETF for another within the same bucket."}
           </p>
-
-          {/* ---------- Live home-bias multiplier editor ---------- */}
-          <div className="rounded-md border bg-muted/30 p-3 space-y-3" data-testid="home-bias-editor">
+          <div className="rounded-md border bg-muted/30 p-3 space-y-3" data-testid="etf-buckets-panel">
             <div className="flex flex-wrap items-center gap-2">
-              <Layers className="h-4 w-4 text-muted-foreground" />
+              <Replace className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm font-semibold">
-                {de ? "Home-Bias-Multiplikatoren" : "Home-bias multipliers"}
+                {de ? "Bucket-Baum" : "Bucket tree"}
               </span>
-              <Badge variant="outline" className="text-[10px]">
-                {de ? "Bereich 0,0 – 5,0" : "range 0.0 – 5.0"}
-              </Badge>
+              {etfOverrideCount > 0 && (
+                <Badge variant="default" className="text-[10px]" data-testid="badge-override-count">
+                  {etfOverrideCount} {de ? "Override(s) aktiv" : "override(s) active"}
+                </Badge>
+              )}
+              <div className="ml-auto flex items-center gap-2">
+                <BucketTreeBulkToggle
+                  groups={bucketGroups}
+                  expanded={bucketsExpanded}
+                  onChange={setBucketsExpanded}
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => clearAllETFOverrides()}
+                  disabled={etfOverrideCount === 0}
+                  data-testid="button-reset-all-overrides"
+                >
+                  <RotateCcw className="h-3 w-3 mr-1" />
+                  {de ? "Alle zurücksetzen" : "Reset all"}
+                </Button>
+              </div>
             </div>
             <p className="text-xs text-muted-foreground">
               {de
-                ? "Pro Basiswährung den Verstärkungsfaktor auf die heimische Aktien-Region setzen. Änderungen wirken beim nächsten Klick auf „Portfolio generieren“."
-                : "Set the amplification factor on the home equity region per base currency. Changes take effect the next time you click \"Generate Portfolio\"."}
+                ? "Vor jedem realen Kauf bitte ISIN, TER und Verfügbarkeit beim Broker verifizieren."
+                : "Always re-verify ISIN, TER and broker availability before any real-world purchase."}
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
-              {HB_CURRENCIES.map((c) => {
-                const isOverride = hbOverrides[c] !== undefined;
-                const region = de ? HB_REGION_LABEL_DE[c] : HB_REGION_LABEL[c];
-                const def = HOME_BIAS_DEFAULTS[c];
-                return (
-                  <div key={`hb-edit-${c}`} className="space-y-1">
-                    <Label htmlFor={`hb-${c}`} className="text-xs flex items-center gap-1.5">
-                      <span className="font-mono">{c}</span>
-                      <span className="text-muted-foreground">→ {region}</span>
-                      {isOverride && (
-                        <Badge variant="default" className="text-[10px] px-1.5 py-0">
-                          {de ? "Eigene" : "Custom"}
-                        </Badge>
-                      )}
-                    </Label>
-                    <div className="flex items-center gap-1">
-                      <Input
-                        id={`hb-${c}`}
-                        type="text"
-                        inputMode="decimal"
-                        value={hbDraft[c]}
-                        onChange={(e) => setHbDraft((d) => ({ ...d, [c]: e.target.value }))}
-                        className="h-8 font-mono text-sm flex-1"
-                        data-testid={`input-home-bias-${c}`}
-                      />
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="h-8 w-8 p-0 shrink-0"
-                        onClick={() => resetHomeBiasOverride(c)}
-                        disabled={!isOverride}
-                        title={de ? `Auf Default × ${def.toFixed(1)} zurücksetzen` : `Reset to default × ${def.toFixed(1)}`}
-                        aria-label={de ? `Home-Bias ${c} auf Default zurücksetzen` : `Reset home bias ${c} to default`}
-                        data-testid={`button-home-bias-reset-${c}`}
-                      >
-                        <RotateCcw className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                    <div className="text-[10px] text-muted-foreground">
-                      {de ? "Default" : "default"} × {def.toFixed(1)}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button size="sm" onClick={applyHbDraft} data-testid="button-home-bias-apply">
-                {de ? "Übernehmen" : "Apply"}
-              </Button>
-              <Button size="sm" variant="outline" onClick={resetHb} data-testid="button-home-bias-reset">
-                <RotateCcw className="h-3.5 w-3.5 mr-1" />
-                {de ? "Auf Defaults zurücksetzen" : "Reset to defaults"}
-              </Button>
-              <span className="text-[10px] text-muted-foreground">
-                {de
-                  ? "Hinweis: Wirkung erst nach erneutem „Portfolio generieren\"."
-                  : "Note: takes effect after re-running \"Generate Portfolio\"."}
-              </span>
-            </div>
+            <BucketTree
+              groups={bucketGroups}
+              expanded={bucketsExpanded}
+              onToggleClass={(ac) =>
+                setBucketsExpanded((prev) => {
+                  const next = new Set(prev);
+                  if (next.has(ac)) {
+                    next.delete(ac);
+                  } else {
+                    next.add(ac);
+                  }
+                  return next;
+                })
+              }
+              renderLeafBadge={(leaf) =>
+                etfOverrides[leaf.key] ? (
+                  <Badge
+                    variant="default"
+                    className="ml-2 text-[10px] px-1.5 py-0"
+                    data-testid={`badge-overridden-${leaf.key}`}
+                  >
+                    {de ? "Eigene" : "Overridden"}
+                  </Badge>
+                ) : null
+              }
+              renderLeafAction={(leaf) => (
+                <span className="flex items-center gap-1">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-6 px-2 text-[11px]"
+                    onClick={() => openOverrideDialog(leaf)}
+                    data-testid={`button-override-${leaf.key}`}
+                  >
+                    {de ? "Ersetzen" : "Override"}
+                  </Button>
+                  {etfOverrides[leaf.key] && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 px-2 text-[11px]"
+                      onClick={() => clearETFOverride(leaf.key)}
+                      data-testid={`button-reset-${leaf.key}`}
+                    >
+                      <RotateCcw className="h-3 w-3" />
+                    </Button>
+                  )}
+                </span>
+              )}
+            />
           </div>
-        </Section>
 
+            <Accordion type="single" collapsible>
+              <AccordionItem value="etf-catalog-data-refresh">
+                <AccordionTrigger className="text-xs" data-testid="etf-catalog-data-refresh-trigger">
+                  <span className="flex items-center gap-2">
+                    <RefreshCw className="h-3.5 w-3.5" />
+                    {de ? "Datenpflege & Aktualität (Snapshot-Build)" : "Data Refresh & Freshness (snapshot build)"}
+                  </span>
+                </AccordionTrigger>
+                <AccordionContent className="space-y-4 pt-2">
+                <p className="text-sm text-muted-foreground leading-relaxed">
+                {de
+                  ? "Wie und wie oft die ETF-Stammdaten aktualisiert werden — und welche Werte hand-kuratiert bleiben."
+                  : "How and how often the ETF reference data is refreshed — and which values stay hand-curated."}
+              </p>
+              <p className="text-sm text-muted-foreground leading-relaxed">
+                {de
+                  ? "Die App ist bewusst frontend-only und ruft zur Laufzeit keine fremden Server. Stattdessen aktualisieren drei automatische Snapshot-Builds die ETF-Stammdaten in unterschiedlicher Frequenz, je nachdem wie oft sich der jeweilige Wert in der Praxis bewegt. Ein Skript holt die Daten von justETF, schreibt sie als JSON ins Repository und der nächste Build backt den frischen Stand ins Bundle — im Browser des Nutzers wird also weiterhin keine Live-Verbindung benötigt, er bekommt aber stets die zuletzt geprüften Werte."
+                  : "The app is intentionally frontend-only and makes no remote calls at runtime. Three automatic snapshot builds refresh the ETF reference data instead, each at a different cadence depending on how often the underlying value actually moves in practice. A script pulls the data from justETF, writes it as JSON into the repository, and the next build bakes the fresh snapshot into the bundle — the user's browser still never makes a live call, but always sees the most recently verified values."}
+              </p>
+              <div className="rounded-md border bg-muted/30 p-3 text-xs leading-relaxed space-y-2">
+                <div><span className="font-semibold">{de ? "Quelle" : "Source"}:</span> justetf.com (public ETF profile pages)</div>
+                <div className="border-t pt-2">
+                  <div className="font-semibold mb-0.5">{de ? "1) Wöchentlich — Stammdaten" : "1) Weekly — core fund metadata"}</div>
+                  <div>{de ? "Sonntags 03:00 UTC · " : "Sundays 03:00 UTC · "}<code className="font-mono">refresh-justetf.mjs --mode=core</code> · <code className="font-mono">.github/workflows/refresh-data.yml</code></div>
+                  <div className="text-muted-foreground">
+                    {de
+                      ? "Aktualisierte Felder: TER (Basispunkte), Fondsgröße (Mio. EUR), Auflagedatum (ISO), Ertragsverwendung (thesaurierend / ausschüttend), Replikationsmethode (physisch / physisch (Sampling) / synthetisch). Schreibt nach src/data/etfs.overrides.json."
+                      : "Refreshed fields: TER (basis points), fund size (EUR millions), inception date (ISO), distribution policy (accumulating / distributing), replication method (physical / physical (sampled) / synthetic). Writes to src/data/etfs.overrides.json."}
+                  </div>
+                </div>
+                <div className="border-t pt-2">
+                  <div className="font-semibold mb-0.5">{de ? "2) Nächtlich — Notierungen je Börse" : "2) Nightly — per-exchange listings"}</div>
+                  <div>{de ? "Täglich 02:00 UTC · " : "Daily 02:00 UTC · "}<code className="font-mono">refresh-justetf.mjs --mode=listings</code> · <code className="font-mono">.github/workflows/refresh-listings.yml</code></div>
+                  <div className="text-muted-foreground">
+                    {de
+                      ? "Aktualisierter Wert: Ticker-Map je Börse (LSE / XETRA / SIX / Euronext). Bei mehreren Share-Klassen pro Börse wird die Notierung in der primären Fondswährung bevorzugt (z. B. an LSE der USD-Ticker statt GBX). Schreibt ebenfalls nach src/data/etfs.overrides.json."
+                      : "Refreshed value: per-exchange ticker map (LSE / XETRA / SIX / Euronext). When several share classes trade on the same venue, the listing in the fund's primary currency is preferred (e.g. on LSE the USD ticker rather than GBX). Also writes to src/data/etfs.overrides.json."}
+                  </div>
+                </div>
+                <div className="border-t pt-2">
+                  <div className="font-semibold mb-0.5">{de ? "3) Monatlich — Top-10 Holdings" : "3) Monthly — top-10 holdings"}</div>
+                  <div>{de ? "Am 1. des Monats, 04:00 UTC · " : "1st of month, 04:00 UTC · "}<code className="font-mono">refresh-lookthrough.mjs</code> · <code className="font-mono">.github/workflows/refresh-lookthrough.yml</code></div>
+                  <div className="text-muted-foreground">
+                    {de
+                      ? "Aktualisierter Wert: Top-10 Einzelwerte mit Gewichten je Aktien-ETF (Name, Anteil in %), plus eine ISIN-genaue Stichtag-Markierung pro Datensatz. Schreibt nach src/data/lookthrough.overrides.json. Nicht-Aktien-ETFs (Gold, Krypto) werden übersprungen."
+                      : "Refreshed value: top-10 holdings with weights for each equity ETF (name, weight in %), plus a per-ISIN as-of stamp on every record. Writes to src/data/lookthrough.overrides.json. Non-equity ETFs (gold, crypto) are skipped."}
+                  </div>
+                </div>
+                <div className="border-t pt-2">
+                  <div className="font-semibold mb-0.5">{de ? "4) Monatlich — Länder-, Sektor- & Währungs-Aufteilung (Look-Through)" : "4) Monthly — country, sector & currency breakdown (look-through)"}</div>
+                  <div>{de ? "Am 1. des Monats, 04:00 UTC · " : "1st of month, 04:00 UTC · "}<code className="font-mono">refresh-lookthrough.mjs</code> · <code className="font-mono">.github/workflows/refresh-lookthrough.yml</code></div>
+                  <div className="text-muted-foreground">
+                    {de
+                      ? "Aktualisierte Werte je Aktien-ETF: Länder-Aufteilung, Sektor-Aufteilung und Währungs-Aufteilung, plus ein gemeinsamer ISIN-genauer Stichtag (breakdownsAsOf). Länder & Sektoren werden direkt aus den justETF-Tabellen geholt — zuerst aus dem statischen Profil-HTML (das genügt bei thematischen / Einzel-Sektor-ETFs); sobald justETF einen „Show more“-Link rendert, zusätzlich aus dem Wicket-Ajax-Endpoint loadMoreCountries / loadMoreSectors mit dem Session-Cookie aus dem Profilseiten-GET, damit die volle Tabelle erfasst wird. Die Währungs-Aufteilung wird im Refresh-Skript aus der frisch geholten Länder-Aufteilung über eine Land→Lokalwährungs-Tabelle umgebucht (justETF veröffentlicht keine eigene Währungstabelle); für währungsgesicherte Anteilsklassen (HEDGED_ISINS) bleibt die kuratierte Hedge-Währungskarte stehen. Schreibt in dieselbe src/data/lookthrough.overrides.json wie die Top-10-Holdings."
+                      : "Refreshed values per equity ETF: country breakdown, sector breakdown and currency breakdown, sharing a single per-ISIN as-of stamp (breakdownsAsOf). Country and sector are scraped straight from the justETF tables — the static profile HTML first (sufficient for thematic / single-sector ETFs); when justETF renders a “Show more” link, the Wicket Ajax loadMoreCountries / loadMoreSectors endpoint is also called using the session cookie captured from the profile-page GET, so the full table is captured. The currency breakdown is re-bucketed inside the refresh script from the just-refreshed country map via a country → local-listing-currency table (justETF doesn't publish a per-ETF currency table). For currency-hedged share classes (HEDGED_ISINS) the curated hedge-currency map is left in place. Writes into the same src/data/lookthrough.overrides.json as the top-10 holdings."}
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {de
+                  ? "Hand-kuratiert (von keinem Snapshot überschrieben) bleiben: Default-Börse pro ETF, redaktioneller Kommentar, sowie die Währungs-Aufteilung der währungsgesicherten Anteilsklassen (HEDGED_ISINS) — dort entspricht die FX-Belastung nach Hedging der Anteilsklassen-Währung, nicht dem Länder-Mix. Bei nicht in der Refresh-Liste enthaltenen ISINs (z. B. Gold/Krypto, Anleihen-ETFs ohne Aktien-Look-Through) gilt der Stichtag Q4 2024."
+                  : "Curated by hand (not overwritten by any snapshot): default exchange per ETF, editorial comment, and the currency breakdown for the currency-hedged share classes (HEDGED_ISINS) — there the post-hedging FX exposure is the share-class currency, not the underlying country mix. For ISINs that aren't in the refresh list (e.g. gold / crypto, bond ETFs without equity look-through) the Q4 2024 reference date applies."}
+              </p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {de
+                  ? "Auch nicht automatisiert: die Kapitalmarkt-Annahmen (langfristige erwartete Renditen, Volatilitäten, Korrelationen) und die Stress-Szenarien. Diese stammen aus den öffentlich publizierten Long-Term Capital Market Assumptions großer Asset-Manager und werden bewusst stabil gehalten, damit Vergleichsanalysen über die Zeit konsistent bleiben."
+                  : "Also not automated: the capital market assumptions (long-term expected returns, volatilities, correlations) and the stress scenarios. These are drawn from the publicly published Long-Term Capital Market Assumptions of major asset managers and are deliberately kept stable so that comparison analyses stay consistent over time."}
+              </p>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                {de
+                  ? "Bei Standardauslieferung sind beide Snapshot-Dateien leer — die App nutzt dann die im Code hinterlegten Default-Werte. Sobald die Refresh-Jobs erstmals liefen, werden die geholten Felder per ISIN auf die Default-Werte gelegt; alles andere bleibt deterministisch. Schlägt ein einzelner Scrape-Lauf fehl (z. B. justETF ändert das Markup), bleibt der zuletzt erfolgreiche Wert stehen — es wird kein Müll geschrieben."
+                  : "On a fresh checkout both snapshot files are empty — the app then uses the in-code default values. Once the refresh jobs have run at least once, the fetched fields override the defaults per ISIN; everything else stays deterministic. If a single scrape run fails (e.g. justETF changes its markup), the last successful value is preserved — no junk is ever written."}
+              </p>
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </Section>
         <Section
           value="cma"
           icon={<Database className="h-4 w-4" />}
@@ -1053,6 +874,393 @@ export function Methodology() {
             </AccordionItem>
           </Accordion>
         </Section>
+        <Section
+          value="risk-free"
+          icon={<Activity className="h-4 w-4" />}
+          title={de ? "Risikofreier Zinssatz (je Basiswährung)" : "Risk-Free Rate (per base currency)"}
+          editable
+          editableLabel={de ? "Editierbar" : "Editable"}
+        >
+          <p className="text-sm text-muted-foreground">
+            {de
+              ? "Pro Basiswährung ein eigener risikofreier Zinssatz, weil die kurzfristigen Geldmarkt-Renditen je Region deutlich auseinanderlaufen (USD T-Bills, EUR ESTR, GBP SONIA, CHF SARON). Der Wert der jeweiligen Basiswährung des Portfolios fließt in Sharpe-Ratio, Alpha und in den Sharpe-Tilt-Schritt der Aktienregion-Konstruktion ein."
+              : "One risk-free rate per base currency, because short-term money-market yields diverge meaningfully by region (USD T-Bills, EUR ESTR, GBP SONIA, CHF SARON). The value matching the portfolio's base currency feeds into Sharpe ratio, Alpha, and the Sharpe-tilt step of equity-region construction."}
+          </p>
+          <div className="rounded-md border bg-muted/30 p-3 space-y-3" data-testid="rf-editor">
+            <div className="flex flex-wrap items-center gap-2">
+              <Activity className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-semibold">
+                {de ? "Risikofreie Zinssätze" : "Risk-free rates"}
+              </span>
+              <Badge variant="outline" className="text-[10px]">
+                {de ? "Bereich 0,00 – 20,00 %" : "range 0.00 – 20.00%"}
+              </Badge>
+            </div>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[120px]">{de ? "Währung" : "Currency"}</TableHead>
+                    <TableHead className="w-[180px]">{de ? "Wert (%)" : "Value (%)"}</TableHead>
+                    <TableHead className="text-right">{de ? "Default" : "Default"}</TableHead>
+                    <TableHead className="text-right">{de ? "Status" : "Status"}</TableHead>
+                    <TableHead className="text-right w-[120px]">{de ? "Aktion" : "Action"}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {RF_CURRENCIES.map((c) => {
+                    const isOverride = rfOverrides[c] !== undefined;
+                    const def = RF_DEFAULTS[c];
+                    return (
+                      <TableRow key={`rf-${c}`}>
+                        <TableCell className="font-mono text-xs font-semibold">{c}</TableCell>
+                        <TableCell>
+                          <Input
+                            id={`rf-${c}`}
+                            type="text"
+                            inputMode="decimal"
+                            value={rfDraft[c]}
+                            onChange={(e) => setRfDraft((d) => ({ ...d, [c]: e.target.value }))}
+                            onBlur={() => applyRf(c)}
+                            onKeyDown={(e) => { if (e.key === "Enter") applyRf(c); }}
+                            className="h-8 w-28 font-mono text-sm"
+                            data-testid={`input-rf-${c}`}
+                          />
+                        </TableCell>
+                        <TableCell className="text-right text-xs text-muted-foreground font-mono">
+                          {(def * 100).toFixed(2)}%
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {isOverride
+                            ? <Badge variant="default" className="text-[10px] px-1.5 py-0">{de ? "Eigene" : "Custom"}</Badge>
+                            : <Badge variant="outline" className="text-[10px] px-1.5 py-0">{de ? "Default" : "Default"}</Badge>}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-7 px-2"
+                            onClick={() => resetRiskFreeRate(c)}
+                            disabled={!isOverride}
+                            data-testid={`button-rf-reset-${c}`}
+                          >
+                            <RotateCcw className="h-3 w-3 mr-1" />
+                            {de ? "Reset" : "Reset"}
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableBody>
+              </Table>
+            </div>
+            <p className="text-[10px] text-muted-foreground leading-relaxed">
+              {de
+                ? "Tipp: Sie können hier die Rendite einer kurzlaufenden Staatsanleihe / eines Geldmarktsatzes Ihrer Basiswährung eingeben (z. B. SARON für CHF, ESTR/EZB für EUR, SONIA für GBP, T-Bills für USD)."
+                : "Tip: enter the yield of a short-term government bill / money-market rate in your base currency (e.g. SARON for CHF, ESTR/ECB for EUR, SONIA for GBP, T-Bills for USD)."}
+            </p>
+            <div className="flex items-center justify-end pt-1 border-t">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={resetAllRiskFreeRates}
+                disabled={Object.keys(rfOverrides).length === 0}
+                data-testid="button-rf-reset-all"
+              >
+                <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                {de ? "Alle auf Defaults zurücksetzen" : "Reset all to defaults"}
+              </Button>
+            </div>
+          </div>
+          <Alert>
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>{de ? "Bekannte Einschränkung" : "Known limitation"}</AlertTitle>
+            <AlertDescription className="text-xs leading-relaxed">
+              {de
+                ? "Der RF wird je Basiswährung gewählt, aber die Kapitalmarkt-Annahmen (μ je Anlageklasse, siehe Abschnitt CMAs) sind währungs-nominal und werden nicht in die Basiswährung umgerechnet. In der Praxis ist die FX-Translation kleiner als die Streuung zwischen den LTCMA-Anbietern; bei größeren RF-Spreads (z. B. CHF gegen USD) führt das jedoch zu leicht unterschiedlichen Sharpe-Werten als bei einer streng FX-konsistenten Berechnung."
+                : "RF is selected per base currency, but the capital-market assumptions (μ per asset class — see CMAs section) are currency-nominal and are not FX-translated into the base currency. In practice the FX translation is smaller than the dispersion across LTCMA providers; with larger RF spreads (e.g. CHF vs. USD) this still produces slightly different Sharpe values than a strictly FX-consistent calculation would."}
+            </AlertDescription>
+          </Alert>
+
+          {/* Why CHF Sharpe looks higher — frequent operator question. The
+              difference is mechanical (denominator of (r − rf)/σ shrinks
+              when rf is small), not a property of the portfolio. We show
+              the same r/σ across base currencies and let the rf column do
+              the explaining. Numbers match a typical 60/40 expectation set
+              and the Defaults shown in the table above. */}
+          <div
+            className="rounded-md border border-border bg-muted/20 p-3 space-y-3"
+            data-testid="rf-chf-sharpe-explainer"
+          >
+            <div className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-semibold">
+                {de ? "Warum CHF-Strategien einen höheren Sharpe zeigen" : "Why CHF strategies show a higher Sharpe"}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {de
+                ? "Die Sharpe-Ratio ist (r − rf) / σ. Die Asset-Renditen μ und Volatilitäten σ sind in dieser App währungs-nominal modelliert — sie verschieben sich zwischen Basiswährungen kaum. Was sich stark verschiebt, ist der Abzug rf: der CHF-Geldmarktsatz liegt mit ~0,50 % deutlich unter USD (~4,25 %) oder EUR (~2,50 %). Bei identischem Portfolio bleibt deshalb für CHF ein viel größerer Excess-Return übrig — und damit ein höherer Sharpe."
+                : "Sharpe is (r − rf) / σ. Asset returns μ and volatilities σ are modelled currency-nominal in this app — they barely shift between base currencies. What does shift sharply is the rf deduction: the CHF cash rate at ~0.50% sits well below USD (~4.25%) or EUR (~2.50%). For the same portfolio, the CHF view therefore has a much larger excess return left over — and thus a higher Sharpe."}
+            </p>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[80px]">{de ? "Basis" : "Base"}</TableHead>
+                    <TableHead className="text-right">{de ? "Portfolio-Rendite r" : "Portfolio return r"}</TableHead>
+                    <TableHead className="text-right">rf</TableHead>
+                    <TableHead className="text-right">{de ? "Excess (r − rf)" : "Excess (r − rf)"}</TableHead>
+                    <TableHead className="text-right">σ</TableHead>
+                    <TableHead className="text-right font-semibold">Sharpe</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="text-xs font-mono">
+                  <TableRow>
+                    <TableCell className="font-semibold">USD</TableCell>
+                    <TableCell className="text-right">5.50%</TableCell>
+                    <TableCell className="text-right">4.25%</TableCell>
+                    <TableCell className="text-right">1.25%</TableCell>
+                    <TableCell className="text-right">9.50%</TableCell>
+                    <TableCell className="text-right font-semibold">0.13</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-semibold">EUR</TableCell>
+                    <TableCell className="text-right">5.50%</TableCell>
+                    <TableCell className="text-right">2.50%</TableCell>
+                    <TableCell className="text-right">3.00%</TableCell>
+                    <TableCell className="text-right">9.50%</TableCell>
+                    <TableCell className="text-right font-semibold">0.32</TableCell>
+                  </TableRow>
+                  <TableRow className="bg-muted/40">
+                    <TableCell className="font-semibold">CHF</TableCell>
+                    <TableCell className="text-right">5.50%</TableCell>
+                    <TableCell className="text-right">0.50%</TableCell>
+                    <TableCell className="text-right">5.00%</TableCell>
+                    <TableCell className="text-right">9.50%</TableCell>
+                    <TableCell className="text-right font-semibold">0.53</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              {de
+                ? <><span className="font-semibold text-foreground">Wichtig:</span> Das ist <span className="italic">kein</span> Free Lunch und kein Argument für eine bestimmte Basiswährung. Die Sharpe-Ratio misst, was eine Anlage relativ zur risikolosen Cash-Alternative <span className="italic">in derselben Währung</span> liefert. Ein CHF-Investor hat eine niedrigere Cash-Hürde — also wirkt jede Risiko-Anlage gegen diese Hürde besser. Eine CHF-Sharpe und eine USD-Sharpe sind nicht direkt vergleichbar; sie bewerten unterschiedliche Spielfelder.</>
+                : <><span className="font-semibold text-foreground">Important:</span> This is <span className="italic">not</span> a free lunch and not an argument for any specific base currency. Sharpe measures what an investment delivers relative to the risk-free cash alternative <span className="italic">in the same currency</span>. A CHF investor has a lower cash hurdle, so any risk asset looks better against that hurdle. A CHF Sharpe and a USD Sharpe are not directly comparable; they grade different fields.</>}
+            </p>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              {de
+                ? <><span className="font-semibold text-foreground">Schneller Selbsttest:</span> Setzen Sie oben in der Tabelle den CHF-RF testweise auf 4,25 % (US-Niveau) und beobachten Sie, wie der CHF-Sharpe in der Build-Kachel auf das Niveau von USD zusammenfällt. Das beweist: Der Unterschied stammt vollständig aus dem Cash-Diskont, nicht aus einer Eigenschaft der Allokation.</>
+                : <><span className="font-semibold text-foreground">Quick self-test:</span> in the table above, temporarily set the CHF RF to 4.25% (US level) and watch the CHF Sharpe in the Build tile collapse to the USD level. This proves the gap comes entirely from the cash discount, not from any property of the allocation.</>}
+            </p>
+          </div>
+        </Section>
+        <Section
+          value="home-bias"
+          icon={<Layers className="h-4 w-4" />}
+          title={de ? "Home-Bias-Multiplikatoren & Portfolio-Konstruktion" : "Home-Bias Multipliers & Portfolio Construction"}
+          editable
+          editableLabel={de ? "Home-Bias editierbar" : "Home-bias editable"}
+        >
+          <p className="text-sm text-muted-foreground">
+            {de
+              ? "Die regionalen Aktiengewichte sind nicht hartkodiert. Basis ist das globale Marktportfolio (annähernd MSCI-ACWI-Anteile) — die kanonische 'neutrale' Allokation der modernen Portfoliotheorie. Darauf werden dokumentierte Aktiv-Tilts angewandt: Sharpe-Aufschlag, Heimatmarkt-Bias, Horizont- und Themen-Tilt, sowie eine Konzentrationsobergrenze."
+              : "Regional equity weights are not hard-coded. The baseline is the global market portfolio (approximate MSCI ACWI shares) — the canonical 'neutral' allocation in modern portfolio theory. Documented active tilts are then applied: Sharpe overlay, home-bias, horizon and theme tilts, and a concentration cap."}
+          </p>
+          <div className="rounded-md border overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{de ? "Region" : "Region"}</TableHead>
+                  <TableHead className="text-right">{de ? "Anker (USD/EUR)" : "Anchor (USD/EUR)"}</TableHead>
+                  <TableHead className="text-right">{de ? "Anker (GBP)" : "Anchor (GBP)"}</TableHead>
+                  <TableHead className="text-right">{de ? "Anker (CHF)" : "Anchor (CHF)"}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                <TableRow><TableCell className="text-xs">USA</TableCell><TableCell className="text-right font-mono text-xs">60%</TableCell><TableCell className="text-right font-mono text-xs">60%</TableCell><TableCell className="text-right font-mono text-xs">60%</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">{de ? "Europa" : "Europe"}</TableCell><TableCell className="text-right font-mono text-xs">13%</TableCell><TableCell className="text-right font-mono text-xs">10%</TableCell><TableCell className="text-right font-mono text-xs">10%</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">{de ? "Vereinigtes Königreich" : "United Kingdom"}</TableCell><TableCell className="text-right font-mono text-xs">—</TableCell><TableCell className="text-right font-mono text-xs">4%</TableCell><TableCell className="text-right font-mono text-xs">—</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">{de ? "Schweiz" : "Switzerland"}</TableCell><TableCell className="text-right font-mono text-xs">—</TableCell><TableCell className="text-right font-mono text-xs">—</TableCell><TableCell className="text-right font-mono text-xs">4%</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">Japan</TableCell><TableCell className="text-right font-mono text-xs">5%</TableCell><TableCell className="text-right font-mono text-xs">5%</TableCell><TableCell className="text-right font-mono text-xs">5%</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">{de ? "Schwellenländer" : "Emerging Markets"}</TableCell><TableCell className="text-right font-mono text-xs">11%</TableCell><TableCell className="text-right font-mono text-xs">11%</TableCell><TableCell className="text-right font-mono text-xs">11%</TableCell></TableRow>
+              </TableBody>
+            </Table>
+          </div>
+          <ol className="text-sm space-y-2 list-decimal pl-5">
+            <li>
+              <span className="font-semibold">{de ? "Marktkapitalisierungs-Anker" : "Market-cap anchor"}</span>{" — "}
+              {de
+                ? "Ausgangsgewichte folgen dem globalen Marktportfolio (MSCI-ACWI-Proxy oben). In CHF- und GBP-Portfolios wird der heimische Markt (Schweiz bzw. Vereinigtes Königreich) als eigener Eimer aus Europa herausgelöst."
+                : "Starting weights follow the global market portfolio (MSCI ACWI proxy above). For CHF and GBP portfolios, the home market (Switzerland or United Kingdom respectively) is carved out of Europe into its own bucket."}
+            </li>
+            <li>
+              <span className="font-semibold">{de ? "Sharpe-Tilt (gedämpft)" : "Sharpe tilt (damped)"}</span>{" — "}
+              {de
+                ? "Multiplikator (Sharpe / 0,25)^0,4 begünstigt Märkte mit besserer risikoadjustierter Renditeerwartung, ohne die Anker-Allokation auszuhebeln."
+                : "Multiplier (Sharpe / 0.25)^0.4 favours markets with better risk-adjusted expected return without overriding the anchor allocation."}
+            </li>
+            <li>
+              <span className="font-semibold">{de ? "Heimatmarkt-Bias" : "Home-bias overlay"}</span>{" — "}
+              {de
+                ? "Verstärkt die heimische Aktien-Region je Basiswährung. Multiplikatoren in der Tabelle unten, je Währung live editierbar; Änderungen wirken beim nächsten Klick auf „Portfolio generieren“."
+                : "Amplifies the home equity region per base currency. Multipliers in the table below, live-editable per currency; changes take effect the next time you click \"Generate Portfolio\"."}
+            </li>
+            <li>
+              <span className="font-semibold">{de ? "Horizont- & Themen-Tilts" : "Horizon & theme tilts"}</span>{" — "}
+              {de
+                ? "Lange Anlagehorizonte erhöhen EM, das Nachhaltigkeits-Thema dämpft USA (exakte Faktoren in der Tabelle unten)."
+                : "Long horizons lift EM, the sustainability theme dampens USA (exact factors in the table below)."}
+            </li>
+            <li>
+              <span className="font-semibold">{de ? "Konzentrationsgrenze" : "Concentration cap"}</span>{" — "}
+              {de
+                ? "Pro Aktien-Region greift eine Obergrenze; Überschuss wird proportional auf die übrigen Regionen verteilt."
+                : "A per-region cap applies on the equity sleeve; excess is redistributed proportionally to the other regions."}
+            </li>
+          </ol>
+          <Formula
+            label={de ? "Roh-Gewicht je Region" : "Raw weight per region"}
+            expr="rawᵢ = anchorᵢ · ((Sharpeᵢ/0.25)^0.4) · home · horizon · theme  →  normalize  →  cap at 65%"
+          />
+          <div className="rounded-md border overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{de ? "Overlay-Konstante" : "Overlay constant"}</TableHead>
+                  <TableHead className="text-right">{de ? "Wert" : "Value"}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {HB_CURRENCIES.map((c) => {
+                  const live = resolvedHomeBias(c);
+                  const isOverride = hbOverrides[c] !== undefined;
+                  const region = de ? HB_REGION_LABEL_DE[c] : HB_REGION_LABEL[c];
+                  return (
+                    <TableRow key={`hb-${c}`}>
+                      <TableCell className="text-xs">
+                        {de ? "Home-Bias" : "Home tilt"} {c} → {region}
+                        {isOverride && (
+                          <Badge variant="default" className="ml-2 text-[10px] px-1.5 py-0">
+                            {de ? "Eigene" : "Custom"}
+                          </Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs">× {live.toFixed(2)}</TableCell>
+                    </TableRow>
+                  );
+                })}
+                <TableRow><TableCell className="text-xs">Long-horizon EM tilt (h ≥ 10)</TableCell><TableCell className="text-right font-mono text-xs">× 1.3</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">Sustainability theme on USA</TableCell><TableCell className="text-right font-mono text-xs">× 0.85</TableCell></TableRow>
+                <TableRow><TableCell className="text-xs">{de ? "Konzentrationsgrenze pro Region" : "Concentration cap per region"}</TableCell><TableCell className="text-right font-mono text-xs">≤ 65%</TableCell></TableRow>
+                <TableRow>
+                  <TableCell className="text-xs">
+                    {de ? "Risikofreier Zins (Sharpe-Tilt, je Basiswährung)" : "Risk-free rate (Sharpe tilt, per base currency)"}
+                    <div className="text-[10px] text-muted-foreground font-normal mt-0.5">
+                      {de
+                        ? "Verwendet je Basiswährung denselben oben editierbaren RF wie die Report-Kennzahlen. Eine Änderung verschiebt die Bucket-Gewichte beim nächsten Klick auf „Portfolio generieren\u201C."
+                        : "Uses, per base currency, the same editable RF as the report metrics. Changing it shifts the bucket weights on the next \"Generate Portfolio\" click."}
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right font-mono text-xs align-top">
+                    {RF_CURRENCIES.map((c) => (
+                      <div key={`construction-rf-${c}`}>{c} {(rfRates[c] * 100).toFixed(2)}%</div>
+                    ))}
+                  </TableCell>
+                </TableRow>
+              </TableBody>
+            </Table>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {de
+              ? "Defensiv-Sleeve (Cash & Anleihen), Satelliten-Sleeves (REIT 6 %, Krypto 1–3 %, Thematik 3–5 %, Gold ≤ 5 %) und Risikoobergrenzen sind weiterhin regelbasiert wie im übrigen Methodik-Dokument beschrieben."
+              : "The defensive sleeve (cash & bonds), satellite sleeves (REIT 6%, Crypto 1–3%, Thematic 3–5%, Gold ≤ 5%) and risk caps remain rule-based as documented in the rest of this methodology."}
+          </p>
+
+          {/* ---------- Live home-bias multiplier editor ---------- */}
+          <div className="rounded-md border bg-muted/30 p-3 space-y-3" data-testid="home-bias-editor">
+            <div className="flex flex-wrap items-center gap-2">
+              <Layers className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-semibold">
+                {de ? "Home-Bias-Multiplikatoren" : "Home-bias multipliers"}
+              </span>
+              <Badge variant="outline" className="text-[10px]">
+                {de ? "Bereich 0,0 – 5,0" : "range 0.0 – 5.0"}
+              </Badge>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {de
+                ? "Pro Basiswährung den Verstärkungsfaktor auf die heimische Aktien-Region setzen. Änderungen wirken beim nächsten Klick auf „Portfolio generieren“."
+                : "Set the amplification factor on the home equity region per base currency. Changes take effect the next time you click \"Generate Portfolio\"."}
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+              {HB_CURRENCIES.map((c) => {
+                const isOverride = hbOverrides[c] !== undefined;
+                const region = de ? HB_REGION_LABEL_DE[c] : HB_REGION_LABEL[c];
+                const def = HOME_BIAS_DEFAULTS[c];
+                return (
+                  <div key={`hb-edit-${c}`} className="space-y-1">
+                    <Label htmlFor={`hb-${c}`} className="text-xs flex items-center gap-1.5">
+                      <span className="font-mono">{c}</span>
+                      <span className="text-muted-foreground">→ {region}</span>
+                      {isOverride && (
+                        <Badge variant="default" className="text-[10px] px-1.5 py-0">
+                          {de ? "Eigene" : "Custom"}
+                        </Badge>
+                      )}
+                    </Label>
+                    <div className="flex items-center gap-1">
+                      <Input
+                        id={`hb-${c}`}
+                        type="text"
+                        inputMode="decimal"
+                        value={hbDraft[c]}
+                        onChange={(e) => setHbDraft((d) => ({ ...d, [c]: e.target.value }))}
+                        className="h-8 font-mono text-sm flex-1"
+                        data-testid={`input-home-bias-${c}`}
+                      />
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0 shrink-0"
+                        onClick={() => resetHomeBiasOverride(c)}
+                        disabled={!isOverride}
+                        title={de ? `Auf Default × ${def.toFixed(1)} zurücksetzen` : `Reset to default × ${def.toFixed(1)}`}
+                        aria-label={de ? `Home-Bias ${c} auf Default zurücksetzen` : `Reset home bias ${c} to default`}
+                        data-testid={`button-home-bias-reset-${c}`}
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {de ? "Default" : "default"} × {def.toFixed(1)}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button size="sm" onClick={applyHbDraft} data-testid="button-home-bias-apply">
+                {de ? "Übernehmen" : "Apply"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={resetHb} data-testid="button-home-bias-reset">
+                <RotateCcw className="h-3.5 w-3.5 mr-1" />
+                {de ? "Auf Defaults zurücksetzen" : "Reset to defaults"}
+              </Button>
+              <span className="text-[10px] text-muted-foreground">
+                {de
+                  ? "Hinweis: Wirkung erst nach erneutem „Portfolio generieren\"."
+                  : "Note: takes effect after re-running \"Generate Portfolio\"."}
+              </span>
+            </div>
+          </div>
+        </Section>
+        <SectionGroupHeading
+          id="calc"
+          tone="calc"
+          title={de ? "Wie Ergebnisse berechnet werden" : "How results are calculated"}
+          description={de ? "Annahmen, Routings und Modelle, die hinter den ausgewiesenen Kennzahlen stehen — read-only Dokumentation." : "Assumptions, routings and models behind every reported metric — read-only documentation."}
+        />
 
         <Section value="corr" icon={<GitCompare className="h-4 w-4" />} title={de ? "Korrelationsmatrix" : "Correlation Matrix"}>
           <p className="text-sm text-muted-foreground">
@@ -1127,7 +1335,6 @@ export function Methodology() {
             </p>
           )}
         </Section>
-
         <Section value="lookthrough" icon={<Layers className="h-4 w-4" />} title={de ? "Look-Through-Routing" : "Look-Through Routing"}>
           <p className="text-sm text-muted-foreground">
             {de
@@ -1183,144 +1390,45 @@ export function Methodology() {
             </p>
           </div>
         </Section>
-
-        <Section value="bench" icon={<Layers className="h-4 w-4" />} title={de ? "Benchmark (MSCI ACWI Proxy)" : "Benchmark (MSCI ACWI Proxy)"}>
+        <Section value="hedging" icon={<Coins className="h-4 w-4" />} title={de ? "Währungs-Hedging — was der Schalter wirklich tut" : "Currency Hedging — what the toggle actually does"}>
           <p className="text-sm text-muted-foreground">
             {de
-              ? "Beta, Alpha, Tracking Error und Outperformance werden gegen einen statischen MSCI ACWI Proxy gemessen. Die Gewichte spiegeln grobe regionale Anteile des Index Mitte 2024."
-              : "Beta, Alpha, Tracking Error and Outperformance are measured against a static MSCI ACWI proxy. Weights reflect approximate regional shares of the index in mid-2024."}
+              ? "Der Hedging-Schalter im Portfolio-Builder greift an vier Stellen gleichzeitig in die Berechnung ein. Er wirkt nur, wenn die Basiswährung nicht USD ist (USD-Anleger gelten in US-Equity per Definition als „home“)."
+              : "The hedging toggle in the portfolio builder feeds four downstream calculations at once. It only fires when the base currency is non-USD (a USD investor in US equity is by definition already \"home\")."}
           </p>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{de ? "Region" : "Region"}</TableHead>
-                  <TableHead className="text-right">{de ? "Gewicht" : "Weight"}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {BENCHMARK.map((b) => (
-                  <TableRow key={b.key}>
-                    <TableCell className="text-xs">{regionLabel(b.key, de)}</TableCell>
-                    <TableCell className="text-right font-mono text-xs">{(b.weight * 100).toFixed(0)}%</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {de ? "Quelle" : "Source"}: MSCI ACWI Index Factsheet (msci.com), {de ? "öffentlich zugänglich" : "publicly available"}.
-          </p>
-        </Section>
-
-        <Section value="stress" icon={<ShieldQuestion className="h-4 w-4" />} title={de ? "Stress-Test-Szenarien" : "Stress Test Scenarios"}>
-          <p className="text-sm text-muted-foreground">
-            {de
-              ? "Historische Drawdowns je Anlageklasse aus drei prägenden Krisen. Werte sind handgepflegte, abgerundete Schock-Vektoren basierend auf Index-Verläufen vom Hoch zum Tief."
-              : "Historical drawdowns per asset class from three formative crises. Values are hand-curated, rounded shock vectors based on peak-to-trough index moves."}
-          </p>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>{de ? "Szenario" : "Scenario"}</TableHead>
-                  <TableHead>{de ? "Quelle / Indizes" : "Source / Indices"}</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {SCENARIOS.map((s) => (
-                  <TableRow key={s.name}>
-                    <TableCell className="text-xs font-medium">{s.name}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{scenarioSource(s.name, de)}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        </Section>
-
-        <Section value="mc" icon={<Calculator className="h-4 w-4" />} title={de ? "Monte-Carlo-Simulation" : "Monte Carlo Simulation"}>
           <ul className="text-sm space-y-2 list-disc pl-5">
-            <li>{de ? "Verteilung: log-normale jährliche Renditen pro Anlageklasse, gezogen aus der CMA-Tabelle (μ und σ wie oben)." : "Distribution: log-normal annual returns per asset class, drawn from the CMA table above (μ and σ as listed)."}</li>
-            <li>{de ? "Korrelation: die Portfolio-Volatilität σₚ wird vorab aus der vollständigen Korrelationsmatrix berechnet (Formel im Abschnitt „Formeln“); anschließend wird das Portfolio als Ganzes simuliert (eine Gauß-Ziehung pro Jahr)." : "Correlation: portfolio volatility σₚ is computed up front from the full correlation matrix (formula in the \"Formulas\" section); the portfolio is then simulated as a single asset (one Gaussian draw per year)."}</li>
-            <li>{de ? "Pfade: 2.000 unabhängige Pfade über den Anlagehorizont des Nutzers." : "Paths: 2,000 independent paths over the user's chosen horizon."}</li>
-            <li>{de ? "Ausgewiesen: Median, P10, P90, Wahrscheinlichkeit eines Verlusts, CVaR(95)/CVaR(99) am Horizont und pfadbasierter realisierter Max-Drawdown (Median + 5.-Perzentil)." : "Reported: median, P10, P90, probability of loss, CVaR(95)/CVaR(99) at horizon, and path-based realized Max Drawdown (median + 5th-percentile)."}</li>
+            <li>
+              {de
+                ? <><span className="font-medium text-foreground">Monte-Carlo-Simulation:</span> für Aktien-Buckets, deren Region nicht der Basiswährung entspricht, wird σ um −3 Prozentpunkte gesenkt (Emerging Markets: −2 pp), mit Untergrenze 5 %. μ bleibt unverändert. Effekt: schmalerer Fan, niedrigeres VaR/MaxDD, gleicher Median. Bonds, Gold, REITs und Crypto bleiben in der MC unangetastet — die σ-Reduktion gilt nur für equity_*-Buckets.</>
+                : <><span className="font-medium text-foreground">Monte Carlo simulation:</span> for equity buckets whose region differs from the base currency, σ is cut by 3 percentage points (emerging markets: 2 pp), with a 5% floor. μ stays unchanged. Effect: tighter fan, lower VaR/MaxDD, same median. Bonds, gold, REITs and crypto are not touched in the MC — the σ cut only applies to equity_* buckets.</>}
+            </li>
+            <li>
+              {de
+                ? <><span className="font-medium text-foreground">Gebühren-Schätzer:</span> +15 Basispunkte TER pauschal auf jede hedgebare Anlageklasse (Equity, Fixed Income, Real Estate). Cash, Commodities und Digital Assets bekommen keinen Aufschlag. Diese Mehrkosten erscheinen direkt im Fee-Estimator und in der Rendite-nach-Kosten-Projektion.</>
+                : <><span className="font-medium text-foreground">Fee estimator:</span> a flat +15 bps TER is added to every hedgeable asset class (Equity, Fixed Income, Real Estate). Cash, commodities and digital assets get no surcharge. The extra cost shows up directly in the fee estimator and in the after-fee return projection.</>}
+            </li>
+            <li>
+              {de
+                ? <><span className="font-medium text-foreground">ETF-Empfehlungen:</span> die Bucket→ETF-Logik schwenkt auf hedged Share Classes um — z. B. iShares S&P 500 EUR Hedged statt der unhedged USD-Variante, oder iShares Global Aggregate Bond CHF Hedged statt der unhedged Global-Aggregate. Die Logik nutzt explizit die Bucket-Schlüssel Equity-USA-EUR/CHF/GBP und FixedIncome-Global-EUR/CHF/GBP, fällt aber sauber auf die unhedged Variante zurück, falls für eine Basiswährung keine hedged Anteilsklasse im Katalog ist.</>
+                : <><span className="font-medium text-foreground">ETF recommendations:</span> the bucket→ETF mapping switches to hedged share classes — e.g. \"iShares S&P 500 EUR Hedged\" instead of the unhedged USD version, or \"iShares Global Aggregate Bond CHF Hedged\" instead of the unhedged Global Aggregate. It explicitly looks up the bucket keys Equity-USA-EUR/CHF/GBP and FixedIncome-Global-EUR/CHF/GBP, but falls back cleanly to the unhedged variant if a hedged share class is not in the catalog for the chosen base currency.</>}
+            </li>
+            <li>
+              {de
+                ? <><span className="font-medium text-foreground">Risiko-/Diversifikations-Hinweise:</span> der Warntext „Currency Risk: Unhedged foreign equity exposure…" und der Diversifikations-Hinweis „Unhedged equities can act as a diversifier…" werden ausgeblendet, sobald Hedging an ist — beide werden durch den Schalter gegenstandslos.</>
+                : <><span className="font-medium text-foreground">Risk / diversification copy:</span> the \"Currency Risk: Unhedged foreign equity exposure…\" warning and the \"Unhedged equities can act as a diversifier…\" hint both disappear once hedging is on — the toggle makes both points moot.</>}
+            </li>
           </ul>
-          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 my-3">
-            <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400 mb-1">
-              {de ? "Pfadbasierter Max Drawdown (v1.4, Apr 2026)" : "Path-based Max Drawdown (v1.4, Apr 2026)"}
-            </p>
-            <p className="text-xs text-muted-foreground leading-snug">
-              {de
-                ? "Für jeden simulierten Pfad wird der schlimmste Peak-to-Trough-Verlust *entlang* des Pfads berechnet (laufendes Maximum bis zum Jahr y, dann (Wert/Peak − 1)). Über alle Pfade berichten wir Median (typischer Pfad-Worst-Case) und 5.-Perzentil (Bad-Tail). Ersetzt für die Simulationsansicht die ältere analytische Heuristik MDD ≈ −min(0.85, (1.8 + 1.4·equityShare)·σₚ), die auf der Risk-&-Performance-Kachel weiterhin als Grobschätzung dient (markiert als „Heuristik“)."
-                : "For every simulated path we compute the worst peak-to-trough loss *along* the path (running max up to year y, then (value/peak − 1)). Across all paths we report the median (typical path's worst case) and the 5th-percentile (bad-tail). Replaces the older analytical heuristic MDD ≈ −min(0.85, (1.8 + 1.4·equityShare)·σₚ) for the simulation view; the heuristic is kept on the Risk & Performance tile as a quick analytical proxy (labeled \"heuristic\")."}
-            </p>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            {de
-              ? "Standard-Annahmen sind bewusst konservativ-mainstream: Gauss-Verteilung pro Jahr und Long-Run-Korrelationsmatrix. Für eine pessimistischere Sicht stehen die optionalen Schalter „Crisis-Σ\" und „Student-t\" zur Verfügung — dokumentiert im Abschnitt „Tail-Realismus\" direkt unten. Weitere bewusst nicht modellierte Effekte: Inflations-/Steuermodell (außer dem WHT-Drag — siehe Abschnitt „Quellensteuer-Drag\"), Sequence-of-Returns-Pfade über Cash-Flows."
-              : "Default assumptions are deliberately conservative-mainstream: Gauss distribution per year and the long-run correlation matrix. For a more pessimistic lens, the optional \"Crisis-Σ\" and \"Student-t\" toggles are available — documented in the \"Tail Realism\" section directly below. Other deliberately unmodelled effects: inflation/tax (apart from the WHT drag — see \"Withholding-Tax Drag\" section), cash-flow sequence-of-returns paths."}
+          <p className="text-sm text-muted-foreground pt-2">
+            {de ? "Was der Schalter bewusst NICHT tut:" : "What the toggle deliberately does NOT do:"}
           </p>
+          <ul className="text-sm space-y-1 list-disc pl-5 text-muted-foreground">
+            <li>{de ? "μ (Erwartungsrendite) wird nicht reduziert — die Hedging-Kosten schlagen ausschließlich über die +15-bp-TER durch, nicht über eine niedrigere CMA-Annahme." : "μ (expected return) is not reduced — the hedging cost only flows through the +15 bp TER, not through a lower CMA assumption."}</li>
+            <li>{de ? "Korrelationen werden nicht angepasst (nur die Diagonal-Vola der betroffenen Equity-Buckets)." : "Correlations are not adjusted (only the diagonal vol of the affected equity buckets)."}</li>
+            <li>{de ? "Bei Basiswährung USD passiert nichts — der Schalter wird wirkungslos." : "When the base currency is USD, the toggle is a no-op."}</li>
+            <li>{de ? "Look-Through-Daten ändern sich nicht (gleicher Underlying-Basket; nur die FX-Exposition der hedged Anteilsklassen wird in der Look-Through-Währungstabelle bewusst auf die Anteilsklassen-Währung gemappt — siehe Abschnitt zur Look-Through-Datenpflege)." : "Look-through data does not change (same underlying basket; only the FX exposure of hedged share classes is intentionally mapped to the share-class currency in the look-through currency table — see the look-through data maintenance section)."}</li>
+          </ul>
         </Section>
-
-        <Section value="tail-realism" icon={<Calculator className="h-4 w-4" />} title={de ? "Tail-Realismus (v1.6, Apr 2026)" : "Tail Realism (v1.6, Apr 2026)"}>
-          <p className="text-sm text-muted-foreground">
-            {de
-              ? "Zwei optionale Schalter erlauben dem Operator, die Standard-Annahmen pessimistischer zu kalibrieren — ohne den ausgewiesenen Median oder die erwartete Rendite zu verändern. Beide Schalter sind in der Default-Stellung „aus\" — alle bisherigen Auswertungen bleiben unverändert reproduzierbar. Sie greifen unabhängig voneinander und können einzeln oder gemeinsam aktiviert werden."
-              : "Two optional toggles let the operator calibrate the default assumptions more pessimistically — without changing the reported median or expected return. Both toggles default to \"off\" — every prior reading remains exactly reproducible. They are independent and can be flipped individually or stacked."}
-          </p>
-
-          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 my-3 space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
-              {de ? "1. Crisis-Σ (Korrelations-Regime)" : "1. Crisis-Σ (correlation regime)"}
-            </p>
-            <p className="text-xs text-muted-foreground leading-snug">
-              {de
-                ? "In normalen Marktphasen sind Equity-Equity-Korrelationen typischerweise 0.55–0.85, Equity↔Bonds nahe null bzw. leicht positiv (~+0.10 im Post-2022-Regime), Equity↔Gold leicht positiv (~+0.05), Equity↔Cash genau 0. In Krisen (2008, März 2020) konvergieren alle riskanten Assets nach oben: Equity-Equity-Pärchen rücken auf 0.85–0.95, Equity↔Bonds steigt auf +0.30 (Flight-to-Quality bricht zusammen), Equity↔REITs auf 0.80–0.88 (REITs handeln wie gehebelte Aktien), Equity↔Crypto auf 0.55–0.75. Gold und Cash bleiben die einzigen verlässlichen Diversifier (Equity↔Gold dreht auf 0 bis −0.05, Equity↔Cash bewusst auf 0 belassen). Die Krisen-Matrix ist konservativ-konsensuell aus AQR-/Bridgewater-Stress-Studien kalibriert."
-                : "In normal markets, equity-equity correlations are typically 0.55–0.85, equity↔bonds near zero or slightly positive (~+0.10 in the post-2022 regime), equity↔gold slightly positive (~+0.05), equity↔cash exactly 0. In crises (2008, March 2020) all risky assets converge upward: equity-equity pairs jump to 0.85–0.95, equity↔bonds rises to +0.30 (flight-to-quality breaks down), equity↔REITs to 0.80–0.88 (REITs trade as levered equity), equity↔crypto to 0.55–0.75. Gold and cash remain the only reliable diversifiers (equity↔gold flips to 0 / −0.05, equity↔cash deliberately kept at 0). The crisis matrix is calibrated conservatively from AQR/Bridgewater stress studies."}
-            </p>
-            <p className="text-xs text-muted-foreground leading-snug">
-              {de
-                ? "Wirkung: σ, β, Tracking Error, Sharpe, Alpha, Heuristik-MDD und die effiziente Frontier rechnen mit der Crisis-Matrix neu — die ausgewiesene Vol steigt strikt für jeden imperfekt korrelierten Mix; Diversifikations-Vorteile schrumpfen. In der Monte-Carlo-Simulation verbreitert sich der Fan, CVaR99 und Path-MDD-P05 verschlechtern sich, der Median bleibt nahezu unverändert (er wird vom Drift, nicht von der Korrelation getrieben)."
-                : "Effect: σ, β, tracking error, Sharpe, alpha, heuristic MDD and the efficient frontier all recompute against the crisis matrix — reported vol strictly rises for any imperfectly-correlated mix; diversification benefits shrink. In the Monte Carlo simulation the fan widens, CVaR99 and Path-MDD-P05 worsen, the median is largely unchanged (it is driven by drift, not by correlation)."}
-            </p>
-          </div>
-
-          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 my-3 space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
-              {de ? "2. Student-t Tail-Modell (df=5)" : "2. Student-t tail model (df=5)"}
-            </p>
-            <p className="text-xs text-muted-foreground leading-snug">
-              {de
-                ? "Die Default-Annahme einer Gauss-Verteilung unterschätzt die Häufigkeit extremer Ereignisse — empirisch zeigen Aktien-Tagesrenditen (und auch Jahresrenditen) Kurtosis-Werte von 4–7 statt der Gauss-3. Der Student-t-Schalter ersetzt den jährlichen Schock durch eine Student-t-Verteilung mit 5 Freiheitsgraden (Standard-Wahl in der akademischen Literatur, z. B. Cont 2001) — die σ wird über √((df−2)/df) korrigiert, sodass sie identisch zur Gauss-σ bleibt."
-                : "The default Gauss assumption understates the frequency of extreme events — equity daily returns (and annual returns) empirically show kurtosis of 4–7 vs Gauss's 3. The Student-t toggle replaces the annual shock with a Student-t distribution at 5 degrees of freedom (standard choice in the academic literature, e.g. Cont 2001) — σ is corrected via √((df−2)/df) so it stays identical to the Gauss σ."}
-            </p>
-            <p className="text-xs text-muted-foreground leading-snug">
-              {de
-                ? "Wirkung: Median, P10/P90 und P/(L) ändern sich nur marginal (gleiche σ, gleicher Drift). CVaR99 verschlechtert sich messbar (typischerweise 5–15 % schlechter), Path-MDD-P05 ebenso — die fetteren Tails treffen genau die extremen Pfade, die diese Kennzahlen messen."
-                : "Effect: median, P10/P90 and P/L barely change (same σ, same drift). CVaR99 worsens measurably (typically 5–15 % worse), Path-MDD-P05 likewise — the heavier tails hit exactly the extreme paths these metrics measure."}
-            </p>
-          </div>
-
-          <div className="rounded-md border border-border bg-muted/30 p-3 my-3 space-y-2">
-            <p className="text-xs font-semibold">
-              {de ? "Wo bedienen?" : "Where to operate?"}
-            </p>
-            <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-5">
-              <li>{de ? "Crisis-Σ: Risk-&-Performance-Kachel (oben Mitte) — wirkt auf alle σ-getriebenen Kennzahlen, Frontier und Korrelationsmatrix." : "Crisis-Σ: Risk & Performance tile (top center) — affects every σ-driven metric, the frontier, and the correlation matrix."}</li>
-              <li>{de ? "Crisis-Σ + Student-t: Monte-Carlo-Kachel (Tail-Realismus-Box) — beide Schalter unabhängig, Pfad-Aggregate (CVaR, Path-MDD) reagieren entsprechend." : "Crisis-Σ + Student-t: Monte Carlo tile (Tail-Realism box) — both toggles independent, path aggregates (CVaR, Path-MDD) respond accordingly."}</li>
-              <li>{de ? "Stress-Test (Szenarien-Tab) ist deterministisch konstruiert — er nutzt fixe historische Drawdowns je Asset und ist damit Σ-unabhängig (keine Doppel-Pessimismus-Falle)." : "Stress-Test (Scenarios tab) is deterministic by construction — it uses fixed historical drawdowns per asset and is Σ-independent (no double-pessimism trap)."}</li>
-            </ul>
-          </div>
-
-          <p className="text-xs text-muted-foreground">
-            {de
-              ? "Empfohlener Use: Standard-Aussage mit Default-Annahmen (Gauss + Normal-Σ) + Robustheits-Check mit beiden Schaltern aktiv („Worst-realistic\"-Linse). Wenn die Investment-These auch unter Crisis-Σ + Student-t trägt, ist sie deutlich robuster validiert als unter den Defaults allein."
-              : "Recommended use: produce the standard reading with the default assumptions (Gauss + normal Σ), then a robustness check with both toggles active (the \"worst-realistic\" lens). If the investment thesis still holds under Crisis-Σ + Student-t, it is materially better validated than under the defaults alone."}
-          </p>
-        </Section>
-
-        <Section value="wht" icon={<Coins className="h-4 w-4" />} title={de ? "Quellensteuer-Drag (v1.5, Apr 2026)" : "Withholding-Tax Drag (v1.5, Apr 2026)"}>
+        <Section value="wht" icon={<Coins className="h-4 w-4" />} title={de ? "Quellensteuer-Drag" : "Withholding-Tax Drag"} version="v1.5 · Apr 2026">
           <p className="text-sm text-muted-foreground">
             {de
               ? "Jede ausgewiesene erwartete Rendite (Risk-&-Performance-Kachel, effiziente Frontier, Monte-Carlo-Pfade, Vergleichstab) ist NETTO der nicht-rückforderbaren Quellensteuer auf Dividenden — die Steuer, die ein typischer CH/EU-Privatanleger über IE-domizilierte UCITS-ETFs trotz aller Doppelbesteuerungs-Treaties tatsächlich zahlt. Symmetrisch wird derselbe Drag auch auf den ACWI-Benchmark angewandt, sodass Alpha und Outperformance nicht künstlich erhöht werden."
@@ -1469,46 +1577,110 @@ export function Methodology() {
               : "Limitation: model assumes IE-domiciled vehicles and a CH-resident default investor. For US-domiciled ETFs, EU-resident setups or other domicile combinations the rates are conservative and partly too low (US-domiciled: ~60 bps instead of 30 bps). Capital-gains and wealth tax (cantonal, CH) are still not modelled."}
           </p>
         </Section>
-
-        <Section value="hedging" icon={<Coins className="h-4 w-4" />} title={de ? "Währungs-Hedging — was der Schalter wirklich tut" : "Currency Hedging — what the toggle actually does"}>
+        <Section value="mc" icon={<Calculator className="h-4 w-4" />} title={de ? "Monte-Carlo-Simulation" : "Monte Carlo Simulation"}>
+          <ul className="text-sm space-y-2 list-disc pl-5">
+            <li>{de ? "Verteilung: log-normale jährliche Renditen pro Anlageklasse, gezogen aus der CMA-Tabelle (μ und σ wie oben)." : "Distribution: log-normal annual returns per asset class, drawn from the CMA table above (μ and σ as listed)."}</li>
+            <li>{de ? "Korrelation: die Portfolio-Volatilität σₚ wird vorab aus der vollständigen Korrelationsmatrix berechnet (Formel im Abschnitt „Formeln“); anschließend wird das Portfolio als Ganzes simuliert (eine Gauß-Ziehung pro Jahr)." : "Correlation: portfolio volatility σₚ is computed up front from the full correlation matrix (formula in the \"Formulas\" section); the portfolio is then simulated as a single asset (one Gaussian draw per year)."}</li>
+            <li>{de ? "Pfade: 2.000 unabhängige Pfade über den Anlagehorizont des Nutzers." : "Paths: 2,000 independent paths over the user's chosen horizon."}</li>
+            <li>{de ? "Ausgewiesen: Median, P10, P90, Wahrscheinlichkeit eines Verlusts, CVaR(95)/CVaR(99) am Horizont und pfadbasierter realisierter Max-Drawdown (Median + 5.-Perzentil)." : "Reported: median, P10, P90, probability of loss, CVaR(95)/CVaR(99) at horizon, and path-based realized Max Drawdown (median + 5th-percentile)."}</li>
+          </ul>
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 my-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400 mb-1">
+              {de ? "Pfadbasierter Max Drawdown (v1.4, Apr 2026)" : "Path-based Max Drawdown (v1.4, Apr 2026)"}
+            </p>
+            <p className="text-xs text-muted-foreground leading-snug">
+              {de
+                ? "Für jeden simulierten Pfad wird der schlimmste Peak-to-Trough-Verlust *entlang* des Pfads berechnet (laufendes Maximum bis zum Jahr y, dann (Wert/Peak − 1)). Über alle Pfade berichten wir Median (typischer Pfad-Worst-Case) und 5.-Perzentil (Bad-Tail). Ersetzt für die Simulationsansicht die ältere analytische Heuristik MDD ≈ −min(0.85, (1.8 + 1.4·equityShare)·σₚ), die auf der Risk-&-Performance-Kachel weiterhin als Grobschätzung dient (markiert als „Heuristik“)."
+                : "For every simulated path we compute the worst peak-to-trough loss *along* the path (running max up to year y, then (value/peak − 1)). Across all paths we report the median (typical path's worst case) and the 5th-percentile (bad-tail). Replaces the older analytical heuristic MDD ≈ −min(0.85, (1.8 + 1.4·equityShare)·σₚ) for the simulation view; the heuristic is kept on the Risk & Performance tile as a quick analytical proxy (labeled \"heuristic\")."}
+            </p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {de
+              ? "Standard-Annahmen sind bewusst konservativ-mainstream: Gauss-Verteilung pro Jahr und Long-Run-Korrelationsmatrix. Für eine pessimistischere Sicht stehen die optionalen Schalter „Crisis-Σ\" und „Student-t\" zur Verfügung — dokumentiert im Abschnitt „Tail-Realismus\" direkt unten. Weitere bewusst nicht modellierte Effekte: Inflations-/Steuermodell (außer dem WHT-Drag — siehe Abschnitt „Quellensteuer-Drag\"), Sequence-of-Returns-Pfade über Cash-Flows."
+              : "Default assumptions are deliberately conservative-mainstream: Gauss distribution per year and the long-run correlation matrix. For a more pessimistic lens, the optional \"Crisis-Σ\" and \"Student-t\" toggles are available — documented in the \"Tail Realism\" section directly below. Other deliberately unmodelled effects: inflation/tax (apart from the WHT drag — see \"Withholding-Tax Drag\" section), cash-flow sequence-of-returns paths."}
+          </p>
+        </Section>
+        <Section value="tail-realism" icon={<Calculator className="h-4 w-4" />} title={de ? "Tail-Realismus" : "Tail Realism"} version="v1.6 · Apr 2026">
           <p className="text-sm text-muted-foreground">
             {de
-              ? "Der Hedging-Schalter im Portfolio-Builder greift an vier Stellen gleichzeitig in die Berechnung ein. Er wirkt nur, wenn die Basiswährung nicht USD ist (USD-Anleger gelten in US-Equity per Definition als „home“)."
-              : "The hedging toggle in the portfolio builder feeds four downstream calculations at once. It only fires when the base currency is non-USD (a USD investor in US equity is by definition already \"home\")."}
+              ? "Zwei optionale Schalter erlauben dem Operator, die Standard-Annahmen pessimistischer zu kalibrieren — ohne den ausgewiesenen Median oder die erwartete Rendite zu verändern. Beide Schalter sind in der Default-Stellung „aus\" — alle bisherigen Auswertungen bleiben unverändert reproduzierbar. Sie greifen unabhängig voneinander und können einzeln oder gemeinsam aktiviert werden."
+              : "Two optional toggles let the operator calibrate the default assumptions more pessimistically — without changing the reported median or expected return. Both toggles default to \"off\" — every prior reading remains exactly reproducible. They are independent and can be flipped individually or stacked."}
           </p>
-          <ul className="text-sm space-y-2 list-disc pl-5">
-            <li>
-              {de
-                ? <><span className="font-medium text-foreground">Monte-Carlo-Simulation:</span> für Aktien-Buckets, deren Region nicht der Basiswährung entspricht, wird σ um −3 Prozentpunkte gesenkt (Emerging Markets: −2 pp), mit Untergrenze 5 %. μ bleibt unverändert. Effekt: schmalerer Fan, niedrigeres VaR/MaxDD, gleicher Median. Bonds, Gold, REITs und Crypto bleiben in der MC unangetastet — die σ-Reduktion gilt nur für equity_*-Buckets.</>
-                : <><span className="font-medium text-foreground">Monte Carlo simulation:</span> for equity buckets whose region differs from the base currency, σ is cut by 3 percentage points (emerging markets: 2 pp), with a 5% floor. μ stays unchanged. Effect: tighter fan, lower VaR/MaxDD, same median. Bonds, gold, REITs and crypto are not touched in the MC — the σ cut only applies to equity_* buckets.</>}
-            </li>
-            <li>
-              {de
-                ? <><span className="font-medium text-foreground">Gebühren-Schätzer:</span> +15 Basispunkte TER pauschal auf jede hedgebare Anlageklasse (Equity, Fixed Income, Real Estate). Cash, Commodities und Digital Assets bekommen keinen Aufschlag. Diese Mehrkosten erscheinen direkt im Fee-Estimator und in der Rendite-nach-Kosten-Projektion.</>
-                : <><span className="font-medium text-foreground">Fee estimator:</span> a flat +15 bps TER is added to every hedgeable asset class (Equity, Fixed Income, Real Estate). Cash, commodities and digital assets get no surcharge. The extra cost shows up directly in the fee estimator and in the after-fee return projection.</>}
-            </li>
-            <li>
-              {de
-                ? <><span className="font-medium text-foreground">ETF-Empfehlungen:</span> die Bucket→ETF-Logik schwenkt auf hedged Share Classes um — z. B. iShares S&P 500 EUR Hedged statt der unhedged USD-Variante, oder iShares Global Aggregate Bond CHF Hedged statt der unhedged Global-Aggregate. Die Logik nutzt explizit die Bucket-Schlüssel Equity-USA-EUR/CHF/GBP und FixedIncome-Global-EUR/CHF/GBP, fällt aber sauber auf die unhedged Variante zurück, falls für eine Basiswährung keine hedged Anteilsklasse im Katalog ist.</>
-                : <><span className="font-medium text-foreground">ETF recommendations:</span> the bucket→ETF mapping switches to hedged share classes — e.g. \"iShares S&P 500 EUR Hedged\" instead of the unhedged USD version, or \"iShares Global Aggregate Bond CHF Hedged\" instead of the unhedged Global Aggregate. It explicitly looks up the bucket keys Equity-USA-EUR/CHF/GBP and FixedIncome-Global-EUR/CHF/GBP, but falls back cleanly to the unhedged variant if a hedged share class is not in the catalog for the chosen base currency.</>}
-            </li>
-            <li>
-              {de
-                ? <><span className="font-medium text-foreground">Risiko-/Diversifikations-Hinweise:</span> der Warntext „Currency Risk: Unhedged foreign equity exposure…" und der Diversifikations-Hinweis „Unhedged equities can act as a diversifier…" werden ausgeblendet, sobald Hedging an ist — beide werden durch den Schalter gegenstandslos.</>
-                : <><span className="font-medium text-foreground">Risk / diversification copy:</span> the \"Currency Risk: Unhedged foreign equity exposure…\" warning and the \"Unhedged equities can act as a diversifier…\" hint both disappear once hedging is on — the toggle makes both points moot.</>}
-            </li>
-          </ul>
-          <p className="text-sm text-muted-foreground pt-2">
-            {de ? "Was der Schalter bewusst NICHT tut:" : "What the toggle deliberately does NOT do:"}
-          </p>
-          <ul className="text-sm space-y-1 list-disc pl-5 text-muted-foreground">
-            <li>{de ? "μ (Erwartungsrendite) wird nicht reduziert — die Hedging-Kosten schlagen ausschließlich über die +15-bp-TER durch, nicht über eine niedrigere CMA-Annahme." : "μ (expected return) is not reduced — the hedging cost only flows through the +15 bp TER, not through a lower CMA assumption."}</li>
-            <li>{de ? "Korrelationen werden nicht angepasst (nur die Diagonal-Vola der betroffenen Equity-Buckets)." : "Correlations are not adjusted (only the diagonal vol of the affected equity buckets)."}</li>
-            <li>{de ? "Bei Basiswährung USD passiert nichts — der Schalter wird wirkungslos." : "When the base currency is USD, the toggle is a no-op."}</li>
-            <li>{de ? "Look-Through-Daten ändern sich nicht (gleicher Underlying-Basket; nur die FX-Exposition der hedged Anteilsklassen wird in der Look-Through-Währungstabelle bewusst auf die Anteilsklassen-Währung gemappt — siehe Abschnitt zur Look-Through-Datenpflege)." : "Look-through data does not change (same underlying basket; only the FX exposure of hedged share classes is intentionally mapped to the share-class currency in the look-through currency table — see the look-through data maintenance section)."}</li>
-          </ul>
-        </Section>
 
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 my-3 space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+              {de ? "1. Crisis-Σ (Korrelations-Regime)" : "1. Crisis-Σ (correlation regime)"}
+            </p>
+            <p className="text-xs text-muted-foreground leading-snug">
+              {de
+                ? "In normalen Marktphasen sind Equity-Equity-Korrelationen typischerweise 0.55–0.85, Equity↔Bonds nahe null bzw. leicht positiv (~+0.10 im Post-2022-Regime), Equity↔Gold leicht positiv (~+0.05), Equity↔Cash genau 0. In Krisen (2008, März 2020) konvergieren alle riskanten Assets nach oben: Equity-Equity-Pärchen rücken auf 0.85–0.95, Equity↔Bonds steigt auf +0.30 (Flight-to-Quality bricht zusammen), Equity↔REITs auf 0.80–0.88 (REITs handeln wie gehebelte Aktien), Equity↔Crypto auf 0.55–0.75. Gold und Cash bleiben die einzigen verlässlichen Diversifier (Equity↔Gold dreht auf 0 bis −0.05, Equity↔Cash bewusst auf 0 belassen). Die Krisen-Matrix ist konservativ-konsensuell aus AQR-/Bridgewater-Stress-Studien kalibriert."
+                : "In normal markets, equity-equity correlations are typically 0.55–0.85, equity↔bonds near zero or slightly positive (~+0.10 in the post-2022 regime), equity↔gold slightly positive (~+0.05), equity↔cash exactly 0. In crises (2008, March 2020) all risky assets converge upward: equity-equity pairs jump to 0.85–0.95, equity↔bonds rises to +0.30 (flight-to-quality breaks down), equity↔REITs to 0.80–0.88 (REITs trade as levered equity), equity↔crypto to 0.55–0.75. Gold and cash remain the only reliable diversifiers (equity↔gold flips to 0 / −0.05, equity↔cash deliberately kept at 0). The crisis matrix is calibrated conservatively from AQR/Bridgewater stress studies."}
+            </p>
+            <p className="text-xs text-muted-foreground leading-snug">
+              {de
+                ? "Wirkung: σ, β, Tracking Error, Sharpe, Alpha, Heuristik-MDD und die effiziente Frontier rechnen mit der Crisis-Matrix neu — die ausgewiesene Vol steigt strikt für jeden imperfekt korrelierten Mix; Diversifikations-Vorteile schrumpfen. In der Monte-Carlo-Simulation verbreitert sich der Fan, CVaR99 und Path-MDD-P05 verschlechtern sich, der Median bleibt nahezu unverändert (er wird vom Drift, nicht von der Korrelation getrieben)."
+                : "Effect: σ, β, tracking error, Sharpe, alpha, heuristic MDD and the efficient frontier all recompute against the crisis matrix — reported vol strictly rises for any imperfectly-correlated mix; diversification benefits shrink. In the Monte Carlo simulation the fan widens, CVaR99 and Path-MDD-P05 worsen, the median is largely unchanged (it is driven by drift, not by correlation)."}
+            </p>
+          </div>
+
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 my-3 space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+              {de ? "2. Student-t Tail-Modell (df=5)" : "2. Student-t tail model (df=5)"}
+            </p>
+            <p className="text-xs text-muted-foreground leading-snug">
+              {de
+                ? "Die Default-Annahme einer Gauss-Verteilung unterschätzt die Häufigkeit extremer Ereignisse — empirisch zeigen Aktien-Tagesrenditen (und auch Jahresrenditen) Kurtosis-Werte von 4–7 statt der Gauss-3. Der Student-t-Schalter ersetzt den jährlichen Schock durch eine Student-t-Verteilung mit 5 Freiheitsgraden (Standard-Wahl in der akademischen Literatur, z. B. Cont 2001) — die σ wird über √((df−2)/df) korrigiert, sodass sie identisch zur Gauss-σ bleibt."
+                : "The default Gauss assumption understates the frequency of extreme events — equity daily returns (and annual returns) empirically show kurtosis of 4–7 vs Gauss's 3. The Student-t toggle replaces the annual shock with a Student-t distribution at 5 degrees of freedom (standard choice in the academic literature, e.g. Cont 2001) — σ is corrected via √((df−2)/df) so it stays identical to the Gauss σ."}
+            </p>
+            <p className="text-xs text-muted-foreground leading-snug">
+              {de
+                ? "Wirkung: Median, P10/P90 und P/(L) ändern sich nur marginal (gleiche σ, gleicher Drift). CVaR99 verschlechtert sich messbar (typischerweise 5–15 % schlechter), Path-MDD-P05 ebenso — die fetteren Tails treffen genau die extremen Pfade, die diese Kennzahlen messen."
+                : "Effect: median, P10/P90 and P/L barely change (same σ, same drift). CVaR99 worsens measurably (typically 5–15 % worse), Path-MDD-P05 likewise — the heavier tails hit exactly the extreme paths these metrics measure."}
+            </p>
+          </div>
+
+          <div className="rounded-md border border-border bg-muted/30 p-3 my-3 space-y-2">
+            <p className="text-xs font-semibold">
+              {de ? "Wo bedienen?" : "Where to operate?"}
+            </p>
+            <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-5">
+              <li>{de ? "Crisis-Σ: Risk-&-Performance-Kachel (oben Mitte) — wirkt auf alle σ-getriebenen Kennzahlen, Frontier und Korrelationsmatrix." : "Crisis-Σ: Risk & Performance tile (top center) — affects every σ-driven metric, the frontier, and the correlation matrix."}</li>
+              <li>{de ? "Crisis-Σ + Student-t: Monte-Carlo-Kachel (Tail-Realismus-Box) — beide Schalter unabhängig, Pfad-Aggregate (CVaR, Path-MDD) reagieren entsprechend." : "Crisis-Σ + Student-t: Monte Carlo tile (Tail-Realism box) — both toggles independent, path aggregates (CVaR, Path-MDD) respond accordingly."}</li>
+              <li>{de ? "Stress-Test (Szenarien-Tab) ist deterministisch konstruiert — er nutzt fixe historische Drawdowns je Asset und ist damit Σ-unabhängig (keine Doppel-Pessimismus-Falle)." : "Stress-Test (Scenarios tab) is deterministic by construction — it uses fixed historical drawdowns per asset and is Σ-independent (no double-pessimism trap)."}</li>
+            </ul>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            {de
+              ? "Empfohlener Use: Standard-Aussage mit Default-Annahmen (Gauss + Normal-Σ) + Robustheits-Check mit beiden Schaltern aktiv („Worst-realistic\"-Linse). Wenn die Investment-These auch unter Crisis-Σ + Student-t trägt, ist sie deutlich robuster validiert als unter den Defaults allein."
+              : "Recommended use: produce the standard reading with the default assumptions (Gauss + normal Σ), then a robustness check with both toggles active (the \"worst-realistic\" lens). If the investment thesis still holds under Crisis-Σ + Student-t, it is materially better validated than under the defaults alone."}
+          </p>
+        </Section>
+        <Section value="stress" icon={<ShieldQuestion className="h-4 w-4" />} title={de ? "Stress-Test-Szenarien" : "Stress Test Scenarios"}>
+          <p className="text-sm text-muted-foreground">
+            {de
+              ? "Historische Drawdowns je Anlageklasse aus drei prägenden Krisen. Werte sind handgepflegte, abgerundete Schock-Vektoren basierend auf Index-Verläufen vom Hoch zum Tief."
+              : "Historical drawdowns per asset class from three formative crises. Values are hand-curated, rounded shock vectors based on peak-to-trough index moves."}
+          </p>
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{de ? "Szenario" : "Scenario"}</TableHead>
+                  <TableHead>{de ? "Quelle / Indizes" : "Source / Indices"}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {SCENARIOS.map((s) => (
+                  <TableRow key={s.name}>
+                    <TableCell className="text-xs font-medium">{s.name}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{scenarioSource(s.name, de)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        </Section>
         <Section value="formulas" icon={<Calculator className="h-4 w-4" />} title={de ? "Formeln" : "Formulas"}>
           <div className="space-y-3 text-sm">
             <Formula label="Expected Return" expr="E[Rₚ] = Σᵢ wᵢ · μᵢ" />
@@ -1522,124 +1694,41 @@ export function Methodology() {
             <Formula label="WHT-net Expected Return" expr="E[Rₚ]ₙₑₜ = Σᵢ wᵢ · (μᵢ − whtᵢ)" />
           </div>
         </Section>
+        <SectionGroupHeading
+          id="reference"
+          tone="reference"
+          title={de ? "Referenz & Kontext" : "Reference & context"}
+          description={de ? "Hintergrund-Material: Benchmark-Definition, Datenpflege und ausdrückliche Limitationen der App." : "Background material: benchmark definition, data refresh cadence and explicit limitations of the app."}
+        />
 
-        <Section
-          value="etfs"
-          icon={<Building2 className="h-4 w-4" />}
-          title={de ? "ETF-Katalog" : "ETF Catalog"}
-          editable
-          editableLabel={de ? "Lokal überschreibbar" : "Locally overridable"}
-        >
+        <Section value="bench" icon={<Layers className="h-4 w-4" />} title={de ? "Benchmark (MSCI ACWI Proxy)" : "Benchmark (MSCI ACWI Proxy)"}>
           <p className="text-sm text-muted-foreground">
             {de
-              ? "Reale UCITS-ETFs der Emittenten iShares, SPDR, Invesco, UBS und CoinShares mit ISIN, Tickern je Börse, Domizil, Replikationsmethode, Ausschüttungspolitik, Fondswährung, TER, Fondsvolumen, Auflagedatum und einer kurzen redaktionellen Auswahlbegründung."
-              : "Real UCITS ETFs from the issuers iShares, SPDR, Invesco, UBS and CoinShares with ISIN, per-exchange tickers, domicile, replication method, distribution policy, fund currency, TER, fund size, inception date and a short editorial rationale for why the fund was picked."}
+              ? "Beta, Alpha, Tracking Error und Outperformance werden gegen einen statischen MSCI ACWI Proxy gemessen. Die Gewichte spiegeln grobe regionale Anteile des Index Mitte 2024."
+              : "Beta, Alpha, Tracking Error and Outperformance are measured against a static MSCI ACWI proxy. Weights reflect approximate regional shares of the index in mid-2024."}
           </p>
-          <p className="text-sm text-muted-foreground">
-            {de
-              ? "Hybrider Pflegemodus: Werte, die sich häufig bewegen, werden automatisch aus justETF aktualisiert (TER, AUM, Auflagedatum, Ausschüttung, Replikation – wöchentlich; Listings je Börse – täglich; Look-Through-Daten und Top-10-Holdings – monatlich). Werte, die redaktionelle Entscheidungen darstellen (Fondsauswahl je Anlageklasse, Standardbörse, Auswahlbegründung, Hedge-Währung), bleiben in Code gepflegt. Details siehe Abschnitt „Datenpflege & Aktualität (Snapshot-Build)“ oben."
-              : "Hybrid maintenance mode: values that move regularly are refreshed automatically from justETF (TER, AUM, inception, distribution and replication — weekly; per-exchange listings — daily; look-through breakdowns and top-10 holdings — monthly). Values that represent editorial decisions (which fund to use per asset class, the default exchange, the selection rationale, and the hedge-currency mapping) stay curated in code. See the \"Data Refresh & Freshness (snapshot build)\" section above for the full schedule."}
-          </p>
-          <div className="text-xs text-muted-foreground space-y-1">
-            <div>{de ? "Quelle" : "Source"}: {de ? "Offizielle Emittenten-Factsheets (für die kuratierten Felder) und justETF (für alle automatisch aktualisierten Felder; öffentlich, indikativ)." : "Issuer official factsheets (for the curated fields) and justETF (for every automatically refreshed field; public, indicative)."}</div>
-            <div className="text-amber-700 dark:text-amber-400">
-              {de
-                ? "Wichtig: Auch die automatischen Snapshots sind nur so frisch wie der letzte erfolgreiche Refresh-Lauf. Vor jedem Kauf bitte die Live-Daten beim Emittenten oder Broker prüfen — insbesondere TER, Listings und Verfügbarkeit in Ihrer Jurisdiktion."
-                : "Important: even the automatic snapshots are only as fresh as the last successful refresh run. Always verify live data with the issuer or broker before any purchase — especially TER, listings and availability in your jurisdiction."}
-            </div>
+          <div className="rounded-md border">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>{de ? "Region" : "Region"}</TableHead>
+                  <TableHead className="text-right">{de ? "Gewicht" : "Weight"}</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {BENCHMARK.map((b) => (
+                  <TableRow key={b.key}>
+                    <TableCell className="text-xs">{regionLabel(b.key, de)}</TableCell>
+                    <TableCell className="text-right font-mono text-xs">{(b.weight * 100).toFixed(0)}%</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
           </div>
-          <p className="text-sm text-muted-foreground pt-2">
-            {de
-              ? "Vollständige Übersicht aller Allokations-Buckets der Engine, gruppiert nach Anlageklasse. Pro Bucket zeigt der Baum den aktuell hinterlegten ETF (Name + Katalog-Schlüssel). Über „Ersetzen“ können Sie eine eigene ISIN eintragen, mit den Live-Daten von justETF vergleichen und den Bucket lokal in Ihrem Browser umstellen — die Empfehlungs-Liste, die Gebühren-Berechnung (TER) und der Look-Through-Tab übernehmen den Wechsel sofort. Die Monte-Carlo-Simulation rechnet bewusst auf Asset-Class-Ebene (μ/σ aus den CMA-Annahmen je Bucket) und ändert sich daher nicht, wenn Sie innerhalb desselben Buckets einen anderen ETF wählen."
-              : "Full view of every allocation bucket the engine knows about, grouped by asset class. Each leaf shows the currently selected ETF (name + catalog key). The Override button lets you type a new ISIN, compare it side-by-side with the live justETF data and swap the bucket locally in your browser — the recommendation list, the fee calculation (TER) and the look-through tab reflect the change immediately. The Monte Carlo simulation deliberately runs at the asset-class level (μ/σ from the CMA assumptions per bucket), so it does not move when you swap one ETF for another within the same bucket."}
+          <p className="text-xs text-muted-foreground">
+            {de ? "Quelle" : "Source"}: MSCI ACWI Index Factsheet (msci.com), {de ? "öffentlich zugänglich" : "publicly available"}.
           </p>
-          <div className="rounded-md border bg-muted/30 p-3 space-y-3" data-testid="etf-buckets-panel">
-            <div className="flex flex-wrap items-center gap-2">
-              <Replace className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm font-semibold">
-                {de ? "Bucket-Baum" : "Bucket tree"}
-              </span>
-              {etfOverrideCount > 0 && (
-                <Badge variant="default" className="text-[10px]" data-testid="badge-override-count">
-                  {etfOverrideCount} {de ? "Override(s) aktiv" : "override(s) active"}
-                </Badge>
-              )}
-              <div className="ml-auto flex items-center gap-2">
-                <BucketTreeBulkToggle
-                  groups={bucketGroups}
-                  expanded={bucketsExpanded}
-                  onChange={setBucketsExpanded}
-                />
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => clearAllETFOverrides()}
-                  disabled={etfOverrideCount === 0}
-                  data-testid="button-reset-all-overrides"
-                >
-                  <RotateCcw className="h-3 w-3 mr-1" />
-                  {de ? "Alle zurücksetzen" : "Reset all"}
-                </Button>
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {de
-                ? "Vor jedem realen Kauf bitte ISIN, TER und Verfügbarkeit beim Broker verifizieren."
-                : "Always re-verify ISIN, TER and broker availability before any real-world purchase."}
-            </p>
-            <BucketTree
-              groups={bucketGroups}
-              expanded={bucketsExpanded}
-              onToggleClass={(ac) =>
-                setBucketsExpanded((prev) => {
-                  const next = new Set(prev);
-                  if (next.has(ac)) {
-                    next.delete(ac);
-                  } else {
-                    next.add(ac);
-                  }
-                  return next;
-                })
-              }
-              renderLeafBadge={(leaf) =>
-                etfOverrides[leaf.key] ? (
-                  <Badge
-                    variant="default"
-                    className="ml-2 text-[10px] px-1.5 py-0"
-                    data-testid={`badge-overridden-${leaf.key}`}
-                  >
-                    {de ? "Eigene" : "Overridden"}
-                  </Badge>
-                ) : null
-              }
-              renderLeafAction={(leaf) => (
-                <span className="flex items-center gap-1">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-6 px-2 text-[11px]"
-                    onClick={() => openOverrideDialog(leaf)}
-                    data-testid={`button-override-${leaf.key}`}
-                  >
-                    {de ? "Ersetzen" : "Override"}
-                  </Button>
-                  {etfOverrides[leaf.key] && (
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      className="h-6 px-2 text-[11px]"
-                      onClick={() => clearETFOverride(leaf.key)}
-                      data-testid={`button-reset-${leaf.key}`}
-                    >
-                      <RotateCcw className="h-3 w-3" />
-                    </Button>
-                  )}
-                </span>
-              )}
-            />
-          </div>
         </Section>
-
         <Section value="limits" icon={<AlertTriangle className="h-4 w-4" />} title={de ? "Was diese App NICHT tut" : "What this app does NOT do"}>
           <ul className="text-sm space-y-2 list-disc pl-5">
             <li>{de ? "Kein Live-Marktdaten-Feed (Kurse, NAVs, Renditen, Volatilitäten)." : "No live market data feed (prices, NAVs, yields, volatilities)."}</li>
@@ -1665,27 +1754,128 @@ export function Methodology() {
   );
 }
 
-function Section({ value, icon, title, children, editable, editableLabel }: { value: string; icon: React.ReactNode; title: string; children: React.ReactNode; editable?: boolean; editableLabel?: string }) {
+function Section({ value, icon, title, children, editable, editableLabel, version }: { value: string; icon: React.ReactNode; title: string; children: React.ReactNode; editable?: boolean; editableLabel?: string; version?: string }) {
   return (
-    <AccordionItem value={value} className="border rounded-lg bg-card data-[state=open]:shadow-sm" data-testid={`methodology-section-${value}`}>
+    <AccordionItem
+      value={value}
+      id={`methodology-anchor-${value}`}
+      className="border rounded-lg bg-card data-[state=open]:shadow-sm scroll-mt-24"
+      data-testid={`methodology-section-${value}`}
+    >
       <AccordionTrigger className="px-4 hover:no-underline">
-        <span className="flex items-center gap-2 text-sm font-semibold flex-1 text-left">
+        <span className="flex items-center gap-2 text-sm font-semibold flex-1 text-left flex-wrap">
           {icon}
-          {title}
+          <span>{title}</span>
           {editable && (
             <Badge
               variant="default"
-              className="ml-1 text-[10px] px-1.5 py-0 gap-1 inline-flex items-center"
+              className="ml-1 text-[11px] px-2 py-0.5 gap-1 inline-flex items-center font-semibold shadow-sm ring-1 ring-primary/30"
               data-testid={`badge-editable-${value}`}
             >
-              <Pencil className="h-2.5 w-2.5" />
+              <Pencil className="h-3 w-3" />
               {editableLabel ?? "Editable"}
+            </Badge>
+          )}
+          {version && (
+            <Badge
+              variant="secondary"
+              className="ml-auto mr-2 text-[10px] px-1.5 py-0 gap-1 inline-flex items-center bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
+              data-testid={`whats-new-${value}`}
+            >
+              <RefreshCw className="h-2.5 w-2.5" />
+              {version}
             </Badge>
           )}
         </span>
       </AccordionTrigger>
       <AccordionContent className="px-4 pb-4 space-y-4">{children}</AccordionContent>
     </AccordionItem>
+  );
+}
+
+function SectionGroupHeading({
+  id,
+  title,
+  description,
+  tone,
+}: {
+  id: string;
+  title: string;
+  description: string;
+  tone: "settings" | "calc" | "reference";
+}) {
+  const toneClasses =
+    tone === "settings"
+      ? "border-primary/30 bg-primary/5 text-primary"
+      : tone === "calc"
+        ? "border-blue-500/30 bg-blue-500/5 text-blue-600 dark:text-blue-300"
+        : "border-muted-foreground/30 bg-muted/40 text-muted-foreground";
+  return (
+    <div
+      id={`methodology-group-${id}`}
+      className={`mt-2 first:mt-0 rounded-md border-l-4 ${toneClasses} px-3 py-2 scroll-mt-24`}
+      data-testid={`methodology-group-${id}`}
+    >
+      <div className="text-xs font-bold uppercase tracking-wider">{title}</div>
+      <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{description}</div>
+    </div>
+  );
+}
+
+function JumpMenu({
+  blocks,
+  de,
+  onJump,
+}: {
+  blocks: Array<{ id: string; title: string; items: Array<{ value: string; label: string; editable?: boolean; version?: string }> }>;
+  de: boolean;
+  onJump: (value: string) => void;
+}) {
+  return (
+    <details
+      className="rounded-lg border bg-card sticky top-2 z-20 shadow-sm open:shadow-md"
+      open
+      data-testid="methodology-toc"
+    >
+      <summary className="cursor-pointer list-none px-4 py-3 flex items-center gap-2 text-sm font-semibold select-none">
+        <BookOpen className="h-4 w-4 text-muted-foreground" />
+        <span>{de ? "Auf dieser Seite" : "On this page"}</span>
+        <span className="ml-auto text-xs text-muted-foreground font-normal">
+          {de ? "Klicken zum Springen" : "Click to jump"}
+        </span>
+      </summary>
+      <div className="px-4 pb-3 pt-1 grid gap-3 sm:grid-cols-3 border-t">
+        {blocks.map((b) => (
+          <div key={b.id} className="space-y-1.5">
+            <div className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+              {b.title}
+            </div>
+            <ul className="space-y-1">
+              {b.items.map((it) => (
+                <li key={it.value}>
+                  <button
+                    type="button"
+                    onClick={() => onJump(it.value)}
+                    className="text-xs text-left text-foreground hover:text-primary hover:underline inline-flex items-center gap-1.5 w-full"
+                    data-testid={`toc-jump-${it.value}`}
+                  >
+                    <span className="truncate">{it.label}</span>
+                    {it.editable && (
+                      <Pencil className="h-2.5 w-2.5 text-primary shrink-0" aria-label="editable" />
+                    )}
+                    {it.version && (
+                      <span className="ml-auto text-[9px] text-emerald-600 dark:text-emerald-400 font-medium shrink-0">
+                        {it.version}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ))}
+      </div>
+    </details>
   );
 }
 
