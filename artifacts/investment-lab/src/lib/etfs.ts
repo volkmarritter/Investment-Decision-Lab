@@ -724,6 +724,21 @@ const CATALOG: Record<string, ETFRecord> = {
         aumMillionsEUR: 4602,
         inceptionDate: "2018-10-19",
       },
+
+      {
+        name: "iShares Global Clean Energy Transition UCITS ETF USD (Acc)",
+        isin: "IE000U58J0M1",
+        terBps: 65,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment: "L&G Clean Energy — newer clean-energy alternative.",
+        listings: { "LSE": { ticker: "INRA" }, "XETRA": { ticker: "Q8Y0" } },
+        defaultExchange: "XETRA",
+        aumMillionsEUR: 732,
+        inceptionDate: "2022-02-23",
+      },
     ],
   }),
   "Equity-Cybersecurity": E({
