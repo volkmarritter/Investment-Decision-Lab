@@ -2221,6 +2221,82 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BFNM3J75",
       "_addedAt": "2026-04-28T14:14:48.627Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
+    },
+    "IE00B810Q511": {
+      "name": "Vanguard FTSE 100 UCITS ETF (GBP) Distributing",
+      "topHoldings": [
+        {
+          "name": "AstraZeneca PLC",
+          "pct": 8.95
+        },
+        {
+          "name": "HSBC Holdings Plc",
+          "pct": 8.52
+        },
+        {
+          "name": "Shell Plc",
+          "pct": 8.29
+        },
+        {
+          "name": "Rolls-Royce Holdings",
+          "pct": 3.9
+        },
+        {
+          "name": "BP Plc",
+          "pct": 3.86
+        },
+        {
+          "name": "British American Tobacco plc",
+          "pct": 3.74
+        },
+        {
+          "name": "Unilever Plc",
+          "pct": 3.66
+        },
+        {
+          "name": "GSK Plc",
+          "pct": 3.35
+        },
+        {
+          "name": "Rio Tinto Plc",
+          "pct": 2.92
+        },
+        {
+          "name": "BAE Systems",
+          "pct": 2.69
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-28T14:15:09.421Z",
+      "geo": {
+        "United Kingdom": 85.14,
+        "Switzerland": 2.76,
+        "Ireland": 1.13,
+        "Other": 10.97
+      },
+      "sector": {
+        "Financials": 21.89,
+        "Health Care": 12.88,
+        "Industrials": 12.79,
+        "Energy": 12.15,
+        "Consumer Staples": 10.14,
+        "Basic Materials": 6.56,
+        "Utilities": 4.92,
+        "Consumer Discretionary": 3.84,
+        "Telecommunication": 2.36,
+        "Real Estate": 0.96,
+        "Technology": 0.9,
+        "Other": 10.61
+      },
+      "currency": {
+        "GBP": 85.14,
+        "CHF": 2.76,
+        "EUR": 1.13,
+        "Other": 10.97
+      },
+      "breakdownsAsOf": "2026-04-28T14:15:09.421Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B810Q511",
+      "_addedAt": "2026-04-28T14:15:09.421Z",
+      "_addedVia": "admin/bucket-alternatives (auto)"
     }
   }
 }
