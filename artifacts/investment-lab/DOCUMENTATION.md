@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-04-28 (build-pdf-report-detailed-variant)
+Last updated: 2026-04-28 (build-pdf-report-page-break-primitive)
 
 ---
 
@@ -619,6 +619,14 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-04-28 (build-pdf-report-page-break-primitive) — `data-pdf-page-break="before"` Primitive + Page-Break vor Monte-Carlo-Sektion
+- **Operator-Folgewunsch nach dem Detailed-Report-Release:** „page break before monte carlo" — die Monte-Carlo-Sektion soll nicht mitten zwischen Seite 1 und Seite 2 zerschnitten werden, sondern auf einer frischen A4-Seite starten.
+- **Problem:** der bisherige PDF-Exporter rastert das gesamte Off-Screen-Element zu einem einzigen Canvas und schneidet danach an festen 297mm-Grenzen — CSS `page-break-before: always` wird komplett ignoriert, weil html2canvas keine Seitengrenzen kennt.
+- **Lösung — generisches Page-Break-Primitive in `exportPdf.ts`:** vor dem html2canvas-Pass scannt der Exporter das Element nach Descendants mit `data-pdf-page-break="before"`. Für jeden Marker wird der aktuelle vertikale Offset relativ zum Container in mm umgerechnet (über `element.offsetWidth / 210`-Ratio, da der Off-Screen-Container exakt `210mm` breit ist) und dann ein transparenter Weiß-Spacer mit Höhe `(297 - markerTopMm % 297)mm` direkt vor dem Marker eingefügt. Nach dem Render-Pass werden alle Spacer im `finally`-Block wieder entfernt, damit der Off-Screen-Mount für den nächsten Export sauber bleibt. Re-measurement pro Marker (statt Cache), weil jeder neu eingefügte Spacer die Position nachfolgender Marker verschiebt. Skip-Threshold von 3mm verhindert Sliver-Whitespace, wenn der Marker schon nahe am Seitenanfang sitzt.
+- **Anwendung:** in `PortfolioReport.tsx` bekommt die Monte-Carlo-`<section>` im DetailedSections-Block das Attribut `data-pdf-page-break="before"`. Die anderen Sektionen bleiben unmarkiert; sie fließen natürlich um den Page-Break herum (Top 10 endet auf Seite 1, Monte Carlo + Fees laufen auf Seite 2 weiter, eventuell teilweise auf Seite 3 wegen der Fee-Tabelle).
+- **Bewusste Nicht-Änderungen:** keine CSS-Änderungen am Report (Markup-driven, nicht style-driven). Keine Page-Break-Marker im Basic-One-Pager (der soll natürlich einseitig bleiben). Das Primitive ist generisch — andere Sektionen können später mit demselben Attribut markiert werden, ohne den Exporter erneut anzupassen. Single-Page-Tolerance (`SINGLE_PAGE_TOLERANCE_MM = 2`) bleibt unverändert, beeinflusst nur die Single-vs-Multi-Page-Detection nach dem Spacer-Pass.
+- **352/352 Tests grün, Typecheck clean, e2e bestätigt:** Klick auf „Ausführlicher PDF-Report" lädt eine valide Multi-Page-PDF (809 KB, vorher 1-Seiten-Detailed war ~560 KB, jetzt 2-3 Seiten mit Page-Break), Toast erscheint, keine Console-Errors, Basic-Button funktioniert weiterhin parallel.
 
 ### 2026-04-28 (build-pdf-report-detailed-variant) — Zweiter „ausführlicher" PDF-Report-Button + Look-Through-Status im Header
 - **Operator-Folgewunsch nach dem One-Pager:** „look through only when enabled" (verifizieren) und „bauen Sie einen zweiten Knopf für einen ausführlicheren Report mit zusätzlich Top-10 Equity Holdings (immer Look-Through), Monte-Carlo-Chart + wichtigste Kennzahlen, und Fee-Estimator-Zusammenfassung".

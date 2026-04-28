@@ -21,9 +21,54 @@ export async function exportToPdf(
     el.classList.remove("hidden");
   });
 
+  // Page-break markers: any descendant carrying data-pdf-page-break="before"
+  // will start on a fresh A4 page in the exported PDF. We can't rely on CSS
+  // page-break-before because the whole element is rasterised to a single
+  // canvas and then sliced at A4 boundaries — so we instead inject a
+  // transparent spacer just before each marker, sized to push the marker to
+  // the start of the next page. Spacers are removed in the finally block so
+  // the off-screen mount returns to its pristine state.
+  const PDF_PAGE_HEIGHT_MM = 297; // A4 portrait
+  const PDF_PAGE_WIDTH_MM = 210;
+  const insertedSpacers: HTMLElement[] = [];
+  const markers = Array.from(
+    element.querySelectorAll<HTMLElement>('[data-pdf-page-break="before"]'),
+  );
+
   try {
     // Give DOM a moment to reflow if theme changed
     await new Promise((resolve) => setTimeout(resolve, 100));
+
+    if (markers.length > 0) {
+      // CSS px per mm, derived from the *actual* rendered width of the
+      // off-screen container (which is set to 210mm with box-sizing border-
+      // box). This must match the px→mm ratio html2canvas+jsPDF will use
+      // when sizing the slice, so the spacer aligns the marker exactly to
+      // the page boundary.
+      const pxPerMm = element.offsetWidth / PDF_PAGE_WIDTH_MM;
+      for (const marker of markers) {
+        // Re-measure each iteration: previously-inserted spacers shift the
+        // position of subsequent markers downward.
+        const elTop = element.getBoundingClientRect().top;
+        const markerTop = marker.getBoundingClientRect().top - elTop;
+        const markerTopMm = markerTop / pxPerMm;
+        const overshootMm = markerTopMm % PDF_PAGE_HEIGHT_MM;
+        // Already at (or within 1mm of) the top of a page — nothing to do.
+        if (overshootMm < 1) continue;
+        const padMm = PDF_PAGE_HEIGHT_MM - overshootMm;
+        // Skip pads smaller than a content-line height to avoid awkward
+        // slivers of whitespace.
+        if (padMm < 3) continue;
+        const padPx = padMm * pxPerMm;
+        const spacer = document.createElement("div");
+        spacer.setAttribute("aria-hidden", "true");
+        spacer.style.cssText = `height:${padPx}px;width:100%;background:#ffffff;`;
+        marker.parentNode?.insertBefore(spacer, marker);
+        insertedSpacers.push(spacer);
+      }
+      // Allow the layout to settle before measuring for the canvas pass.
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
 
     const canvas = await html2canvas(element, {
       scale: 2,
@@ -77,6 +122,9 @@ export async function exportToPdf(
 
     pdf.save(filename);
   } finally {
+    // Tear down injected page-break spacers so the off-screen mount
+    // returns to its pristine state for the next export pass.
+    insertedSpacers.forEach((s) => s.remove());
     pdfOnlyEls.forEach((el) => {
       el.classList.add("hidden");
       el.style.display = el.dataset.prevDisplay ?? "";

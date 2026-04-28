@@ -674,8 +674,12 @@ function DetailedSections({
         )}
       </section>
 
-      {/* Section: Monte Carlo projection */}
-      <section className="mt-4">
+      {/* Section: Monte Carlo projection
+       *  data-pdf-page-break="before" tells exportPdf.ts to start this
+       *  section on a fresh A4 page (operator request: pagination here keeps
+       *  the chart and its surrounding key figures on one continuous page,
+       *  rather than splitting across the seam between page 1 and 2). */}
+      <section className="mt-4" data-pdf-page-break="before">
         <SectionTitle>
           {de
             ? `Monte-Carlo-Projektion (illustrativ, ${fmtMoney(ILLUSTRATIVE_AMOUNT)} Investition)`
