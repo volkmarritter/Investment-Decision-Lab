@@ -482,6 +482,22 @@ const CATALOG: Record<string, ETFRecord> = {
       "Physically-backed bitcoin ETP with cold-storage custody; concentrated single-asset exposure.",
     listings: { LSE: { ticker: "BITC" }, XETRA: { ticker: "BITC" }, SIX: { ticker: "BITC" }, Euronext: { ticker: "BITC" } },
     defaultExchange: "SIX",
+    alternatives: [
+      {
+        name: "WisdomTree Physical Bitcoin",
+        isin: "GB00BJYDH287",
+        terBps: 15,
+        domicile: "Jersey",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment: "WisdomTree Physical Bitcoin — alternative crypto ETP.",
+        listings: { "LSE": { ticker: "BTCW" }, "XETRA": { ticker: "WBIT" } },
+        defaultExchange: "LSE",
+        aumMillionsEUR: 1220,
+        inceptionDate: "2019-11-28",
+      },
+    ],
   }),
   // ---------- Thematic ----------
   "Equity-Technology": E({
