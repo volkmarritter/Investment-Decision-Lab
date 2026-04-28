@@ -25,12 +25,18 @@ import {
   type CatalogEntrySummary,
   type AddBucketAlternativeRequest,
   type AlternativeEntrySummary,
+  type BulkAltLookthroughStatus,
+  type BulkAltRowOutcome,
+  type BulkAltRowStatus,
+  type BulkBucketAlternativesResponse,
   type ChangeEntry,
   type FreshnessResponse,
   type LookthroughPoolEntry,
   type OpenPrInfo,
   type PreviewResponse,
   type RunLogRow,
+  type WorkspaceSyncPullResponse,
+  type WorkspaceSyncStatus,
 } from "@/lib/admin-api";
 import { classifyDraft, type ClassifyResult } from "@/lib/catalog-classify";
 import {
@@ -60,7 +66,18 @@ import { LangToggle } from "@/components/lang-toggle";
 import { DocsPanel } from "@/components/admin/DocsPanel";
 import { EtfLookthroughDialog } from "@/components/investment/EtfLookthroughDialog";
 import { useAdminT } from "@/lib/admin-i18n";
-import { ChevronDown, ChevronRight, ExternalLink, GitPullRequest, Layers, LogOut, RefreshCw } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  ExternalLink,
+  GitBranch,
+  GitPullRequest,
+  Layers,
+  LogOut,
+  Plus,
+  RefreshCw,
+  Trash2,
+} from "lucide-react";
 import { toast } from "sonner";
 import {
   BucketTree,
@@ -181,9 +198,11 @@ export default function Admin() {
 
       <main className="container mx-auto px-4 py-8 space-y-6">
         <DocsPanel github={githubInfo} />
-        {/* Workspace sync (2026-04-28): pull merged PRs into the
-            running checkout so /admin/catalog and the dup/cap checks
-            see fresh data without a redeploy. */}
+        {/* Workspace sync (Task #51, 2026-04-28). Sits at the top so
+            operators see the local-vs-origin gap BEFORE queueing any
+            add-alternative work — the per-row preflight reads the
+            catalog from disk and a stale checkout produces ghost
+            "parent_missing" / "duplicate_isin" outcomes. */}
         <WorkspaceSyncPanel />
         {/* Consolidated tree (2026-04-28): replaces the former trio
             BrowseBucketsPanel + LookthroughPoolPanel + BucketAlternativesPanel.
@@ -196,9 +215,10 @@ export default function Admin() {
           catalogError={catalogError}
           githubConfigured={githubConfigured}
         />
-        {/* Batch alternatives (2026-04-28): paste many (parentKey, ISIN)
-            rows; one combined PR for the catalog plus one optional
-            companion PR for look-through data. */}
+        {/* Batch-add (Task #51, 2026-04-28). Sits next to the per-bucket
+            single-add form (which lives inside the consolidated tree
+            above). The single-add path stays for ad-hoc one-offs;
+            batch is the path when the operator has a list. */}
         <BatchAddAlternativesPanel githubConfigured={githubConfigured} />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <SuggestIsinPanel
@@ -5430,700 +5450,1084 @@ function PoolSourceBadge({
   );
 }
 
-// ---------------------------------------------------------------------------
-// WorkspaceSyncPanel — pulls origin/main into the local checkout
-// ---------------------------------------------------------------------------
-// Why this exists (2026-04-28): after the operator merges a curated PR
-// from /admin, the api-server's on-disk copy of etfs.ts and
-// lookthrough.overrides.json still reflects the pre-merge state until
-// someone manually pulls. That stale state silently breaks the next
-// add-alternative attempt — duplicate checks see ghosts, the 2-alt cap
-// blocks adds that the live tree has already cleared. This panel
-// surfaces "you are N commits behind" with a single Sync button so the
-// operator can refresh without leaving the admin pane.
+// ===========================================================================
+// WorkspaceSyncPanel — local git workspace sync from origin/main (Task #51)
+// ===========================================================================
+// Why this panel exists: the admin add-alternative flow grew shaky in
+// late April 2026 because operators were running batch-adds against an
+// out-of-date local checkout — the per-row endpoint reads the catalog
+// from disk for its preflight, so a missing-on-disk parent bucket would
+// surface as `parent_missing` even though the bucket exists on
+// origin/main. Sync FIRST, then queue alternatives.
+//
+// Visible state (GET):
+//   - Branch name + 7-char HEAD sha
+//   - Commits behind / ahead of origin/main (badge)
+//   - Dirty workdir counts (staged / modified / untracked)
+//   - "Could not refresh remote" hint when the best-effort fetch on
+//     GET failed (offline, no creds)
+//   - "Lock file present" hint when .git/index.lock exists
+//   - "Workspace sync unavailable" message in production deploys
+//     (no .git directory)
+//
+// Action (POST):
+//   "Sync workspace from main" — runs git fetch + git merge --ff-only.
+//   On success shows oldSha → newSha + the changed files. On refusal
+//   surfaces the typed reason as a plain-language message rendered
+//   verbatim (the server message ends with the next step the operator
+//   should take).
+// ===========================================================================
 function WorkspaceSyncPanel() {
-  const { t } = useAdminT();
-  const [status, setStatus] = useState<
-    | null
-    | (
-        | { ok: true; data: import("@/lib/admin-api").WorkspaceStatusResponse }
-        | { ok: false; error: string }
-      )
-  >(null);
-  const [loadingStatus, setLoadingStatus] = useState(false);
+  const { t, lang } = useAdminT();
+  const [status, setStatus] = useState<WorkspaceSyncStatus | null>(null);
+  const [statusErr, setStatusErr] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
-  const [lastSync, setLastSync] = useState<
-    null | import("@/lib/admin-api").WorkspaceSyncResponse
-  >(null);
-  const [syncError, setSyncError] = useState<string | null>(null);
+  const [result, setResult] = useState<WorkspaceSyncPullResponse | null>(null);
+  const [refusal, setRefusal] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
-    setLoadingStatus(true);
+    setLoading(true);
+    setStatusErr(null);
     try {
-      const data = await adminApi.workspaceStatus();
-      setStatus({ ok: true, data });
-    } catch (err) {
-      setStatus({
-        ok: false,
-        error: err instanceof Error ? err.message : String(err),
-      });
+      const s = await adminApi.workspaceSyncStatus();
+      setStatus(s);
+    } catch (e: unknown) {
+      setStatusErr(e instanceof Error ? e.message : String(e));
     } finally {
-      setLoadingStatus(false);
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    refresh();
+    void refresh();
   }, [refresh]);
 
-  const onSync = useCallback(async () => {
-    setSyncError(null);
+  async function runSync() {
     setSyncing(true);
+    setResult(null);
+    setRefusal(null);
     try {
-      const r = await adminApi.workspaceSync();
-      setLastSync(r);
-      toast.success(
-        r.alreadyUpToDate
-          ? t({
-              de: "Workspace ist bereits auf dem neusten Stand",
-              en: "Workspace is already up to date",
-            })
-          : t({
-              de: `Workspace synchronisiert (${r.commitsMerged} Commit${r.commitsMerged === 1 ? "" : "s"})`,
-              en: `Workspace synced (${r.commitsMerged} commit${r.commitsMerged === 1 ? "" : "s"})`,
-            }),
-      );
-      // Re-load status so the badges reflect the new SHA.
-      await refresh();
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setSyncError(msg);
-      toast.error(t({ de: "Sync fehlgeschlagen", en: "Sync failed" }), {
-        description: msg,
-      });
+      const r = await adminApi.workspaceSyncPull();
+      setResult(r);
+      // Refresh status so behind/ahead/dirty counts reflect the new HEAD.
+      void refresh();
+    } catch (e: unknown) {
+      // Refusal cases (4xx) come through as Error.message — the server
+      // already formatted them as plain-language strings ending with
+      // the next-step suggestion.
+      setRefusal(e instanceof Error ? e.message : String(e));
     } finally {
       setSyncing(false);
     }
-  }, [refresh, t]);
-
-  const data = status?.ok ? status.data : null;
-  const isBehind = (data?.behindCount ?? 0) > 0;
-  const isDirty = data?.dirty === true;
-  const isLocked = data?.lockHeld === true;
+  }
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
-        <CardTitle className="text-base">
-          {t({
-            de: "Workspace-Synchronisation",
-            en: "Workspace sync",
-          })}
-        </CardTitle>
+      <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
+        <div className="space-y-1">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <GitBranch className="h-4 w-4" />
+            {t({
+              de: "Workspace mit main synchronisieren",
+              en: "Sync workspace from main",
+            })}
+          </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            {t({
+              de: "Holt den aktuellen Stand von origin/main per Fast-Forward-Merge. Wird vor jedem Batch-Add empfohlen, damit der Server gegen denselben Katalog validiert wie GitHub.",
+              en: "Fast-forward merges origin/main into the local checkout. Recommended before any batch-add so the server validates against the same catalog as GitHub.",
+            })}
+          </p>
+        </div>
         <Button
-          variant="ghost"
+          variant="outline"
           size="sm"
-          onClick={refresh}
-          disabled={loadingStatus}
+          onClick={() => void refresh()}
+          disabled={loading || syncing}
         >
           <RefreshCw
-            className={`h-4 w-4 ${loadingStatus ? "animate-spin" : ""}`}
+            className={"h-3.5 w-3.5 mr-1.5" + (loading ? " animate-spin" : "")}
           />
+          {t({ de: "Aktualisieren", en: "Refresh" })}
         </Button>
       </CardHeader>
       <CardContent className="space-y-3">
-        <p className="text-sm text-muted-foreground">
-          {t({
-            de: "Holt frisch zusammengeführte Änderungen von GitHub in die laufende Server-Kopie. Notwendig, damit das Admin-Panel direkt nach einem PR-Merge die neuen Daten sieht.",
-            en: "Pulls freshly merged changes from GitHub into the running server's checkout. Needed so the admin pane sees new data right after a PR merge.",
-          })}
-        </p>
-
-        {status?.ok === false && (
+        {statusErr && (
           <Alert variant="destructive">
             <AlertTitle>
-              {t({ de: "Status nicht verfügbar", en: "Status unavailable" })}
+              {t({ de: "Status nicht abrufbar", en: "Status unavailable" })}
             </AlertTitle>
-            <AlertDescription className="text-xs">
-              {status.error}
+            <AlertDescription className="text-xs break-words">
+              {statusErr}
             </AlertDescription>
           </Alert>
         )}
-
-        {data && (
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
-            <div>
-              <div className="text-xs uppercase text-muted-foreground">
-                {t({ de: "Branch", en: "Branch" })}
+        {status && !status.available && (
+          <Alert>
+            <AlertTitle>
+              {t({
+                de: "Workspace-Sync nicht verfügbar",
+                en: "Workspace sync unavailable",
+              })}
+            </AlertTitle>
+            <AlertDescription className="text-xs">
+              {status.reason ??
+                t({
+                  de: "Dieser Workspace ist kein git-Checkout.",
+                  en: "This workspace is not a git checkout.",
+                })}
+            </AlertDescription>
+          </Alert>
+        )}
+        {status && status.available && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+            <div className="space-y-1">
+              <div className="text-muted-foreground">
+                {t({ de: "Lokaler Stand", en: "Local HEAD" })}
               </div>
-              <div className="font-mono text-xs truncate" title={data.currentBranch}>
-                {data.currentBranch}
-              </div>
-            </div>
-            <div>
-              <div className="text-xs uppercase text-muted-foreground">
-                {t({ de: "Lokaler Commit", en: "Local commit" })}
-              </div>
-              <div className="font-mono text-xs">
-                {data.headSha.slice(0, 7)}
-              </div>
-            </div>
-            <div>
-              <div className="text-xs uppercase text-muted-foreground">
-                {t({ de: "Hinter Origin", en: "Behind origin" })}
-              </div>
-              <div>
-                <Badge
-                  variant={isBehind ? "destructive" : "secondary"}
-                  className={
-                    isBehind ? "" : "bg-emerald-100 text-emerald-900"
-                  }
-                >
-                  {data.behindCount}
+              <div className="font-mono">
+                <Badge variant="outline" className="mr-2">
+                  {status.branch ?? "(detached)"}
                 </Badge>
+                {status.headShortSha ?? "—"}
               </div>
             </div>
-            <div>
-              <div className="text-xs uppercase text-muted-foreground">
-                {t({ de: "Vor Origin", en: "Ahead of origin" })}
+            <div className="space-y-1">
+              <div className="text-muted-foreground">
+                {t({
+                  de: `Gegenüber origin/${status.baseBranch}`,
+                  en: `Against origin/${status.baseBranch}`,
+                })}
               </div>
-              <div>
-                <Badge variant="secondary">{data.aheadCount}</Badge>
+              <div className="flex flex-wrap gap-1.5">
+                {typeof status.behind === "number" ? (
+                  <Badge
+                    variant={status.behind > 0 ? "default" : "outline"}
+                    className={
+                      status.behind > 0
+                        ? "bg-amber-500 hover:bg-amber-500/90"
+                        : ""
+                    }
+                  >
+                    {status.behind}{" "}
+                    {t({ de: "Commits hinten", en: "commits behind" })}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline">
+                    {t({ de: "behind unbekannt", en: "behind unknown" })}
+                  </Badge>
+                )}
+                {typeof status.ahead === "number" && status.ahead > 0 && (
+                  <Badge variant="outline">
+                    {status.ahead}{" "}
+                    {t({ de: "Commits vorn", en: "commits ahead" })}
+                  </Badge>
+                )}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-muted-foreground">
+                {t({ de: "Arbeitsverzeichnis", en: "Working tree" })}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {status.dirty &&
+                status.dirty.staged + status.dirty.modified === 0 ? (
+                  <Badge
+                    variant="outline"
+                    className="border-emerald-600 text-emerald-700 dark:text-emerald-400"
+                  >
+                    {t({ de: "Sauber", en: "Clean" })}
+                  </Badge>
+                ) : (
+                  <>
+                    {status.dirty && status.dirty.staged > 0 && (
+                      <Badge variant="outline">
+                        {status.dirty.staged}{" "}
+                        {t({ de: "staged", en: "staged" })}
+                      </Badge>
+                    )}
+                    {status.dirty && status.dirty.modified > 0 && (
+                      <Badge variant="outline">
+                        {status.dirty.modified}{" "}
+                        {t({ de: "geändert", en: "modified" })}
+                      </Badge>
+                    )}
+                  </>
+                )}
+                {status.dirty && status.dirty.untracked > 0 && (
+                  <Badge variant="outline" className="text-muted-foreground">
+                    {status.dirty.untracked}{" "}
+                    {t({ de: "untracked", en: "untracked" })}
+                  </Badge>
+                )}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <div className="text-muted-foreground">
+                {t({ de: "Hinweise", en: "Hints" })}
+              </div>
+              <div className="space-y-1">
+                {status.fetchOk === false && (
+                  <div className="text-amber-700 dark:text-amber-400">
+                    {t({
+                      de: "Konnte Remote nicht abrufen — Zähler basieren auf dem letzten Cache.",
+                      en: "Could not refresh remote — counts use the last cached ref.",
+                    })}
+                    {status.fetchError && (
+                      <span className="text-muted-foreground">
+                        {" "}
+                        ({status.fetchError})
+                      </span>
+                    )}
+                  </div>
+                )}
+                {status.indexLockPresent && (
+                  <div className="text-amber-700 dark:text-amber-400">
+                    {t({
+                      de: "git-Lock-Datei vorhanden (.git/index.lock) — anderer git-Prozess läuft oder ist abgestürzt.",
+                      en: "git lock file present (.git/index.lock) — another git process is running or crashed.",
+                    })}
+                  </div>
+                )}
+                {!status.fetchOk === false &&
+                  !status.indexLockPresent &&
+                  status.dirty &&
+                  status.dirty.staged + status.dirty.modified === 0 &&
+                  (status.behind ?? 0) === 0 && (
+                    <div className="text-muted-foreground">
+                      {t({
+                        de: "Aktuell — nichts zu synchronisieren.",
+                        en: "Up to date — nothing to sync.",
+                      })}
+                    </div>
+                  )}
               </div>
             </div>
           </div>
         )}
 
-        {data?.upstreamError && (
-          <p className="text-xs text-amber-700 dark:text-amber-400">
-            {t({
-              de: "Konnte Origin nicht erreichen — Behind-Zähler eventuell veraltet.",
-              en: "Could not reach origin — behind-counter may be stale.",
-            })}{" "}
-            <span className="font-mono">({data.upstreamError})</span>
-          </p>
-        )}
-
-        {isDirty && (
-          <Alert variant="destructive">
-            <AlertTitle>
-              {t({
-                de: "Unsaubere Arbeitskopie",
-                en: "Dirty working tree",
-              })}
-            </AlertTitle>
-            <AlertDescription className="text-xs">
-              {t({
-                de: "Im Server-Checkout liegen nicht-committete Änderungen. Ein Sync würde abgelehnt — bitte auf dem Host aufräumen.",
-                en: "The server checkout has uncommitted changes. Sync would be refused — clean up on the host first.",
-              })}
-            </AlertDescription>
-          </Alert>
-        )}
-
-        {isLocked && (
-          <Alert variant="destructive">
-            <AlertTitle>
-              {t({ de: "Git-Operation läuft", en: "Git operation in progress" })}
-            </AlertTitle>
-            <AlertDescription className="text-xs">
-              {t({
-                de: "Eine andere git-Operation hält gerade die Sperre. Bitte ein paar Sekunden warten und dann erneut versuchen.",
-                en: "Another git operation is holding the lock. Wait a few seconds and try again.",
-              })}
-            </AlertDescription>
-          </Alert>
-        )}
-
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 pt-1">
           <Button
-            onClick={onSync}
-            disabled={syncing || isDirty || isLocked || !data}
+            onClick={() => void runSync()}
+            disabled={
+              syncing ||
+              !status?.available ||
+              (status?.dirty &&
+                status.dirty.staged + status.dirty.modified > 0) ||
+              status?.indexLockPresent === true
+            }
           >
             {syncing
-              ? t({ de: "Synchronisiere …", en: "Syncing …" })
-              : isBehind
-                ? t({
-                    de: `${data?.behindCount} Commit${data?.behindCount === 1 ? "" : "s"} ziehen`,
-                    en: `Pull ${data?.behindCount} commit${data?.behindCount === 1 ? "" : "s"}`,
-                  })
-                : t({
-                    de: "Trotzdem synchronisieren",
-                    en: "Sync anyway",
-                  })}
+              ? t({ de: "Synchronisiere…", en: "Syncing…" })
+              : t({
+                  de: "Workspace von main synchronisieren",
+                  en: "Sync workspace from main",
+                })}
           </Button>
-          {lastSync && (
+          {result && (
             <span className="text-xs text-muted-foreground">
-              {lastSync.alreadyUpToDate
-                ? t({
-                    de: "Bereits auf dem neusten Stand.",
-                    en: "Already up to date.",
-                  })
+              {result.alreadyUpToDate
+                ? t({ de: "Schon aktuell.", en: "Already up to date." })
                 : t({
-                    de: `${lastSync.beforeSha.slice(0, 7)} → ${lastSync.afterSha.slice(0, 7)} (${lastSync.changedFiles.length} Datei${lastSync.changedFiles.length === 1 ? "" : "en"})`,
-                    en: `${lastSync.beforeSha.slice(0, 7)} → ${lastSync.afterSha.slice(0, 7)} (${lastSync.changedFiles.length} file${lastSync.changedFiles.length === 1 ? "" : "s"})`,
+                    de: `${result.changedFiles.length} Dateien geändert.`,
+                    en: `${result.changedFiles.length} files changed.`,
                   })}
             </span>
           )}
         </div>
 
-        {syncError && (
+        {refusal && (
           <Alert variant="destructive">
             <AlertTitle>
-              {t({ de: "Sync fehlgeschlagen", en: "Sync failed" })}
+              {t({ de: "Sync abgelehnt", en: "Sync refused" })}
             </AlertTitle>
-            <AlertDescription className="text-xs">{syncError}</AlertDescription>
+            <AlertDescription className="text-xs whitespace-pre-line break-words">
+              {refusal}
+            </AlertDescription>
           </Alert>
         )}
 
-        {lastSync && !lastSync.alreadyUpToDate && lastSync.changedFiles.length > 0 && (
-          <details className="text-xs">
-            <summary className="cursor-pointer text-muted-foreground">
-              {t({
-                de: `Geänderte Dateien (${lastSync.changedFiles.length})`,
-                en: `Changed files (${lastSync.changedFiles.length})`,
-              })}
-            </summary>
-            <ul className="mt-2 space-y-0.5 font-mono">
-              {lastSync.changedFiles.map((f) => (
-                <li key={f}>{f}</li>
-              ))}
-            </ul>
-          </details>
+        {result && !result.alreadyUpToDate && (
+          <div className="rounded border bg-muted/40 p-3 text-xs space-y-2">
+            <div className="font-mono">
+              {result.oldSha.slice(0, 7)} → {result.newSha.slice(0, 7)}
+            </div>
+            {result.changedFiles.length > 0 && (
+              <details>
+                <summary className="cursor-pointer text-muted-foreground">
+                  {t({
+                    de: `${result.changedFiles.length} geänderte Dateien`,
+                    en: `${result.changedFiles.length} changed files`,
+                  })}
+                </summary>
+                <ul className="mt-1.5 ml-4 list-disc space-y-0.5 font-mono">
+                  {result.changedFiles.slice(0, 100).map((f) => (
+                    <li key={f}>{f}</li>
+                  ))}
+                  {result.changedFiles.length > 100 && (
+                    <li className="text-muted-foreground">
+                      …{" "}
+                      {t({
+                        de: `${result.changedFiles.length - 100} weitere`,
+                        en: `${result.changedFiles.length - 100} more`,
+                      })}
+                    </li>
+                  )}
+                </ul>
+              </details>
+            )}
+          </div>
         )}
+        <p className="text-[11px] text-muted-foreground">
+          {lang === "de"
+            ? "Sync nutzt --ff-only — niemals Force-Pull, niemals Merge-Commit. Lokale uncommitted-Änderungen blockieren den Sync mit einer klaren Fehlermeldung."
+            : "Sync uses --ff-only — never a force pull, never a merge commit. Uncommitted local changes block the sync with a clear error."}
+        </p>
       </CardContent>
     </Card>
   );
 }
 
-// ---------------------------------------------------------------------------
-// BatchAddAlternativesPanel — paste many (parentKey, ISIN) rows; one PR.
-// ---------------------------------------------------------------------------
-// Why this exists (2026-04-28): the per-row AddAlternativeForm opens one
-// PR per ISIN. Three curated alternatives = three serialised
-// commit/branch/PR cycles, three file-level conflicts to resolve, three
-// review rounds. This panel collects N rows up-front, runs the same
-// scrape+validate pipeline server-side in one pass, and ships ALL
-// successful rows in ONE etfs.ts PR (+ ONE companion look-through PR).
+// ===========================================================================
+// BatchAddAlternativesPanel — queue N rows, one PR (Task #51)
+// ===========================================================================
+// Sits next to the per-bucket single-add form (which lives inside the
+// consolidated tree). The single-add form remains for one-offs; this
+// panel exists for the common "I want to add 4-5 alternatives across
+// 3 buckets in one sitting" workflow.
 //
-// Input format: free-text textarea, one row per line, parts separated
-// by comma OR whitespace OR tab. Each row: <parentKey> <ISIN> [comment].
-// Lines starting with "#" are ignored as comments. Empty lines ignored.
+// Per-row inputs (minimum):
+//   - parentKey  (required, free-text — operator copies the catalog key
+//                 from the consolidated tree above. Validation server-side.)
+//   - isin       (required, ISO 6166)
+//   - default exchange (optional — server picks the first scraped
+//                 listing if blank)
+//   - comment    (optional — server uses "" if blank)
+//
+// We deliberately do NOT scrape per row in the UI: the server scrapes
+// during the dryRun/submit pass. This keeps the UI fast (no per-row
+// network) and means the operator sees the FULL preview in one shot,
+// which is the value-add over the per-row form.
+//
+// Buttons:
+//   - "Vorschau" → POST dryRun=true, render per-row outcomes + a
+//     diff summary (count of would-add lines + would-skip rows) +
+//     the look-through scrape plan.
+//   - "Batch absenden" → POST dryRun=false, render PR links + the
+//     final per-row outcomes including look-through status.
+//
+// We don't try to render a true unified diff (the etfs.ts file is
+// 4-5k lines; a client-side diff lib would bloat the bundle). The PR
+// view on GitHub already does this perfectly — the preview here is
+// about row-level preflight, not character-level diff.
+// ===========================================================================
+type BatchRow = {
+  // Local-only id so React keys stay stable when the operator removes
+  // a row above another. Deliberately not sent to the server.
+  uid: string;
+  parentKey: string;
+  isin: string;
+  defaultExchange: "" | "LSE" | "XETRA" | "SIX" | "Euronext";
+  comment: string;
+};
+
+function newBatchRow(): BatchRow {
+  return {
+    uid: Math.random().toString(36).slice(2, 10),
+    parentKey: "",
+    isin: "",
+    defaultExchange: "",
+    comment: "",
+  };
+}
+
 function BatchAddAlternativesPanel({
   githubConfigured,
 }: {
   githubConfigured: boolean;
 }) {
-  const { t } = useAdminT();
-  type Row = import("@/lib/admin-api").BulkBucketAlternativeRow;
-  type Outcome = import("@/lib/admin-api").BulkBucketAlternativeOutcome;
-  type SubmitResult = import("@/lib/admin-api").BulkBucketAlternativesResponse;
-
-  const [text, setText] = useState("");
-  const [parsedRows, setParsedRows] = useState<Row[] | null>(null);
-  const [parseError, setParseError] = useState<string | null>(null);
+  const { t, lang } = useAdminT();
+  const [rows, setRows] = useState<BatchRow[]>(() => [
+    newBatchRow(),
+    newBatchRow(),
+  ]);
   const [previewing, setPreviewing] = useState(false);
-  const [previewRows, setPreviewRows] = useState<Outcome[] | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [submitResult, setSubmitResult] = useState<SubmitResult | null>(null);
-  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<BulkBucketAlternativesResponse | null>(
+    null,
+  );
+  const [submitResult, setSubmitResult] =
+    useState<BulkBucketAlternativesResponse | null>(null);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
+  // refreshKey bumps when the submit returns a PR so the embedded
+  // PendingPrsCard refetches and shows the new PR without the operator
+  // hitting reload.
+  const [refreshKey, setRefreshKey] = useState(0);
 
-  const parseInput = useCallback((raw: string): Row[] | string => {
-    const rows: Row[] = [];
-    const lines = raw.split(/\r?\n/);
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      if (!line || line.startsWith("#")) continue;
-      const parts = line.split(/[,\t]|\s{2,}|\s+/).filter(Boolean);
-      if (parts.length < 2) {
-        return `Zeile ${i + 1}: brauche mindestens "parentKey ISIN".`;
-      }
-      const parentKey = parts[0];
-      const isin = parts[1].toUpperCase();
-      const comment = parts.slice(2).join(" ").trim();
-      rows.push({
-        parentKey,
-        isin,
-        ...(comment ? { comment } : {}),
-      });
-    }
-    if (rows.length === 0) return "Keine gültigen Zeilen erkannt.";
-    if (rows.length > 25) return "Maximal 25 Zeilen pro Batch.";
-    return rows;
-  }, []);
+  function update(uid: string, patch: Partial<BatchRow>) {
+    setRows((rs) => rs.map((r) => (r.uid === uid ? { ...r, ...patch } : r)));
+  }
+  function remove(uid: string) {
+    setRows((rs) => (rs.length > 1 ? rs.filter((r) => r.uid !== uid) : rs));
+  }
+  function add() {
+    setRows((rs) => [...rs, newBatchRow()]);
+  }
 
-  const handleParse = useCallback(() => {
-    setSubmitResult(null);
-    setSubmitError(null);
-    setPreviewRows(null);
-    const parsed = parseInput(text);
-    if (typeof parsed === "string") {
-      setParseError(parsed);
-      setParsedRows(null);
+  // Send only non-empty rows. An all-empty row is the operator's
+  // "scratch" slot — silently dropping it lets them keep a blank
+  // row at the bottom for typing without polluting the request.
+  function buildPayload(): Array<{
+    parentKey: string;
+    isin: string;
+    defaultExchange?: "LSE" | "XETRA" | "SIX" | "Euronext";
+    comment?: string;
+  }> {
+    return rows
+      .filter((r) => r.parentKey.trim() || r.isin.trim())
+      .map((r) => ({
+        parentKey: r.parentKey.trim(),
+        isin: r.isin.trim().toUpperCase(),
+        ...(r.defaultExchange ? { defaultExchange: r.defaultExchange } : {}),
+        ...(r.comment.trim() ? { comment: r.comment.trim() } : {}),
+      }));
+  }
+
+  async function runPreview() {
+    const payload = buildPayload();
+    if (payload.length === 0) {
+      setErrMsg(
+        t({
+          de: "Keine Zeilen zum Vorschauen — fülle mindestens parentKey + ISIN aus.",
+          en: "No rows to preview — fill at least one parentKey + ISIN.",
+        }),
+      );
       return;
     }
-    setParseError(null);
-    setParsedRows(parsed);
-  }, [parseInput, text]);
-
-  const handlePreview = useCallback(async () => {
-    if (!parsedRows) return;
+    setErrMsg(null);
     setPreviewing(true);
+    setPreview(null);
     setSubmitResult(null);
-    setSubmitError(null);
     try {
-      const r = await adminApi.previewBulkBucketAlternatives(parsedRows);
-      setPreviewRows(r.rows);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      toast.error(
-        t({ de: "Vorschau fehlgeschlagen", en: "Preview failed" }),
-        { description: msg },
-      );
+      const r = await adminApi.bulkBucketAlternatives(payload, true);
+      setPreview(r);
+    } catch (e: unknown) {
+      setErrMsg(e instanceof Error ? e.message : String(e));
     } finally {
       setPreviewing(false);
     }
-  }, [parsedRows, t]);
+  }
 
-  const handleSubmit = useCallback(async () => {
-    if (!parsedRows) return;
+  async function runSubmit() {
+    const payload = buildPayload();
+    if (payload.length === 0) {
+      setErrMsg(
+        t({
+          de: "Keine Zeilen zum Absenden.",
+          en: "No rows to submit.",
+        }),
+      );
+      return;
+    }
+    setErrMsg(null);
     setSubmitting(true);
     setSubmitResult(null);
-    setSubmitError(null);
     try {
-      const r = await adminApi.bulkAddBucketAlternatives(parsedRows);
+      const r = await adminApi.bulkBucketAlternatives(payload, false);
       setSubmitResult(r);
-      setPreviewRows(r.rows);
+      setPreview(null);
+      setRefreshKey((k) => k + 1);
       toast.success(
         t({
-          de: `Sammel-PR geöffnet (#${r.prNumber})`,
-          en: `Batch PR opened (#${r.prNumber})`,
+          de: `Batch-PR geöffnet: #${r.prNumber}`,
+          en: `Batch PR opened: #${r.prNumber}`,
         }),
-        {
-          action: {
-            label: t({ de: "Öffnen", en: "Open" }),
-            onClick: () => window.open(r.prUrl, "_blank", "noopener"),
-          },
-        },
       );
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setSubmitError(msg);
-      toast.error(t({ de: "Batch fehlgeschlagen", en: "Batch failed" }), {
-        description: msg,
-      });
+    } catch (e: unknown) {
+      setErrMsg(e instanceof Error ? e.message : String(e));
     } finally {
       setSubmitting(false);
     }
-  }, [parsedRows, t]);
+  }
 
-  const okCount =
-    previewRows?.filter((r) => r.status === "ok").length ?? 0;
-  const skipCount = (previewRows?.length ?? 0) - okCount;
+  const filledCount = rows.filter(
+    (r) => r.parentKey.trim() && r.isin.trim(),
+  ).length;
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
+      <CardHeader className="space-y-1 pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
           <Layers className="h-4 w-4" />
           {t({
-            de: "Alternativen sammelweise hinzufügen",
-            en: "Add alternatives in batch",
+            de: "Batch: Alternativen hinzufügen",
+            en: "Batch-add alternatives",
           })}
         </CardTitle>
+        <p className="text-xs text-muted-foreground">
+          {t({
+            de: "Mehrere Alternativen in EINEM PR. Dedup, Cap (≤2 pro Bucket) und Parent-Existenz werden über die ganze Liste geprüft. Look-through-Daten werden für jede neue Alternative best-effort gescraped und in einem zweiten PR gebündelt.",
+            en: "Queue N alternatives into ONE etfs.ts PR. Dedup, per-bucket cap (≤2) and parent existence are checked across the whole list. Look-through data is best-effort scraped per row and bundled into one companion PR.",
+          })}
+        </p>
       </CardHeader>
       <CardContent className="space-y-4">
-        <div className="text-sm text-muted-foreground space-y-2">
-          <p>
-            {t({
-              de: "Pro Zeile: Bucket-Schlüssel und ISIN, optional ein Kommentar. Eine Zeile = eine Alternative. Beispiel:",
-              en: "One row per line: bucket key and ISIN, optional comment. Example:",
-            })}
-          </p>
-          <pre className="text-xs bg-muted/50 rounded p-2 font-mono overflow-x-auto">
-{`Equity-Global IE00BK5BQT80 Vanguard FTSE All-World
-Equity-USA IE00B5BMR087 iShares Core S&P 500
-Equity-EM IE00BTJRMP35 EM IMI breit`}
-          </pre>
-          <p className="text-xs">
-            {t({
-              de: "Maximum 25 Zeilen. Leere Zeilen und Zeilen mit # am Anfang werden ignoriert. Es entsteht GENAU EIN PR (plus optional einer für Look-through-Daten).",
-              en: "Maximum 25 rows. Empty lines and lines starting with # are ignored. Produces EXACTLY ONE PR (plus optionally one for look-through data).",
-            })}
-          </p>
+        {!githubConfigured && (
+          <Alert variant="destructive">
+            <AlertTitle>
+              {t({
+                de: "GitHub nicht konfiguriert",
+                en: "GitHub not configured",
+              })}
+            </AlertTitle>
+            <AlertDescription className="text-xs">
+              {t({
+                de: "Setze GITHUB_PAT, GITHUB_OWNER und GITHUB_REPO am API-Server, um Batch-Submits zu erlauben. Vorschau funktioniert ohne GitHub.",
+                en: "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server to enable batch submit. Preview works without GitHub.",
+              })}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs border-collapse">
+            <thead>
+              <tr className="text-left text-muted-foreground border-b">
+                <th className="py-1.5 pr-2 font-medium w-[28%]">
+                  {t({ de: "parentKey", en: "parentKey" })}
+                </th>
+                <th className="py-1.5 pr-2 font-medium w-[20%]">ISIN</th>
+                <th className="py-1.5 pr-2 font-medium w-[14%]">
+                  {t({ de: "Standard-Börse", en: "Default exchange" })}
+                </th>
+                <th className="py-1.5 pr-2 font-medium">
+                  {t({ de: "Kommentar (optional)", en: "Comment (optional)" })}
+                </th>
+                <th className="py-1.5 w-8"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((r) => (
+                <tr key={r.uid} className="border-b last:border-b-0 align-top">
+                  <td className="py-1.5 pr-2">
+                    <Input
+                      value={r.parentKey}
+                      onChange={(e) =>
+                        update(r.uid, { parentKey: e.target.value })
+                      }
+                      placeholder="Equity-USA"
+                      className="h-8"
+                    />
+                  </td>
+                  <td className="py-1.5 pr-2">
+                    <Input
+                      value={r.isin}
+                      onChange={(e) =>
+                        update(r.uid, {
+                          isin: e.target.value.toUpperCase(),
+                        })
+                      }
+                      placeholder="IE00B5BMR087"
+                      className="h-8 font-mono"
+                    />
+                  </td>
+                  <td className="py-1.5 pr-2">
+                    <Select
+                      value={r.defaultExchange || "_auto"}
+                      onValueChange={(v) =>
+                        update(r.uid, {
+                          defaultExchange:
+                            v === "_auto"
+                              ? ""
+                              : (v as BatchRow["defaultExchange"]),
+                        })
+                      }
+                    >
+                      <SelectTrigger className="h-8">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="_auto">
+                          {t({ de: "Automatisch", en: "Automatic" })}
+                        </SelectItem>
+                        <SelectItem value="LSE">LSE</SelectItem>
+                        <SelectItem value="XETRA">XETRA</SelectItem>
+                        <SelectItem value="SIX">SIX</SelectItem>
+                        <SelectItem value="Euronext">Euronext</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </td>
+                  <td className="py-1.5 pr-2">
+                    <Input
+                      value={r.comment}
+                      onChange={(e) =>
+                        update(r.uid, { comment: e.target.value })
+                      }
+                      placeholder={t({
+                        de: "z. B. Tracking-Differenz, AUM-Hinweis",
+                        en: "e.g. tracking-diff or AUM note",
+                      })}
+                      className="h-8"
+                    />
+                  </td>
+                  <td className="py-1.5 align-middle">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-7 w-7"
+                      onClick={() => remove(r.uid)}
+                      disabled={rows.length <= 1}
+                      aria-label={t({ de: "Zeile entfernen", en: "Remove row" })}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
 
-        <Textarea
-          rows={6}
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          placeholder={t({
-            de: "Equity-Global IE00BK5BQT80",
-            en: "Equity-Global IE00BK5BQT80",
-          })}
-          className="font-mono text-sm"
-        />
-
-        <div className="flex flex-wrap gap-2 items-center">
-          <Button variant="secondary" onClick={handleParse}>
-            {t({ de: "Zeilen einlesen", en: "Parse rows" })}
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant="outline" size="sm" onClick={add}>
+            <Plus className="h-3.5 w-3.5 mr-1.5" />
+            {t({ de: "Zeile hinzufügen", en: "Add row" })}
           </Button>
           <Button
-            variant="outline"
-            onClick={handlePreview}
-            disabled={!parsedRows || previewing}
+            variant="secondary"
+            size="sm"
+            onClick={() => void runPreview()}
+            disabled={previewing || submitting || filledCount === 0}
           >
             {previewing
-              ? t({ de: "Prüfe …", en: "Checking …" })
-              : t({ de: "Vorab prüfen", en: "Preview" })}
+              ? t({ de: "Berechne Vorschau…", en: "Computing preview…" })
+              : t({ de: "Vorschau", en: "Preview batch" })}
           </Button>
           <Button
-            onClick={handleSubmit}
+            size="sm"
+            onClick={() => void runSubmit()}
             disabled={
-              !parsedRows ||
-              submitting ||
-              !githubConfigured ||
-              (previewRows !== null && okCount === 0)
+              submitting || previewing || filledCount === 0 || !githubConfigured
             }
           >
             {submitting
-              ? t({
-                  de: "Öffne Sammel-PR …",
-                  en: "Opening batch PR …",
-                })
-              : t({
-                  de: "Alle als ein PR öffnen",
-                  en: "Submit all as one PR",
-                })}
+              ? t({ de: "Sende…", en: "Submitting…" })
+              : t({ de: "Batch absenden", en: "Submit batch" })}
           </Button>
-          {parsedRows && (
-            <span className="text-xs text-muted-foreground">
-              {t({
-                de: `${parsedRows.length} Zeile(n) eingelesen`,
-                en: `${parsedRows.length} row(s) parsed`,
-              })}
-            </span>
-          )}
+          <span className="text-xs text-muted-foreground">
+            {t({
+              de: `${filledCount} Zeilen mit parentKey + ISIN`,
+              en: `${filledCount} rows with parentKey + ISIN`,
+            })}
+          </span>
         </div>
 
-        {parseError && (
+        {errMsg && (
           <Alert variant="destructive">
-            <AlertDescription className="text-xs">
-              {parseError}
+            <AlertDescription className="text-xs whitespace-pre-line">
+              {errMsg}
             </AlertDescription>
           </Alert>
         )}
 
-        {!githubConfigured && (
-          <Alert>
-            <AlertDescription className="text-xs">
-              {t({
-                de: "GitHub ist nicht konfiguriert — Vorschau funktioniert, aber kein PR möglich.",
-                en: "GitHub is not configured — preview works but no PR can be opened.",
-              })}
-            </AlertDescription>
-          </Alert>
+        {preview && (
+          <BatchPreviewDisplay preview={preview} lang={lang} t={t} />
         )}
-
-        {previewRows && previewRows.length > 0 && (
-          <div className="space-y-2">
-            <div className="flex items-center gap-2 text-sm">
-              <Badge className="bg-emerald-100 text-emerald-900">
-                {okCount} {t({ de: "OK", en: "OK" })}
-              </Badge>
-              {skipCount > 0 && (
-                <Badge variant="destructive">
-                  {skipCount} {t({ de: "übersprungen", en: "skipped" })}
-                </Badge>
-              )}
-              {submitResult && (
-                <a
-                  href={submitResult.prUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="ml-auto inline-flex items-center gap-1 text-sm text-primary hover:underline"
-                >
-                  PR #{submitResult.prNumber}
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              )}
-            </div>
-            <div className="border rounded overflow-hidden">
-              <table className="w-full text-xs">
-                <thead className="bg-muted/50">
-                  <tr>
-                    <th className="text-left p-2">
-                      {t({ de: "Bucket", en: "Bucket" })}
-                    </th>
-                    <th className="text-left p-2">ISIN</th>
-                    <th className="text-left p-2">
-                      {t({ de: "Status", en: "Status" })}
-                    </th>
-                    <th className="text-left p-2">
-                      {t({ de: "Detail", en: "Detail" })}
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {previewRows.map((r, i) => (
-                    <tr
-                      key={`${r.parentKey}-${r.isin}-${i}`}
-                      className="border-t"
-                    >
-                      <td className="p-2 font-mono">{r.parentKey}</td>
-                      <td className="p-2 font-mono">{r.isin}</td>
-                      <td className="p-2">
-                        <BatchStatusBadge status={r.status} />
-                      </td>
-                      <td className="p-2 text-muted-foreground">
-                        {r.name && <span className="block">{r.name}</span>}
-                        {r.message && (
-                          <span className="block text-[11px]">
-                            {r.message}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
         {submitResult && (
-          <div className="space-y-2 border rounded p-3 bg-muted/30">
-            <div className="text-sm">
-              <a
-                href={submitResult.prUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-primary hover:underline"
-              >
-                <GitPullRequest className="h-4 w-4" />
-                {t({
-                  de: `Katalog-PR #${submitResult.prNumber} geöffnet`,
-                  en: `Catalog PR #${submitResult.prNumber} opened`,
-                })}
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            </div>
-            {submitResult.lookthroughPrUrl && (
-              <div className="text-sm">
-                <a
-                  href={submitResult.lookthroughPrUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-primary hover:underline"
-                >
-                  <GitPullRequest className="h-4 w-4" />
-                  {t({
-                    de: `Look-through-PR #${submitResult.lookthroughPrNumber} (${submitResult.lookthroughAdded?.length ?? 0} ISINs)`,
-                    en: `Look-through PR #${submitResult.lookthroughPrNumber} (${submitResult.lookthroughAdded?.length ?? 0} ISINs)`,
-                  })}
-                  <ExternalLink className="h-3 w-3" />
-                </a>
-              </div>
-            )}
-            {submitResult.lookthroughError && (
-              <p className="text-xs text-amber-700 dark:text-amber-400">
-                {t({
-                  de: "Look-through-PR konnte nicht geöffnet werden:",
-                  en: "Look-through PR could not be opened:",
-                })}{" "}
-                {submitResult.lookthroughError}
-              </p>
-            )}
-            {submitResult.lookthroughSkipped &&
-              submitResult.lookthroughSkipped.length > 0 && (
-                <details className="text-xs">
-                  <summary className="cursor-pointer text-muted-foreground">
-                    {t({
-                      de: `Look-through übersprungen (${submitResult.lookthroughSkipped.length})`,
-                      en: `Look-through skipped (${submitResult.lookthroughSkipped.length})`,
-                    })}
-                  </summary>
-                  <ul className="mt-2 space-y-0.5">
-                    {submitResult.lookthroughSkipped.map((s) => (
-                      <li key={s.isin}>
-                        <span className="font-mono">{s.isin}</span> — {s.reason}
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              )}
-            <p className="text-xs text-muted-foreground">
+          <BatchSubmitDisplay result={submitResult} lang={lang} t={t} />
+        )}
+        <Separator />
+        <PendingPrsCard
+          prefix="add-alt/bulk-"
+          refreshKey={refreshKey}
+          emptyHint={
+            <span>
               {t({
-                de: "Nach dem Merge: oben \u201EWorkspace synchronisieren\u201C klicken, damit der Server die neuen Daten sieht.",
-                en: "After merging: click \u201CWorkspace sync\u201D above so the server sees the new data.",
+                de: "Noch keine offenen Batch-PRs.",
+                en: "No open batch PRs.",
               })}
-            </p>
-          </div>
-        )}
-
-        {submitError && (
-          <Alert variant="destructive">
-            <AlertTitle>
-              {t({ de: "Batch fehlgeschlagen", en: "Batch failed" })}
-            </AlertTitle>
-            <AlertDescription className="text-xs">{submitError}</AlertDescription>
-          </Alert>
-        )}
+            </span>
+          }
+        />
       </CardContent>
     </Card>
   );
 }
 
-function BatchStatusBadge({
-  status,
-}: {
-  status: import("@/lib/admin-api").BulkBucketAlternativeStatus;
-}) {
-  const { t } = useAdminT();
+// Per-row outcome badge — colour matches the operator's mental model:
+// emerald for added, slate for benign skips (already-present), amber
+// for input/preflight problems, red for hard failures.
+function batchRowBadgeClass(status: BulkAltRowStatus): string {
   switch (status) {
     case "ok":
-      return (
-        <Badge className="bg-emerald-100 text-emerald-900">
-          {t({ de: "OK", en: "OK" })}
-        </Badge>
-      );
+      return "border-emerald-600 text-emerald-700 dark:text-emerald-400";
     case "duplicate_isin":
-      return (
-        <Badge variant="outline" className="border-amber-500 text-amber-700 dark:text-amber-400">
-          {t({ de: "Duplikat", en: "Duplicate" })}
-        </Badge>
-      );
     case "cap_exceeded":
-      return (
-        <Badge variant="outline" className="border-amber-500 text-amber-700 dark:text-amber-400">
-          {t({ de: "Limit", en: "Cap" })}
-        </Badge>
-      );
-    case "parent_missing":
-      return (
-        <Badge variant="destructive">
-          {t({ de: "Bucket fehlt", en: "Bucket missing" })}
-        </Badge>
-      );
-    case "invalid_isin":
-      return (
-        <Badge variant="destructive">
-          {t({ de: "ISIN ungültig", en: "Invalid ISIN" })}
-        </Badge>
-      );
+      return "border-slate-500 text-slate-700 dark:text-slate-400";
     case "scrape_failed":
-      return (
-        <Badge variant="destructive">
-          {t({ de: "Scrape fehlgeschlagen", en: "Scrape failed" })}
-        </Badge>
-      );
-    case "scrape_invalid":
-      return (
-        <Badge variant="destructive">
-          {t({ de: "Daten unvollständig", en: "Data incomplete" })}
-        </Badge>
-      );
+    case "parent_missing":
+      return "border-red-600 text-red-700 dark:text-red-400";
     default:
-      return <Badge variant="secondary">{status}</Badge>;
+      return "border-amber-600 text-amber-700 dark:text-amber-400";
   }
+}
+
+function batchRowLabel(
+  status: BulkAltRowStatus,
+  lang: "de" | "en",
+): string {
+  const map: Record<BulkAltRowStatus, { de: string; en: string }> = {
+    ok: { de: "Wird hinzugefügt", en: "Will add" },
+    invalid_input: { de: "Eingabe ungültig", en: "Invalid input" },
+    invalid_parent_key: {
+      de: "parentKey ungültig",
+      en: "Invalid parentKey",
+    },
+    invalid_isin: { de: "ISIN ungültig", en: "Invalid ISIN" },
+    invalid_exchange: {
+      de: "Börse ungültig",
+      en: "Invalid exchange",
+    },
+    invalid_entry: {
+      de: "Eintrag-Validierung fehlgeschlagen",
+      en: "Entry validation failed",
+    },
+    parent_missing: { de: "Bucket fehlt", en: "Bucket missing" },
+    duplicate_isin: { de: "ISIN bereits vorhanden", en: "ISIN already used" },
+    cap_exceeded: { de: "Bucket-Limit erreicht", en: "Bucket cap reached" },
+    scrape_failed: { de: "Scrape fehlgeschlagen", en: "Scrape failed" },
+  };
+  return map[status][lang];
+}
+
+function lookthroughStatusLabel(
+  status: BulkAltLookthroughStatus | undefined,
+  plan: BulkAltRowOutcome["lookthroughPlan"] | undefined,
+  lang: "de" | "en",
+): string {
+  if (status === "pr_added")
+    return lang === "de" ? "Look-through PR" : "Look-through PR";
+  if (status === "already_present")
+    return lang === "de" ? "Bereits vorhanden" : "Already present";
+  if (status === "incomplete")
+    return lang === "de" ? "Unvollständig" : "Incomplete";
+  if (status === "scrape_failed")
+    return lang === "de" ? "Scrape fehler" : "Scrape failed";
+  if (status === "would_add")
+    return lang === "de" ? "Wird ergänzt" : "Will add";
+  if (plan === "would_scrape")
+    return lang === "de" ? "Wird gescraped" : "Will scrape";
+  if (plan === "already_present")
+    return lang === "de" ? "Bereits vorhanden" : "Already present";
+  return "—";
+}
+
+// Render a server-supplied unified-diff string with +/- line colouring.
+// We deliberately render verbatim (one <span> per line) instead of pulling
+// in a syntax-highlighting lib — the PR view on GitHub is the canonical
+// source; this is just a sanity-check before the operator commits.
+function UnifiedDiffView({
+  diff,
+  emptyLabel,
+}: {
+  diff: string;
+  emptyLabel: string;
+}) {
+  if (!diff.trim()) {
+    return (
+      <pre className="max-h-64 overflow-auto rounded bg-background p-2 font-mono text-[10px] leading-tight border text-muted-foreground">
+        {emptyLabel}
+      </pre>
+    );
+  }
+  const lines = diff.split("\n");
+  return (
+    <pre className="max-h-96 overflow-auto rounded bg-background p-2 font-mono text-[10px] leading-tight border">
+      {lines.map((line, i) => {
+        let cls = "";
+        if (line.startsWith("@@")) {
+          cls = "text-blue-700 dark:text-blue-400 font-semibold";
+        } else if (line.startsWith("+++") || line.startsWith("---")) {
+          cls = "text-muted-foreground font-semibold";
+        } else if (line.startsWith("+")) {
+          cls =
+            "bg-emerald-100/60 dark:bg-emerald-950/40 text-emerald-900 dark:text-emerald-200";
+        } else if (line.startsWith("-")) {
+          cls =
+            "bg-rose-100/60 dark:bg-rose-950/40 text-rose-900 dark:text-rose-200";
+        }
+        return (
+          <span key={i} className={`block ${cls}`}>
+            {line || "\u00A0"}
+          </span>
+        );
+      })}
+    </pre>
+  );
+}
+
+function BatchPreviewDisplay({
+  preview,
+  lang,
+  t,
+}: {
+  preview: BulkBucketAlternativesResponse;
+  lang: "de" | "en";
+  t: (s: { de: string; en: string }) => string;
+}) {
+  const wouldAdd = preview.summary.wouldAdd ?? 0;
+  const wouldSkip = preview.summary.wouldSkip ?? 0;
+  const wouldScrape = preview.summary.wouldScrapeLookthrough ?? 0;
+  return (
+    <div className="rounded border bg-muted/30 p-3 space-y-3">
+      <div className="flex flex-wrap items-center gap-1.5 text-xs">
+        <Badge variant="outline">
+          {t({ de: "Vorschau", en: "Preview" })}
+        </Badge>
+        <Badge
+          variant="outline"
+          className="border-emerald-600 text-emerald-700 dark:text-emerald-400"
+        >
+          {wouldAdd} {t({ de: "wird hinzugefügt", en: "will add" })}
+        </Badge>
+        {wouldSkip > 0 && (
+          <Badge
+            variant="outline"
+            className="border-amber-600 text-amber-700 dark:text-amber-400"
+          >
+            {wouldSkip} {t({ de: "übersprungen", en: "skipped" })}
+          </Badge>
+        )}
+        <Badge variant="outline">
+          {wouldScrape}{" "}
+          {t({
+            de: "look-through-Scrapes durchgeführt",
+            en: "look-through scrapes performed",
+          })}
+        </Badge>
+      </div>
+      <BatchOutcomeTable rows={preview.perRow} lang={lang} t={t} />
+      {preview.etfs && (
+        <details className="text-xs" open>
+          <summary className="cursor-pointer text-muted-foreground font-semibold">
+            {t({
+              de: `Diff: ${preview.etfs.path}`,
+              en: `Diff: ${preview.etfs.path}`,
+            })}
+          </summary>
+          <div className="mt-2">
+            <UnifiedDiffView
+              diff={preview.etfs.diff}
+              emptyLabel={t({
+                de: "(Keine Änderungen — alle Zeilen würden übersprungen.)",
+                en: "(No changes — every row would be skipped.)",
+              })}
+            />
+          </div>
+        </details>
+      )}
+      {preview.lookthrough && (
+        <details className="text-xs" open={preview.lookthrough.changed}>
+          <summary className="cursor-pointer text-muted-foreground font-semibold">
+            {t({
+              de: `Diff: ${preview.lookthrough.path}`,
+              en: `Diff: ${preview.lookthrough.path}`,
+            })}
+          </summary>
+          <div className="mt-2">
+            <UnifiedDiffView
+              diff={preview.lookthrough.diff}
+              emptyLabel={
+                preview.lookthrough.alreadyPresent.length > 0
+                  ? t({
+                      de: `(Keine Änderungen — Look-through-Daten für alle ${preview.lookthrough.alreadyPresent.length} ISINs bereits vorhanden.)`,
+                      en: `(No changes — look-through data for all ${preview.lookthrough.alreadyPresent.length} ISINs already covered.)`,
+                    })
+                  : t({
+                      de: "(Keine Änderungen.)",
+                      en: "(No changes.)",
+                    })
+              }
+            />
+            {preview.lookthrough.wouldAddIsins.length > 0 && (
+              <div className="mt-2 text-muted-foreground">
+                {t({
+                  de: `Hinzuzufügen (${preview.lookthrough.wouldAddIsins.length}):`,
+                  en: `Will add (${preview.lookthrough.wouldAddIsins.length}):`,
+                })}{" "}
+                {preview.lookthrough.wouldAddIsins
+                  .map((r) => `${r.isin}${r.name ? ` (${r.name})` : ""}`)
+                  .join(", ")}
+              </div>
+            )}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
+
+function BatchSubmitDisplay({
+  result,
+  lang,
+  t,
+}: {
+  result: BulkBucketAlternativesResponse;
+  lang: "de" | "en";
+  t: (s: { de: string; en: string }) => string;
+}) {
+  return (
+    <div className="rounded border bg-emerald-50 dark:bg-emerald-950/30 p-3 space-y-3">
+      <div className="flex flex-wrap items-center gap-1.5 text-xs">
+        <Badge
+          variant="outline"
+          className="border-emerald-600 text-emerald-700 dark:text-emerald-400"
+        >
+          {t({ de: "Batch eingereicht", en: "Batch submitted" })}
+        </Badge>
+        {result.prUrl && (
+          <a
+            href={result.prUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 hover:underline"
+          >
+            <GitPullRequest className="h-3.5 w-3.5" />
+            etfs.ts PR #{result.prNumber}
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        )}
+        {result.lookthroughPrUrl && (
+          <a
+            href={result.lookthroughPrUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 hover:underline"
+          >
+            <GitPullRequest className="h-3.5 w-3.5" />
+            look-through PR #{result.lookthroughPrNumber}
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        )}
+      </div>
+      <div className="flex flex-wrap gap-1.5 text-xs">
+        <Badge variant="outline">
+          {result.summary.added ?? 0} {t({ de: "hinzugefügt", en: "added" })}
+        </Badge>
+        {(result.summary.skipped ?? 0) > 0 && (
+          <Badge variant="outline">
+            {result.summary.skipped}{" "}
+            {t({ de: "übersprungen", en: "skipped" })}
+          </Badge>
+        )}
+        {(result.summary.lookthroughAdded ?? 0) > 0 && (
+          <Badge variant="outline">
+            {result.summary.lookthroughAdded}{" "}
+            {t({
+              de: "look-through hinzugefügt",
+              en: "look-through added",
+            })}
+          </Badge>
+        )}
+        {(result.summary.lookthroughAlreadyPresent ?? 0) > 0 && (
+          <Badge variant="outline">
+            {result.summary.lookthroughAlreadyPresent}{" "}
+            {t({
+              de: "look-through schon vorhanden",
+              en: "look-through already present",
+            })}
+          </Badge>
+        )}
+        {(result.summary.lookthroughSkipped ?? 0) > 0 && (
+          <Badge variant="outline" className="border-amber-600">
+            {result.summary.lookthroughSkipped}{" "}
+            {t({
+              de: "look-through übersprungen",
+              en: "look-through skipped",
+            })}
+          </Badge>
+        )}
+      </div>
+      {result.lookthroughError && (
+        <Alert variant="destructive">
+          <AlertTitle>
+            {t({
+              de: "Look-through PR fehlgeschlagen",
+              en: "Look-through PR failed",
+            })}
+          </AlertTitle>
+          <AlertDescription className="text-xs whitespace-pre-line break-words">
+            {result.lookthroughError}
+          </AlertDescription>
+        </Alert>
+      )}
+      <BatchOutcomeTable rows={result.perRow} lang={lang} t={t} />
+    </div>
+  );
+}
+
+function BatchOutcomeTable({
+  rows,
+  lang,
+  t,
+}: {
+  rows: BulkAltRowOutcome[];
+  lang: "de" | "en";
+  t: (s: { de: string; en: string }) => string;
+}) {
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs border-collapse">
+        <thead>
+          <tr className="text-left text-muted-foreground border-b">
+            <th className="py-1 pr-2 font-medium">parentKey</th>
+            <th className="py-1 pr-2 font-medium">ISIN</th>
+            <th className="py-1 pr-2 font-medium">
+              {t({ de: "Name", en: "Name" })}
+            </th>
+            <th className="py-1 pr-2 font-medium">
+              {t({ de: "Status", en: "Status" })}
+            </th>
+            <th className="py-1 pr-2 font-medium">Look-through</th>
+            <th className="py-1 font-medium">
+              {t({ de: "Detail", en: "Detail" })}
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r, i) => (
+            <tr
+              key={`${r.parentKey}|${r.isin}|${i}`}
+              className="border-b last:border-b-0 align-top"
+            >
+              <td className="py-1 pr-2 font-mono">{r.parentKey || "—"}</td>
+              <td className="py-1 pr-2 font-mono">{r.isin || "—"}</td>
+              <td className="py-1 pr-2">{r.name ?? "—"}</td>
+              <td className="py-1 pr-2">
+                <Badge
+                  variant="outline"
+                  className={batchRowBadgeClass(r.status)}
+                >
+                  {batchRowLabel(r.status, lang)}
+                </Badge>
+              </td>
+              <td className="py-1 pr-2">
+                <span className="text-muted-foreground">
+                  {lookthroughStatusLabel(
+                    r.lookthroughStatus,
+                    r.lookthroughPlan,
+                    lang,
+                  )}
+                </span>
+              </td>
+              <td className="py-1 text-muted-foreground break-words max-w-[24ch]">
+                {r.message ?? r.lookthroughMessage ?? ""}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }

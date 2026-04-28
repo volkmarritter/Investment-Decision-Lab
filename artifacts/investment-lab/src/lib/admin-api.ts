@@ -331,6 +331,46 @@ export const adminApi = {
       `/admin/bucket-alternatives/${encodeURIComponent(parentKey)}/${encodeURIComponent(isin)}`,
       { method: "DELETE" },
     ),
+  // Batch-add curated alternatives in ONE etfs.ts PR + at most ONE
+  // companion look-through PR (Task #51, 2026-04-28). The single-row
+  // endpoint above is unchanged — operators can still use it for
+  // ad-hoc one-offs, and the batch endpoint reuses the same dedup /
+  // cap / parent-exists pre-flight so the two flows agree on what's
+  // valid.
+  //
+  // dryRun=true returns `etfs.{baseContent,nextContent}` for the UI
+  // to diff client-side, plus `lookthrough.wouldScrape[]` listing the
+  // ISINs the submit step would scrape (no scraping happens during
+  // preview, so this is fast). `perRow` carries the validation outcome
+  // for every input row (including those filtered out).
+  bulkBucketAlternatives: (
+    rows: Array<{
+      parentKey: string;
+      isin: string;
+      defaultExchange?: "LSE" | "XETRA" | "SIX" | "Euronext";
+      preferredExchange?: "LSE" | "XETRA" | "SIX" | "Euronext";
+      comment?: string;
+    }>,
+    dryRun: boolean,
+  ) =>
+    call<BulkBucketAlternativesResponse>(
+      "/admin/bucket-alternatives/bulk",
+      {
+        method: "POST",
+        body: JSON.stringify({ rows, dryRun }),
+      },
+    ),
+  // Workspace-sync panel (Task #51, 2026-04-28). GET returns the
+  // current state (HEAD sha, behind/ahead vs origin/main, dirty
+  // workdir, lock-file presence). POST runs `git fetch origin main`
+  // + `git merge --ff-only origin/main`; refusal cases return 409 with
+  // a typed `error` and a plain-language `message` the UI surfaces
+  // verbatim.
+  workspaceSyncStatus: () => call<WorkspaceSyncStatus>("/admin/workspace-sync"),
+  workspaceSyncPull: () =>
+    call<WorkspaceSyncPullResponse>("/admin/workspace-sync", {
+      method: "POST",
+    }),
   // Lists currently-open PRs on the configured GitHub repo, optionally
   // scoped to a single admin flow via branch prefix:
   //   "add-lookthrough-pool/" | "add-etf/" | "update-app-defaults/" | "add-alt/"
@@ -481,6 +521,122 @@ export interface AppDefaultsPayload {
   cma?: Partial<
     Record<AppDefaultsAssetKey, { expReturn?: number; vol?: number }>
   >;
+}
+
+// ---- Batch-add bucket alternatives (Task #51) ------------------------------
+// Mirrors the per-row outcome shape on the server. `status === "ok"` means
+// the row passed every preflight gate and (on submit) was committed to the
+// bulk PR; everything else is a documented skip reason. `lookthroughStatus`
+// is populated only on the real submit; `lookthroughPlan` only on dryRun.
+export type BulkAltRowStatus =
+  | "ok"
+  | "invalid_input"
+  | "invalid_parent_key"
+  | "invalid_isin"
+  | "parent_missing"
+  | "duplicate_isin"
+  | "cap_exceeded"
+  | "scrape_failed"
+  | "invalid_entry"
+  | "invalid_exchange";
+
+export type BulkAltLookthroughStatus =
+  | "pr_added"
+  | "already_present"
+  | "incomplete"
+  | "scrape_failed"
+  | "would_add";
+
+export interface BulkAltRowOutcome {
+  parentKey: string;
+  isin: string;
+  name?: string;
+  status: BulkAltRowStatus;
+  message?: string;
+  conflict?: string;
+  lookthroughPlan?: "would_scrape" | "already_present";
+  lookthroughStatus?: BulkAltLookthroughStatus;
+  lookthroughMessage?: string;
+}
+
+export interface BulkBucketAlternativesResponse {
+  ok: boolean;
+  dryRun: boolean;
+  perRow: BulkAltRowOutcome[];
+  summary: {
+    total: number;
+    // Present on dryRun:
+    wouldAdd?: number;
+    wouldSkip?: number;
+    wouldScrapeLookthrough?: number;
+    // Present on submit:
+    added?: number;
+    skipped?: number;
+    lookthroughAdded?: number;
+    lookthroughAlreadyPresent?: number;
+    lookthroughSkipped?: number;
+  };
+  // Present on dryRun only:
+  etfs?: {
+    path: string;
+    baseContent: string;
+    nextContent: string;
+    diff: string;
+    changed: boolean;
+  };
+  lookthrough?: {
+    path: string;
+    baseContent: string;
+    nextContent: string;
+    diff: string;
+    changed: boolean;
+    wouldAddIsins: Array<{ isin: string; name: string | null }>;
+    alreadyPresent: Array<{ isin: string; name: string | null }>;
+  };
+  // Present on submit only:
+  prUrl?: string;
+  prNumber?: number;
+  lookthroughPrUrl?: string;
+  lookthroughPrNumber?: number;
+  lookthroughError?: string;
+}
+
+// ---- Workspace sync (Task #51) ---------------------------------------------
+export interface WorkspaceSyncStatus {
+  available: boolean;
+  // When `available === false`, plain-language explanation (e.g. the
+  // workspace is not a git checkout — common in production deploys).
+  reason?: string;
+  branch?: string;
+  headSha?: string;
+  headShortSha?: string;
+  behind?: number;
+  ahead?: number;
+  fetchOk?: boolean;
+  fetchError?: string;
+  dirty?: { staged: number; modified: number; untracked: number };
+  indexLockPresent?: boolean;
+  indexLockPath?: string;
+  baseBranch: string;
+}
+
+// Refusal categories returned in the `error` field on a 409 response.
+// Each pairs with a plain-language `message` rendered verbatim by the UI.
+export type WorkspaceSyncRefusal =
+  | "not_a_git_checkout"
+  | "uncommitted_changes"
+  | "index_lock_present"
+  | "fetch_failed"
+  | "non_fast_forward"
+  | "merge_failed";
+
+export interface WorkspaceSyncPullResponse {
+  ok: true;
+  oldSha: string;
+  newSha: string;
+  changedFiles: string[];
+  alreadyUpToDate: boolean;
+  baseBranch: string;
 }
 
 export interface LookthroughPoolEntry {

@@ -18,13 +18,11 @@
 // ----------------------------------------------------------------------------
 
 import { Router, type IRouter } from "express";
-import { execFile } from "node:child_process";
-import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
-import { promisify } from "node:util";
+import { createPatch } from "diff";
 import { requireAdmin } from "../middlewares/admin-auth";
-import { dataFile, getCatalogPath } from "../lib/data-paths";
+import { dataFile } from "../lib/data-paths";
 import {
   githubConfigured,
   injectAlternative,
@@ -38,22 +36,25 @@ import {
   openUpdateAppDefaultsPr,
   renderAlternativeBlock,
   renderEntryBlock,
-  type BulkAlternativeOutcome,
+  type BulkBucketAltRowOutcome,
   type LookthroughPoolEntry,
   type NewAlternativeEntry,
   type NewEtfEntry,
 } from "../lib/github";
 import { findDuplicateIsinKey, loadCatalog } from "../lib/catalog-parser";
+import { getCatalogPath } from "../lib/data-paths";
 import { scrapePreview, PreviewError, normalizeIsin } from "../lib/etf-scrape";
 import { scrapeLookthrough } from "../lib/lookthrough-scrape";
+import {
+  getWorkspaceSyncStatus,
+  syncWorkspaceFromMain,
+} from "../lib/workspace-sync";
 import {
   renderAppDefaultsFile,
   stampMeta,
   validateAppDefaults,
   type AppDefaults,
 } from "../lib/app-defaults";
-
-const execFileP = promisify(execFile);
 
 const router: IRouter = Router();
 
@@ -467,301 +468,64 @@ router.post("/admin/bucket-alternatives", async (req, res) => {
   });
 });
 
-// --- /api/admin/bucket-alternatives/bulk -----------------------------------
-// Batch-add curated alternatives (2026-04-28). Operator pastes a list of
-// (parentKey, ISIN) pairs in the /admin batch panel. The server scrapes
-// each ISIN from justETF, validates the resulting draft, and ships ALL
-// successful rows in ONE etfs.ts PR + ONE companion look-through PR
-// (instead of N separate PRs that pile up file-level conflicts).
+// --- /api/admin/bucket-alternatives/bulk -------------------------------------
+// Batch-add curated alternatives in a SINGLE PR (Task #51, 2026-04-28).
 //
-// Both endpoints share the same per-row "scrape + validate + simulate"
-// loop — the preview variant just stops short of opening any PR so the
-// operator can inspect the per-row outcome (added / parent_missing /
-// duplicate_isin / cap_exceeded / scrape_failed / scrape_invalid)
-// before committing.
-//
-// Request shape:
-//   { rows: Array<{ parentKey: string; isin: string; comment?: string }> }
-//
-// Response shape (preview):
-//   { rows: Array<{ parentKey, isin, status, name?, conflict?, message? }> }
-//
-// Response shape (submit) on success (≥1 row landed):
+// Body shape:
 //   {
-//     ok: true,
-//     prUrl, prNumber,
-//     rows: Array<{ ... same as preview ... }>,
-//     lookthroughPrUrl?, lookthroughPrNumber?,
-//     lookthroughAdded?: string[],          // ISINs that landed in the LT PR
-//     lookthroughSkipped?: Array<{ isin, reason }>,
+//     rows: Array<{
+//       parentKey: string;
+//       isin: string;
+//       defaultExchange?: "LSE" | "XETRA" | "SIX" | "Euronext";
+//       preferredExchange?: same;   // alias for defaultExchange
+//       comment?: string;           // overrides scraped value
+//     }>,
+//     dryRun?: boolean;
 //   }
-type BulkAltRowStatus =
-  | "ok"
-  | "parent_missing"
-  | "duplicate_isin"
-  | "cap_exceeded"
-  | "invalid_isin"
-  | "scrape_failed"
-  | "scrape_invalid";
-
-interface BulkAltPreviewRow {
-  parentKey: string;
-  isin: string;
-  status: BulkAltRowStatus;
-  name?: string;
-  conflict?: string;
-  message?: string;
-}
-
-interface BulkAltInputRow {
-  parentKey: string;
-  isin: string;
-  comment?: string;
-}
-
-const BULK_MAX_ROWS = 25;
-
-function parseBulkRows(body: unknown): BulkAltInputRow[] | string {
-  if (!body || typeof body !== "object") return "rows missing";
-  const raw = (body as { rows?: unknown }).rows;
-  if (!Array.isArray(raw)) return "rows must be an array";
-  if (raw.length === 0) return "rows is empty";
-  if (raw.length > BULK_MAX_ROWS) {
-    return `too many rows (max ${BULK_MAX_ROWS} per batch)`;
-  }
-  const out: BulkAltInputRow[] = [];
-  for (let i = 0; i < raw.length; i++) {
-    const r = raw[i] as Record<string, unknown> | undefined;
-    if (!r || typeof r !== "object") return `row ${i + 1}: not an object`;
-    const parentKey =
-      typeof r.parentKey === "string" ? r.parentKey.trim() : "";
-    const isin =
-      typeof r.isin === "string" ? r.isin.trim().toUpperCase() : "";
-    if (!parentKey || !/^[A-Z][A-Za-z0-9-]{2,40}$/.test(parentKey)) {
-      return `row ${i + 1}: parentKey "${parentKey}" must match the catalog key format`;
-    }
-    if (!isin) return `row ${i + 1}: isin missing`;
-    const comment =
-      typeof r.comment === "string" ? r.comment.slice(0, 1000) : undefined;
-    out.push({
-      parentKey,
-      isin,
-      ...(comment !== undefined ? { comment } : {}),
-    });
-  }
-  return out;
-}
-
-// Build a fully-populated NewAlternativeEntry from a scraped preview.
-// Mirrors the front-end's mergePreviewIntoAlternativeDraft so the bulk
-// flow yields the same insertion as if the operator had opened the
-// single-row form, clicked "Vorab-Daten holen" and submitted unchanged.
-function alternativeFromPreview(
-  isin: string,
-  comment: string,
-  preview: Awaited<ReturnType<typeof scrapePreview>>,
-): NewAlternativeEntry | { error: string } {
-  const f = preview.fields;
-  const listings: NewAlternativeEntry["listings"] = {};
-  if (preview.listings && typeof preview.listings === "object") {
-    for (const ex of EXCHANGES) {
-      const v = (preview.listings as Record<string, { ticker?: unknown }>)[ex];
-      if (v && typeof v === "object" && typeof v.ticker === "string") {
-        listings[ex] = { ticker: v.ticker };
-      }
-    }
-  }
-  const listingKeys = Object.keys(listings) as ExchangeKey[];
-  if (listingKeys.length === 0) {
-    return { error: "no listings on justETF profile" };
-  }
-  const defaultExchange = listingKeys[0];
-
-  const name = typeof f.name === "string" ? f.name : "";
-  const terBps = typeof f.terBps === "number" ? f.terBps : NaN;
-  const domicile = typeof f.domicile === "string" ? f.domicile : "";
-  const currency = typeof f.currency === "string" ? f.currency : "";
-  const repRaw = String(f.replication ?? "").toLowerCase();
-  const replication: NewAlternativeEntry["replication"] = repRaw.includes(
-    "sampl",
-  )
-    ? "Physical (sampled)"
-    : repRaw.includes("synth") || repRaw.includes("swap")
-      ? "Synthetic"
-      : "Physical";
-  const distRaw = String(f.distribution ?? "").toLowerCase();
-  const distribution: NewAlternativeEntry["distribution"] = distRaw.startsWith(
-    "dist",
-  )
-    ? "Distributing"
-    : "Accumulating";
-
-  const entry: NewAlternativeEntry = {
-    isin,
-    name,
-    terBps,
-    domicile,
-    replication,
-    distribution,
-    currency,
-    comment,
-    defaultExchange,
-    listings,
-    ...(typeof f.aumMillionsEUR === "number"
-      ? { aumMillionsEUR: f.aumMillionsEUR }
-      : {}),
-    ...(typeof f.inceptionDate === "string"
-      ? { inceptionDate: f.inceptionDate }
-      : {}),
-  };
-  const validationError = validateAlternative(entry);
-  if (validationError) return { error: validationError };
-  return entry;
-}
-
-// Shared per-row pipeline used by both /bulk/preview and /bulk: scrape,
-// build a NewAlternativeEntry, simulate injection on a running content
-// snapshot. Returns the per-row outcomes plus the prepared rows that
-// passed (for /bulk to forward to openBulkAddBucketAlternativesPr).
-async function buildBulkAltOutcomes(
-  inputs: BulkAltInputRow[],
-  catalog: Awaited<ReturnType<typeof loadCatalog>>,
-  source: string,
-): Promise<{
-  outcomes: BulkAltPreviewRow[];
-  preparedRows: Array<{ parentKey: string; entry: NewAlternativeEntry }>;
-  runningContent: string;
-}> {
-  let runningContent = source;
-  const outcomes: BulkAltPreviewRow[] = [];
-  const preparedRows: Array<{
-    parentKey: string;
-    entry: NewAlternativeEntry;
-  }> = [];
-
-  for (const row of inputs) {
-    if (!/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(row.isin)) {
-      outcomes.push({
-        parentKey: row.parentKey,
-        isin: row.isin,
-        status: "invalid_isin",
-        message: "ISIN format invalid (expected 12 chars, ISO format).",
-      });
-      continue;
-    }
-    if (!catalog[row.parentKey]) {
-      outcomes.push({
-        parentKey: row.parentKey,
-        isin: row.isin,
-        status: "parent_missing",
-        message: `Parent bucket "${row.parentKey}" not found in catalog.`,
-      });
-      continue;
-    }
-
-    let preview: Awaited<ReturnType<typeof scrapePreview>>;
-    try {
-      preview = await scrapePreview(row.isin);
-    } catch (err) {
-      outcomes.push({
-        parentKey: row.parentKey,
-        isin: row.isin,
-        status: "scrape_failed",
-        message: err instanceof Error ? err.message : String(err),
-      });
-      continue;
-    }
-
-    const built = alternativeFromPreview(row.isin, row.comment ?? "", preview);
-    if ("error" in built) {
-      outcomes.push({
-        parentKey: row.parentKey,
-        isin: row.isin,
-        status: "scrape_invalid",
-        message: built.error,
-      });
-      continue;
-    }
-
-    // Simulate the injection on the running content so duplicate/cap
-    // checks roll forward across rows in the same batch.
-    const sim = injectAlternative(runningContent, row.parentKey, built);
-    if (sim.status === "parent_missing") {
-      outcomes.push({
-        parentKey: row.parentKey,
-        isin: row.isin,
-        status: "parent_missing",
-        name: built.name,
-        message: `Parent bucket "${row.parentKey}" not found.`,
-      });
-      continue;
-    }
-    if (sim.status === "isin_present") {
-      outcomes.push({
-        parentKey: row.parentKey,
-        isin: row.isin,
-        status: "duplicate_isin",
-        name: built.name,
-        conflict: sim.conflict,
-        message: `ISIN already used by "${sim.conflict}".`,
-      });
-      continue;
-    }
-    if (sim.status === "cap_exceeded") {
-      outcomes.push({
-        parentKey: row.parentKey,
-        isin: row.isin,
-        status: "cap_exceeded",
-        name: built.name,
-        message: `"${row.parentKey}" already has 2 alternatives.`,
-      });
-      continue;
-    }
-    runningContent = sim.content;
-    preparedRows.push({ parentKey: row.parentKey, entry: built });
-    outcomes.push({
-      parentKey: row.parentKey,
-      isin: row.isin,
-      status: "ok",
-      name: built.name,
-    });
-  }
-
-  return { outcomes, preparedRows, runningContent };
-}
-
-router.post("/admin/bucket-alternatives/bulk/preview", async (req, res) => {
-  const parsed = parseBulkRows(req.body);
-  if (typeof parsed === "string") {
-    res.status(400).json({ error: "invalid_rows", message: parsed });
-    return;
-  }
-  let catalog: Awaited<ReturnType<typeof loadCatalog>>;
-  let source: string;
-  try {
-    catalog = await loadCatalog();
-    // Read the raw etfs.ts content so injectAlternative simulations operate
-    // on the same bytes the bulk PR helper would later commit.
-    source = await readFile(getCatalogPath(), "utf8");
-  } catch (err) {
-    res.status(500).json({
-      error: "catalog_parse_failed",
-      message: err instanceof Error ? err.message : String(err),
-    });
-    return;
-  }
-
-  const { outcomes } = await buildBulkAltOutcomes(parsed, catalog, source);
-  res.json({ rows: outcomes });
-});
-
+//
+// Per row we (a) scrape justETF for the standard fields (name, TER,
+// domicile, listings, …) and (b) build a NewAlternativeEntry with the
+// chosen exchange. Then we run the same dedup / cap / parent-exists
+// checks the per-row endpoint runs, EXCEPT they're cumulative across
+// the batch — two rows targeting the same bucket count toward the
+// per-bucket cap, two rows with the same ISIN are flagged as dup.
+//
+// dryRun=true: returns the would-be etfs.ts content (whole-file, the UI
+// can diff client-side), the planned look-through-pool entries, and the
+// per-row outcome table. No PRs are opened, no scraping for look-through
+// (that step is reserved for the real submit so the preview stays fast).
+//
+// dryRun=false (default): opens ONE etfs.ts PR for all rows whose
+// preflight passed, then sequentially scrapes look-through for the
+// added rows and opens AT MOST ONE companion look-through PR for those
+// with complete data. Rows whose look-through scrape returns
+// incomplete/already-present surface in the response under
+// `lookthroughOutcomes` so the operator sees exactly which alts have
+// data day-1 and which fall back to the monthly cron.
+//
+// The existing per-row endpoint POST /admin/bucket-alternatives is
+// unchanged — operators still use it for ad-hoc one-offs.
 router.post("/admin/bucket-alternatives/bulk", async (req, res) => {
-  const parsed = parseBulkRows(req.body);
-  if (typeof parsed === "string") {
-    res.status(400).json({ error: "invalid_rows", message: parsed });
+  const dryRun = req.body?.dryRun === true;
+  const rawRows = Array.isArray(req.body?.rows) ? req.body.rows : null;
+  if (!rawRows || rawRows.length === 0) {
+    res.status(400).json({
+      error: "missing_rows",
+      message: "Body must include `rows: [...]` with at least one row.",
+    });
     return;
   }
-  if (!githubConfigured()) {
+  if (rawRows.length > 50) {
+    // Soft cap so a runaway client can't trigger 200+ scrapes in one
+    // request. 50 is well above any realistic admin batch (operator
+    // sittings produce ~5 rows in practice).
+    res.status(400).json({
+      error: "too_many_rows",
+      message: `Batch size capped at 50 (received ${rawRows.length}).`,
+    });
+    return;
+  }
+  if (!dryRun && !githubConfigured()) {
     res.status(503).json({
       error: "github_not_configured",
       message:
@@ -770,104 +534,331 @@ router.post("/admin/bucket-alternatives/bulk", async (req, res) => {
     return;
   }
 
-  let catalog: Awaited<ReturnType<typeof loadCatalog>>;
-  let source: string;
-  try {
-    catalog = await loadCatalog();
-    source = await readFile(getCatalogPath(), "utf8");
-  } catch (err) {
+  // ---------------------------------------------------------------
+  // 1. Catalog preflight — load once so every row is checked against
+  //    the same snapshot, and so we can compute per-bucket cap usage
+  //    cumulatively across the batch.
+  // ---------------------------------------------------------------
+  const catalog = await loadCatalog().catch((err) => {
     res.status(500).json({
       error: "catalog_parse_failed",
       message: err instanceof Error ? err.message : String(err),
     });
-    return;
-  }
-
-  const { outcomes, preparedRows } = await buildBulkAltOutcomes(
-    parsed,
-    catalog,
-    source,
-  );
-
-  if (preparedRows.length === 0) {
-    res.status(409).json({
-      error: "no_rows_landed",
-      message:
-        "Every row was rejected before PR creation. Check the per-row reasons and try again.",
-      rows: outcomes,
-    });
-    return;
-  }
-
-  // 1. Open the etfs.ts PR (always — at least one row landed).
-  let prUrl: string;
-  let prNumber: number;
-  let serverOutcomes: BulkAlternativeOutcome[];
-  try {
-    const pr = await openBulkAddBucketAlternativesPr({ rows: preparedRows });
-    prUrl = pr.url;
-    prNumber = pr.number;
-    serverOutcomes = pr.outcomes;
-  } catch (err) {
-    res.status(502).json({
-      error: "pr_creation_failed",
-      message: err instanceof Error ? err.message : String(err),
-      rows: outcomes,
-    });
-    return;
-  }
-
-  // Cross-check: the server-side helper re-ran injectAlternative on the
-  // FRESH base file content (not our local snapshot). If a row that
-  // looked OK locally raced with a concurrent PR merge and now collides,
-  // promote the per-row outcome to the helper's verdict so the operator
-  // sees the truth.
-  const serverByKey = new Map(
-    serverOutcomes.map((o) => [`${o.parentKey}::${o.isin}`, o]),
-  );
-  const reconciled = outcomes.map((o) => {
-    if (o.status !== "ok") return o;
-    const sv = serverByKey.get(`${o.parentKey}::${o.isin}`);
-    if (!sv) return o;
-    if (sv.status === "ok") return o;
-    return {
-      ...o,
-      status: sv.status as BulkAltRowStatus,
-      ...(sv.conflict ? { conflict: sv.conflict } : {}),
-      message:
-        sv.status === "parent_missing"
-          ? "Parent bucket missing on the live base branch."
-          : sv.status === "duplicate_isin"
-            ? `ISIN already used by ${sv.conflict ?? "another entry"} on the live base branch.`
-            : "Parent already at the 2-alt cap on the live base branch.",
-    } satisfies BulkAltPreviewRow;
+    return null;
   });
+  if (!catalog) return; // already responded above
 
-  // 2. Best-effort companion look-through PR — gather every ISIN that
-  // actually landed in the etfs.ts PR AND isn't already in the LT pool.
-  // Scrape each, then ship them in ONE bulk LT PR via the existing
-  // openBulkAddLookthroughPoolPr helper.
-  const lookthroughCandidates = reconciled
-    .filter((r) => r.status === "ok")
-    .map((r) => r.isin);
+  // Build the set of ISINs already in use anywhere in the catalog.
+  const usedIsins = new Map<string, string>(); // isin → "<key>" or "<key> alt N"
+  for (const [k, e] of Object.entries(catalog)) {
+    usedIsins.set(e.isin.toUpperCase(), k);
+    const alts = e.alternatives ?? [];
+    for (let i = 0; i < alts.length; i++) {
+      usedIsins.set(alts[i].isin.toUpperCase(), `${k} alt ${i + 1}`);
+    }
+  }
+  // Per-bucket alt count (default + alternatives accumulated in batch).
+  const bucketAltCount = new Map<string, number>();
+  for (const [k, e] of Object.entries(catalog)) {
+    bucketAltCount.set(k, (e.alternatives ?? []).length);
+  }
 
-  const lookthroughSkipped: Array<{ isin: string; reason: string }> = [];
-  let lookthroughPrUrl: string | undefined;
-  let lookthroughPrNumber: number | undefined;
-  let lookthroughAdded: string[] | undefined;
-  let lookthroughError: string | undefined;
-  try {
-    const sources = await readLookthroughSources();
-    const ltEntries: Array<{
+  type BulkRowOutcome = {
+    parentKey: string;
+    isin: string;
+    name?: string;
+    status:
+      | "ok"
+      | "invalid_input"
+      | "invalid_parent_key"
+      | "invalid_isin"
+      | "parent_missing"
+      | "duplicate_isin"
+      | "cap_exceeded"
+      | "scrape_failed"
+      | "invalid_entry"
+      | "invalid_exchange";
+    message?: string;
+    conflict?: string;
+    // Look-through outcome populated only on the real submit path. For
+    // dryRun we expose `lookthroughPlan` (planned action without
+    // performing the scrape).
+    lookthroughPlan?: "would_scrape" | "already_present";
+    lookthroughStatus?:
+      | "pr_added"
+      | "already_present"
+      | "incomplete"
+      | "scrape_failed"
+      | "would_add";
+    lookthroughMessage?: string;
+  };
+
+  const outcomes: BulkRowOutcome[] = [];
+  // Rows that survived preflight + scrape and are ready to inject.
+  const validatedRows: Array<{
+    parentKey: string;
+    entry: NewAlternativeEntry;
+    outcomeIdx: number;
+  }> = [];
+
+  // Look-through pre-flight to classify "already covered" without
+  // triggering a scrape. Used for dryRun's lookthroughPlan AND to skip
+  // a duplicate scrape on submit.
+  const lookthroughSources = await readLookthroughSources();
+
+  for (let i = 0; i < rawRows.length; i++) {
+    const raw = rawRows[i];
+    const parentKey =
+      typeof raw?.parentKey === "string" ? raw.parentKey : "";
+    const rawIsin = typeof raw?.isin === "string" ? raw.isin : "";
+    const isin = rawIsin.trim().toUpperCase();
+    const userExchange =
+      typeof raw?.defaultExchange === "string"
+        ? raw.defaultExchange
+        : typeof raw?.preferredExchange === "string"
+          ? raw.preferredExchange
+          : undefined;
+    const userComment =
+      typeof raw?.comment === "string" ? raw.comment : undefined;
+
+    const baseOutcome: BulkRowOutcome = {
+      parentKey,
+      isin,
+      status: "ok",
+    };
+
+    if (!parentKey || !/^[A-Z][A-Za-z0-9-]{2,40}$/.test(parentKey)) {
+      outcomes.push({
+        ...baseOutcome,
+        status: "invalid_parent_key",
+        message: `parentKey "${parentKey}" doesn't match the catalog key format.`,
+      });
+      continue;
+    }
+    if (!/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(isin)) {
+      outcomes.push({
+        ...baseOutcome,
+        status: "invalid_isin",
+        message: `ISIN "${rawIsin}" is not a valid ISO 6166 code.`,
+      });
+      continue;
+    }
+    if (!catalog[parentKey]) {
+      outcomes.push({
+        ...baseOutcome,
+        status: "parent_missing",
+        message: `Parent bucket "${parentKey}" does not exist in the catalog.`,
+      });
+      continue;
+    }
+    if (
+      userExchange &&
+      !["LSE", "XETRA", "SIX", "Euronext"].includes(userExchange)
+    ) {
+      outcomes.push({
+        ...baseOutcome,
+        status: "invalid_exchange",
+        message: `defaultExchange "${userExchange}" is not one of LSE / XETRA / SIX / Euronext.`,
+      });
+      continue;
+    }
+    // Cumulative dup check: ISIN already in catalog OR already taken
+    // by an earlier row in this same batch.
+    const existing = usedIsins.get(isin);
+    if (existing) {
+      outcomes.push({
+        ...baseOutcome,
+        status: "duplicate_isin",
+        message: `ISIN ${isin} is already used by "${existing}".`,
+        conflict: existing,
+      });
+      continue;
+    }
+    // Cumulative cap check.
+    if ((bucketAltCount.get(parentKey) ?? 0) >= 2) {
+      outcomes.push({
+        ...baseOutcome,
+        status: "cap_exceeded",
+        message: `"${parentKey}" already has 2 alternatives (counting earlier rows in this batch).`,
+      });
+      continue;
+    }
+
+    // Scrape justETF for the rest of the entry. Unlike the per-row
+    // endpoint (which expects the operator to have fetched + edited
+    // already) we MUST scrape here — the bulk row only carries
+    // {parentKey, isin, defaultExchange?, comment?}. A scrape failure
+    // turns into a per-row skip; the rest of the batch keeps going.
+    let scrape: Awaited<ReturnType<typeof scrapePreview>>;
+    try {
+      scrape = await scrapePreview(isin);
+    } catch (err) {
+      outcomes.push({
+        ...baseOutcome,
+        status: "scrape_failed",
+        message:
+          err instanceof PreviewError
+            ? err.message
+            : err instanceof Error
+              ? err.message
+              : String(err),
+      });
+      continue;
+    }
+
+    // Build the NewAlternativeEntry from the scrape + row overrides.
+    const f = scrape.fields;
+    const listings: NewAlternativeEntry["listings"] = {};
+    if (scrape.listings && typeof scrape.listings === "object") {
+      for (const ex of ["LSE", "XETRA", "SIX", "Euronext"] as const) {
+        const v = (scrape.listings as Record<
+          string,
+          { ticker?: string } | undefined
+        >)[ex];
+        if (v?.ticker) listings[ex] = { ticker: v.ticker };
+      }
+    }
+    const listingKeys = Object.keys(listings) as Array<
+      keyof NewAlternativeEntry["listings"]
+    >;
+    if (listingKeys.length === 0) {
+      outcomes.push({
+        ...baseOutcome,
+        status: "scrape_failed",
+        message: `justETF returned no listings for ${isin} — cannot pick a default exchange.`,
+      });
+      continue;
+    }
+    const chosenExchange =
+      (userExchange as keyof NewAlternativeEntry["listings"] | undefined) &&
+      listings[
+        userExchange as keyof NewAlternativeEntry["listings"]
+      ]
+        ? (userExchange as keyof NewAlternativeEntry["listings"])
+        : listingKeys[0];
+
+    const replication = ((): NewAlternativeEntry["replication"] => {
+      const s = String(f.replication ?? "").toLowerCase();
+      if (s.includes("sampl")) return "Physical (sampled)";
+      if (s.includes("synth") || s.includes("swap")) return "Synthetic";
+      return "Physical";
+    })();
+    const distribution = ((): NewAlternativeEntry["distribution"] => {
+      const s = String(f.distribution ?? "").toLowerCase();
+      if (s.startsWith("dist")) return "Distributing";
+      return "Accumulating";
+    })();
+
+    const entry: NewAlternativeEntry = {
+      name: typeof f.name === "string" ? (f.name as string) : "",
+      isin,
+      terBps: typeof f.terBps === "number" ? (f.terBps as number) : 0,
+      domicile:
+        typeof f.domicile === "string" ? (f.domicile as string) : "Ireland",
+      replication,
+      distribution,
+      currency: typeof f.currency === "string" ? (f.currency as string) : "USD",
+      comment: userComment ?? "",
+      defaultExchange: chosenExchange as NewAlternativeEntry["defaultExchange"],
+      listings,
+      ...(typeof f.aumMillionsEUR === "number"
+        ? { aumMillionsEUR: f.aumMillionsEUR as number }
+        : {}),
+      ...(typeof f.inceptionDate === "string"
+        ? { inceptionDate: f.inceptionDate as string }
+        : {}),
+    };
+
+    const validation = validateAlternative(entry);
+    if (validation) {
+      outcomes.push({
+        ...baseOutcome,
+        name: entry.name,
+        status: "invalid_entry",
+        message: validation,
+      });
+      continue;
+    }
+
+    // Survived everything — provisionally accept. Update cumulative
+    // trackers so subsequent rows respect this row's effect on the
+    // catalog.
+    usedIsins.set(isin, parentKey);
+    bucketAltCount.set(parentKey, (bucketAltCount.get(parentKey) ?? 0) + 1);
+    const lookthroughCovered = Boolean(
+      lookthroughSources.overrides[isin] || lookthroughSources.pool[isin],
+    );
+    const idx = outcomes.length;
+    outcomes.push({
+      ...baseOutcome,
+      name: entry.name,
+      status: "ok",
+      lookthroughPlan: lookthroughCovered ? "already_present" : "would_scrape",
+    });
+    validatedRows.push({ parentKey, entry, outcomeIdx: idx });
+  }
+
+  // ---------------------------------------------------------------
+  // 2. Dry-run: build the would-be etfs.ts content + (after a real
+  //    look-through scrape pass for any ISIN we'd need to fetch) the
+  //    would-be lookthrough.overrides.json content. Return both as
+  //    unified diffs so the operator can verify exactly what each PR
+  //    would touch before submitting.
+  // ---------------------------------------------------------------
+  if (dryRun) {
+    let etfsBaseContent = "";
+    let etfsNextContent = "";
+    try {
+      etfsBaseContent = await readFile(getCatalogPath(), "utf8");
+      etfsNextContent = etfsBaseContent;
+      for (const row of validatedRows) {
+        const result = injectAlternative(
+          etfsNextContent,
+          row.parentKey,
+          row.entry,
+        );
+        if (result.status === "ok") {
+          etfsNextContent = result.content;
+        } else {
+          // Should not happen — preflight already filtered these. Mark
+          // the outcome so the operator sees the divergence.
+          outcomes[row.outcomeIdx].status =
+            result.status === "parent_missing"
+              ? "parent_missing"
+              : result.status === "isin_present"
+                ? "duplicate_isin"
+                : "cap_exceeded";
+          outcomes[row.outcomeIdx].message = `injectAlternative refused: ${result.status}${result.conflict ? ` (${result.conflict})` : ""}`;
+        }
+      }
+    } catch (err) {
+      res.status(500).json({
+        error: "preview_failed",
+        message: err instanceof Error ? err.message : String(err),
+      });
+      return;
+    }
+
+    // Scrape look-through for every still-ok row that doesn't already
+    // have coverage in the local lookthrough.overrides.json. Per-row
+    // failures (incomplete profile, network) are surfaced through the
+    // outcome's lookthroughStatus instead of failing the whole preview.
+    const lookthroughEntries: Array<{
       isin: string;
       entry: LookthroughPoolEntry;
+      outcomeIdx: number;
     }> = [];
-    for (const isin of lookthroughCandidates) {
-      if (sources.pool[isin] || sources.overrides[isin]) {
-        lookthroughSkipped.push({
-          isin,
-          reason: "already in look-through pool",
-        });
+    for (const row of validatedRows) {
+      const o = outcomes[row.outcomeIdx];
+      if (o.status !== "ok") continue;
+      const isin = row.entry.isin;
+      if (
+        lookthroughSources.overrides[isin] ||
+        lookthroughSources.pool[isin]
+      ) {
+        o.lookthroughStatus = "already_present";
+        o.lookthroughMessage =
+          "Look-through data already covered (no scrape needed).";
         continue;
       }
       try {
@@ -885,13 +876,12 @@ router.post("/admin/bucket-alternatives/bulk", async (req, res) => {
           Object.keys(sector).length === 0 ||
           !currency
         ) {
-          lookthroughSkipped.push({
-            isin,
-            reason: "scrape returned incomplete look-through data",
-          });
+          o.lookthroughStatus = "incomplete";
+          o.lookthroughMessage =
+            "justETF returned an incomplete look-through profile — the monthly refresh job will retry.";
           continue;
         }
-        ltEntries.push({
+        lookthroughEntries.push({
           isin,
           entry: {
             ...(scraped.name ? { name: scraped.name } : {}),
@@ -903,43 +893,346 @@ router.post("/admin/bucket-alternatives/bulk", async (req, res) => {
             breakdownsAsOf: scraped.asOf,
             _source: scraped.sourceUrl,
             _addedAt: scraped.asOf,
-            _addedVia: "admin/bucket-alternatives/bulk (auto)",
+            _addedVia: "admin/bucket-alternatives/bulk (preview)",
           },
+          outcomeIdx: row.outcomeIdx,
         });
+        o.lookthroughStatus = "would_add";
       } catch (err) {
-        lookthroughSkipped.push({
-          isin,
-          reason: err instanceof Error ? err.message : String(err),
-        });
+        o.lookthroughStatus = "scrape_failed";
+        o.lookthroughMessage = err instanceof Error ? err.message : String(err);
       }
     }
-    if (ltEntries.length > 0) {
-      const ltPr = await openBulkAddLookthroughPoolPr({ entries: ltEntries });
+
+    // Build base + next content for lookthrough.overrides.json. The
+    // file is a JSON document with at least { pool: {...} }; we mirror
+    // the bulk PR helper's behaviour by inserting under pool[isin].
+    let ltBaseContent = "";
+    let ltNextContent = "";
+    try {
+      ltBaseContent = await readFile(
+        dataFile("lookthrough.overrides.json"),
+        "utf8",
+      );
+      const parsed = JSON.parse(ltBaseContent) as Record<string, unknown>;
+      const pool = (parsed.pool ??= {}) as Record<string, unknown>;
+      const overrides = (parsed.overrides ?? {}) as Record<string, unknown>;
+      let injected = 0;
+      for (const e of lookthroughEntries) {
+        if (overrides[e.isin] || pool[e.isin]) continue;
+        pool[e.isin] = e.entry;
+        injected++;
+      }
+      ltNextContent =
+        injected > 0
+          ? `${JSON.stringify(parsed, null, 2)}\n`
+          : ltBaseContent;
+    } catch (err) {
+      // Lookthrough file malformed → skip diff but don't abort the
+      // whole preview; the etfs.ts diff is still useful.
+      ltBaseContent = "";
+      ltNextContent = "";
+      console.warn(
+        "[bucket-alternatives/bulk dryRun] lookthrough preview skipped:",
+        err instanceof Error ? err.message : String(err),
+      );
+    }
+
+    const etfsDiff = createPatch(
+      "artifacts/investment-lab/src/lib/etfs.ts",
+      etfsBaseContent,
+      etfsNextContent,
+      "origin/main",
+      "preview",
+      { context: 3 },
+    );
+    const ltDiff =
+      ltBaseContent && ltNextContent && ltBaseContent !== ltNextContent
+        ? createPatch(
+            "artifacts/investment-lab/src/data/lookthrough.overrides.json",
+            ltBaseContent,
+            ltNextContent,
+            "origin/main",
+            "preview",
+            { context: 3 },
+          )
+        : "";
+
+    const woldAdd = outcomes.filter((o) => o.status === "ok");
+    const wouldScrapeLookthrough = lookthroughEntries.length;
+    res.json({
+      ok: true,
+      dryRun: true,
+      perRow: outcomes,
+      summary: {
+        total: outcomes.length,
+        wouldAdd: woldAdd.length,
+        wouldSkip: outcomes.length - woldAdd.length,
+        wouldScrapeLookthrough,
+      },
+      etfs: {
+        path: "artifacts/investment-lab/src/lib/etfs.ts",
+        baseContent: etfsBaseContent,
+        nextContent: etfsNextContent,
+        diff: etfsDiff,
+        changed: etfsBaseContent !== etfsNextContent,
+      },
+      lookthrough: {
+        path: "artifacts/investment-lab/src/data/lookthrough.overrides.json",
+        baseContent: ltBaseContent,
+        nextContent: ltNextContent,
+        diff: ltDiff,
+        changed: Boolean(ltDiff),
+        wouldAddIsins: lookthroughEntries.map((e) => ({
+          isin: e.isin,
+          name: (e.entry as { name?: string }).name ?? null,
+        })),
+        alreadyPresent: outcomes
+          .filter((o) => o.lookthroughStatus === "already_present")
+          .map((o) => ({ isin: o.isin, name: o.name ?? null })),
+      },
+    });
+    return;
+  }
+
+  // ---------------------------------------------------------------
+  // 3. Real submit: open ONE etfs.ts PR for all valid rows, then
+  //    sequentially scrape look-through for those without coverage
+  //    and open ONE companion PR for the complete results.
+  // ---------------------------------------------------------------
+  if (validatedRows.length === 0) {
+    res.status(422).json({
+      error: "no_valid_rows",
+      message:
+        "None of the submitted rows passed validation. See `perRow` for per-row reasons.",
+      perRow: outcomes,
+    });
+    return;
+  }
+
+  let prUrl: string;
+  let prNumber: number;
+  let prRowOutcomes: BulkBucketAltRowOutcome[] = [];
+  try {
+    const pr = await openBulkAddBucketAlternativesPr({
+      rows: validatedRows.map((r) => ({
+        parentKey: r.parentKey,
+        entry: r.entry,
+      })),
+    });
+    prUrl = pr.url;
+    prNumber = pr.number;
+    prRowOutcomes = pr.perRow;
+  } catch (err) {
+    res.status(502).json({
+      error: "pr_creation_failed",
+      message: err instanceof Error ? err.message : String(err),
+      perRow: outcomes,
+    });
+    return;
+  }
+
+  // Reconcile injectAlternative's per-row outcomes back onto the
+  // operator-facing outcomes array. The PR helper might have surfaced
+  // a race-window dup or cap that wasn't visible at preflight time
+  // (extremely unlikely but possible if etfs.ts on origin has moved
+  // between our loadCatalog and the PR open).
+  for (let i = 0; i < validatedRows.length; i++) {
+    const v = validatedRows[i];
+    const prRow = prRowOutcomes[i];
+    if (!prRow || prRow.status === "ok") continue;
+    outcomes[v.outcomeIdx].status =
+      prRow.status === "parent_missing"
+        ? "parent_missing"
+        : prRow.status === "isin_present"
+          ? "duplicate_isin"
+          : "cap_exceeded";
+    outcomes[v.outcomeIdx].message = `Race condition vs origin/${process.env.GITHUB_BASE_BRANCH ?? "main"}: ${prRow.status}${prRow.conflict ? ` (${prRow.conflict})` : ""}`;
+    if (prRow.conflict) outcomes[v.outcomeIdx].conflict = prRow.conflict;
+  }
+
+  // Look-through pass. For each row that's still "ok" AND not already
+  // covered, scrape and collect complete entries. We open at most ONE
+  // bulk look-through PR for the lot.
+  const lookthroughEntries: Array<{
+    isin: string;
+    entry: LookthroughPoolEntry;
+    outcomeIdx: number;
+  }> = [];
+  const stillOkRows = validatedRows.filter(
+    (_, i) => prRowOutcomes[i]?.status === "ok",
+  );
+  for (const v of stillOkRows) {
+    const isin = v.entry.isin;
+    const o = outcomes[v.outcomeIdx];
+    if (lookthroughSources.overrides[isin] || lookthroughSources.pool[isin]) {
+      o.lookthroughStatus = "already_present";
+      o.lookthroughMessage = "Look-through data already covered (no scrape needed).";
+      continue;
+    }
+    try {
+      const scraped = await scrapeLookthrough(isin);
+      const top = scraped.topHoldings;
+      const geo = scraped.geo;
+      const sector = scraped.sector;
+      const currency = scraped.currency;
+      if (
+        !top ||
+        top.length === 0 ||
+        !geo ||
+        Object.keys(geo).length === 0 ||
+        !sector ||
+        Object.keys(sector).length === 0 ||
+        !currency
+      ) {
+        o.lookthroughStatus = "incomplete";
+        o.lookthroughMessage =
+          "justETF returned an incomplete look-through profile — the monthly refresh job will retry.";
+        continue;
+      }
+      lookthroughEntries.push({
+        isin,
+        entry: {
+          ...(scraped.name ? { name: scraped.name } : {}),
+          topHoldings: top,
+          topHoldingsAsOf: scraped.asOf,
+          geo,
+          sector,
+          currency,
+          breakdownsAsOf: scraped.asOf,
+          _source: scraped.sourceUrl,
+          _addedAt: scraped.asOf,
+          _addedVia: "admin/bucket-alternatives/bulk",
+        },
+        outcomeIdx: v.outcomeIdx,
+      });
+    } catch (err) {
+      o.lookthroughStatus = "scrape_failed";
+      o.lookthroughMessage = err instanceof Error ? err.message : String(err);
+    }
+  }
+
+  let lookthroughPrUrl: string | undefined;
+  let lookthroughPrNumber: number | undefined;
+  let lookthroughError: string | undefined;
+  if (lookthroughEntries.length > 0) {
+    try {
+      const ltPr = await openBulkAddLookthroughPoolPr({
+        entries: lookthroughEntries.map((e) => ({
+          isin: e.isin,
+          entry: e.entry,
+        })),
+      });
       lookthroughPrUrl = ltPr.url;
       lookthroughPrNumber = ltPr.number;
-      lookthroughAdded = ltPr.added;
-      for (const skipped of ltPr.skippedAlreadyPresent) {
-        lookthroughSkipped.push({
-          isin: skipped,
-          reason: "already in look-through pool (race)",
-        });
+      // Mark added rows.
+      const addedSet = new Set(ltPr.added);
+      const skippedSet = new Set(ltPr.skippedAlreadyPresent);
+      for (const e of lookthroughEntries) {
+        const o = outcomes[e.outcomeIdx];
+        if (addedSet.has(e.isin)) {
+          o.lookthroughStatus = "pr_added";
+        } else if (skippedSet.has(e.isin)) {
+          o.lookthroughStatus = "already_present";
+          o.lookthroughMessage =
+            "Already in base file at PR-open time (race window).";
+        }
+      }
+    } catch (err) {
+      lookthroughError = err instanceof Error ? err.message : String(err);
+      for (const e of lookthroughEntries) {
+        outcomes[e.outcomeIdx].lookthroughStatus = "scrape_failed";
+        outcomes[e.outcomeIdx].lookthroughMessage = lookthroughError;
       }
     }
-  } catch (err) {
-    lookthroughError = err instanceof Error ? err.message : String(err);
   }
 
   res.json({
     ok: true,
+    dryRun: false,
     prUrl,
     prNumber,
-    rows: reconciled,
     ...(lookthroughPrUrl
-      ? { lookthroughPrUrl, lookthroughPrNumber, lookthroughAdded }
+      ? { lookthroughPrUrl, lookthroughPrNumber }
       : {}),
-    ...(lookthroughSkipped.length > 0 ? { lookthroughSkipped } : {}),
     ...(lookthroughError ? { lookthroughError } : {}),
+    perRow: outcomes,
+    summary: {
+      total: outcomes.length,
+      added: outcomes.filter((o) => o.status === "ok").length,
+      skipped: outcomes.filter((o) => o.status !== "ok").length,
+      lookthroughAdded: outcomes.filter(
+        (o) => o.lookthroughStatus === "pr_added",
+      ).length,
+      lookthroughAlreadyPresent: outcomes.filter(
+        (o) => o.lookthroughStatus === "already_present",
+      ).length,
+      lookthroughSkipped: outcomes.filter(
+        (o) =>
+          o.lookthroughStatus === "incomplete" ||
+          o.lookthroughStatus === "scrape_failed",
+      ).length,
+    },
   });
+});
+
+// --- /api/admin/workspace-sync ----------------------------------------------
+// Operator-initiated workspace sync (Task #51, 2026-04-28).
+//
+// GET  → snapshot of HEAD sha, branch, behind/ahead vs origin/main,
+//        dirty workdir counts, and whether `.git/index.lock` is sitting
+//        around. Also runs `git fetch origin <base>` best-effort so the
+//        behind/ahead counts reflect reality (`fetchOk: false` means the
+//        fetch failed and the counts are based on the last cached ref).
+// POST → runs `git fetch origin <base>` then `git merge --ff-only`. On
+//        success returns { ok, oldSha, newSha, changedFiles[] }. On
+//        refusal returns 409 with a typed `reason` and a plain-language
+//        `message` the UI renders verbatim. Refusal categories:
+//          - not_a_git_checkout    (production bundle, no .git)
+//          - uncommitted_changes   (staged or modified files in workdir)
+//          - index_lock_present    (.git/index.lock blocks the merge)
+//          - fetch_failed          (network / auth)
+//          - non_fast_forward      (local has commits not on origin)
+//          - merge_failed          (anything else from git)
+//
+// We never auto-fix: a stale lock might still be in use by another git
+// process; uncommitted edits might be the operator's WIP. Surface the
+// situation, suggest the next step, let the operator act.
+router.get("/admin/workspace-sync", async (_req, res) => {
+  try {
+    const status = await getWorkspaceSyncStatus();
+    res.json(status);
+  } catch (err) {
+    res.status(500).json({
+      error: "workspace_sync_status_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+router.post("/admin/workspace-sync", async (_req, res) => {
+  try {
+    const result = await syncWorkspaceFromMain();
+    if (result.ok) {
+      res.json(result);
+      return;
+    }
+    // Map refusal reason → HTTP status. 503 for "no git at all" since
+    // there's nothing the operator can do from this environment;
+    // everything else is a 409 Conflict (the operator can resolve it).
+    const status =
+      result.reason === "not_a_git_checkout" ? 503 : 409;
+    res.status(status).json({
+      error: result.reason,
+      message: result.message,
+      ...(result.detail ? { detail: result.detail } : {}),
+    });
+  } catch (err) {
+    res.status(500).json({
+      error: "workspace_sync_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
 });
 
 // DELETE /admin/bucket-alternatives/:parentKey/:isin — opens a PR that
@@ -1232,7 +1525,8 @@ router.post("/admin/lookthrough-pool/:isin", async (req, res) => {
       !scraped.geo ||
       Object.keys(scraped.geo).length === 0 ||
       !scraped.sector ||
-      Object.keys(scraped.sector).length === 0
+      Object.keys(scraped.sector).length === 0 ||
+      !scraped.currency
     ) {
       res.status(422).json({
         error: "incomplete_lookthrough_data",
@@ -1242,6 +1536,7 @@ router.post("/admin/lookthrough-pool/:isin", async (req, res) => {
           (!scraped.geo || Object.keys(scraped.geo).length === 0) && "Geo",
           (!scraped.sector || Object.keys(scraped.sector).length === 0) &&
             "Sektor",
+          !scraped.currency && "Währung",
         ]
           .filter(Boolean)
           .join(", ")} fehlen. Methodology-Overrides brauchen alle drei.`,
@@ -1489,6 +1784,11 @@ router.post("/admin/backfill-lookthrough-pool", async (_req, res) => {
 });
 
 type LookthroughEntryShape = {
+  // Optional in the on-disk shape because pool-only entries write it
+  // (auto-refresh persists the justETF profile name) but legacy
+  // overrides-only entries omit it. The Auto-Refresh table joins both
+  // sections and reads the name from whichever source carries it.
+  name?: string;
   topHoldings?: Array<{ name: string; pct: number }>;
   topHoldingsAsOf?: string;
   geo?: Record<string, number>;
@@ -1810,306 +2110,6 @@ router.post("/admin/app-defaults", async (req, res) => {
       message: err instanceof Error ? err.message : String(err),
     });
   }
-});
-
-// --- /api/admin/workspace ---------------------------------------------------
-// Local git workspace sync (2026-04-28). After the operator merges a PR
-// the repo on disk still points at the pre-merge commit until someone
-// pulls — which means /admin/catalog and /admin/lookthrough-pool keep
-// returning stale data and the next add-alternative attempt may either
-// re-flag a dup that no longer exists or believe the cap hasn't been
-// reached. The two endpoints below let the operator pull main into the
-// running workspace without leaving the admin pane:
-//
-//   GET  /admin/workspace-status — current SHA, behind/ahead counts,
-//                                  whether the working tree is dirty,
-//                                  whether a git lock is held.
-//   POST /admin/workspace-sync   — `git fetch origin main` then
-//                                  `git merge --ff-only origin/main`.
-//
-// Refuses to merge when:
-//   - the working tree is dirty (uncommitted local edits)
-//   - a `.git/index.lock` is held (a git op is in flight)
-//   - the merge wouldn't be fast-forward (remote diverged from local)
-// Each refusal returns a typed 4xx so the UI can render plain-language
-// guidance instead of a generic 500.
-//
-// Why exec git directly: we already shell out via the github.ts helpers
-// for PR creation, but those operate against the GitHub API. Mutating
-// the local checkout is a different concern — same set of git plumbing
-// commands you'd type by hand. Keeping the surface tiny (status + ff
-// merge) means there's nothing the operator can break that `git status`
-// won't reveal.
-
-async function runGit(
-  args: string[],
-  cwd: string,
-): Promise<{ stdout: string; stderr: string }> {
-  return execFileP("git", args, { cwd, maxBuffer: 4 * 1024 * 1024 });
-}
-
-async function repoRoot(): Promise<string> {
-  // Anchor on the catalog path so we always end up inside the same git
-  // repo as the data files we PR against, regardless of cwd.
-  const start = resolve(getCatalogPath(), "..");
-  const { stdout } = await runGit(["rev-parse", "--show-toplevel"], start);
-  return stdout.trim();
-}
-
-router.get("/admin/workspace-status", async (_req, res) => {
-  let root: string;
-  try {
-    root = await repoRoot();
-  } catch (err) {
-    res.status(500).json({
-      error: "git_unavailable",
-      message: err instanceof Error ? err.message : String(err),
-    });
-    return;
-  }
-  const base = process.env.GITHUB_BASE_BRANCH ?? "main";
-  try {
-    const [head, branchRes, statusRes] = await Promise.all([
-      runGit(["rev-parse", "HEAD"], root),
-      runGit(["rev-parse", "--abbrev-ref", "HEAD"], root),
-      runGit(["status", "--porcelain"], root),
-    ]);
-    const headSha = head.stdout.trim();
-    const currentBranch = branchRes.stdout.trim();
-    const dirty = statusRes.stdout.trim().length > 0;
-    // .git/index.lock detection — best-effort. If git itself is locked
-    // /admin/workspace-sync would fail with "Another git process seems
-    // to be running" anyway; surfacing it here keeps the UI honest.
-    let lockHeld = false;
-    try {
-      lockHeld = existsSync(`${root}/.git/index.lock`);
-    } catch {
-      // ignore
-    }
-
-    let behindCount = 0;
-    let aheadCount = 0;
-    let upstreamSha: string | null = null;
-    let upstreamError: string | null = null;
-    try {
-      // Touch the network so "behind" is meaningful. --quiet keeps stderr
-      // clean; failures here are non-fatal (offline, no network) — we
-      // still report local state.
-      await runGit(["fetch", "--quiet", "origin", base], root);
-      const upstream = await runGit(
-        ["rev-parse", `origin/${base}`],
-        root,
-      );
-      upstreamSha = upstream.stdout.trim();
-      const counts = await runGit(
-        ["rev-list", "--left-right", "--count", `HEAD...origin/${base}`],
-        root,
-      );
-      const [a, b] = counts.stdout.trim().split(/\s+/).map(Number);
-      aheadCount = Number.isFinite(a) ? a : 0;
-      behindCount = Number.isFinite(b) ? b : 0;
-    } catch (err) {
-      upstreamError = err instanceof Error ? err.message : String(err);
-    }
-
-    res.json({
-      ok: true,
-      headSha,
-      currentBranch,
-      baseBranch: base,
-      dirty,
-      lockHeld,
-      behindCount,
-      aheadCount,
-      upstreamSha,
-      ...(upstreamError ? { upstreamError } : {}),
-    });
-  } catch (err) {
-    res.status(500).json({
-      error: "git_status_failed",
-      message: err instanceof Error ? err.message : String(err),
-    });
-  }
-});
-
-router.post("/admin/workspace-sync", async (_req, res) => {
-  let root: string;
-  try {
-    root = await repoRoot();
-  } catch (err) {
-    res.status(500).json({
-      error: "git_unavailable",
-      message: err instanceof Error ? err.message : String(err),
-    });
-    return;
-  }
-  const base = process.env.GITHUB_BASE_BRANCH ?? "main";
-
-  // Pre-flight 0: branch check. The endpoint contract is "pull origin/<base>
-  // into the local checkout"; running it on a feature branch would silently
-  // fast-forward THAT branch instead of base, which is rarely what the
-  // operator wants. Refuse with a recognisable 409 so the UI can render
-  // plain-language guidance.
-  let currentBranch: string;
-  try {
-    const { stdout } = await runGit(["rev-parse", "--abbrev-ref", "HEAD"], root);
-    currentBranch = stdout.trim();
-  } catch (err) {
-    res.status(500).json({
-      error: "git_status_failed",
-      message: err instanceof Error ? err.message : String(err),
-    });
-    return;
-  }
-  if (currentBranch !== base) {
-    res.status(409).json({
-      error: "wrong_branch",
-      message: `Workspace is on "${currentBranch}", but sync only runs on the base branch "${base}". Switch on the host first.`,
-      currentBranch,
-      baseBranch: base,
-    });
-    return;
-  }
-
-  // Pre-flight 1: lock check. If a git process is in flight we'd block
-  // for a long time; better to fail fast with a recognisable message.
-  try {
-    if (existsSync(`${root}/.git/index.lock`)) {
-      res.status(409).json({
-        error: "git_locked",
-        message:
-          "A git operation is currently in progress (.git/index.lock exists). Wait a few seconds and try again.",
-      });
-      return;
-    }
-  } catch {
-    // ignore
-  }
-
-  // Pre-flight 2: clean working tree. Refuse to merge over local edits;
-  // we don't want to silently stash or clobber operator changes.
-  let dirtyOutput = "";
-  try {
-    const { stdout } = await runGit(["status", "--porcelain"], root);
-    dirtyOutput = stdout.trim();
-  } catch (err) {
-    res.status(500).json({
-      error: "git_status_failed",
-      message: err instanceof Error ? err.message : String(err),
-    });
-    return;
-  }
-  if (dirtyOutput.length > 0) {
-    res.status(409).json({
-      error: "workspace_dirty",
-      message:
-        "The local workspace has uncommitted changes. Commit, stash or discard them before syncing.",
-      details: dirtyOutput.split("\n").slice(0, 20),
-    });
-    return;
-  }
-
-  // Snapshot HEAD before touching the remote so the response can show
-  // "before / after" SHAs even if everything ends up at the same commit.
-  let beforeSha: string;
-  try {
-    const { stdout } = await runGit(["rev-parse", "HEAD"], root);
-    beforeSha = stdout.trim();
-  } catch (err) {
-    res.status(500).json({
-      error: "git_status_failed",
-      message: err instanceof Error ? err.message : String(err),
-    });
-    return;
-  }
-
-  try {
-    await runGit(["fetch", "origin", base], root);
-  } catch (err) {
-    res.status(502).json({
-      error: "fetch_failed",
-      message: err instanceof Error ? err.message : String(err),
-    });
-    return;
-  }
-
-  // Determine if the merge would be fast-forward. If HEAD is not an
-  // ancestor of origin/<base> then merging would create a merge commit,
-  // which is well outside the "pull updates after a PR merge" use case
-  // this endpoint serves.
-  let canFastForward = false;
-  try {
-    await runGit(
-      ["merge-base", "--is-ancestor", "HEAD", `origin/${base}`],
-      root,
-    );
-    canFastForward = true;
-  } catch {
-    canFastForward = false;
-  }
-  if (!canFastForward) {
-    res.status(409).json({
-      error: "not_fast_forward",
-      message:
-        "Local branch has diverged from the remote — fast-forward not possible. Resolve manually (rebase or merge) on the host.",
-    });
-    return;
-  }
-
-  try {
-    await runGit(["merge", "--ff-only", `origin/${base}`], root);
-  } catch (err) {
-    res.status(502).json({
-      error: "merge_failed",
-      message: err instanceof Error ? err.message : String(err),
-    });
-    return;
-  }
-
-  let afterSha = beforeSha;
-  try {
-    const { stdout } = await runGit(["rev-parse", "HEAD"], root);
-    afterSha = stdout.trim();
-  } catch {
-    // ignore — beforeSha is acceptable fallback
-  }
-
-  let changedFiles: string[] = [];
-  let commitsMerged = 0;
-  if (beforeSha !== afterSha) {
-    try {
-      const { stdout } = await runGit(
-        ["diff", "--name-only", `${beforeSha}..${afterSha}`],
-        root,
-      );
-      changedFiles = stdout
-        .split("\n")
-        .map((s) => s.trim())
-        .filter(Boolean)
-        .slice(0, 100);
-    } catch {
-      // ignore
-    }
-    try {
-      const { stdout } = await runGit(
-        ["rev-list", "--count", `${beforeSha}..${afterSha}`],
-        root,
-      );
-      const n = Number(stdout.trim());
-      if (Number.isFinite(n)) commitsMerged = n;
-    } catch {
-      // ignore
-    }
-  }
-
-  res.json({
-    ok: true,
-    beforeSha,
-    afterSha,
-    changedFiles,
-    commitsMerged,
-    alreadyUpToDate: beforeSha === afterSha,
-  });
 });
 
 function buildAppDefaultsPrBody(

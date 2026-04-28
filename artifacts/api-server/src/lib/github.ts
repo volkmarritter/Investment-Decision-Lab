@@ -988,6 +988,207 @@ function countTopLevelObjects(arrayBody: string): number {
 }
 
 // ---------------------------------------------------------------------------
+// openBulkAddBucketAlternativesPr — admin "batch add alternatives" (Task #51)
+// ---------------------------------------------------------------------------
+// Adds N curated alternatives to etfs.ts in a SINGLE PR. Mirrors the
+// design of openBulkAddLookthroughPoolPr: read base content once, apply
+// every row in-memory against the accumulating buffer (so each row sees
+// the previous row's insertion when computing isin-dup / cap), then open
+// one PR with one commit.
+//
+// Why one PR, not N: the existing per-row endpoint opens a PR per ISIN.
+// When the operator queues 5 ETFs into the same bucket, each PR fights
+// the previous one for `etfs.ts` and most land in `dirty` state until
+// rebased one by one. One PR collapses N would-be conflicts into N-1
+// no-ops.
+//
+// Branch name: `add-alt/bulk-{N}-{stamp}` so listOpenPrs can scope to
+// the add-alt flow distinctly from per-row branches (`add-alt/<isin>`)
+// and the timestamp prevents collisions on consecutive bulk runs.
+//
+// Per-row outcome: every input row gets one entry in the returned
+// `perRow` array (status `ok | parent_missing | isin_present |
+// cap_exceeded`). The caller decides how to surface skips. We refuse
+// to open a PR if zero rows succeed — there is nothing to commit.
+// ---------------------------------------------------------------------------
+export interface BulkBucketAltRowOutcome {
+  parentKey: string;
+  isin: string;
+  status: InjectAlternativeStatus;
+  // When status === "isin_present", the catalog key (or "<key> alt N",
+  // or "(this batch)" if the dup is between two rows of the same batch)
+  // where the conflict was found.
+  conflict?: string;
+}
+
+export async function openBulkAddBucketAlternativesPr(args: {
+  rows: Array<{ parentKey: string; entry: NewAlternativeEntry }>;
+}): Promise<{
+  url: string;
+  number: number;
+  perRow: BulkBucketAltRowOutcome[];
+  added: Array<{ parentKey: string; isin: string }>;
+}> {
+  if (!githubConfigured()) {
+    throw new Error(
+      "GitHub PR creation is not configured. Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO.",
+    );
+  }
+  if (args.rows.length === 0) {
+    throw new Error("openBulkAddBucketAlternativesPr called with zero rows.");
+  }
+  const owner = process.env.GITHUB_OWNER!;
+  const repo = process.env.GITHUB_REPO!;
+  const base = process.env.GITHUB_BASE_BRANCH ?? "main";
+  const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
+
+  // 1. Read base SHA + current etfs.ts content from the base branch.
+  const { data: baseRef } = await octokit.git.getRef({
+    owner,
+    repo,
+    ref: `heads/${base}`,
+  });
+  const baseSha = baseRef.object.sha;
+
+  const { data: fileMeta } = await octokit.repos.getContent({
+    owner,
+    repo,
+    path: ETFS_FILE_PATH,
+    ref: baseSha,
+  });
+  if (Array.isArray(fileMeta) || fileMeta.type !== "file") {
+    throw new Error(`Unexpected GitHub response for ${ETFS_FILE_PATH}.`);
+  }
+  let currentContent = Buffer.from(fileMeta.content, "base64").toString(
+    "utf8",
+  );
+
+  // 2. Apply each row sequentially against the accumulating buffer. The
+  //    in-memory recursion is what makes the batch self-consistent: row 2
+  //    sees row 1's insertion when injectAlternative re-parses the
+  //    catalog for its ISIN-dup pre-flight, so two rows trying to add the
+  //    same ISIN in the same batch produce the same `isin_present`
+  //    outcome the second one would get if they were submitted serially.
+  const perRow: BulkBucketAltRowOutcome[] = [];
+  const added: Array<{ parentKey: string; isin: string }> = [];
+  for (const row of args.rows) {
+    const result = injectAlternative(currentContent, row.parentKey, row.entry);
+    perRow.push({
+      parentKey: row.parentKey,
+      isin: row.entry.isin,
+      status: result.status,
+      ...(result.conflict ? { conflict: result.conflict } : {}),
+    });
+    if (result.status === "ok") {
+      currentContent = result.content;
+      added.push({ parentKey: row.parentKey, isin: row.entry.isin });
+    }
+  }
+
+  if (added.length === 0) {
+    throw new Error(
+      "Bulk add-alternatives PR aborted: zero rows produced a usable change. Inspect the per-row outcomes for the reason (parent missing, ISIN already present, cap exceeded).",
+    );
+  }
+
+  // 3. Create branch with deterministic-ish name. Stamp encodes UTC
+  //    YYYYMMDDHHmmss so consecutive runs don't collide and the branch
+  //    name tells the operator at a glance how many entries are inside.
+  const stamp = new Date()
+    .toISOString()
+    .replace(/[-:T]/g, "")
+    .slice(0, 14);
+  const branch = `add-alt/bulk-${added.length}-${stamp}`;
+  await octokit.git.createRef({
+    owner,
+    repo,
+    ref: `refs/heads/${branch}`,
+    sha: baseSha,
+  });
+
+  // 4. Single commit with the fully-accumulated content.
+  await octokit.repos.createOrUpdateFileContents({
+    owner,
+    repo,
+    path: ETFS_FILE_PATH,
+    branch,
+    message: `Add ${added.length} curated alternatives across ${
+      new Set(added.map((a) => a.parentKey)).size
+    } buckets (batch)`,
+    content: Buffer.from(currentContent, "utf8").toString("base64"),
+    sha: fileMeta.sha,
+  });
+
+  // 5. PR body: list every added row + every skipped row with reason
+  //    so the reviewer sees the same per-row table the operator saw in
+  //    the preview UI. Group by parent key for readability.
+  const skipped = perRow.filter((r) => r.status !== "ok");
+  const addedByBucket = new Map<string, BulkBucketAltRowOutcome[]>();
+  for (const row of perRow.filter((r) => r.status === "ok")) {
+    const list = addedByBucket.get(row.parentKey) ?? [];
+    list.push(row);
+    addedByBucket.set(row.parentKey, list);
+  }
+  const addedSection: string[] = [];
+  for (const [bucket, rows] of addedByBucket) {
+    addedSection.push(`- **${bucket}**`);
+    for (const r of rows) {
+      const meta = args.rows.find(
+        (x) => x.parentKey === r.parentKey && x.entry.isin === r.isin,
+      );
+      const name = meta?.entry.name ? ` — ${meta.entry.name}` : "";
+      addedSection.push(`  - \`${r.isin}\`${name}`);
+    }
+  }
+  const skippedLines = skipped.map((r) => {
+    const reason =
+      r.status === "parent_missing"
+        ? "parent bucket missing"
+        : r.status === "isin_present"
+          ? `ISIN already present${r.conflict ? ` (${r.conflict})` : ""}`
+          : r.status === "cap_exceeded"
+            ? "bucket already has 2 alternatives"
+            : r.status;
+    return `- \`${r.parentKey}\` / \`${r.isin}\` — ${reason}`;
+  });
+
+  const body = [
+    `Bulk-adds **${added.length}** curated alternatives across **${
+      new Set(added.map((a) => a.parentKey)).size
+    }** buckets.`,
+    "",
+    "Generated from `/admin` → Batch-Add-Alternatives. One PR collapses what would otherwise be one-PR-per-ISIN; rows that failed validation are listed below and were not committed.",
+    "",
+    "**Added**",
+    ...addedSection,
+    ...(skippedLines.length > 0
+      ? ["", "**Skipped (validated server-side, not committed)**", ...skippedLines]
+      : []),
+    "",
+    "**Reviewer checklist**",
+    "- Confirm each ISIN is the correct alternative for its bucket.",
+    "- Confirm the per-bucket cap (default + ≤ 2 alternatives) is respected after merge.",
+    "- The companion look-through PR (if any) lives on a separate branch and can merge independently.",
+  ].join("\n");
+
+  const { data: pr } = await octokit.pulls.create({
+    owner,
+    repo,
+    head: branch,
+    base,
+    title: `Add ${added.length} curated alternatives (batch)`,
+    body,
+  });
+
+  return {
+    url: pr.html_url,
+    number: pr.number,
+    perRow,
+    added,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // openAddBucketAlternativePr — orchestration mirroring openAddEtfPr.
 // ---------------------------------------------------------------------------
 // Branch name: `add-alt/<isin-lower>` so listOpenPrs can scope to this flow
