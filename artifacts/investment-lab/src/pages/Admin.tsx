@@ -3929,7 +3929,20 @@ function AddAlternativeForm({
       setCode(null);
       onCreated();
     } catch (e: unknown) {
-      setErrMsg(e instanceof Error ? e.message : String(e));
+      const msg = e instanceof Error ? e.message : String(e);
+      setErrMsg(msg);
+      // Surface the error via a toast as well — `onCreated()` below
+      // closes this form (so the operator can see the refreshed PR
+      // list), which would unmount the inline <Alert> before they
+      // notice it. Without the toast the click looked like nothing
+      // happened. The toast persists through the form unmount.
+      toast.error(
+        t({
+          de: "PR konnte nicht geöffnet werden",
+          en: "Could not open pull request",
+        }),
+        { description: msg },
+      );
       // Even on 409 ("branch already exists" / dup ISIN), refresh the
       // open-PRs list so the operator sees the existing PR that blocks
       // them — same UX contract as SuggestIsinPanel.
