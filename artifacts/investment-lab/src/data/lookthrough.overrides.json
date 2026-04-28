@@ -2297,6 +2297,90 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B810Q511",
       "_addedAt": "2026-04-28T14:15:09.421Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
+    },
+    "IE00B5L01S80": {
+      "name": "HSBC FTSE EPRA NAREIT Developed UCITS ETF USD",
+      "topHoldings": [
+        {
+          "name": "Welltower",
+          "pct": 7.27
+        },
+        {
+          "name": "Prologis, Inc.",
+          "pct": 6.55
+        },
+        {
+          "name": "Equinix",
+          "pct": 5.12
+        },
+        {
+          "name": "Digital Realty Trust, Inc.",
+          "pct": 3.31
+        },
+        {
+          "name": "Simon Property Group, Inc.",
+          "pct": 3.23
+        },
+        {
+          "name": "Realty Income",
+          "pct": 2.99
+        },
+        {
+          "name": "Public Storage",
+          "pct": 2.29
+        },
+        {
+          "name": "Ventas, Inc.",
+          "pct": 2.05
+        },
+        {
+          "name": "Goodman Group",
+          "pct": 1.85
+        },
+        {
+          "name": "Iron Mountain, Inc.",
+          "pct": 1.6
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-28T14:16:04.365Z",
+      "geo": {
+        "United States": 62.33,
+        "Japan": 9.43,
+        "Australia": 5.42,
+        "Hong Kong": 3.07,
+        "Singapore": 3.01,
+        "United Kingdom": 2.88,
+        "Canada": 1.85,
+        "France": 1.8,
+        "Switzerland": 1.68,
+        "Sweden": 1.56,
+        "Germany": 1.45,
+        "Other": 5.52
+      },
+      "sector": {
+        "Real Estate": 97.23,
+        "Technology": 0.29,
+        "Health Care": 0.24,
+        "Consumer Discretionary": 0.02,
+        "Other": 2.22
+      },
+      "currency": {
+        "USD": 62.33,
+        "JPY": 9.43,
+        "AUD": 5.42,
+        "HKD": 3.07,
+        "SGD": 3.01,
+        "GBP": 2.88,
+        "CAD": 1.85,
+        "EUR": 3.25,
+        "CHF": 1.68,
+        "SEK": 1.56,
+        "Other": 5.52
+      },
+      "breakdownsAsOf": "2026-04-28T14:16:04.365Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B5L01S80",
+      "_addedAt": "2026-04-28T14:16:04.365Z",
+      "_addedVia": "admin/bucket-alternatives (auto)"
     }
   }
 }
