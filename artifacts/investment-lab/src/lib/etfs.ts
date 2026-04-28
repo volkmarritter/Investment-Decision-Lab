@@ -468,6 +468,22 @@ const CATALOG: Record<string, ETFRecord> = {
       "Global developed-market REITs with above-average dividend yield; meaningful US weight (~60%).",
     listings: { LSE: { ticker: "IWDP" }, XETRA: { ticker: "IQQ6" }, SIX: { ticker: "IWDP" }, Euronext: { ticker: "IWDP" } },
     defaultExchange: "LSE",
+    alternatives: [
+      {
+        name: "VanEck Global Real Estate UCITS ETF",
+        isin: "NL0009690239",
+        terBps: 25,
+        domicile: "Netherlands",
+        replication: "Physical",
+        distribution: "Distributing",
+        currency: "EUR",
+        comment: "VanEck Global Real Estate — alternative provider.",
+        listings: { "LSE": { ticker: "TRET" }, "XETRA": { ticker: "TRET" } },
+        defaultExchange: "XETRA",
+        aumMillionsEUR: 411,
+        inceptionDate: "2011-04-14",
+      },
+    ],
   }),
   // ---------- Digital Assets ----------
   "DigitalAssets-BroadCrypto": E({
