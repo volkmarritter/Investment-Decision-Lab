@@ -323,6 +323,22 @@ const CATALOG: Record<string, ETFRecord> = {
       "EUR-hedged share class strips out USD/EUR FX volatility; small drag from rolling forwards.",
     listings: { LSE: { ticker: "IUSE" }, XETRA: { ticker: "IUSE" }, Euronext: { ticker: "IUSE" } },
     defaultExchange: "XETRA",
+    alternatives: [
+      {
+        name: "Invesco S&P 500 EUR Hedged UCITS ETF",
+        isin: "IE00BRKWGL70",
+        terBps: 5,
+        domicile: "Ireland",
+        replication: "Synthetic",
+        distribution: "Accumulating",
+        currency: "EUR",
+        comment: "Invesco S&P 500 EUR Hedged — synthetic alternative.",
+        listings: { "XETRA": { ticker: "E500" } },
+        defaultExchange: "XETRA",
+        aumMillionsEUR: 2640,
+        inceptionDate: "2014-12-08",
+      },
+    ],
   }),
   "Equity-USA-CHF": E({
     name: "UBS S&P 500 CHF Hedged UCITS",
