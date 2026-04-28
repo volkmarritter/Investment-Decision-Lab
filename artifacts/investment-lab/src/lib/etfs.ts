@@ -281,6 +281,22 @@ const CATALOG: Record<string, ETFRecord> = {
       "Wide-coverage Japan exposure including small caps; useful for a diversified developed-markets sleeve.",
     listings: { LSE: { ticker: "SJPA" }, XETRA: { ticker: "SXR4" }, SIX: { ticker: "CSJP" }, Euronext: { ticker: "IJPA" } },
     defaultExchange: "LSE",
+    alternatives: [
+      {
+        name: "Xtrackers Nikkei 225 UCITS ETF 1D",
+        isin: "LU0839027447",
+        terBps: 9,
+        domicile: "Luxembourg",
+        replication: "Physical",
+        distribution: "Distributing",
+        currency: "JPY",
+        comment: "Xtrackers Nikkei 225 — Nikkei index alternative.",
+        listings: { "LSE": { ticker: "XDJP" }, "XETRA": { ticker: "XDJP" } },
+        defaultExchange: "XETRA",
+        aumMillionsEUR: 1795,
+        inceptionDate: "2013-01-25",
+      },
+    ],
   }),
   "Equity-EM": E({
     name: "iShares Core MSCI EM IMI UCITS",
