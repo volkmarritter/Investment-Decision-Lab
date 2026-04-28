@@ -1899,6 +1899,97 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B3ZW0K18",
       "_addedAt": "2026-04-28T11:06:07.550Z",
       "_addedVia": "admin/lookthrough-pool/backfill"
+    },
+    "IE00BTJRMP35": {
+      "topHoldings": [
+        {
+          "name": "Taiwan Semiconductor Manufacturing Co., Ltd.",
+          "pct": 13.18
+        },
+        {
+          "name": "Samsung Electronics Co., Ltd.",
+          "pct": 5.61
+        },
+        {
+          "name": "Tencent Holdings Ltd.",
+          "pct": 4.09
+        },
+        {
+          "name": "SK hynix, Inc.",
+          "pct": 3.24
+        },
+        {
+          "name": "Alibaba Group Holding Ltd.",
+          "pct": 2.7
+        },
+        {
+          "name": "HDFC Bank Ltd.",
+          "pct": 0.95
+        },
+        {
+          "name": "China Construction Bank Corp.",
+          "pct": 0.91
+        },
+        {
+          "name": "Reliance Industries Ltd.",
+          "pct": 0.84
+        },
+        {
+          "name": "Delta Electronics, Inc.",
+          "pct": 0.8
+        },
+        {
+          "name": "Hon Hai Precision Industry Co., Ltd.",
+          "pct": 0.76
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-27T16:26:39.619Z",
+      "geo": {
+        "China": 23.15,
+        "Taiwan": 22.05,
+        "South Korea": 16.74,
+        "India": 11.11,
+        "Brazil": 4.25,
+        "Saudi Arabia": 2.73,
+        "South Africa": 2.63,
+        "Mexico": 1.71,
+        "Malaysia": 1.21,
+        "United Arab Emirates": 1.14,
+        "Poland": 1.01,
+        "Other": 12.27
+      },
+      "sector": {
+        "Technology": 32.75,
+        "Financials": 19.46,
+        "Consumer Discretionary": 9.64,
+        "Telecommunication": 7.73,
+        "Basic Materials": 6.33,
+        "Industrials": 6.1,
+        "Energy": 4.02,
+        "Consumer Staples": 2.91,
+        "Health Care": 2.44,
+        "Utilities": 1.93,
+        "Real Estate": 1.08,
+        "Other": 5.61
+      },
+      "currency": {
+        "CNY": 23.15,
+        "TWD": 22.05,
+        "KRW": 16.74,
+        "INR": 11.11,
+        "BRL": 4.25,
+        "SAR": 2.73,
+        "ZAR": 2.63,
+        "MXN": 1.71,
+        "MYR": 1.21,
+        "AED": 1.14,
+        "PLN": 1.01,
+        "Other": 12.27
+      },
+      "breakdownsAsOf": "2026-04-27T16:26:39.619Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BTJRMP35",
+      "_addedAt": "2026-04-27T16:26:39.619Z",
+      "_addedVia": "admin/lookthrough-pool"
     }
   }
 }
