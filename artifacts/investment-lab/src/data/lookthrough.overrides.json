@@ -1990,6 +1990,76 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BTJRMP35",
       "_addedAt": "2026-04-27T16:26:39.619Z",
       "_addedVia": "admin/lookthrough-pool"
+    },
+    "IE00BYPLS672": {
+      "name": "L&G Cyber Security UCITS ETF",
+      "topHoldings": [
+        {
+          "name": "Fastly Inc",
+          "pct": 8.88
+        },
+        {
+          "name": "Cisco Systems, Inc.",
+          "pct": 8
+        },
+        {
+          "name": "Cloudflare Inc",
+          "pct": 8
+        },
+        {
+          "name": "Akamai Technologies",
+          "pct": 6.85
+        },
+        {
+          "name": "Broadcom Inc.",
+          "pct": 6.71
+        },
+        {
+          "name": "Palo Alto Networks",
+          "pct": 6.37
+        },
+        {
+          "name": "CrowdStrike Holdings",
+          "pct": 6.28
+        },
+        {
+          "name": "Fortinet Inc",
+          "pct": 5.2
+        },
+        {
+          "name": "SentinelOne",
+          "pct": 4.55
+        },
+        {
+          "name": "NetScout Systems",
+          "pct": 4.42
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-28T14:14:00.455Z",
+      "geo": {
+        "United States": 80.01,
+        "Israel": 6.31,
+        "Japan": 4.92,
+        "Canada": 4.74,
+        "Other": 4.02
+      },
+      "sector": {
+        "Technology": 92.55,
+        "Telecommunication": 3.21,
+        "Industrials": 0.94,
+        "Other": 3.3
+      },
+      "currency": {
+        "USD": 80.01,
+        "ILS": 6.31,
+        "JPY": 4.92,
+        "CAD": 4.74,
+        "Other": 4.02
+      },
+      "breakdownsAsOf": "2026-04-28T14:14:00.455Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BYPLS672",
+      "_addedAt": "2026-04-28T14:14:00.455Z",
+      "_addedVia": "admin/bucket-alternatives (auto)"
     }
   }
 }
