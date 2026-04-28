@@ -1,4 +1,4 @@
-import { AssetAllocation } from "./types";
+import { AssetAllocation, ETFImplementation } from "./types";
 
 export const TER_BPS_BY_ASSET_CLASS: Record<string, number> = {
   "Cash": 10,
@@ -27,15 +27,42 @@ export function estimateFees(
   allocation: AssetAllocation[],
   horizonYears: number,
   investmentAmount: number,
-  options: { hedgingCostBps?: number; hedged?: boolean } = {}
+  options: {
+    hedgingCostBps?: number;
+    hedged?: boolean;
+    /**
+     * Optional. Per-bucket ETF implementations from the BuildPortfolio table.
+     * When provided, the actual `terBps` of the ETF the operator picked is
+     * used for that bucket instead of the asset-class default from
+     * TER_BPS_BY_ASSET_CLASS / getETFTer. This is what makes the Fee
+     * Estimator react when the operator switches an ETF in the per-bucket
+     * picker — without it the panel was frozen on the asset-class default.
+     * Lookup is keyed by `${assetClass} - ${region}`, which matches both
+     * AssetAllocation rows and the `bucket` field set by
+     * src/lib/portfolio.ts.
+     */
+    etfImplementations?: ReadonlyArray<
+      Pick<ETFImplementation, "bucket" | "terBps">
+    >;
+  } = {},
 ) {
   let totalWeight = 0;
   let blendedTerBpsWeighted = 0;
 
   const hedgingCostBps = options.hedged ? options.hedgingCostBps ?? 15 : 0;
+  const terByBucket = new Map<string, number>();
+  for (const e of options.etfImplementations ?? []) {
+    if (typeof e.terBps === "number" && Number.isFinite(e.terBps)) {
+      terByBucket.set(e.bucket, e.terBps);
+    }
+  }
 
   const breakdown = allocation.map(a => {
-    const baseTer = getETFTer(a.assetClass, a.region);
+    const bucketKey = `${a.assetClass} - ${a.region}`;
+    // Prefer the picked-ETF TER (bucket-keyed) over the asset-class default.
+    // Cash buckets are excluded from the implementation table, so for them
+    // we always fall back to the table.
+    const baseTer = terByBucket.get(bucketKey) ?? getETFTer(a.assetClass, a.region);
     // Hedging cost only applies to instruments that can be hedged (equity, FI, real estate)
     const canHedge =
       hedgingCostBps > 0 &&
@@ -45,7 +72,7 @@ export function estimateFees(
     totalWeight += a.weight;
     blendedTerBpsWeighted += contributionBps;
     return {
-      key: `${a.assetClass} - ${a.region}`,
+      key: bucketKey,
       weight: a.weight,
       terBps,
       contributionBps

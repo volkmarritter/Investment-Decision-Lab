@@ -814,6 +814,42 @@ describe("estimateFees", () => {
     const r = estimateFees(alloc, 10, 100_000);
     expect(r.annualFee).toBeCloseTo(100_000 * (r.blendedTerBps / 10_000), 2);
   });
+
+  // Regression for the "Fee Estimator does not react when ETF is changed"
+  // bug: when the BuildPortfolio per-bucket picker swaps the picked ETF,
+  // estimateFees now consumes the actual `terBps` of the picked ETF
+  // instead of the asset-class default. Without `etfImplementations`, the
+  // default 12 bps (Equity USA) is used; with it, the supplied 35 bps wins.
+  it("uses per-bucket etfImplementations TER when supplied (overrides asset-class default)", () => {
+    const alloc = [{ assetClass: "Equity", region: "USA", weight: 100 }];
+    const baseline = estimateFees(alloc, 10, 100_000);
+    expect(baseline.blendedTerBps).toBeCloseTo(12, 1);
+
+    const withPickedEtf = estimateFees(alloc, 10, 100_000, {
+      etfImplementations: [{ bucket: "Equity - USA", terBps: 35 }],
+    });
+    expect(withPickedEtf.blendedTerBps).toBeCloseTo(35, 1);
+    expect(withPickedEtf.annualFee).toBeCloseTo(100_000 * (35 / 10_000), 2);
+    // Also reflected in the per-bucket breakdown row.
+    expect(withPickedEtf.breakdown[0].terBps).toBe(35);
+  });
+
+  it("etfImplementations TER falls back to asset-class default for unmatched buckets (e.g. Cash)", () => {
+    const alloc = [
+      { assetClass: "Equity", region: "USA", weight: 50 },
+      { assetClass: "Cash", region: "USD", weight: 50 },
+    ];
+    // Operator picked a 35 bps ETF for the Equity sleeve; Cash is not in
+    // the implementation table at all, so it must keep the 10 bps default.
+    const r = estimateFees(alloc, 10, 100_000, {
+      etfImplementations: [{ bucket: "Equity - USA", terBps: 35 }],
+    });
+    const eqRow = r.breakdown.find((b) => b.key === "Equity - USA")!;
+    const cashRow = r.breakdown.find((b) => b.key === "Cash - USD")!;
+    expect(eqRow.terBps).toBe(35);
+    expect(cashRow.terBps).toBe(10);
+    expect(r.blendedTerBps).toBeCloseTo((35 + 10) / 2, 1);
+  });
 });
 
 // ---------------------------------------------------------------------------

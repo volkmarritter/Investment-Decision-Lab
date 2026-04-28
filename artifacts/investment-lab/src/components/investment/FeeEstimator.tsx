@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { AssetAllocation } from "@/lib/types";
+import { AssetAllocation, ETFImplementation } from "@/lib/types";
 import { estimateFees } from "@/lib/fees";
 import { parseDecimalInput } from "@/lib/manualWeights";
 
@@ -15,22 +15,71 @@ interface FeeEstimatorProps {
   horizonYears: number;
   baseCurrency: string;
   hedged?: boolean;
+  /**
+   * Per-bucket ETF implementations from the BuildPortfolio table. When
+   * supplied, the Fee Estimator reads each bucket's actual TER from the
+   * picked ETF instead of the asset-class default — switching an ETF in
+   * the per-bucket picker now updates Blended TER, Annual Fee and the
+   * 30-year drag chart immediately.
+   */
+  etfImplementations?: ReadonlyArray<ETFImplementation>;
 }
 
-export function FeeEstimator({ allocation, horizonYears, baseCurrency, hedged }: FeeEstimatorProps) {
+// Format an integer with US-style thousand separators ("100,000"). We use
+// en-US to match the existing currency display below (`Intl.NumberFormat
+// "en-US"` for $100,000 / CHF 100,000 etc.) so the input and the result
+// cards read the same way. The decimal portion (and any partial
+// mid-typing state like "100,000." or "100,000.5") is preserved untouched.
+function formatThousandsLive(raw: string): string {
+  // Strip whitespace plus US/EU/CH thousand separators that the user might
+  // have pasted in. Keep dot/comma at most as the decimal separator.
+  const stripped = raw.replace(/[\s'’]/g, "").replace(/,(?=\d{3}(?:\D|$))/g, "");
+  if (stripped === "" || stripped === "-" || stripped === "+") return stripped;
+  // Allowed shape: optional sign, digits, optional separator, optional digits.
+  const match = stripped.match(/^([+-]?)(\d*)([.,]?)(\d*)$/);
+  if (!match) return raw;
+  const [, sign, intPart, sep, decPart] = match;
+  const intFormatted = intPart === ""
+    ? ""
+    : new Intl.NumberFormat("en-US", { useGrouping: true }).format(
+        Number(intPart),
+      );
+  return `${sign}${intFormatted}${sep}${decPart}`;
+}
+
+export function FeeEstimator({
+  allocation,
+  horizonYears,
+  baseCurrency,
+  hedged,
+  etfImplementations,
+}: FeeEstimatorProps) {
   // Raw text buffer is the source of truth so mobile users on Swiss/German/
   // French keyboards can type either "100000" or "100000,50". The numeric
   // value used by the engine is derived via parseDecimalInput (accepts dot
   // *and* comma decimals, returns null on garbage). See the audit comment in
   // src/lib/manualWeights.ts for the full list of inputs touched by this fix.
-  const [amountDraft, setAmountDraft] = useState<string>("100000");
-  const investmentAmount = useMemo(
-    () => parseDecimalInput(amountDraft, { min: 0 }) ?? 0,
-    [amountDraft],
+  // Initial value seeded already-formatted ("100,000") to match the live-
+  // formatting applied on every keystroke — otherwise the very first render
+  // would show a bare "100000" which then jumps when the user starts typing.
+  const [amountDraft, setAmountDraft] = useState<string>(() =>
+    formatThousandsLive("100000"),
   );
+  const investmentAmount = useMemo(() => {
+    // Strip thousand separators (commas, spaces, Swiss apostrophes) before
+    // parsing — parseDecimalInput's whitelist regex only knows digits +
+    // optional dot/comma decimal separator and would otherwise reject the
+    // grouped value "100,000".
+    const cleaned = amountDraft.replace(/[\s'’]/g, "").replace(
+      /,(?=\d{3}(?:\D|$))/g,
+      "",
+    );
+    return parseDecimalInput(cleaned, { min: 0 }) ?? 0;
+  }, [amountDraft]);
 
   const results = estimateFees(allocation, horizonYears, investmentAmount, {
     hedged: hedged && baseCurrency !== "USD",
+    etfImplementations,
   });
 
   const formatCurrency = (value: number) => {
@@ -78,7 +127,10 @@ export function FeeEstimator({ allocation, horizonYears, baseCurrency, hedged }:
                 spellCheck={false}
                 className="pl-12 font-mono"
                 value={amountDraft}
-                onChange={(e) => setAmountDraft(e.target.value)}
+                onChange={(e) =>
+                  setAmountDraft(formatThousandsLive(e.target.value))
+                }
+                data-testid="input-fee-investment-amount"
               />
             </div>
           </div>

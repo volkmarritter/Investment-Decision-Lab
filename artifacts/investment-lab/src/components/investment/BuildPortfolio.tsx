@@ -1349,6 +1349,7 @@ export function BuildPortfolio() {
                   horizonYears={form.getValues().horizon} 
                   baseCurrency={form.getValues().baseCurrency}
                   hedged={form.getValues().includeCurrencyHedging}
+                  etfImplementations={output.etfImplementation}
                 />
               </>
             )}
