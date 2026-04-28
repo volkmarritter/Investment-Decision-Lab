@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-04-28 (build-pdf-report-page-break-top-inset)
+Last updated: 2026-04-28 (build-etf-per-bucket-alternatives)
 
 ---
 
@@ -619,6 +619,20 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-04-28 (build-etf-per-bucket-alternatives) — Per-Bucket-ETF-Picker mit kuratierten Alternativen
+- **Operator-Wunsch:** „Jeder ETF der zur Auswahl gelangen soll, benötigt eine eindeutige Bucket-Zuordnung." Pro Bucket soll der Nutzer zwischen 1 Default und bis zu 2 kuratierten Alternativen wählen können — ohne in die Methodology-„Swap-ETF"-Pane wechseln zu müssen, die ein freier Override-Mechanismus ist.
+- **Datenebene (`src/lib/etfs.ts`):** `ETFRecord` bekommt `alternatives?: ETFRecord[]` (max 2). `ETFDetails` bekommt drei neue Felder: `catalogKey: string | null`, `selectedSlot: 0|1|2`, `selectableOptions: {name,isin,terBps}[]`. Sechs Headline-Buckets erhalten Alternativen: Equity-Global (Vanguard VWRA, iShares SSAC), Equity-USA (Vanguard VUAA, SPDR SPY5), Equity-Europe (Vanguard VEUA), Equity-EM (Vanguard VFEA), FixedIncome-Global (Xtrackers XGGB), Commodities-Gold (iShares SGLN, WisdomTree PHAU). Hedged/Synthetic-Variant-Keys bleiben bewusst ohne Alternativen (sie sind konditionale Defaults, keine Picker-Targets).
+- **Auflösungs-Layer in `getETFDetails()` — drei klar geordnete Stufen:**
+  1. Methodology-Override (`getUserETFOverride`) — wenn aktiv, wird `selectableOptions` leer zurückgegeben (Picker bleibt unsichtbar; der Override IST die Antwort).
+  2. Per-Bucket-Slot-Selection (`getETFSelection(catalogKey)`) → `resolveSelectedETF(curated, slot)` mit `clampSlot()` für Stale-localStorage-Werte.
+  3. Curated default (`CATALOG[key]`).
+- **Persistenz (`src/lib/etfSelection.ts` NEW):** `localStorage["il.etfSelection.v1"] = Record<catalogKey, 1|2>`. Slot 0 (Default) wird nie persistiert (Absenz = Default). Modul-API: `getETFSelection`, `setETFSelection`, `clearETFSelection`, `clearAllETFSelections`, `subscribeETFSelections` (CustomEvent `il-etf-selection-changed` für Cross-Component-Koordination, mirrors `etfOverrides.ts`-Pattern). Defensive Parse: ungültige Werte werden silent verworfen.
+- **Integrity-Guard `validateCatalog()`:** prüft drei Invarianten — `alternatives.length ≤ 2`, ISINs innerhalb eines Buckets distinct, Alt-ISINs global eindeutig (kein Overlap mit anderen Buckets' Defaults oder Alternatives). Pre-existing Default↔Default-ISIN-Duplikate zwischen Hedged-Variant-Keys (z. B. Equity-USA-EUR ↔ Equity-USA-CHF) bleiben toleriert (legacy data, nicht Teil des Picker-Konzepts). CI-gated via `tests/catalog-validate.test.ts`.
+- **UI (`BuildPortfolio.tsx`):** in der ETF-Implementation-Tabelle wird die ETF-Name-Zelle zu einem `<Select>` umgebaut, wenn `selectableOptions.length > 1`. Trigger ist sehr kompakt (h-7, dashed border, 280px max-width); SelectItem zeigt Name + Default/Alternative-Badge + ISIN + TER. Slot-Wahl ruft `setETFSelection(catalogKey, slot)`, was via `subscribeETFSelections` einen monoton steigenden Tick im Build-Effekt-Dep-Array inkrementiert → automatischer `buildPortfolio()`-Re-Run → alle Downstream-Surfaces (Fees, Monte Carlo, Look-Through, Top-10) reagieren ohne weiteren User-Click. Buckets ohne Alternativen rendern weiterhin Plain-Text (kein leerer Picker).
+- **i18n:** vier neue Keys (DE+EN): `build.impl.picker.label`, `build.impl.picker.default`, `build.impl.picker.alt`, `build.impl.picker.terSuffix`.
+- **Tests:** zwei neue Files — `catalog-validate.test.ts` (7 tests: validateCatalog returns [], headline 6 buckets vorhanden, alle Invarianten) und `etfSelection.test.ts` (10 tests: Storage-Roundtrip, Clear-Semantik, Corrupt-Value-Drop, End-to-End-Auflösung default/slot-1/slot-2/clamp/no-alternatives). Test-Suite jetzt **369/369 grün**, e2e weiterhin grün, typecheck clean.
+- **Bewusste Nicht-Änderungen:** keine Alternativen für Hedged/Synthetic-Variant-Keys (würde die Picker-Semantik mit den konditionalen Resolution-Layern kollidieren lassen). Override gewinnt vollständig vor Alternative-Picker (kein gemischtes UI). Kein Reset-All-Button für Selections im UI (analog zur initialen Manual-Weights-Iteration: erst dann aufnehmen, wenn der Operator nach Cleanup-UX explizit fragt). Keine Persistenz von Slot 0 (Default-State = keine Storage-Entry, hält den Blob klein und macht „Default" und „nie geklickt" semantisch identisch).
 
 ### 2026-04-28 (build-pdf-report-page-break-top-inset) — Header-Atemluft auf Page-Break-Seite
 - **Operator-Folgewunsch:** „some header space" — nach dem Page-Break klebte der Section-Titel „MONTE CARLO PROJECTION" hart am oberen Rand der zweiten PDF-Seite.

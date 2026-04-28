@@ -150,9 +150,51 @@ export interface CatalogEntrySummary {
   defaultExchange: string;
   aumMillionsEUR?: number;
   inceptionDate?: string;
+  // Curated alternatives surfaced by the per-bucket picker (2026-04-28).
+  // Capped at 2 by validateCatalog. Only the /admin/bucket-alternatives
+  // endpoint populates this; the regular /admin/catalog endpoint also now
+  // returns it (the parser was extended) but legacy admin views ignore it.
+  alternatives?: AlternativeEntrySummary[];
+}
+
+// Mirrors AlternativeEntrySummary on the server. Same shape as
+// CatalogEntrySummary minus `key` (alternatives are positional) and
+// minus `alternatives` (no nesting; alternatives don't have alternatives).
+export interface AlternativeEntrySummary {
+  name: string;
+  isin: string;
+  terBps: number;
+  domicile: string;
+  replication: string;
+  distribution: string;
+  currency: string;
+  comment: string;
+  listings: Record<string, { ticker: string }>;
+  defaultExchange: string;
+  aumMillionsEUR?: number;
+  inceptionDate?: string;
 }
 
 export type CatalogSummary = Record<string, CatalogEntrySummary>;
+
+// Mirrors NewAlternativeEntry on the server. Same shape as AddEtfRequest
+// minus `key`.
+export interface AddBucketAlternativeRequest {
+  name: string;
+  isin: string;
+  terBps: number;
+  domicile: string;
+  replication: "Physical" | "Physical (sampled)" | "Synthetic";
+  distribution: "Accumulating" | "Distributing";
+  currency: string;
+  comment: string;
+  defaultExchange: "LSE" | "XETRA" | "SIX" | "Euronext";
+  listings: Partial<
+    Record<"LSE" | "XETRA" | "SIX" | "Euronext", { ticker: string }>
+  >;
+  aumMillionsEUR?: number;
+  inceptionDate?: string;
+}
 
 export const adminApi = {
   whoami: (token?: string) =>
@@ -209,6 +251,21 @@ export const adminApi = {
     }>(`/admin/lookthrough-pool/${encodeURIComponent(isin)}`, {
       method: "POST",
     }),
+  // Bulk-Backfill: scannt den Katalog nach ISINs ohne Look-through-Daten
+  // (weder in `overrides` noch im `pool`), scrapet jede einzeln und öffnet
+  // EINEN gemeinsamen PR. Long-running (~1-2 min für 15-20 ISINs).
+  backfillLookthroughPool: () =>
+    call<{
+      ok: boolean;
+      scanned: number;
+      missing: number;
+      attempted: string[];
+      added: string[];
+      skippedAlreadyPresent: string[];
+      scrapeFailures: Array<{ isin: string; reason: string }>;
+      prUrl?: string;
+      prNumber?: number;
+    }>("/admin/backfill-lookthrough-pool", { method: "POST" }),
   // Global defaults editor (RF rates, Home-Bias, CMA). GET returns the
   // currently-shipped JSON; POST validates the payload server-side and
   // opens a GitHub PR replacing app-defaults.json. After merge + redeploy
@@ -223,9 +280,60 @@ export const adminApi = {
         body: JSON.stringify({ value, summary }),
       },
     ),
+  // Per-bucket curated alternatives editor (2026-04-28). Mirrors the
+  // catalog/renderEntry/addIsin trio above but writes into an existing
+  // bucket's `alternatives:[…]` array (creating the field if absent)
+  // instead of inserting a top-level entry.
+  bucketAlternatives: () =>
+    call<{ entries: CatalogSummary }>("/admin/bucket-alternatives"),
+  renderBucketAlternative: (parentKey: string, entry: AddBucketAlternativeRequest) =>
+    call<{ code: string }>("/admin/bucket-alternatives/render", {
+      method: "POST",
+      body: JSON.stringify({ parentKey, entry }),
+    }),
+  // Adds a curated alternative under `parentKey`. The server opens TWO
+  // PRs (best-effort): one against etfs.ts (always) and one against
+  // lookthrough.overrides.json (only if justETF returns complete data).
+  // The look-through PR is non-blocking — if scraping fails the etfs PR
+  // still goes through and `lookthroughError` carries the explanation.
+  addBucketAlternative: (parentKey: string, entry: AddBucketAlternativeRequest) =>
+    call<{
+      ok: boolean;
+      prUrl: string;
+      prNumber: number;
+      lookthroughPrUrl?: string;
+      lookthroughPrNumber?: number;
+      // Distinct positive signal: the ISIN is already covered by
+      // look-through data (in the curated overrides, the auto-refresh
+      // pool, or the base file we PR against). No second PR was opened
+      // because none was needed — render this as success, not as an
+      // error/skip.
+      lookthroughAlreadyPresent?: boolean;
+      lookthroughAlreadyPresentSource?: "overrides" | "pool" | "base-file";
+      // Genuine problems (scrape failed, scrape returned incomplete
+      // data, GitHub call threw). The etfs PR still succeeded — this is
+      // only about the optional second PR.
+      lookthroughError?: string;
+    }>(
+      "/admin/bucket-alternatives",
+      {
+        method: "POST",
+        body: JSON.stringify({ parentKey, entry }),
+      },
+    ),
+  // Removes a curated alternative from `parentKey` via PR. The
+  // per-ISIN look-through profile in lookthrough.overrides.json is
+  // intentionally NOT touched — operators can re-attach the same ISIN
+  // later (or reference it from a different bucket) without losing the
+  // expensive scrape data.
+  removeBucketAlternative: (parentKey: string, isin: string) =>
+    call<{ ok: boolean; prUrl: string; prNumber: number }>(
+      `/admin/bucket-alternatives/${encodeURIComponent(parentKey)}/${encodeURIComponent(isin)}`,
+      { method: "DELETE" },
+    ),
   // Lists currently-open PRs on the configured GitHub repo, optionally
   // scoped to a single admin flow via branch prefix:
-  //   "add-lookthrough-pool/" | "add-etf/" | "update-app-defaults/"
+  //   "add-lookthrough-pool/" | "add-etf/" | "update-app-defaults/" | "add-alt/"
   // Uses the REST list-pulls endpoint server-side (NOT the search API)
   // so it is unaffected by GitHub's occasional search-index lag.
   listOpenPrs: (prefix?: string) => {

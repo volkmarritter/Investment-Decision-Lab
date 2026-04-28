@@ -24,11 +24,18 @@ import { requireAdmin } from "../middlewares/admin-auth";
 import { dataFile } from "../lib/data-paths";
 import {
   githubConfigured,
+  injectAlternative,
   listOpenPrs,
+  openAddBucketAlternativePr,
+  openRemoveBucketAlternativePr,
   openAddEtfPr,
   openAddLookthroughPoolPr,
+  openBulkAddLookthroughPoolPr,
   openUpdateAppDefaultsPr,
+  renderAlternativeBlock,
   renderEntryBlock,
+  type LookthroughPoolEntry,
+  type NewAlternativeEntry,
   type NewEtfEntry,
 } from "../lib/github";
 import { findDuplicateIsinKey, loadCatalog } from "../lib/catalog-parser";
@@ -189,6 +196,342 @@ router.post("/admin/render-entry", (req, res) => {
     res.status(500).json({
       error: "render_failed",
       message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+// --- /api/admin/bucket-alternatives -----------------------------------------
+// Per-bucket curated-alternatives editor (2026-04-28). Each bucket may
+// expose 1 default + up to 2 curated alternatives in the Build tab's ETF
+// Implementation picker. The endpoints below let the operator audit and
+// extend the alternatives list via the same PR-based flow already used
+// for add-isin and app-defaults.
+//
+//   GET  /admin/bucket-alternatives        — same shape as /admin/catalog
+//                                            but the `alternatives` array
+//                                            on each entry is populated
+//                                            (the catalog parser was
+//                                            extended to surface them).
+//   POST /admin/bucket-alternatives/render — preview the TS snippet that
+//                                            would be inserted, byte-for-byte
+//                                            identical to what the PR shows.
+//   POST /admin/bucket-alternatives        — open a PR adding the entry
+//                                            into the parent's `alternatives`
+//                                            array (creating the array if
+//                                            absent).
+//
+// All three reuse loadCatalog() / parseCatalogFromSource for the freshness
+// guarantee — no separate cache, no drift between preview and PR diff.
+router.get("/admin/bucket-alternatives", async (_req, res) => {
+  try {
+    const entries = await loadCatalog();
+    res.json({ entries });
+  } catch (err) {
+    res.status(500).json({
+      error: "catalog_parse_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+router.post("/admin/bucket-alternatives/render", (req, res) => {
+  const parentKey = typeof req.body?.parentKey === "string"
+    ? req.body.parentKey
+    : "";
+  const entry = req.body?.entry as NewAlternativeEntry | undefined;
+  const validationError = validateAlternative(entry);
+  if (validationError || !entry) {
+    res.status(400).json({ error: "invalid_entry", message: validationError });
+    return;
+  }
+  if (!parentKey || !/^[A-Z][A-Za-z0-9-]{2,40}$/.test(parentKey)) {
+    res.status(400).json({
+      error: "invalid_parent_key",
+      message: "parentKey must match the catalog key format.",
+    });
+    return;
+  }
+  try {
+    const code = renderAlternativeBlock(entry, "      ");
+    res.json({ code });
+  } catch (err) {
+    res.status(500).json({
+      error: "render_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+router.post("/admin/bucket-alternatives", async (req, res) => {
+  const parentKey = typeof req.body?.parentKey === "string"
+    ? req.body.parentKey
+    : "";
+  const entry = req.body?.entry as NewAlternativeEntry | undefined;
+  const validationError = validateAlternative(entry);
+  if (validationError || !entry) {
+    res.status(400).json({ error: "invalid_entry", message: validationError });
+    return;
+  }
+  if (!parentKey || !/^[A-Z][A-Za-z0-9-]{2,40}$/.test(parentKey)) {
+    res.status(400).json({
+      error: "invalid_parent_key",
+      message: "parentKey must match the catalog key format.",
+    });
+    return;
+  }
+
+  // Belt-and-braces server-side pre-flight (parent missing, ISIN dup,
+  // alts cap). The /admin/bucket-alternatives PR helper performs the
+  // same checks before opening the PR — duplicating them here returns a
+  // typed 4xx instead of a generic 502 from the PR helper, which is
+  // friendlier for the UI to render.
+  try {
+    const catalog = await loadCatalog();
+    const parent = catalog[parentKey];
+    if (!parent) {
+      res.status(404).json({
+        error: "parent_missing",
+        message: `Parent bucket "${parentKey}" not found in catalog.`,
+      });
+      return;
+    }
+    const existingAlts = parent.alternatives ?? [];
+    if (existingAlts.length >= 2) {
+      res.status(409).json({
+        error: "cap_exceeded",
+        message: `"${parentKey}" already has 2 alternatives. Remove one first.`,
+      });
+      return;
+    }
+    const norm = entry.isin.trim().toUpperCase();
+    for (const [k, e] of Object.entries(catalog)) {
+      if (e.isin.toUpperCase() === norm) {
+        res.status(409).json({
+          error: "duplicate_isin",
+          message: `ISIN ${entry.isin} is already used by catalog key "${k}". Pick a different ISIN.`,
+          conflictKey: k,
+        });
+        return;
+      }
+      const alts = e.alternatives ?? [];
+      for (let i = 0; i < alts.length; i++) {
+        if (alts[i].isin.toUpperCase() === norm) {
+          res.status(409).json({
+            error: "duplicate_isin",
+            message: `ISIN ${entry.isin} is already used by alternative slot ${i + 1} under "${k}". Pick a different ISIN.`,
+            conflictKey: `${k} alt ${i + 1}`,
+          });
+          return;
+        }
+      }
+    }
+  } catch (err) {
+    res.status(500).json({
+      error: "catalog_parse_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+
+  if (!githubConfigured()) {
+    res.status(503).json({
+      error: "github_not_configured",
+      message:
+        "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
+    });
+    return;
+  }
+
+  let prUrl: string;
+  let prNumber: number;
+  try {
+    const pr = await openAddBucketAlternativePr(parentKey, entry);
+    prUrl = pr.url;
+    prNumber = pr.number;
+  } catch (err) {
+    res.status(502).json({
+      error: "pr_creation_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+
+  // Best-effort: also gather look-through reference data for this ISIN
+  // and open a separate look-through-pool PR. This makes the alt usable
+  // immediately on day 1 (top holdings, geo, sector breakdowns) instead
+  // of waiting for the next monthly refresh-lookthrough cron tick. The
+  // two PRs are independent: if look-through scraping fails (no data,
+  // already in pool, scrape error) the etfs.ts PR still stands and the
+  // operator just sees a non-blocking message in the response.
+  //
+  // Why best-effort: requirement is "Look-through data should be
+  // gathered for all alternatives". The monthly cron already covers
+  // every ISIN in etfs.ts via regex extraction, so missing the immediate
+  // scrape just means a one-cron-tick delay — never a permanent gap.
+  let lookthroughPrUrl: string | undefined;
+  let lookthroughPrNumber: number | undefined;
+  let lookthroughError: string | undefined;
+  // Positive signal: the ISIN is already covered by look-through data
+  // (either committed in the base file, or live on the auto-refresh
+  // pool). Distinct from `lookthroughError` so the UI can show a green
+  // "data already available" line instead of a yellow "skipped" line.
+  let lookthroughAlreadyPresent = false;
+  let lookthroughAlreadyPresentSource:
+    | "overrides"
+    | "pool"
+    | "base-file"
+    | undefined;
+  try {
+    const norm = entry.isin.trim().toUpperCase();
+    const sources = await readLookthroughSources();
+    if (sources.pool[norm] || sources.overrides[norm]) {
+      lookthroughAlreadyPresent = true;
+      lookthroughAlreadyPresentSource = sources.overrides[norm]
+        ? "overrides"
+        : "pool";
+    } else {
+      const scraped = await scrapeLookthrough(norm);
+      // Pull all four required fields into locals first so TS narrows
+      // their type from `T | undefined` to `T` after the guard below.
+      // Inline `&& length > 0` checks would compile but wouldn't narrow
+      // the field types — see the existing /lookthrough-pool flow which
+      // assumes presence implicitly.
+      const top = scraped.topHoldings;
+      const geo = scraped.geo;
+      const sector = scraped.sector;
+      const currency = scraped.currency;
+      if (
+        !top ||
+        top.length === 0 ||
+        !geo ||
+        Object.keys(geo).length === 0 ||
+        !sector ||
+        Object.keys(sector).length === 0 ||
+        !currency
+      ) {
+        lookthroughError = `Look-through-Scrape unvollständig für ${norm} — Methodology-Override-Daten fehlen, der Pool-PR wird übersprungen. Der monatliche Refresh-Job kann es später erneut versuchen.`;
+      } else {
+        const ltPr = await openAddLookthroughPoolPr({
+          isin: norm,
+          entry: {
+            ...(scraped.name ? { name: scraped.name } : {}),
+            topHoldings: top,
+            topHoldingsAsOf: scraped.asOf,
+            geo,
+            sector,
+            currency,
+            breakdownsAsOf: scraped.asOf,
+            _source: scraped.sourceUrl,
+            _addedAt: scraped.asOf,
+            _addedVia: "admin/bucket-alternatives (auto)",
+          },
+        });
+        if (ltPr.alreadyInBaseFile) {
+          // Race-window case: another PR landed on the base branch
+          // between our pre-flight read and our PR attempt. Surface as
+          // "already present" so the UI shows the same positive signal
+          // as the pre-flight match path.
+          lookthroughAlreadyPresent = true;
+          lookthroughAlreadyPresentSource = "base-file";
+        } else {
+          lookthroughPrUrl = ltPr.url;
+          lookthroughPrNumber = ltPr.number;
+        }
+      }
+    }
+  } catch (err) {
+    lookthroughError = err instanceof Error ? err.message : String(err);
+  }
+
+  res.json({
+    ok: true,
+    prUrl,
+    prNumber,
+    ...(lookthroughPrUrl
+      ? { lookthroughPrUrl, lookthroughPrNumber }
+      : {}),
+    ...(lookthroughAlreadyPresent
+      ? {
+          lookthroughAlreadyPresent: true,
+          lookthroughAlreadyPresentSource,
+        }
+      : {}),
+    ...(lookthroughError ? { lookthroughError } : {}),
+  });
+});
+
+// DELETE /admin/bucket-alternatives/:parentKey/:isin — opens a PR that
+// removes the alternative from etfs.ts only. The ETF's look-through
+// profile in lookthrough.overrides.json is intentionally untouched
+// (operator-promised contract: "remove from picker, keep in pool").
+router.delete("/admin/bucket-alternatives/:parentKey/:isin", async (req, res) => {
+  const parentKey = String(req.params.parentKey ?? "");
+  if (!parentKey || !/^[A-Z][A-Za-z0-9-]{2,40}$/.test(parentKey)) {
+    res.status(400).json({
+      error: "invalid_parent_key",
+      message: "parentKey must match the catalog key format.",
+    });
+    return;
+  }
+  let isin: string;
+  try {
+    isin = normalizeIsin(req.params.isin);
+  } catch (err) {
+    res.status(400).json({
+      error: "invalid_isin",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+
+  try {
+    const catalog = await loadCatalog();
+    const parent = catalog[parentKey];
+    if (!parent) {
+      res.status(404).json({
+        error: "parent_missing",
+        message: `Parent bucket "${parentKey}" not found in catalog.`,
+      });
+      return;
+    }
+    const alts = parent.alternatives ?? [];
+    const found = alts.find((a) => a.isin.toUpperCase() === isin);
+    if (!found) {
+      res.status(404).json({
+        error: "isin_not_found",
+        message: `ISIN ${isin} is not an alternative under "${parentKey}".`,
+      });
+      return;
+    }
+  } catch (err) {
+    res.status(500).json({
+      error: "catalog_parse_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+
+  if (!githubConfigured()) {
+    res.status(503).json({
+      error: "github_not_configured",
+      message:
+        "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
+    });
+    return;
+  }
+
+  try {
+    const pr = await openRemoveBucketAlternativePr(parentKey, isin);
+    res.json({ ok: true, prUrl: pr.url, prNumber: pr.number });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/already exists/i.test(msg)) {
+      res.status(409).json({ error: "pr_already_open", message: msg });
+      return;
+    }
+    res.status(502).json({
+      error: "pr_creation_failed",
+      message: msg,
     });
   }
 });
@@ -489,6 +832,180 @@ router.post("/admin/lookthrough-pool/:isin", async (req, res) => {
   }
 });
 
+// POST /admin/lookthrough-pool/backfill — scan the catalog for ISINs
+// that are NOT yet in `overrides` or `pool`, scrape each from justETF,
+// and open ONE PR adding all complete results to `pool` at once.
+//
+// Why one PR (not N): a flat 15-20 PR queue is hostile to review.
+// One PR with a clear ISIN list is easier to audit and merge.
+//
+// Why not just wait for the monthly cron: the cron fills `pool` once a
+// month. Operators often add new ETFs and want look-through data
+// available the next day, not 30 days later. This endpoint gives them
+// the manual lever.
+//
+// Long-running: ~1-2 minutes for 15-20 ISINs at ~5s scrape each. We do
+// scrapes sequentially (justETF rate-limit politeness) so the operator
+// gets a single deterministic summary rather than partial parallel
+// failures. Express server timeout handles the upper bound.
+// NB: path is `/admin/backfill-lookthrough-pool` (NOT
+// `/admin/lookthrough-pool/backfill`) — the latter would collide with
+// the parameterised route `POST /admin/lookthrough-pool/:isin`
+// registered earlier; Express would match `:isin = "backfill"` and the
+// bulk handler would be unreachable.
+router.post("/admin/backfill-lookthrough-pool", async (_req, res) => {
+  if (!githubConfigured()) {
+    res.status(503).json({
+      error: "github_not_configured",
+      message: "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
+    });
+    return;
+  }
+
+  // 1. Catalog ISINs (defaults + alternatives), de-duplicated.
+  let catalogIsins: string[];
+  try {
+    const catalog = await loadCatalog();
+    const set = new Set<string>();
+    for (const entry of Object.values(catalog)) {
+      if (entry?.isin) set.add(entry.isin.toUpperCase());
+      for (const alt of entry?.alternatives ?? []) {
+        if (alt?.isin) set.add(alt.isin.toUpperCase());
+      }
+    }
+    catalogIsins = [...set];
+  } catch (err) {
+    res.status(500).json({
+      error: "catalog_parse_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+
+  // 2. Filter to those NOT already covered by look-through data.
+  const sources = await readLookthroughSources();
+  const have = new Set([
+    ...Object.keys(sources.overrides),
+    ...Object.keys(sources.pool),
+  ]);
+  const missing = catalogIsins.filter((i) => !have.has(i));
+
+  if (missing.length === 0) {
+    res.json({
+      ok: true,
+      scanned: catalogIsins.length,
+      missing: 0,
+      attempted: [],
+      added: [],
+      skippedAlreadyPresent: [],
+      scrapeFailures: [],
+    });
+    return;
+  }
+
+  // 3. Scrape each missing ISIN sequentially. Collect both successes
+  //    (entries ready for the PR) and per-ISIN failures (incomplete
+  //    scrape, network error, justETF returned nothing).
+  type ScrapeFailure = { isin: string; reason: string };
+  const entries: Array<{ isin: string; entry: LookthroughPoolEntry }> = [];
+  const scrapeFailures: ScrapeFailure[] = [];
+  for (const isin of missing) {
+    try {
+      const scraped = await scrapeLookthrough(isin);
+      const top = scraped.topHoldings;
+      const geo = scraped.geo;
+      const sector = scraped.sector;
+      const currency = scraped.currency;
+      if (
+        !top ||
+        top.length === 0 ||
+        !geo ||
+        Object.keys(geo).length === 0 ||
+        !sector ||
+        Object.keys(sector).length === 0 ||
+        !currency
+      ) {
+        const missingFields = [
+          (!top || top.length === 0) && "Top-Holdings",
+          (!geo || Object.keys(geo).length === 0) && "Geo",
+          (!sector || Object.keys(sector).length === 0) && "Sektor",
+          !currency && "Währung",
+        ]
+          .filter(Boolean)
+          .join(", ");
+        scrapeFailures.push({
+          isin,
+          reason: `Scrape unvollständig — fehlende Felder: ${missingFields}`,
+        });
+        continue;
+      }
+      entries.push({
+        isin,
+        entry: {
+          ...(scraped.name ? { name: scraped.name } : {}),
+          topHoldings: top,
+          topHoldingsAsOf: scraped.asOf,
+          geo,
+          sector,
+          currency,
+          breakdownsAsOf: scraped.asOf,
+          _source: scraped.sourceUrl,
+          _addedAt: scraped.asOf,
+          _addedVia: "admin/lookthrough-pool/backfill",
+        },
+      });
+    } catch (err) {
+      scrapeFailures.push({
+        isin,
+        reason: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  if (entries.length === 0) {
+    res.status(422).json({
+      error: "no_complete_scrapes",
+      message: `Keine der ${missing.length} fehlenden ISINs lieferte vollständige Look-through-Daten. Kein PR geöffnet.`,
+      scanned: catalogIsins.length,
+      missing: missing.length,
+      attempted: missing,
+      scrapeFailures,
+    });
+    return;
+  }
+
+  // 4. Open one PR with all complete entries.
+  try {
+    const pr = await openBulkAddLookthroughPoolPr({ entries });
+    res.json({
+      ok: true,
+      scanned: catalogIsins.length,
+      missing: missing.length,
+      attempted: missing,
+      added: pr.added,
+      skippedAlreadyPresent: pr.skippedAlreadyPresent,
+      scrapeFailures,
+      prUrl: pr.url,
+      prNumber: pr.number,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/already exists/i.test(msg)) {
+      res.status(409).json({
+        error: "pr_already_open",
+        message: msg,
+        scrapeFailures,
+      });
+      return;
+    }
+    res.status(502).json({
+      error: "pr_creation_failed",
+      message: msg,
+      scrapeFailures,
+    });
+  }
+});
+
 type LookthroughEntryShape = {
   topHoldings?: Array<{ name: string; pct: number }>;
   topHoldingsAsOf?: string;
@@ -586,6 +1103,76 @@ function validateEntry(e: NewEtfEntry | undefined): string | null {
   if (!e || typeof e !== "object") return "entry missing";
   if (typeof e.key !== "string" || !/^[A-Z][A-Za-z0-9-]{2,40}$/.test(e.key))
     return "key must be alphanumeric/hyphens, 3-40 chars, start with letter";
+  if (typeof e.isin !== "string" || !/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(e.isin))
+    return "isin invalid";
+  if (
+    typeof e.terBps !== "number" ||
+    !Number.isFinite(e.terBps) ||
+    e.terBps < 0 ||
+    e.terBps > 500
+  )
+    return "terBps must be finite number in [0, 500]";
+  if (typeof e.name !== "string" || !e.name.trim() || e.name.length > 200)
+    return "name missing or too long (max 200 chars)";
+  if (
+    typeof e.domicile !== "string" ||
+    !e.domicile.trim() ||
+    e.domicile.length > 60
+  )
+    return "domicile missing or too long";
+  if (!["Physical", "Physical (sampled)", "Synthetic"].includes(e.replication))
+    return "replication invalid";
+  if (!["Accumulating", "Distributing"].includes(e.distribution))
+    return "distribution invalid";
+  if (typeof e.currency !== "string" || !/^[A-Z]{3}$/.test(e.currency))
+    return "currency must be 3-letter code";
+  if (typeof e.comment !== "string" || e.comment.length > 1000)
+    return "comment must be a string up to 1000 chars";
+  if (!EXCHANGES.includes(e.defaultExchange as ExchangeKey))
+    return "defaultExchange invalid";
+  if (
+    !e.listings ||
+    typeof e.listings !== "object" ||
+    Array.isArray(e.listings)
+  )
+    return "listings must be an object";
+  const listingKeys = Object.keys(e.listings);
+  if (listingKeys.length === 0) return "at least one listing required";
+  for (const k of listingKeys) {
+    if (!EXCHANGES.includes(k as ExchangeKey))
+      return `unknown exchange in listings: ${JSON.stringify(k)}`;
+    const v = (e.listings as Record<string, { ticker?: unknown } | undefined>)[
+      k
+    ];
+    if (!v || typeof v !== "object")
+      return `listings[${k}] must be an object`;
+    if (typeof v.ticker !== "string" || !TICKER_RE.test(v.ticker))
+      return `listings[${k}].ticker invalid (must match ${TICKER_RE})`;
+  }
+  if (!e.listings[e.defaultExchange])
+    return "defaultExchange must appear in listings";
+  if (e.aumMillionsEUR !== undefined) {
+    if (
+      typeof e.aumMillionsEUR !== "number" ||
+      !Number.isFinite(e.aumMillionsEUR) ||
+      e.aumMillionsEUR < 0 ||
+      e.aumMillionsEUR > 1_000_000
+    )
+      return "aumMillionsEUR must be finite number in [0, 1_000_000]";
+  }
+  if (e.inceptionDate !== undefined) {
+    if (typeof e.inceptionDate !== "string" || !ISO_DATE_RE.test(e.inceptionDate))
+      return "inceptionDate must be ISO YYYY-MM-DD";
+  }
+  return null;
+}
+
+// Strict schema for /admin/bucket-alternatives payloads. Mirrors
+// validateEntry but omits the `key` field (alternatives are positional)
+// and applies the same defence-in-depth rules to every other field so
+// an injected alt cannot bypass any check the top-level entry must pass.
+function validateAlternative(e: NewAlternativeEntry | undefined): string | null {
+  if (!e || typeof e !== "object") return "entry missing";
   if (typeof e.isin !== "string" || !/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(e.isin))
     return "isin invalid";
   if (
