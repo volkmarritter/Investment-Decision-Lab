@@ -512,6 +512,21 @@ const CATALOG: Record<string, ETFRecord> = {
         aumMillionsEUR: 123,
         inceptionDate: "2019-06-18",
       },
+
+      {
+        name: "Xtrackers II Eurozone Government Bond UCITS ETF 1C",
+        isin: "LU0290355717",
+        terBps: 7,
+        domicile: "Luxembourg",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "EUR",
+        comment: "Xtrackers II Global Government Bond EUR Hedged — government-only alternative.",
+        listings: { "LSE": { ticker: "XGLE" }, "XETRA": { ticker: "XGLE" } },
+        defaultExchange: "XETRA",
+        aumMillionsEUR: 2268,
+        inceptionDate: "2007-05-22",
+      },
     ],
   }),
   "FixedIncome-Global-CHF": E({
