@@ -32,6 +32,25 @@ import type { CatalogSummary, CatalogEntrySummary } from "@/lib/admin-api";
 
 const LAST_REVIEWED = "Q2 2026";
 
+// Single source of truth for the per-section "What's new" version pills
+// (Task #44). Adding a new section release or bumping a version is now a
+// one-line change here — both the <Section> badge (long form) and the ToC
+// entry (short form) read from this map, so the two surfaces can never drift
+// apart again. To add a section: append a `<section-value>: { version, month }`
+// row; to bump: edit the row in place. `version` is the short pill ("v1.7")
+// and `month` is the human release tag ("May 2026"); the long form rendered
+// next to the section title is derived as `${version} · ${month}`.
+const SECTION_VERSIONS: Record<string, { version: string; month: string }> = {
+  wht: { version: "v1.5", month: "Apr 2026" },
+  "tail-realism": { version: "v1.6", month: "Apr 2026" },
+};
+const sectionVersionShort = (id: string): string | undefined =>
+  SECTION_VERSIONS[id]?.version;
+const sectionVersionLong = (id: string): string | undefined => {
+  const v = SECTION_VERSIONS[id];
+  return v ? `${v.version} · ${v.month}` : undefined;
+};
+
 export function Methodology() {
   const { lang, t } = useT();
   const de = lang === "de";
@@ -273,9 +292,9 @@ export function Methodology() {
         { value: "corr", label: de ? "Korrelationsmatrix" : "Correlation Matrix" },
         { value: "lookthrough", label: de ? "Look-Through-Routing" : "Look-Through Routing" },
         { value: "hedging", label: de ? "Währungs-Hedging" : "FX Hedging" },
-        { value: "wht", label: de ? "Quellensteuer-Drag" : "Withholding-Tax Drag", version: "v1.5" },
+        { value: "wht", label: de ? "Quellensteuer-Drag" : "Withholding-Tax Drag", version: sectionVersionShort("wht") },
         { value: "mc", label: de ? "Monte-Carlo-Simulation" : "Monte Carlo Simulation" },
-        { value: "tail-realism", label: de ? "Tail-Realismus" : "Tail Realism", version: "v1.6" },
+        { value: "tail-realism", label: de ? "Tail-Realismus" : "Tail Realism", version: sectionVersionShort("tail-realism") },
         { value: "stress", label: de ? "Stress-Test-Szenarien" : "Stress Test Scenarios" },
         { value: "formulas", label: de ? "Formeln" : "Formulas" },
       ],
@@ -1428,7 +1447,7 @@ export function Methodology() {
             <li>{de ? "Look-Through-Daten ändern sich nicht (gleicher Underlying-Basket; nur die FX-Exposition der hedged Anteilsklassen wird in der Look-Through-Währungstabelle bewusst auf die Anteilsklassen-Währung gemappt — siehe Abschnitt zur Look-Through-Datenpflege)." : "Look-through data does not change (same underlying basket; only the FX exposure of hedged share classes is intentionally mapped to the share-class currency in the look-through currency table — see the look-through data maintenance section)."}</li>
           </ul>
         </Section>
-        <Section value="wht" icon={<Coins className="h-4 w-4" />} title={de ? "Quellensteuer-Drag" : "Withholding-Tax Drag"} version="v1.5 · Apr 2026">
+        <Section value="wht" icon={<Coins className="h-4 w-4" />} title={de ? "Quellensteuer-Drag" : "Withholding-Tax Drag"} version={sectionVersionLong("wht")}>
           <p className="text-sm text-muted-foreground">
             {de
               ? "Jede ausgewiesene erwartete Rendite (Risk-&-Performance-Kachel, effiziente Frontier, Monte-Carlo-Pfade, Vergleichstab) ist NETTO der nicht-rückforderbaren Quellensteuer auf Dividenden — die Steuer, die ein typischer CH/EU-Privatanleger über IE-domizilierte UCITS-ETFs trotz aller Doppelbesteuerungs-Treaties tatsächlich zahlt. Symmetrisch wird derselbe Drag auch auf den ACWI-Benchmark angewandt, sodass Alpha und Outperformance nicht künstlich erhöht werden."
@@ -1600,7 +1619,7 @@ export function Methodology() {
               : "Default assumptions are deliberately conservative-mainstream: Gauss distribution per year and the long-run correlation matrix. For a more pessimistic lens, the optional \"Crisis-Σ\" and \"Student-t\" toggles are available — documented in the \"Tail Realism\" section directly below. Other deliberately unmodelled effects: inflation/tax (apart from the WHT drag — see \"Withholding-Tax Drag\" section), cash-flow sequence-of-returns paths."}
           </p>
         </Section>
-        <Section value="tail-realism" icon={<Calculator className="h-4 w-4" />} title={de ? "Tail-Realismus" : "Tail Realism"} version="v1.6 · Apr 2026">
+        <Section value="tail-realism" icon={<Calculator className="h-4 w-4" />} title={de ? "Tail-Realismus" : "Tail Realism"} version={sectionVersionLong("tail-realism")}>
           <p className="text-sm text-muted-foreground">
             {de
               ? "Zwei optionale Schalter erlauben dem Operator, die Standard-Annahmen pessimistischer zu kalibrieren — ohne den ausgewiesenen Median oder die erwartete Rendite zu verändern. Beide Schalter sind in der Default-Stellung „aus\" — alle bisherigen Auswertungen bleiben unverändert reproduzierbar. Sie greifen unabhängig voneinander und können einzeln oder gemeinsam aktiviert werden."
