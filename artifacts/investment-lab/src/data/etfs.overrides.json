@@ -1,10 +1,10 @@
 {
   "_meta": {
     "source": "justetf.com",
-    "lastRefreshed": "2026-04-28T05:37:49.883Z",
+    "lastRefreshed": "2026-04-28T17:47:05.204Z",
     "lastRefreshedMode": "listings",
     "lastCoreRefresh": "2026-04-24T08:04:32.368Z",
-    "lastListingsRefresh": "2026-04-28T05:37:49.883Z",
+    "lastListingsRefresh": "2026-04-28T17:47:05.204Z",
     "refreshedBy": "scripts/refresh-justetf.mjs",
     "note": "ISIN -> partial ETFRecord overrides applied on top of the in-code CATALOG in src/lib/etfs.ts. Populated by two CI cadences: weekly (Sundays 03:00 UTC) for core fund metadata and nightly (02:00 UTC) for the per-exchange listings map. Only fields present in this file override the catalog defaults; everything else stays as defined in code."
   },
@@ -12,7 +12,13 @@
     "IE00B3YLTY66": {
       "terBps": 17,
       "listings": {
+        "Euronext": {
+          "ticker": "IMIE"
+        },
         "LSE": {
+          "ticker": "IMID"
+        },
+        "SIX": {
           "ticker": "IMID"
         },
         "XETRA": {
@@ -26,6 +32,12 @@
         "LSE": {
           "ticker": "CSPX"
         },
+        "Euronext": {
+          "ticker": "CSPX"
+        },
+        "SIX": {
+          "ticker": "CSSPX"
+        },
         "XETRA": {
           "ticker": "SXR8"
         }
@@ -35,6 +47,12 @@
       "terBps": 5,
       "listings": {
         "LSE": {
+          "ticker": "SPXS"
+        },
+        "Euronext": {
+          "ticker": "SPXS"
+        },
+        "SIX": {
           "ticker": "SPXS"
         },
         "XETRA": {
@@ -48,19 +66,36 @@
         "LSE": {
           "ticker": "IMEA"
         },
+        "Euronext": {
+          "ticker": "IMAE"
+        },
+        "SIX": {
+          "ticker": "IMEA"
+        },
         "XETRA": {
           "ticker": "EUNK"
         }
       }
     },
     "CH0237935652": {
-      "terBps": 10
+      "terBps": 10,
+      "listings": {
+        "SIX": {
+          "ticker": "CHSPI"
+        }
+      }
     },
     "IE00B4L5YX21": {
       "terBps": 12,
       "listings": {
         "LSE": {
           "ticker": "IJPA"
+        },
+        "Euronext": {
+          "ticker": "IJPA"
+        },
+        "SIX": {
+          "ticker": "SJPA"
         },
         "XETRA": {
           "ticker": "EUNN"
@@ -73,6 +108,12 @@
         "LSE": {
           "ticker": "EIMI"
         },
+        "Euronext": {
+          "ticker": "EMIM"
+        },
+        "SIX": {
+          "ticker": "EIMI"
+        },
         "XETRA": {
           "ticker": "IS3N"
         }
@@ -81,7 +122,13 @@
     "IE00B3ZW0K18": {
       "terBps": 20,
       "listings": {
+        "Euronext": {
+          "ticker": "IUES"
+        },
         "LSE": {
+          "ticker": "IUSE"
+        },
+        "SIX": {
           "ticker": "IUSE"
         },
         "XETRA": {
@@ -95,6 +142,9 @@
         "LSE": {
           "ticker": "AGGG"
         },
+        "SIX": {
+          "ticker": "AGGG"
+        },
         "XETRA": {
           "ticker": "EUNU"
         }
@@ -103,6 +153,12 @@
     "IE00BDBRDM35": {
       "terBps": 10,
       "listings": {
+        "Euronext": {
+          "ticker": "AGGH"
+        },
+        "SIX": {
+          "ticker": "AGGH"
+        },
         "XETRA": {
           "ticker": "EUNA"
         }
@@ -111,6 +167,12 @@
     "IE00B579F325": {
       "terBps": 12,
       "listings": {
+        "SIX": {
+          "ticker": "SGLD"
+        },
+        "Euronext": {
+          "ticker": "SGLD"
+        },
         "LSE": {
           "ticker": "SGLD"
         },
@@ -125,6 +187,12 @@
         "LSE": {
           "ticker": "IDWP"
         },
+        "Euronext": {
+          "ticker": "IWDP"
+        },
+        "SIX": {
+          "ticker": "IWDP"
+        },
         "XETRA": {
           "ticker": "IQQ6"
         }
@@ -133,6 +201,12 @@
     "GB00BLD4ZL17": {
       "terBps": 15,
       "listings": {
+        "SIX": {
+          "ticker": "BITC"
+        },
+        "Euronext": {
+          "ticker": "BITC"
+        },
         "LSE": {
           "ticker": "BITC"
         },
@@ -147,6 +221,9 @@
         "LSE": {
           "ticker": "IUIT"
         },
+        "SIX": {
+          "ticker": "IUIT"
+        },
         "XETRA": {
           "ticker": "QDVE"
         }
@@ -155,7 +232,13 @@
     "IE00BYZK4776": {
       "terBps": 40,
       "listings": {
+        "Euronext": {
+          "ticker": "HEAL"
+        },
         "LSE": {
+          "ticker": "HEAL"
+        },
+        "SIX": {
           "ticker": "HEAL"
         },
         "XETRA": {
@@ -169,6 +252,9 @@
         "LSE": {
           "ticker": "INRG"
         },
+        "SIX": {
+          "ticker": "INRG"
+        },
         "XETRA": {
           "ticker": "IQQH"
         }
@@ -177,7 +263,13 @@
     "IE00BG0J4C88": {
       "terBps": 40,
       "listings": {
+        "Euronext": {
+          "ticker": "LOCK"
+        },
         "LSE": {
+          "ticker": "LOCK"
+        },
+        "SIX": {
           "ticker": "LOCK"
         },
         "XETRA": {
@@ -190,8 +282,415 @@
         "LSE": {
           "ticker": "CSUKX"
         },
+        "Euronext": {
+          "ticker": "ISFE"
+        },
+        "SIX": {
+          "ticker": "CSUKX"
+        },
         "XETRA": {
           "ticker": "SXRW"
+        }
+      }
+    },
+    "IE00BK5BQT80": {
+      "listings": {
+        "Euronext": {
+          "ticker": "VWCE"
+        },
+        "LSE": {
+          "ticker": "VWRA"
+        },
+        "SIX": {
+          "ticker": "VWRA"
+        },
+        "XETRA": {
+          "ticker": "VWCE"
+        }
+      }
+    },
+    "IE00B6R52259": {
+      "listings": {
+        "LSE": {
+          "ticker": "ISAC"
+        },
+        "Euronext": {
+          "ticker": "SSAC"
+        },
+        "SIX": {
+          "ticker": "SSAC"
+        },
+        "XETRA": {
+          "ticker": "IUSQ"
+        }
+      }
+    },
+    "IE00BFMXXD54": {
+      "listings": {
+        "LSE": {
+          "ticker": "VUAA"
+        },
+        "XETRA": {
+          "ticker": "VUAA"
+        }
+      }
+    },
+    "IE00B6YX5C33": {
+      "listings": {
+        "Euronext": {
+          "ticker": "SPY5"
+        },
+        "LSE": {
+          "ticker": "SPY5"
+        },
+        "SIX": {
+          "ticker": "SPY5"
+        },
+        "XETRA": {
+          "ticker": "SPY5"
+        }
+      }
+    },
+    "LU0490618542": {
+      "listings": {
+        "LSE": {
+          "ticker": "XSPU"
+        },
+        "SIX": {
+          "ticker": "XSPX"
+        },
+        "XETRA": {
+          "ticker": "D5BM"
+        }
+      }
+    },
+    "IE00B945VV12": {
+      "listings": {
+        "Euronext": {
+          "ticker": "VEUR"
+        },
+        "LSE": {
+          "ticker": "VEUD"
+        },
+        "SIX": {
+          "ticker": "VEUR"
+        },
+        "XETRA": {
+          "ticker": "VGEU"
+        }
+      }
+    },
+    "FR0007054358": {
+      "listings": {
+        "Euronext": {
+          "ticker": "MSE"
+        },
+        "SIX": {
+          "ticker": "MSE"
+        },
+        "XETRA": {
+          "ticker": "LYSX"
+        }
+      }
+    },
+    "CH0031768937": {
+      "listings": {
+        "SIX": {
+          "ticker": "CSSLI"
+        }
+      }
+    },
+    "LU1681044993": {
+      "listings": {
+        "Euronext": {
+          "ticker": "CSWC"
+        },
+        "LSE": {
+          "ticker": "CSWU"
+        },
+        "SIX": {
+          "ticker": "CSWCHF"
+        },
+        "XETRA": {
+          "ticker": "18MN"
+        }
+      }
+    },
+    "IE00B810Q511": {
+      "listings": {
+        "LSE": {
+          "ticker": "VUKE"
+        },
+        "SIX": {
+          "ticker": "VUKE"
+        },
+        "XETRA": {
+          "ticker": "VUKE"
+        }
+      }
+    },
+    "LU0839027447": {
+      "listings": {
+        "LSE": {
+          "ticker": "XDJP"
+        },
+        "SIX": {
+          "ticker": "XNJP"
+        },
+        "XETRA": {
+          "ticker": "XDJP"
+        }
+      }
+    },
+    "IE00BK5BR733": {
+      "listings": {
+        "LSE": {
+          "ticker": "VFEA"
+        },
+        "SIX": {
+          "ticker": "VFEA"
+        },
+        "XETRA": {
+          "ticker": "VFEA"
+        }
+      }
+    },
+    "IE00BTJRMP35": {
+      "listings": {
+        "LSE": {
+          "ticker": "XMME"
+        },
+        "SIX": {
+          "ticker": "XMME"
+        },
+        "XETRA": {
+          "ticker": "XMME"
+        }
+      }
+    },
+    "IE00BM67HW99": {
+      "listings": {
+        "XETRA": {
+          "ticker": "XDPE"
+        }
+      }
+    },
+    "IE00BRKWGL70": {
+      "listings": {
+        "SIX": {
+          "ticker": "E500"
+        },
+        "XETRA": {
+          "ticker": "E500"
+        }
+      }
+    },
+    "LU0378818131": {
+      "listings": {
+        "XETRA": {
+          "ticker": "DBZB"
+        }
+      }
+    },
+    "IE00BG47KH54": {
+      "listings": {
+        "XETRA": {
+          "ticker": "VAGF"
+        }
+      }
+    },
+    "IE00BG47KB92": {
+      "listings": {
+        "XETRA": {
+          "ticker": "VAGE"
+        }
+      }
+    },
+    "LU0290355717": {
+      "listings": {
+        "LSE": {
+          "ticker": "XGLE"
+        },
+        "XETRA": {
+          "ticker": "XGLE"
+        }
+      }
+    },
+    "IE00BG47KJ78": {
+      "listings": {
+        "LSE": {
+          "ticker": "VAGU"
+        }
+      }
+    },
+    "IE00B4ND3602": {
+      "listings": {
+        "LSE": {
+          "ticker": "IGLN"
+        },
+        "XETRA": {
+          "ticker": "PPFB"
+        }
+      }
+    },
+    "JE00B1VS3770": {
+      "listings": {
+        "Euronext": {
+          "ticker": "PHAU"
+        },
+        "LSE": {
+          "ticker": "PHAU"
+        },
+        "XETRA": {
+          "ticker": "VZLD"
+        }
+      }
+    },
+    "IE00B5L01S80": {
+      "listings": {
+        "LSE": {
+          "ticker": "HPRD"
+        },
+        "SIX": {
+          "ticker": "HPRD"
+        },
+        "XETRA": {
+          "ticker": "H4ZL"
+        }
+      }
+    },
+    "NL0009690239": {
+      "listings": {
+        "Euronext": {
+          "ticker": "TRET"
+        },
+        "LSE": {
+          "ticker": "TRET"
+        },
+        "SIX": {
+          "ticker": "TRET"
+        },
+        "XETRA": {
+          "ticker": "TRET"
+        }
+      }
+    },
+    "GB00BJYDH287": {
+      "listings": {
+        "Euronext": {
+          "ticker": "BTCW"
+        },
+        "SIX": {
+          "ticker": "BTCW"
+        },
+        "LSE": {
+          "ticker": "BTCW"
+        },
+        "XETRA": {
+          "ticker": "WBIT"
+        }
+      }
+    },
+    "CH1199067674": {
+      "listings": {
+        "Euronext": {
+          "ticker": "CBTC"
+        },
+        "SIX": {
+          "ticker": "CBTC"
+        },
+        "LSE": {
+          "ticker": "CBTU"
+        },
+        "XETRA": {
+          "ticker": "21BC"
+        }
+      }
+    },
+    "IE00B53SZB19": {
+      "listings": {
+        "LSE": {
+          "ticker": "CNDX"
+        },
+        "Euronext": {
+          "ticker": "CNDX"
+        },
+        "SIX": {
+          "ticker": "CSNDX"
+        },
+        "XETRA": {
+          "ticker": "SXRV"
+        }
+      }
+    },
+    "IE00BM67HK77": {
+      "listings": {
+        "LSE": {
+          "ticker": "XDWH"
+        },
+        "SIX": {
+          "ticker": "XDWH"
+        },
+        "XETRA": {
+          "ticker": "XDWH"
+        }
+      }
+    },
+    "IE00B43HR379": {
+      "listings": {
+        "LSE": {
+          "ticker": "IUHC"
+        },
+        "SIX": {
+          "ticker": "IUHC"
+        },
+        "XETRA": {
+          "ticker": "QDVG"
+        }
+      }
+    },
+    "IE00BFNM3J75": {
+      "listings": {
+        "LSE": {
+          "ticker": "SAWD"
+        },
+        "SIX": {
+          "ticker": "SAWD"
+        },
+        "XETRA": {
+          "ticker": "SNAW"
+        }
+      }
+    },
+    "IE00BYPLS672": {
+      "listings": {
+        "Euronext": {
+          "ticker": "ISPY"
+        },
+        "LSE": {
+          "ticker": "USPY"
+        },
+        "SIX": {
+          "ticker": "ISPY"
+        },
+        "XETRA": {
+          "ticker": "USPY"
+        }
+      }
+    },
+    "IE00BLPK3577": {
+      "listings": {
+        "Euronext": {
+          "ticker": "WCBR"
+        },
+        "LSE": {
+          "ticker": "WCBR"
+        },
+        "SIX": {
+          "ticker": "WCBR"
+        },
+        "XETRA": {
+          "ticker": "W1TB"
         }
       }
     }

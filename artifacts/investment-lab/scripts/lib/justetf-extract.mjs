@@ -118,12 +118,29 @@ export const CORE_EXTRACTORS = {
   },
 };
 
+// justETF tags each row in the trade-data table with the venue's ISO MIC
+// code prefixed with `x` (xetr, xlon, xswx, xams, xpar, xbru, xlis, xdub,
+// …). Always keep the `x`-prefixed forms — those are what live justETF
+// emits today. The unprefixed legacy keys (vtx/swis/six/ams/ebr/par/lis/
+// dub) are kept as harmless fallbacks in case justETF flips formats again.
+// Mapping covers only the four exchanges the app surfaces (LSE, XETRA,
+// SIX, Euronext); rows for any other venue (Milan, Stuttgart, Munich,
+// Mexico, …) are dropped on purpose.
 export const VENUE_MAP = {
   xlon: "LSE",
   xetr: "XETRA",
+  // SIX (Swiss exchange) — current ISO MIC `xswx`; legacy fallbacks below.
+  xswx: "SIX",
   vtx: "SIX",
   swis: "SIX",
   six: "SIX",
+  // Euronext (Amsterdam / Paris / Brussels / Lisbon / Dublin) — current
+  // ISO MIC codes prefixed with `x`; legacy fallbacks below.
+  xams: "Euronext",
+  xpar: "Euronext",
+  xbru: "Euronext",
+  xlis: "Euronext",
+  xdub: "Euronext",
   ams: "Euronext",
   ebr: "Euronext",
   par: "Euronext",

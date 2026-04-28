@@ -146,6 +146,25 @@ describe("refresh-justetf LISTINGS_EXTRACTORS", () => {
     const buckets = new Set(Object.values(VENUE_MAP));
     expect(buckets).toEqual(new Set(["LSE", "XETRA", "SIX", "Euronext"]));
   });
+
+  // Regression guard: justETF tags each trade-data row with the venue's ISO
+  // MIC code prefixed with `x` (xetr, xlon, xswx, xams, …). Before this
+  // mapping existed the nightly listings refresh silently dropped every SIX
+  // and Euronext row for months because the map only matched the legacy
+  // unprefixed forms (vtx/six/swis, ams/par/ebr/lis/dub). This test locks
+  // in the four canonical mappings so a future justETF rename is caught
+  // the same day instead of silently rotting in the overrides JSON.
+  it("VENUE_MAP resolves the four canonical ISO MIC codes justETF emits today", () => {
+    expect(VENUE_MAP.xetr).toBe("XETRA");
+    expect(VENUE_MAP.xlon).toBe("LSE");
+    expect(VENUE_MAP.xswx).toBe("SIX");
+    expect(VENUE_MAP.xams).toBe("Euronext");
+    // Plus the additional Euronext sub-venues justETF lists.
+    expect(VENUE_MAP.xpar).toBe("Euronext");
+    expect(VENUE_MAP.xbru).toBe("Euronext");
+    expect(VENUE_MAP.xlis).toBe("Euronext");
+    expect(VENUE_MAP.xdub).toBe("Euronext");
+  });
 });
 
 describe("refresh-justetf lastRefreshedModeFor", () => {
