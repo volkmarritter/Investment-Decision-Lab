@@ -22,15 +22,19 @@
 
 import { Octokit } from "@octokit/rest";
 import { renderEntryBlock, type NewEtfEntry } from "./render-entry";
-import { findMatchingClose } from "./catalog-parser";
+import {
+  renderAlternativeBlock,
+  type NewAlternativeEntry,
+} from "./render-alternative";
+import { findMatchingClose, parseCatalogFromSource } from "./catalog-parser";
 
 // Re-exported so downstream callers (admin.ts, tests) keep importing the
 // canonical entry shape from one place. The implementation lives in
 // render-entry.ts so the renderer can be reused by the admin UI's
 // "Show generated code" disclosure without dragging octokit into the
 // test bundle.
-export type { NewEtfEntry };
-export { renderEntryBlock };
+export type { NewEtfEntry, NewAlternativeEntry };
+export { renderEntryBlock, renderAlternativeBlock };
 
 export interface PrCreationContext {
   policyFit: { aumOk: boolean; terOk: boolean; notes: string[] };
@@ -507,6 +511,429 @@ function buildPrBody(
 
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// ---------------------------------------------------------------------------
+// Bucket-alternative injection (per-bucket picker, 2026-04-28).
+// ---------------------------------------------------------------------------
+// An "alternative" is a bare object literal that lives inside a parent
+// catalog entry's `alternatives: [...]` array. It is NOT wrapped in
+// `E({...})` (the `E` helper applies the `kind: "etf"` discriminator only
+// to top-level catalog entries) and has no `key` field (alternatives are
+// addressed positionally by slot index 1..2).
+//
+// Two cases the injector handles:
+//   1. Parent already has `alternatives: [ ... ]` — append the new
+//      alternative just before the closing `]`.
+//   2. Parent has no alternatives field — insert
+//      `alternatives: [ ... ],` just before the parent's closing `})`.
+// ---------------------------------------------------------------------------
+
+export type InjectAlternativeStatus =
+  | "ok"
+  | "parent_missing"
+  | "isin_present"
+  | "cap_exceeded";
+
+export interface InjectAlternativeResult {
+  content: string;
+  status: InjectAlternativeStatus;
+  // When status === "isin_present", the catalog key (or "<key> alt N")
+  // where the conflict was found, so the operator gets actionable feedback.
+  conflict?: string;
+}
+
+export function injectAlternative(
+  source: string,
+  parentKey: string,
+  entry: NewAlternativeEntry,
+): InjectAlternativeResult {
+  // Pre-flight #1: parent must exist. Use the same single-line regex as
+  // injectEntry's key check — cheap and unambiguous.
+  const parentLine = new RegExp(
+    `^(\\s*)"${escapeRegex(parentKey)}":\\s*E\\(\\{`,
+    "m",
+  );
+  const parentMatch = parentLine.exec(source);
+  if (!parentMatch) {
+    return { content: source, status: "parent_missing" };
+  }
+
+  // Pre-flight #2: ISIN must be globally unique vs every default AND
+  // every existing alternative. Reuse parseCatalogFromSource so the check
+  // walks the same brace-aware tree the runtime catalog reads from.
+  const normIsin = entry.isin.trim().toUpperCase();
+  if (normIsin) {
+    const summary = parseCatalogFromSource(source);
+    for (const [k, e] of Object.entries(summary)) {
+      if (e.isin.toUpperCase() === normIsin) {
+        return { content: source, status: "isin_present", conflict: k };
+      }
+      if (e.alternatives) {
+        for (let i = 0; i < e.alternatives.length; i++) {
+          if (e.alternatives[i].isin.toUpperCase() === normIsin) {
+            return {
+              content: source,
+              status: "isin_present",
+              conflict: `${k} alt ${i + 1}`,
+            };
+          }
+        }
+      }
+    }
+  }
+
+  // Locate the parent's record body: `{` of the `E({` we matched, walked
+  // to its matching `}`. The `})` that closes the parent always follows.
+  const eOpenIdx = parentMatch.index + parentMatch[0].length - 1; // the `{`
+  const eCloseIdx = findMatchingClose(source, eOpenIdx);
+  if (eCloseIdx < 0) {
+    throw new Error(
+      `Unbalanced braces inside catalog entry "${parentKey}" — refusing to edit.`,
+    );
+  }
+  const recordBody = source.slice(eOpenIdx + 1, eCloseIdx);
+
+  // Does the parent already have an `alternatives:` array?
+  const altsIdx = findFieldIndex(recordBody, "alternatives");
+  if (altsIdx >= 0) {
+    // Find the `[` that starts the array, then its matching `]`.
+    let openBracketRel = altsIdx + "alternatives:".length;
+    while (
+      openBracketRel < recordBody.length &&
+      /\s/.test(recordBody[openBracketRel])
+    ) {
+      openBracketRel++;
+    }
+    if (recordBody[openBracketRel] !== "[") {
+      throw new Error(
+        `\`alternatives\` field of "${parentKey}" is not an array literal — refusing to edit.`,
+      );
+    }
+    const closeBracketRel = findMatchingBracket(recordBody, openBracketRel);
+    if (closeBracketRel < 0) {
+      throw new Error(
+        `Unbalanced brackets in \`alternatives\` array of "${parentKey}".`,
+      );
+    }
+
+    // Pre-flight #3: cap. Count existing alternatives by counting top-level
+    // `{` braces inside the array body.
+    const arrayBody = recordBody.slice(openBracketRel + 1, closeBracketRel);
+    const existingCount = countTopLevelObjects(arrayBody);
+    if (existingCount >= 2) {
+      return { content: source, status: "cap_exceeded" };
+    }
+
+    // Insert just before the closing `]`. The catalog's hand-written style
+    // indents alternative bodies at "      " (6 spaces) and uses trailing
+    // commas after each `}`. Match it.
+    const indent = "      ";
+    const block = renderAlternativeBlock(entry, indent);
+    const absoluteCloseBracket = eOpenIdx + 1 + closeBracketRel;
+    const before = source.slice(0, absoluteCloseBracket);
+    const after = source.slice(absoluteCloseBracket);
+    // Trim trailing whitespace on the line preceding `]` so the insertion
+    // doesn't double-blank-line. Then re-insert the indent the closing
+    // bracket sat on.
+    const trimmed = before.replace(/[ \t]*$/, "");
+    const content = `${trimmed}\n${block}\n    ${after}`;
+    return { content, status: "ok" };
+  }
+
+  // Parent has no alternatives field — insert one just before the parent's
+  // closing `})`. The closing brace of the record is at eCloseIdx; we want
+  // to insert before it but on its own indentation level, matching the
+  // hand-written style (alternatives field at indent "    ", 4 spaces, to
+  // align with the other top-level fields of the record body).
+  const indent = "      "; // alternative-object indent inside the array
+  const block = renderAlternativeBlock(entry, indent);
+  const before = source.slice(0, eCloseIdx);
+  const after = source.slice(eCloseIdx); // starts with `})`
+  // Strip any trailing whitespace before `})`, then add a newline and the
+  // new field. The catalog convention puts a newline before `})`.
+  const trimmed = before.replace(/[ \t]*$/, "").replace(/\n+$/, "");
+  const insertion = `\n    alternatives: [\n${block}\n    ],\n  `;
+  const content = `${trimmed}${insertion}${after}`;
+  return { content, status: "ok" };
+}
+
+// Find the byte index of `<name>:` at the top level of `body`. Skips
+// occurrences inside strings and comments using the same walker as
+// findMatchingClose. Returns -1 if not found at depth 0.
+function findFieldIndex(body: string, name: string): number {
+  let depth = 0;
+  let i = 0;
+  const needle = `${name}:`;
+  while (i < body.length) {
+    const ch = body[i];
+    if (ch === '"') {
+      i++;
+      while (i < body.length) {
+        const c = body[i];
+        if (c === "\\") {
+          i += 2;
+          continue;
+        }
+        if (c === '"') {
+          i++;
+          break;
+        }
+        i++;
+      }
+      continue;
+    }
+    if (ch === "/" && body[i + 1] === "/") {
+      while (i < body.length && body[i] !== "\n") i++;
+      continue;
+    }
+    if (ch === "/" && body[i + 1] === "*") {
+      i += 2;
+      while (i < body.length - 1 && !(body[i] === "*" && body[i + 1] === "/")) {
+        i++;
+      }
+      i += 2;
+      continue;
+    }
+    if (ch === "{" || ch === "[") depth++;
+    else if (ch === "}" || ch === "]") depth--;
+    if (
+      depth === 0 &&
+      (i === 0 || /[\s,]/.test(body[i - 1])) &&
+      body.slice(i, i + needle.length) === needle
+    ) {
+      return i;
+    }
+    i++;
+  }
+  return -1;
+}
+
+// String- and comment-aware `[...]` matcher (mirror of findMatchingClose).
+// Local copy because catalog-parser's version is module-private.
+function findMatchingBracket(source: string, openIdx: number): number {
+  let depth = 0;
+  let i = openIdx;
+  while (i < source.length) {
+    const ch = source[i];
+    if (ch === '"') {
+      i++;
+      while (i < source.length) {
+        const c = source[i];
+        if (c === "\\") {
+          i += 2;
+          continue;
+        }
+        if (c === '"') {
+          i++;
+          break;
+        }
+        i++;
+      }
+      continue;
+    }
+    if (ch === "/" && source[i + 1] === "/") {
+      while (i < source.length && source[i] !== "\n") i++;
+      continue;
+    }
+    if (ch === "/" && source[i + 1] === "*") {
+      i += 2;
+      while (
+        i < source.length - 1 &&
+        !(source[i] === "*" && source[i + 1] === "/")
+      ) {
+        i++;
+      }
+      i += 2;
+      continue;
+    }
+    if (ch === "[") depth++;
+    else if (ch === "]") {
+      depth--;
+      if (depth === 0) return i;
+    }
+    i++;
+  }
+  return -1;
+}
+
+// Counts the number of top-level `{...}` objects inside an array body
+// (used to enforce the alts-cap pre-flight). String- and comment-aware.
+function countTopLevelObjects(arrayBody: string): number {
+  let count = 0;
+  let i = 0;
+  while (i < arrayBody.length) {
+    const ch = arrayBody[i];
+    if (ch === '"') {
+      i++;
+      while (i < arrayBody.length) {
+        const c = arrayBody[i];
+        if (c === "\\") {
+          i += 2;
+          continue;
+        }
+        if (c === '"') {
+          i++;
+          break;
+        }
+        i++;
+      }
+      continue;
+    }
+    if (ch === "/" && arrayBody[i + 1] === "/") {
+      while (i < arrayBody.length && arrayBody[i] !== "\n") i++;
+      continue;
+    }
+    if (ch === "/" && arrayBody[i + 1] === "*") {
+      i += 2;
+      while (
+        i < arrayBody.length - 1 &&
+        !(arrayBody[i] === "*" && arrayBody[i + 1] === "/")
+      ) {
+        i++;
+      }
+      i += 2;
+      continue;
+    }
+    if (ch === "{") {
+      count++;
+      const close = findMatchingClose(arrayBody, i);
+      if (close < 0) break;
+      i = close + 1;
+      continue;
+    }
+    i++;
+  }
+  return count;
+}
+
+// ---------------------------------------------------------------------------
+// openAddBucketAlternativePr — orchestration mirroring openAddEtfPr.
+// ---------------------------------------------------------------------------
+// Branch name: `add-alt/<isin-lower>` so listOpenPrs can scope to this flow
+// the same way it does for `add-etf/`.
+// ---------------------------------------------------------------------------
+export async function openAddBucketAlternativePr(
+  parentKey: string,
+  entry: NewAlternativeEntry,
+): Promise<{ url: string; number: number }> {
+  if (!githubConfigured()) {
+    throw new Error(
+      "GitHub PR creation is not configured. Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO.",
+    );
+  }
+  const owner = process.env.GITHUB_OWNER!;
+  const repo = process.env.GITHUB_REPO!;
+  const base = process.env.GITHUB_BASE_BRANCH ?? "main";
+  const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
+
+  // 1. Read the current etfs.ts on the base branch.
+  const { data: baseRef } = await octokit.git.getRef({
+    owner,
+    repo,
+    ref: `heads/${base}`,
+  });
+  const baseSha = baseRef.object.sha;
+
+  const { data: fileMeta } = await octokit.repos.getContent({
+    owner,
+    repo,
+    path: ETFS_FILE_PATH,
+    ref: baseSha,
+  });
+  if (Array.isArray(fileMeta) || fileMeta.type !== "file") {
+    throw new Error(`Unexpected GitHub response for ${ETFS_FILE_PATH}.`);
+  }
+  const currentContent = Buffer.from(fileMeta.content, "base64").toString(
+    "utf8",
+  );
+
+  // 2. Inject the alternative. Translate the typed status into the same
+  // exception shape the route handler expects (so the operator sees a
+  // useful error message rather than a stack trace).
+  const result = injectAlternative(currentContent, parentKey, entry);
+  if (result.status === "parent_missing") {
+    throw new Error(`Parent bucket "${parentKey}" not found in catalog.`);
+  }
+  if (result.status === "isin_present") {
+    throw new Error(
+      `ISIN ${entry.isin} is already used by "${result.conflict}". Pick a different ISIN.`,
+    );
+  }
+  if (result.status === "cap_exceeded") {
+    throw new Error(
+      `"${parentKey}" already has 2 alternatives. Remove one before adding another.`,
+    );
+  }
+
+  // 3. Create the branch (or fail if it already exists).
+  const branch = `add-alt/${entry.isin.toLowerCase()}`;
+  try {
+    await octokit.git.createRef({
+      owner,
+      repo,
+      ref: `refs/heads/${branch}`,
+      sha: baseSha,
+    });
+  } catch (err: unknown) {
+    const status = (err as { status?: number }).status;
+    if (status === 422) {
+      throw new Error(
+        `Branch ${branch} already exists. Delete it on GitHub or rename, then retry.`,
+      );
+    }
+    throw err;
+  }
+
+  // 4. Commit the modified file.
+  await octokit.repos.createOrUpdateFileContents({
+    owner,
+    repo,
+    path: ETFS_FILE_PATH,
+    branch,
+    message: `Add ${entry.name} (${entry.isin}) as alternative under ${parentKey}`,
+    content: Buffer.from(result.content, "utf8").toString("base64"),
+    sha: fileMeta.sha,
+  });
+
+  // 5. Open the PR.
+  const renderedBlock = renderAlternativeBlock(entry, "      ");
+  const { data: pr } = await octokit.pulls.create({
+    owner,
+    repo,
+    head: branch,
+    base,
+    title: `Add ${entry.name} (${entry.isin}) as alternative under ${parentKey}`,
+    body: buildAlternativePrBody(parentKey, entry, renderedBlock),
+  });
+
+  return { url: pr.html_url, number: pr.number };
+}
+
+function buildAlternativePrBody(
+  parentKey: string,
+  entry: NewAlternativeEntry,
+  renderedBlock: string,
+): string {
+  return [
+    `Adds **${entry.name}** (\`${entry.isin}\`) as a curated alternative under bucket \`${parentKey}\`.`,
+    "",
+    "Generated from the in-app admin pane (Bucket Alternatives editor). Please review:",
+    "",
+    "**Generated alternative entry**",
+    "",
+    "```ts",
+    renderedBlock,
+    "```",
+    "",
+    "**Reviewer checklist**",
+    `- Confirm \`${parentKey}\` is the correct bucket for this ETF (operator phrase: every ETF needs a unique bucket assignment).`,
+    "- Confirm the ISIN is not already used by any other catalog entry or alternative (the in-app validator enforces this, but a manual check is cheap insurance).",
+    "- Confirm `defaultExchange` matches your preferred listing.",
+    "- Confirm the `comment` is accurate (it shows up in tooltips and in the picker dropdown).",
+    "",
+    "After merging, the new alternative becomes selectable in the Build tab's per-bucket ETF picker.",
+  ].join("\n");
 }
 
 // ---------------------------------------------------------------------------

@@ -22,6 +22,8 @@ import {
   type AppDefaultsPayload,
   type AppDefaultsRfCurrency,
   type CatalogSummary,
+  type AddBucketAlternativeRequest,
+  type AlternativeEntrySummary,
   type ChangeEntry,
   type FreshnessResponse,
   type LookthroughPoolEntry,
@@ -187,6 +189,7 @@ export default function Admin() {
           <DataUpdatesColumn />
         </div>
         <LookthroughPoolPanel catalog={catalog} />
+        <BucketAlternativesPanel githubConfigured={githubConfigured} />
         <AppDefaultsPanel githubConfigured={githubConfigured} />
       </main>
     </div>
@@ -3169,3 +3172,572 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
     </Card>
   );
 }
+
+// ---------------------------------------------------------------------------
+// BucketAlternativesPanel — per-bucket curated-alternatives editor (2026-04-28)
+// ---------------------------------------------------------------------------
+// Lists every bucket showing its default ETF + 0–2 curated alternatives
+// (the same alternatives surfaced by the Build tab's per-bucket ETF picker).
+// Each bucket row exposes an inline-collapsible "Add alternative" form
+// when fewer than 2 alts exist; submitting opens a GitHub PR appending
+// the new alternative to that bucket's `alternatives:[…]` array via the
+// /admin/bucket-alternatives route.
+//
+// Operator-Phrase: „Jeder ETF zur Auswahl benötigt eine eindeutige
+// Bucket-Zuordnung." Each curated alternative is positional inside its
+// parent bucket (no `key` of its own) and is capped at 2 by
+// validateCatalog. The cap is enforced both client-side (the form is
+// hidden when at the cap) and server-side (the route returns 409
+// cap_exceeded if the cap was reached after the form opened).
+function BucketAlternativesPanel({
+  githubConfigured,
+}: {
+  githubConfigured: boolean;
+}) {
+  const { t, lang } = useAdminT();
+  const [catalog, setCatalog] = useState<CatalogSummary | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [openKey, setOpenKey] = useState<string | null>(null);
+  const [prsRefreshKey, setPrsRefreshKey] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    adminApi
+      .bucketAlternatives()
+      .then((r) => {
+        if (!cancelled) setCatalog(r.entries);
+      })
+      .catch((e) => {
+        if (!cancelled) setLoadError(e instanceof Error ? e.message : String(e));
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Reload on prsRefreshKey so the page reflects the post-merge state
+    // (or at least the latest parser output) after the operator opens a
+    // PR — critical because the alts cap is enforced against THIS
+    // catalog, not the one that existed when the panel first mounted.
+  }, [prsRefreshKey]);
+
+  // Sort bucket keys alphabetically — same convention as datalist in
+  // SuggestIsinPanel. Groups by prefix in practice (Commodities-…,
+  // DigitalAssets-…, Equity-…, FixedIncome-…, RealEstate-…) which is
+  // the most useful grouping for the operator scanning the list.
+  const sortedKeys = useMemo(() => {
+    if (!catalog) return [];
+    return Object.keys(catalog).sort((a, b) => a.localeCompare(b));
+  }, [catalog]);
+
+  function handlePrCreated() {
+    setOpenKey(null);
+    setPrsRefreshKey((k) => k + 1);
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          {t({
+            de: "Kuratierte Alternativen je Bucket",
+            en: "Curated alternatives per bucket",
+          })}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <p className="text-sm text-muted-foreground">
+          {lang === "de" ? (
+            <>
+              Jeder Bucket zeigt im Build-Tab seinen Standard-ETF plus bis
+              zu zwei kuratierte Alternativen. Hier kannst du eine neue
+              Alternative hinzufügen — der Server öffnet einen GitHub-PR,
+              der <code>etfs.ts</code> entsprechend ergänzt. Nach Merge +
+              Redeploy ist die Alternative sofort im Build-Tab wählbar.
+            </>
+          ) : (
+            <>
+              Each bucket shows its default ETF plus up to two curated
+              alternatives in the Build tab. Use this panel to add a new
+              alternative — the server opens a GitHub PR that updates{" "}
+              <code>etfs.ts</code>. After merge + redeploy the alternative
+              becomes selectable in the Build tab.
+            </>
+          )}
+        </p>
+
+        {loadError && (
+          <Alert variant="destructive">
+            <AlertTitle>
+              {t({
+                de: "Katalog konnte nicht geladen werden",
+                en: "Catalog could not be loaded",
+              })}
+            </AlertTitle>
+            <AlertDescription>{loadError}</AlertDescription>
+          </Alert>
+        )}
+
+        {!githubConfigured && (
+          <Alert>
+            <AlertTitle>
+              {t({
+                de: "GitHub nicht konfiguriert",
+                en: "GitHub not configured",
+              })}
+            </AlertTitle>
+            <AlertDescription>
+              {lang === "de" ? (
+                <>
+                  Setze <code>GITHUB_PAT</code>, <code>GITHUB_OWNER</code> und{" "}
+                  <code>GITHUB_REPO</code> auf dem api-server, um neue
+                  Alternativen vorschlagen zu können.
+                </>
+              ) : (
+                <>
+                  Set <code>GITHUB_PAT</code>, <code>GITHUB_OWNER</code> and{" "}
+                  <code>GITHUB_REPO</code> on the api-server to enable
+                  proposing new alternatives.
+                </>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {catalog === null && !loadError && (
+          <div className="text-sm text-muted-foreground">
+            {t({ de: "Lade Katalog …", en: "Loading catalog …" })}
+          </div>
+        )}
+
+        {catalog && (
+          <div className="space-y-2">
+            {sortedKeys.map((key) => {
+              const entry = catalog[key];
+              const alts = entry.alternatives ?? [];
+              const atCap = alts.length >= 2;
+              const isOpen = openKey === key;
+              return (
+                <div
+                  key={key}
+                  className="border rounded-md p-3 bg-muted/20"
+                  data-testid={`bucket-alts-row-${key}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <code className="text-xs font-semibold">{key}</code>
+                        <Badge variant="secondary" className="text-[10px]">
+                          {alts.length}/2{" "}
+                          {t({ de: "Alternativen", en: "alternatives" })}
+                        </Badge>
+                      </div>
+                      <div className="text-sm font-medium truncate">
+                        {entry.name}
+                      </div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {entry.isin} · {entry.terBps} bps · {entry.currency}
+                      </div>
+                      {alts.length > 0 && (
+                        <ul className="mt-2 space-y-1">
+                          {alts.map((alt, i) => (
+                            <li
+                              key={`${alt.isin}-${i}`}
+                              className="text-xs pl-3 border-l-2 border-primary/40"
+                            >
+                              <span className="font-medium">{alt.name}</span>
+                              <span className="text-muted-foreground">
+                                {" "}
+                                · {alt.isin} · {alt.terBps} bps ·{" "}
+                                {alt.currency}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                    <Button
+                      size="sm"
+                      variant={isOpen ? "secondary" : "outline"}
+                      disabled={atCap && !isOpen}
+                      onClick={() => setOpenKey(isOpen ? null : key)}
+                      data-testid={`button-add-alt-${key}`}
+                    >
+                      {atCap
+                        ? t({ de: "Cap erreicht", en: "Cap reached" })
+                        : isOpen
+                          ? t({ de: "Schließen", en: "Close" })
+                          : t({
+                              de: "+ Alternative",
+                              en: "+ Alternative",
+                            })}
+                    </Button>
+                  </div>
+                  {isOpen && !atCap && (
+                    <AddAlternativeForm
+                      parentKey={key}
+                      githubConfigured={githubConfigured}
+                      onCreated={handlePrCreated}
+                    />
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <PendingPrsCard
+          prefix="add-alt/"
+          refreshKey={prsRefreshKey}
+          emptyHint={t({
+            de: "Keine offenen Alternativen-PRs — alle Vorschläge sind gemerged.",
+            en: "No open alternatives PRs — all suggestions are merged.",
+          })}
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+// Inline form for one bucket row. Mirrors the field set of PreviewEditor
+// (which edits a top-level catalog entry) minus the `key` field — alts
+// are positional inside their parent. Holds its own draft state so
+// closing one row's form doesn't blow away another row's entered data.
+function AddAlternativeForm({
+  parentKey,
+  githubConfigured,
+  onCreated,
+}: {
+  parentKey: string;
+  githubConfigured: boolean;
+  onCreated: () => void;
+}) {
+  const { t, lang } = useAdminT();
+  const [draft, setDraft] = useState<AddBucketAlternativeRequest>(() =>
+    blankAlternativeDraft(),
+  );
+  const [submitting, setSubmitting] = useState(false);
+  const [previewing, setPreviewing] = useState(false);
+  const [code, setCode] = useState<string | null>(null);
+  const [errMsg, setErrMsg] = useState<string | null>(null);
+
+  const set = <K extends keyof AddBucketAlternativeRequest>(
+    k: K,
+    v: AddBucketAlternativeRequest[K],
+  ) => setDraft((d) => ({ ...d, [k]: v }));
+
+  // Defence-in-depth client-side validation — the server enforces the
+  // same rules but failing fast in the UI saves a round-trip and gives
+  // the operator a precise error.
+  function clientValidate(): string | null {
+    if (!/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(draft.isin))
+      return t({
+        de: "ISIN ungültig (12 Zeichen, ISO-Format).",
+        en: "ISIN invalid (12 chars, ISO format).",
+      });
+    if (!draft.name.trim())
+      return t({ de: "Name ist erforderlich.", en: "Name is required." });
+    if (!Number.isFinite(draft.terBps) || draft.terBps < 0 || draft.terBps > 500)
+      return t({
+        de: "TER muss in [0, 500] bps liegen.",
+        en: "TER must be in [0, 500] bps.",
+      });
+    if (!draft.domicile.trim())
+      return t({
+        de: "Domizil ist erforderlich.",
+        en: "Domicile is required.",
+      });
+    if (!/^[A-Z]{3}$/.test(draft.currency))
+      return t({
+        de: "Währung muss 3-Buchstaben-Code sein (z. B. USD).",
+        en: "Currency must be a 3-letter code (e.g. USD).",
+      });
+    const listingKeys = Object.keys(draft.listings);
+    if (listingKeys.length === 0)
+      return t({
+        de: "Mindestens ein Listing erforderlich.",
+        en: "At least one listing required.",
+      });
+    if (!draft.listings[draft.defaultExchange])
+      return t({
+        de: "Standard-Börse muss ein Listing haben.",
+        en: "Default exchange must have a listing.",
+      });
+    return null;
+  }
+
+  async function runPreview() {
+    const v = clientValidate();
+    if (v) {
+      setErrMsg(v);
+      return;
+    }
+    setErrMsg(null);
+    setPreviewing(true);
+    setCode(null);
+    try {
+      const r = await adminApi.renderBucketAlternative(parentKey, draft);
+      setCode(r.code);
+    } catch (e: unknown) {
+      setErrMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPreviewing(false);
+    }
+  }
+
+  async function submitPr() {
+    const v = clientValidate();
+    if (v) {
+      setErrMsg(v);
+      return;
+    }
+    setErrMsg(null);
+    setSubmitting(true);
+    try {
+      const r = await adminApi.addBucketAlternative(parentKey, draft);
+      toast.success(
+        t({ de: "Pull-Request geöffnet", en: "Pull request opened" }),
+        {
+          description: r.prUrl,
+          action: {
+            label: t({ de: "Öffnen", en: "Open" }),
+            onClick: () => window.open(r.prUrl, "_blank"),
+          },
+        },
+      );
+      setDraft(blankAlternativeDraft());
+      setCode(null);
+      onCreated();
+    } catch (e: unknown) {
+      setErrMsg(e instanceof Error ? e.message : String(e));
+      // Even on 409 ("branch already exists" / dup ISIN), refresh the
+      // open-PRs list so the operator sees the existing PR that blocks
+      // them — same UX contract as SuggestIsinPanel.
+      onCreated();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="mt-3 pt-3 border-t space-y-3">
+      <div className="grid grid-cols-2 gap-3">
+        <Field label="ISIN">
+          <Input
+            value={draft.isin}
+            onChange={(e) => set("isin", e.target.value.trim().toUpperCase())}
+            placeholder="IE00B5BMR087"
+            data-testid={`input-alt-isin-${parentKey}`}
+          />
+        </Field>
+        <Field label={t({ de: "Name", en: "Name" })}>
+          <Input
+            value={draft.name}
+            onChange={(e) => set("name", e.target.value)}
+            data-testid={`input-alt-name-${parentKey}`}
+          />
+        </Field>
+        <Field label={t({ de: "TER (bps)", en: "TER (bps)" })}>
+          <Input
+            type="number"
+            value={draft.terBps}
+            onChange={(e) => set("terBps", Number(e.target.value))}
+          />
+        </Field>
+        <Field label={t({ de: "AUM (Mio. EUR)", en: "AUM (EUR mn)" })}>
+          <Input
+            type="number"
+            value={draft.aumMillionsEUR ?? ""}
+            onChange={(e) =>
+              set(
+                "aumMillionsEUR",
+                e.target.value === "" ? undefined : Number(e.target.value),
+              )
+            }
+          />
+        </Field>
+        <Field label={t({ de: "Domizil", en: "Domicile" })}>
+          <Input
+            value={draft.domicile}
+            onChange={(e) => set("domicile", e.target.value)}
+          />
+        </Field>
+        <Field label={t({ de: "Währung", en: "Currency" })}>
+          <Input
+            value={draft.currency}
+            onChange={(e) => set("currency", e.target.value.toUpperCase())}
+          />
+        </Field>
+        <Field label={t({ de: "Replikation", en: "Replication" })}>
+          <Select
+            value={draft.replication}
+            onValueChange={(v) => set("replication", v as Replication)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {REPLICATIONS.map((r) => (
+                <SelectItem key={r} value={r}>
+                  {r}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label={t({ de: "Ausschüttung", en: "Distribution" })}>
+          <Select
+            value={draft.distribution}
+            onValueChange={(v) => set("distribution", v as Distribution)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {DISTRIBUTIONS.map((d) => (
+                <SelectItem key={d} value={d}>
+                  {d}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+        <Field label={t({ de: "Auflagedatum", en: "Inception date" })}>
+          <Input
+            placeholder={t({ de: "JJJJ-MM-TT", en: "YYYY-MM-DD" })}
+            value={draft.inceptionDate ?? ""}
+            onChange={(e) =>
+              set("inceptionDate", e.target.value || undefined)
+            }
+          />
+        </Field>
+        <Field label={t({ de: "Standard-Börse", en: "Default exchange" })}>
+          <Select
+            value={draft.defaultExchange}
+            onValueChange={(v) => set("defaultExchange", v as Exchange)}
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {EXCHANGES.map((x) => (
+                <SelectItem key={x} value={x}>
+                  {x}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </Field>
+      </div>
+
+      <Field
+        label={t({
+          de: "Kommentar (wird in Tooltips angezeigt)",
+          en: "Comment (shown in tooltips)",
+        })}
+      >
+        <Textarea
+          rows={2}
+          value={draft.comment}
+          onChange={(e) => set("comment", e.target.value)}
+        />
+      </Field>
+
+      <div>
+        <Label className="text-xs">
+          {t({
+            de: "Listings (Ticker je Börse)",
+            en: "Listings (ticker per exchange)",
+          })}
+        </Label>
+        <div className="grid grid-cols-2 gap-2 mt-1">
+          {EXCHANGES.map((ex) => (
+            <div key={ex} className="flex items-center gap-2">
+              <span className="text-xs w-16">{ex}</span>
+              <Input
+                placeholder={t({ de: "(keine)", en: "(none)" })}
+                value={draft.listings[ex]?.ticker ?? ""}
+                onChange={(e) => {
+                  const next = { ...draft.listings };
+                  if (e.target.value.trim()) {
+                    next[ex] = { ticker: e.target.value.trim() };
+                  } else {
+                    delete next[ex];
+                  }
+                  setDraft((d) => ({ ...d, listings: next }));
+                }}
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {errMsg && (
+        <Alert variant="destructive">
+          <AlertTitle>{t({ de: "Fehler", en: "Error" })}</AlertTitle>
+          <AlertDescription className="break-words">{errMsg}</AlertDescription>
+        </Alert>
+      )}
+
+      {code && (
+        <details className="text-xs">
+          <summary className="cursor-pointer text-muted-foreground">
+            {t({
+              de: "Generiertes TS-Snippet anzeigen",
+              en: "Show generated TS snippet",
+            })}
+          </summary>
+          <pre className="mt-2 p-2 bg-muted rounded text-[11px] overflow-x-auto">
+            {code}
+          </pre>
+        </details>
+      )}
+
+      <div className="flex gap-2">
+        <Button
+          variant="outline"
+          onClick={runPreview}
+          disabled={previewing || submitting}
+          data-testid={`button-preview-alt-${parentKey}`}
+        >
+          {previewing ? (
+            <RefreshCw className="h-4 w-4 animate-spin" />
+          ) : (
+            t({ de: "Vorschau", en: "Preview" })
+          )}
+        </Button>
+        <Button
+          className="flex-1"
+          onClick={submitPr}
+          disabled={submitting || !githubConfigured}
+          data-testid={`button-submit-alt-${parentKey}`}
+        >
+          {submitting
+            ? t({ de: "PR wird geöffnet …", en: "Opening PR …" })
+            : t({
+                de: "PR öffnen: Alternative hinzufügen",
+                en: "Open PR: add alternative",
+              })}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function blankAlternativeDraft(): AddBucketAlternativeRequest {
+  return {
+    name: "",
+    isin: "",
+    terBps: 0,
+    domicile: "Ireland",
+    replication: "Physical",
+    distribution: "Accumulating",
+    currency: "USD",
+    comment: "",
+    defaultExchange: "LSE",
+    listings: {},
+  };
+}
+
+// Suppress unused-import warning when the page doesn't reference
+// AlternativeEntrySummary directly elsewhere — the type is re-exported
+// for external consumers via admin-api.
+type _AltSummaryRef = AlternativeEntrySummary;

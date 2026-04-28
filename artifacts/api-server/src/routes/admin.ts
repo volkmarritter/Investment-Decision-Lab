@@ -24,11 +24,15 @@ import { requireAdmin } from "../middlewares/admin-auth";
 import { dataFile } from "../lib/data-paths";
 import {
   githubConfigured,
+  injectAlternative,
   listOpenPrs,
+  openAddBucketAlternativePr,
   openAddEtfPr,
   openAddLookthroughPoolPr,
   openUpdateAppDefaultsPr,
+  renderAlternativeBlock,
   renderEntryBlock,
+  type NewAlternativeEntry,
   type NewEtfEntry,
 } from "../lib/github";
 import { findDuplicateIsinKey, loadCatalog } from "../lib/catalog-parser";
@@ -188,6 +192,159 @@ router.post("/admin/render-entry", (req, res) => {
   } catch (err) {
     res.status(500).json({
       error: "render_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+// --- /api/admin/bucket-alternatives -----------------------------------------
+// Per-bucket curated-alternatives editor (2026-04-28). Each bucket may
+// expose 1 default + up to 2 curated alternatives in the Build tab's ETF
+// Implementation picker. The endpoints below let the operator audit and
+// extend the alternatives list via the same PR-based flow already used
+// for add-isin and app-defaults.
+//
+//   GET  /admin/bucket-alternatives        — same shape as /admin/catalog
+//                                            but the `alternatives` array
+//                                            on each entry is populated
+//                                            (the catalog parser was
+//                                            extended to surface them).
+//   POST /admin/bucket-alternatives/render — preview the TS snippet that
+//                                            would be inserted, byte-for-byte
+//                                            identical to what the PR shows.
+//   POST /admin/bucket-alternatives        — open a PR adding the entry
+//                                            into the parent's `alternatives`
+//                                            array (creating the array if
+//                                            absent).
+//
+// All three reuse loadCatalog() / parseCatalogFromSource for the freshness
+// guarantee — no separate cache, no drift between preview and PR diff.
+router.get("/admin/bucket-alternatives", async (_req, res) => {
+  try {
+    const entries = await loadCatalog();
+    res.json({ entries });
+  } catch (err) {
+    res.status(500).json({
+      error: "catalog_parse_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+router.post("/admin/bucket-alternatives/render", (req, res) => {
+  const parentKey = typeof req.body?.parentKey === "string"
+    ? req.body.parentKey
+    : "";
+  const entry = req.body?.entry as NewAlternativeEntry | undefined;
+  const validationError = validateAlternative(entry);
+  if (validationError || !entry) {
+    res.status(400).json({ error: "invalid_entry", message: validationError });
+    return;
+  }
+  if (!parentKey || !/^[A-Z][A-Za-z0-9-]{2,40}$/.test(parentKey)) {
+    res.status(400).json({
+      error: "invalid_parent_key",
+      message: "parentKey must match the catalog key format.",
+    });
+    return;
+  }
+  try {
+    const code = renderAlternativeBlock(entry, "      ");
+    res.json({ code });
+  } catch (err) {
+    res.status(500).json({
+      error: "render_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+router.post("/admin/bucket-alternatives", async (req, res) => {
+  const parentKey = typeof req.body?.parentKey === "string"
+    ? req.body.parentKey
+    : "";
+  const entry = req.body?.entry as NewAlternativeEntry | undefined;
+  const validationError = validateAlternative(entry);
+  if (validationError || !entry) {
+    res.status(400).json({ error: "invalid_entry", message: validationError });
+    return;
+  }
+  if (!parentKey || !/^[A-Z][A-Za-z0-9-]{2,40}$/.test(parentKey)) {
+    res.status(400).json({
+      error: "invalid_parent_key",
+      message: "parentKey must match the catalog key format.",
+    });
+    return;
+  }
+
+  // Belt-and-braces server-side pre-flight (parent missing, ISIN dup,
+  // alts cap). The /admin/bucket-alternatives PR helper performs the
+  // same checks before opening the PR — duplicating them here returns a
+  // typed 4xx instead of a generic 502 from the PR helper, which is
+  // friendlier for the UI to render.
+  try {
+    const catalog = await loadCatalog();
+    const parent = catalog[parentKey];
+    if (!parent) {
+      res.status(404).json({
+        error: "parent_missing",
+        message: `Parent bucket "${parentKey}" not found in catalog.`,
+      });
+      return;
+    }
+    const existingAlts = parent.alternatives ?? [];
+    if (existingAlts.length >= 2) {
+      res.status(409).json({
+        error: "cap_exceeded",
+        message: `"${parentKey}" already has 2 alternatives. Remove one first.`,
+      });
+      return;
+    }
+    const norm = entry.isin.trim().toUpperCase();
+    for (const [k, e] of Object.entries(catalog)) {
+      if (e.isin.toUpperCase() === norm) {
+        res.status(409).json({
+          error: "duplicate_isin",
+          message: `ISIN ${entry.isin} is already used by catalog key "${k}". Pick a different ISIN.`,
+          conflictKey: k,
+        });
+        return;
+      }
+      const alts = e.alternatives ?? [];
+      for (let i = 0; i < alts.length; i++) {
+        if (alts[i].isin.toUpperCase() === norm) {
+          res.status(409).json({
+            error: "duplicate_isin",
+            message: `ISIN ${entry.isin} is already used by alternative slot ${i + 1} under "${k}". Pick a different ISIN.`,
+            conflictKey: `${k} alt ${i + 1}`,
+          });
+          return;
+        }
+      }
+    }
+  } catch (err) {
+    res.status(500).json({
+      error: "catalog_parse_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+
+  if (!githubConfigured()) {
+    res.status(503).json({
+      error: "github_not_configured",
+      message:
+        "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
+    });
+    return;
+  }
+
+  try {
+    const pr = await openAddBucketAlternativePr(parentKey, entry);
+    res.json({ ok: true, prUrl: pr.url, prNumber: pr.number });
+  } catch (err) {
+    res.status(502).json({
+      error: "pr_creation_failed",
       message: err instanceof Error ? err.message : String(err),
     });
   }
@@ -586,6 +743,76 @@ function validateEntry(e: NewEtfEntry | undefined): string | null {
   if (!e || typeof e !== "object") return "entry missing";
   if (typeof e.key !== "string" || !/^[A-Z][A-Za-z0-9-]{2,40}$/.test(e.key))
     return "key must be alphanumeric/hyphens, 3-40 chars, start with letter";
+  if (typeof e.isin !== "string" || !/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(e.isin))
+    return "isin invalid";
+  if (
+    typeof e.terBps !== "number" ||
+    !Number.isFinite(e.terBps) ||
+    e.terBps < 0 ||
+    e.terBps > 500
+  )
+    return "terBps must be finite number in [0, 500]";
+  if (typeof e.name !== "string" || !e.name.trim() || e.name.length > 200)
+    return "name missing or too long (max 200 chars)";
+  if (
+    typeof e.domicile !== "string" ||
+    !e.domicile.trim() ||
+    e.domicile.length > 60
+  )
+    return "domicile missing or too long";
+  if (!["Physical", "Physical (sampled)", "Synthetic"].includes(e.replication))
+    return "replication invalid";
+  if (!["Accumulating", "Distributing"].includes(e.distribution))
+    return "distribution invalid";
+  if (typeof e.currency !== "string" || !/^[A-Z]{3}$/.test(e.currency))
+    return "currency must be 3-letter code";
+  if (typeof e.comment !== "string" || e.comment.length > 1000)
+    return "comment must be a string up to 1000 chars";
+  if (!EXCHANGES.includes(e.defaultExchange as ExchangeKey))
+    return "defaultExchange invalid";
+  if (
+    !e.listings ||
+    typeof e.listings !== "object" ||
+    Array.isArray(e.listings)
+  )
+    return "listings must be an object";
+  const listingKeys = Object.keys(e.listings);
+  if (listingKeys.length === 0) return "at least one listing required";
+  for (const k of listingKeys) {
+    if (!EXCHANGES.includes(k as ExchangeKey))
+      return `unknown exchange in listings: ${JSON.stringify(k)}`;
+    const v = (e.listings as Record<string, { ticker?: unknown } | undefined>)[
+      k
+    ];
+    if (!v || typeof v !== "object")
+      return `listings[${k}] must be an object`;
+    if (typeof v.ticker !== "string" || !TICKER_RE.test(v.ticker))
+      return `listings[${k}].ticker invalid (must match ${TICKER_RE})`;
+  }
+  if (!e.listings[e.defaultExchange])
+    return "defaultExchange must appear in listings";
+  if (e.aumMillionsEUR !== undefined) {
+    if (
+      typeof e.aumMillionsEUR !== "number" ||
+      !Number.isFinite(e.aumMillionsEUR) ||
+      e.aumMillionsEUR < 0 ||
+      e.aumMillionsEUR > 1_000_000
+    )
+      return "aumMillionsEUR must be finite number in [0, 1_000_000]";
+  }
+  if (e.inceptionDate !== undefined) {
+    if (typeof e.inceptionDate !== "string" || !ISO_DATE_RE.test(e.inceptionDate))
+      return "inceptionDate must be ISO YYYY-MM-DD";
+  }
+  return null;
+}
+
+// Strict schema for /admin/bucket-alternatives payloads. Mirrors
+// validateEntry but omits the `key` field (alternatives are positional)
+// and applies the same defence-in-depth rules to every other field so
+// an injected alt cannot bypass any check the top-level entry must pass.
+function validateAlternative(e: NewAlternativeEntry | undefined): string | null {
+  if (!e || typeof e !== "object") return "entry missing";
   if (typeof e.isin !== "string" || !/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(e.isin))
     return "isin invalid";
   if (

@@ -150,9 +150,51 @@ export interface CatalogEntrySummary {
   defaultExchange: string;
   aumMillionsEUR?: number;
   inceptionDate?: string;
+  // Curated alternatives surfaced by the per-bucket picker (2026-04-28).
+  // Capped at 2 by validateCatalog. Only the /admin/bucket-alternatives
+  // endpoint populates this; the regular /admin/catalog endpoint also now
+  // returns it (the parser was extended) but legacy admin views ignore it.
+  alternatives?: AlternativeEntrySummary[];
+}
+
+// Mirrors AlternativeEntrySummary on the server. Same shape as
+// CatalogEntrySummary minus `key` (alternatives are positional) and
+// minus `alternatives` (no nesting; alternatives don't have alternatives).
+export interface AlternativeEntrySummary {
+  name: string;
+  isin: string;
+  terBps: number;
+  domicile: string;
+  replication: string;
+  distribution: string;
+  currency: string;
+  comment: string;
+  listings: Record<string, { ticker: string }>;
+  defaultExchange: string;
+  aumMillionsEUR?: number;
+  inceptionDate?: string;
 }
 
 export type CatalogSummary = Record<string, CatalogEntrySummary>;
+
+// Mirrors NewAlternativeEntry on the server. Same shape as AddEtfRequest
+// minus `key`.
+export interface AddBucketAlternativeRequest {
+  name: string;
+  isin: string;
+  terBps: number;
+  domicile: string;
+  replication: "Physical" | "Physical (sampled)" | "Synthetic";
+  distribution: "Accumulating" | "Distributing";
+  currency: string;
+  comment: string;
+  defaultExchange: "LSE" | "XETRA" | "SIX" | "Euronext";
+  listings: Partial<
+    Record<"LSE" | "XETRA" | "SIX" | "Euronext", { ticker: string }>
+  >;
+  aumMillionsEUR?: number;
+  inceptionDate?: string;
+}
 
 export const adminApi = {
   whoami: (token?: string) =>
@@ -223,9 +265,28 @@ export const adminApi = {
         body: JSON.stringify({ value, summary }),
       },
     ),
+  // Per-bucket curated alternatives editor (2026-04-28). Mirrors the
+  // catalog/renderEntry/addIsin trio above but writes into an existing
+  // bucket's `alternatives:[…]` array (creating the field if absent)
+  // instead of inserting a top-level entry.
+  bucketAlternatives: () =>
+    call<{ entries: CatalogSummary }>("/admin/bucket-alternatives"),
+  renderBucketAlternative: (parentKey: string, entry: AddBucketAlternativeRequest) =>
+    call<{ code: string }>("/admin/bucket-alternatives/render", {
+      method: "POST",
+      body: JSON.stringify({ parentKey, entry }),
+    }),
+  addBucketAlternative: (parentKey: string, entry: AddBucketAlternativeRequest) =>
+    call<{ ok: boolean; prUrl: string; prNumber: number }>(
+      "/admin/bucket-alternatives",
+      {
+        method: "POST",
+        body: JSON.stringify({ parentKey, entry }),
+      },
+    ),
   // Lists currently-open PRs on the configured GitHub repo, optionally
   // scoped to a single admin flow via branch prefix:
-  //   "add-lookthrough-pool/" | "add-etf/" | "update-app-defaults/"
+  //   "add-lookthrough-pool/" | "add-etf/" | "update-app-defaults/" | "add-alt/"
   // Uses the REST list-pulls endpoint server-side (NOT the search API)
   // so it is unaffected by GitHub's occasional search-index lag.
   listOpenPrs: (prefix?: string) => {
