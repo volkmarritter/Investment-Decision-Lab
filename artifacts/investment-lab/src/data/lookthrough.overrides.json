@@ -2825,6 +2825,77 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE000U58J0M1",
       "_addedAt": "2026-04-28T14:37:10.015Z",
       "_addedVia": "admin/lookthrough-pool"
+    },
+    "LU0292100046": {
+      "name": "Xtrackers MSCI Korea UCITS ETF 1C",
+      "topHoldings": [
+        {
+          "name": "Samsung Electronics Co., Ltd.",
+          "pct": 28.5
+        },
+        {
+          "name": "SK hynix, Inc.",
+          "pct": 18.61
+        },
+        {
+          "name": "Samsung Electronics Co., Ltd.",
+          "pct": 3.37
+        },
+        {
+          "name": "Hyundai Motor Co., Ltd.",
+          "pct": 2.73
+        },
+        {
+          "name": "KB Financial Group, Inc.",
+          "pct": 2.31
+        },
+        {
+          "name": "SK Square Co. Ltd.",
+          "pct": 2.06
+        },
+        {
+          "name": "HANWHA AEROSPACE Co., Ltd.",
+          "pct": 1.92
+        },
+        {
+          "name": "Doosan Enerbility Co., Ltd.",
+          "pct": 1.84
+        },
+        {
+          "name": "Shinhan Financial Group Co., Ltd.",
+          "pct": 1.73
+        },
+        {
+          "name": "Kia Corp.",
+          "pct": 1.55
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-28T16:17:45.553Z",
+      "geo": {
+        "South Korea": 99.37,
+        "Other": 0.63
+      },
+      "sector": {
+        "Technology": 55.6,
+        "Industrials": 15.62,
+        "Financials": 9.92,
+        "Consumer Discretionary": 6.87,
+        "Health Care": 3.09,
+        "Telecommunication": 2.97,
+        "Basic Materials": 2.77,
+        "Consumer Staples": 1.04,
+        "Energy": 1.02,
+        "Utilities": 0.47,
+        "Other": 0.63
+      },
+      "currency": {
+        "KRW": 99.37,
+        "Other": 0.63
+      },
+      "breakdownsAsOf": "2026-04-28T16:17:45.553Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=LU0292100046",
+      "_addedAt": "2026-04-28T16:17:45.553Z",
+      "_addedVia": "admin/lookthrough-pool"
     }
   }
 }
