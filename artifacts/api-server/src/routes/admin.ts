@@ -369,11 +369,24 @@ router.post("/admin/bucket-alternatives", async (req, res) => {
   let lookthroughPrUrl: string | undefined;
   let lookthroughPrNumber: number | undefined;
   let lookthroughError: string | undefined;
+  // Positive signal: the ISIN is already covered by look-through data
+  // (either committed in the base file, or live on the auto-refresh
+  // pool). Distinct from `lookthroughError` so the UI can show a green
+  // "data already available" line instead of a yellow "skipped" line.
+  let lookthroughAlreadyPresent = false;
+  let lookthroughAlreadyPresentSource:
+    | "overrides"
+    | "pool"
+    | "base-file"
+    | undefined;
   try {
     const norm = entry.isin.trim().toUpperCase();
     const sources = await readLookthroughSources();
     if (sources.pool[norm] || sources.overrides[norm]) {
-      lookthroughError = `ISIN ${norm} ist bereits im Look-through-Datenpool — kein zusätzlicher PR nötig.`;
+      lookthroughAlreadyPresent = true;
+      lookthroughAlreadyPresentSource = sources.overrides[norm]
+        ? "overrides"
+        : "pool";
     } else {
       const scraped = await scrapeLookthrough(norm);
       // Pull all four required fields into locals first so TS narrows
@@ -412,7 +425,12 @@ router.post("/admin/bucket-alternatives", async (req, res) => {
           },
         });
         if (ltPr.alreadyInBaseFile) {
-          lookthroughError = `ISIN ${norm} ist bereits im Look-through-Datenpool auf dem Base-Branch.`;
+          // Race-window case: another PR landed on the base branch
+          // between our pre-flight read and our PR attempt. Surface as
+          // "already present" so the UI shows the same positive signal
+          // as the pre-flight match path.
+          lookthroughAlreadyPresent = true;
+          lookthroughAlreadyPresentSource = "base-file";
         } else {
           lookthroughPrUrl = ltPr.url;
           lookthroughPrNumber = ltPr.number;
@@ -429,6 +447,12 @@ router.post("/admin/bucket-alternatives", async (req, res) => {
     prNumber,
     ...(lookthroughPrUrl
       ? { lookthroughPrUrl, lookthroughPrNumber }
+      : {}),
+    ...(lookthroughAlreadyPresent
+      ? {
+          lookthroughAlreadyPresent: true,
+          lookthroughAlreadyPresentSource,
+        }
       : {}),
     ...(lookthroughError ? { lookthroughError } : {}),
   });

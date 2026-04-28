@@ -288,6 +288,16 @@ export const adminApi = {
       prNumber: number;
       lookthroughPrUrl?: string;
       lookthroughPrNumber?: number;
+      // Distinct positive signal: the ISIN is already covered by
+      // look-through data (in the curated overrides, the auto-refresh
+      // pool, or the base file we PR against). No second PR was opened
+      // because none was needed — render this as success, not as an
+      // error/skip.
+      lookthroughAlreadyPresent?: boolean;
+      lookthroughAlreadyPresentSource?: "overrides" | "pool" | "base-file";
+      // Genuine problems (scrape failed, scrape returned incomplete
+      // data, GitHub call threw). The etfs PR still succeeded — this is
+      // only about the optional second PR.
       lookthroughError?: string;
     }>(
       "/admin/bucket-alternatives",

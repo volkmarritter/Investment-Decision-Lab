@@ -3628,20 +3628,29 @@ function AddAlternativeForm({
       const r = await adminApi.addBucketAlternative(parentKey, draft);
       // Two PRs may have been opened: the etfs.ts one always (that's
       // `r.prUrl`), and the look-through pool one only if the justETF
-      // scrape succeeded server-side. Surface both — the operator
-      // shouldn't have to dig through the open-PRs list to find the
-      // sibling PR.
+      // scrape succeeded server-side AND the ISIN wasn't already
+      // covered. Surface the right line in this priority order:
+      //   1. PR opened → show its URL
+      //   2. Already covered → green positive ack (no PR needed)
+      //   3. Genuine error/incomplete → yellow skip line
+      // Mixing (2) and (3) into one "übersprungen" message would read
+      // like a problem to the operator, but case (2) is the happy path.
       const lookthroughLine = r.lookthroughPrUrl
         ? t({
             de: `Look-through-PR: ${r.lookthroughPrUrl}`,
             en: `Look-through PR: ${r.lookthroughPrUrl}`,
           })
-        : r.lookthroughError
+        : r.lookthroughAlreadyPresent
           ? t({
-              de: `Look-through-PR übersprungen: ${r.lookthroughError}`,
-              en: `Look-through PR skipped: ${r.lookthroughError}`,
+              de: "Look-through-Daten bereits vorhanden — kein zweiter PR nötig.",
+              en: "Look-through data already available — no second PR needed.",
             })
-          : null;
+          : r.lookthroughError
+            ? t({
+                de: `Look-through-PR übersprungen: ${r.lookthroughError}`,
+                en: `Look-through PR skipped: ${r.lookthroughError}`,
+              })
+            : null;
       toast.success(
         t({ de: "Pull-Request geöffnet", en: "Pull request opened" }),
         {
