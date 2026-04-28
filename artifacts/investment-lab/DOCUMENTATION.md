@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-04-28 (build-pdf-report-curated-onepager)
+Last updated: 2026-04-28 (build-pdf-report-weight-and-lookthrough-fix)
 
 ---
 
@@ -619,6 +619,15 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-04-28 (build-pdf-report-weight-and-lookthrough-fix) — Zwei Bugs im neuen PDF-Report
+- **Operator-Befund unmittelbar nach Release:** „gewichte sind 100 mal zu hoch und ohne look through" — beides bestätigt.
+- **Bug 1 (Skalierung):** der Report nutzte `fmtPct(x) = (x*100).toFixed(1)+"%"` für ALLE Prozent-Felder, inklusive der Allokations- und ETF-Gewichte. `AssetAllocation.weight` und `ETFImplementation.weight` werden vom Engine aber bereits auf der Prozent-Skala [0..100] geliefert (siehe `BuildPortfolio.tsx` Zeilen 963/1076: `alloc.weight.toFixed(1)%`, `etf.weight.toFixed(2)%`). Resultat: 36.6% wurde als „3660.0%" gerendert. `computeMetrics`-Outputs (expReturn, vol, alpha, maxDrawdown, rf) sind dagegen Fraktionen [0..1], dort war `*100` korrekt.
+- **Fix Bug 1:** zwei klar benannte Helper statt einem mehrdeutigen — `fmtPctFromFraction(x)` (für Engine-Metriken, mit `*100`) und `fmtPctFromPercent(x)` (für Engine-Allokationen, ohne `*100`). Aufruf-Sites entsprechend gesplittet. Mini-Filter `weight > 0.0005` (passend zur Fraktionsskala) auf `weight > 0.05` (passend zur Prozentskala) angehoben, damit die noise-floor-Schwelle weiterhin „weniger als 0.05 Prozentpunkte" bedeutet, nicht „weniger als 0.05 Prozentpunkte VON 0.05 Prozentpunkten".
+- **Bug 2 (Look-Through):** der Report rendere immer `output.allocation` (die Surface-Routing-Form „Equity - North America" / „Fixed Income - World"), unabhängig vom `lookThroughView`-Toggle. Auf dem Bildschirm zerlegt der Donut die Equity-Region-Zeilen via `mapAllocationToAssetsLookthrough()` in die tatsächlichen Länder-Buckets (US Equity, Swiss Equity, Europe Equity, UK Equity, Japan Equity, EM Equity), wenn der Toggle an ist. Der PDF-Report ignorierte das.
+- **Fix Bug 2:** `PortfolioReport.allocationRows`-Memo rebuildet — wenn `input.lookThroughView` AND eine ETF-Implementation existieren, wird `mapAllocationToAssetsLookthrough(allocation, etfImpl, baseCurrency)` aufgerufen und das Ergebnis pro `AssetKey` auf `{ label: CMA[key].label, weight: e.weight*100, color: colorForBucket(label) }` gemappt (Look-Through liefert Fraktionen, daher hier `*100` korrekt). Sonst: bisherige Surface-Allokation. `compareBuckets`-Sortierung in beiden Pfaden identisch. Header-Chip „Look-Through-Sicht" bleibt unverändert sichtbar — der Toggle wird also dokumentiert UND wirkt.
+- **Bewusste Nicht-Änderungen:** ETF-Implementation-Tabelle bleibt unverändert (das ist immer die Liste der konkret gehaltenen ETFs, look-through-orthogonal). On-Screen-Block bleibt unverändert.
+- **352/352 Tests grün, Typecheck clean. e2e bestätigt visuell:** mit Look-Through ON zeigen die Allokations-Bars „Cash 2.0%, Global Bonds 33.0%, US Equity 36.6%, EM Equity 8.2%, Swiss Equity 7.1%, Europe Equity 4.0%, Japan Equity 2.9%, UK Equity 1.2%, Gold 5.0%" (Summe = 100%). ETF-Gewichte: 33.0% / 36.6% / 8.3% / 6.2% / 6.1% / 2.8% / 5.0% (Summe ≈ 98%, Rest ist Cash, das nicht in der ETF-Tabelle erscheint).
 
 ### 2026-04-28 (build-pdf-report-curated-onepager) — Kuratierter One-Page-PDF-Report statt Bildschirm-Bitmap
 - **Operator-UX-Audit Top-Item #1 umgesetzt:** der bisherige PDF-Export war ein `html2canvas`-Snapshot des kompletten Results-Stacks (Validation-Alerts, Donut, Geo-Map, Allokations-Tabellen, Look-Through, Monte Carlo, Metric-Grid, Stress-Test, Rationale, Risiken, Home-Bias, Learning, Fee-Estimator) — gestreckt über mehrere A4-Seiten als 10.7 MB PNG-Bitmap. Sieht aus wie ein Website-Screenshot, nicht wie der Berater-One-Pager, den ein Privatinvestor seinem Bankberater mitnehmen würde.

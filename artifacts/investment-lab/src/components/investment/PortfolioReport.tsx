@@ -1,8 +1,10 @@
 import { useMemo } from "react";
 import { PortfolioInput, PortfolioOutput } from "@/lib/types";
 import {
+  CMA,
   computeMetrics,
   isSyntheticUsEffective,
+  mapAllocationToAssetsLookthrough,
 } from "@/lib/metrics";
 import { getRiskFreeRate } from "@/lib/settings";
 import { colorForBucket, compareBuckets } from "@/lib/chartColors";
@@ -14,8 +16,15 @@ interface PortfolioReportProps {
   generatedAt: Date;
 }
 
-const fmtPct = (x: number, digits = 1) =>
+/** For values stored as fractions in [0..1] (e.g. computeMetrics outputs). */
+const fmtPctFromFraction = (x: number, digits = 1) =>
   `${(x * 100).toFixed(digits)}%`;
+
+/** For values already stored on a percent scale [0..100] (e.g. allocation
+ *  rows and ETF implementation rows produced by the engine). Multiplying by
+ *  100 again would render every weight 100x too high. */
+const fmtPctFromPercent = (x: number, digits = 1) =>
+  `${x.toFixed(digits)}%`;
 
 const fmtNum = (x: number, digits = 2) => x.toFixed(digits);
 
@@ -76,18 +85,31 @@ export function PortfolioReport({
 
   const rf = getRiskFreeRate(input.baseCurrency);
 
-  // Aggregate allocation rows for display: keep them sorted by the canonical
-  // bucket order so the report's allocation block reads in the same sequence
-  // as the on-screen donut/table.
-  const allocationRows = useMemo(
-    () =>
-      output.allocation
-        .filter((a) => a.weight > 0.0005)
-        .map((a) => {
-          const label = `${a.assetClass} - ${a.region}`;
+  // Aggregate allocation rows for display. When look-through is on AND we
+  // have an ETF implementation, decompose into the underlying country/asset
+  // buckets via the same router used by the on-screen donut — so the PDF
+  // mirrors what the user sees, not the raw row-region surface allocation.
+  // Weights here are normalised to the percent scale [0..100] regardless of
+  // source so the renderer can stay simple.
+  const allocationRows = useMemo(() => {
+    if (
+      input.lookThroughView &&
+      output.etfImplementation.length > 0
+    ) {
+      const lt = mapAllocationToAssetsLookthrough(
+        output.allocation,
+        output.etfImplementation,
+        input.baseCurrency,
+      );
+      return lt
+        .filter((e) => e.weight > 0.000005)
+        .map((e) => {
+          const label = CMA[e.key].label;
           return {
             label,
-            weight: a.weight,
+            // mapAllocationToAssetsLookthrough returns fractions in [0..1];
+            // promote to percent for the unified renderer below.
+            weight: e.weight * 100,
             color: colorForBucket(label),
           };
         })
@@ -96,16 +118,38 @@ export function PortfolioReport({
             { name: x.label, value: x.weight },
             { name: y.label, value: y.weight },
           ),
+        );
+    }
+    // Surface allocation: weights are already on the percent scale [0..100].
+    return output.allocation
+      .filter((a) => a.weight > 0.05)
+      .map((a) => {
+        const label = `${a.assetClass} - ${a.region}`;
+        return {
+          label,
+          weight: a.weight,
+          color: colorForBucket(label),
+        };
+      })
+      .sort((x, y) =>
+        compareBuckets(
+          { name: x.label, value: x.weight },
+          { name: y.label, value: y.weight },
         ),
-    [output.allocation],
-  );
+      );
+  }, [
+    output.allocation,
+    output.etfImplementation,
+    input.lookThroughView,
+    input.baseCurrency,
+  ]);
 
   const maxAllocWeight = Math.max(
-    0.01,
+    1,
     ...allocationRows.map((r) => r.weight),
   );
 
-  const etfRows = output.etfImplementation.filter((e) => e.weight > 0.0005);
+  const etfRows = output.etfImplementation.filter((e) => e.weight > 0.05);
 
   return (
     <div
@@ -204,27 +248,27 @@ export function PortfolioReport({
         <div className="grid grid-cols-5 gap-2 mt-2">
           <MetricTile
             label={t("metrics.expReturn")}
-            value={fmtPct(metrics.expReturn)}
+            value={fmtPctFromFraction(metrics.expReturn)}
             sub="p.a."
           />
           <MetricTile
             label={t("metrics.vol")}
-            value={fmtPct(metrics.vol)}
+            value={fmtPctFromFraction(metrics.vol)}
             sub={de ? "Standardabw." : "stdev"}
           />
           <MetricTile
             label={t("metrics.sharpe")}
             value={fmtNum(metrics.sharpe)}
-            sub={`${sharpeBand(metrics.sharpe, lang)} · Rf ${fmtPct(rf, 1)}`}
+            sub={`${sharpeBand(metrics.sharpe, lang)} · Rf ${fmtPctFromFraction(rf, 1)}`}
           />
           <MetricTile
             label={t("metrics.maxDD")}
-            value={fmtPct(metrics.maxDrawdown, 1)}
+            value={fmtPctFromFraction(metrics.maxDrawdown, 1)}
             sub={de ? "Heuristik" : "heuristic"}
           />
           <MetricTile
             label={de ? "Alpha vs. ACWI" : "Alpha vs ACWI"}
-            value={fmtPct(metrics.alpha)}
+            value={fmtPctFromFraction(metrics.alpha)}
             sub="p.a."
           />
         </div>
@@ -265,7 +309,7 @@ export function PortfolioReport({
                 className="text-right tabular-nums text-slate-900 font-medium"
                 style={{ fontSize: "10px" }}
               >
-                {fmtPct(row.weight, 1)}
+                {fmtPctFromPercent(row.weight, 1)}
               </div>
             </div>
           ))}
@@ -341,7 +385,7 @@ export function PortfolioReport({
                   {(etf.terBps / 100).toFixed(2)}%
                 </td>
                 <td className="py-1 text-right tabular-nums font-semibold text-slate-900">
-                  {fmtPct(etf.weight, 1)}
+                  {fmtPctFromPercent(etf.weight, 1)}
                 </td>
               </tr>
             ))}
