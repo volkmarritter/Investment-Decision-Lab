@@ -1326,6 +1326,115 @@ export function Methodology() {
               ? "Jede ausgewiesene erwartete Rendite (Risk-&-Performance-Kachel, effiziente Frontier, Monte-Carlo-Pfade, Vergleichstab) ist NETTO der nicht-rückforderbaren Quellensteuer auf Dividenden — die Steuer, die ein typischer CH/EU-Privatanleger über IE-domizilierte UCITS-ETFs trotz aller Doppelbesteuerungs-Treaties tatsächlich zahlt. Symmetrisch wird derselbe Drag auch auf den ACWI-Benchmark angewandt, sodass Alpha und Outperformance nicht künstlich erhöht werden."
               : "Every reported expected return (Risk & Performance tile, efficient frontier, Monte Carlo paths, Compare tab) is NET of irrecoverable withholding tax on dividends — the tax a typical CH/EU retail investor actually pays via IE-domiciled UCITS ETFs even after the most favorable double-taxation treaty. The same drag is applied symmetrically to the ACWI benchmark so alpha and outperformance aren't artificially inflated."}
           </p>
+
+          {/* Derivation block — answers the recurring operator question
+              "how do the bp numbers actually come about?". WHT only ever
+              touches the dividend / coupon stream (capital gains aren't
+              withheld at source under any major treaty), so the formula
+              is mechanically just dividend yield × residual WHT rate.
+              We show the derivation per bucket so the operator can
+              sanity-check or override the assumption against current
+              published yields. The numbers in this table MUST stay
+              consistent with WHT_DRAG in src/lib/metrics.ts — they were
+              generated from those exact constants. */}
+          <div
+            className="rounded-md border border-border bg-muted/20 p-3 space-y-3"
+            data-testid="wht-derivation-block"
+          >
+            <div className="flex items-center gap-2">
+              <Coins className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-semibold">
+                {de ? "Wie der Drag berechnet wird" : "How the drag is computed"}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {de
+                ? <>Quellensteuer trifft <span className="font-semibold text-foreground">nur Dividenden</span> (bzw. Coupons), nicht Kursgewinne — Capital Gains werden in keinem Major-Treaty an der Quelle besteuert. Die jährliche Belastung ist deshalb mechanisch:</>
+                : <>Withholding tax only ever touches <span className="font-semibold text-foreground">dividends</span> (or coupons), not capital gains — no major treaty withholds capital gains at source. The annual drag is therefore mechanically:</>}
+            </p>
+            <Formula
+              label={de ? "Drag pro Anlageklasse (p.a.)" : "Drag per asset class (p.a.)"}
+              expr="drag = WHT-rate (after treaty) × dividend yield"
+            />
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {de
+                ? "Konkrete Herleitung pro Bucket — die WHT-Sätze sind die Residual-Sätze, die ein IE-domizilierter UCITS-ETF nach Anwendung des günstigsten Doppelbesteuerungs-Treaty noch trägt; die Yields sind langfristige Index-Annahmen:"
+                : "Concrete derivation per bucket — WHT rates are the residual rates an IE-domiciled UCITS ETF still carries after applying the most favourable double-taxation treaty; yields are long-run index assumptions:"}
+            </p>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[180px]">{de ? "Anlageklasse" : "Asset class"}</TableHead>
+                    <TableHead className="text-right">{de ? "Div-Yield (Annahme)" : "Div yield (assumed)"}</TableHead>
+                    <TableHead className="text-right">{de ? "WHT-Satz nach Treaty" : "WHT rate after treaty"}</TableHead>
+                    <TableHead className="text-right font-semibold">{de ? "Drag p.a." : "Drag p.a."}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="text-xs font-mono">
+                  <TableRow>
+                    <TableCell className="font-semibold">US Equity</TableCell>
+                    <TableCell className="text-right">2.00%</TableCell>
+                    <TableCell className="text-right">15%</TableCell>
+                    <TableCell className="text-right font-semibold">30 bps</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-semibold">EM Equity</TableCell>
+                    <TableCell className="text-right">~2.5%</TableCell>
+                    <TableCell className="text-right">~20% {de ? "(gemischt)" : "(blended)"}</TableCell>
+                    <TableCell className="text-right font-semibold">40 bps</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-semibold">EU / UK / JP / Thematic</TableCell>
+                    <TableCell className="text-right">~2.0%</TableCell>
+                    <TableCell className="text-right">~10% {de ? "(blended Treaty)" : "(blended treaty)"}</TableCell>
+                    <TableCell className="text-right font-semibold">20 bps</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-semibold">CH Equity (non-CHF resident)</TableCell>
+                    <TableCell className="text-right">~3.0%</TableCell>
+                    <TableCell className="text-right">~7% {de ? "(Treaty-Residual)" : "(treaty residual)"}</TableCell>
+                    <TableCell className="text-right font-semibold">20 bps</TableCell>
+                  </TableRow>
+                  <TableRow className="bg-muted/40">
+                    <TableCell className="font-semibold">CH Equity (CHF resident)</TableCell>
+                    <TableCell className="text-right">~3.0%</TableCell>
+                    <TableCell className="text-right font-semibold">0% {de ? "— voll rückforderbar" : "— fully reclaimable"}</TableCell>
+                    <TableCell className="text-right font-semibold">0 bps</TableCell>
+                  </TableRow>
+                  <TableRow className="bg-emerald-50/60 dark:bg-emerald-950/20">
+                    <TableCell className="font-semibold">US Equity (synthetic ETF)</TableCell>
+                    <TableCell className="text-right">2.00%</TableCell>
+                    <TableCell className="text-right font-semibold">0% {de ? "— Swap umgeht WHT" : "— swap bypasses WHT"}</TableCell>
+                    <TableCell className="text-right font-semibold">0 bps</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-semibold">Bonds / Cash</TableCell>
+                    <TableCell className="text-right">{de ? "Coupon" : "coupon"}</TableCell>
+                    <TableCell className="text-right">0% {de ? "(Major-Treaties)" : "(major treaties)"}</TableCell>
+                    <TableCell className="text-right font-semibold">0 bps</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-semibold">Gold / REITs / Crypto</TableCell>
+                    <TableCell className="text-right">—</TableCell>
+                    <TableCell className="text-right">—</TableCell>
+                    <TableCell className="text-right font-semibold">0 bps</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              {de
+                ? <><span className="font-semibold text-foreground">Hinweis zur Statik:</span> Die Drag-Werte sind als Konstanten in <span className="font-mono">WHT_DRAG</span> (src/lib/metrics.ts) hinterlegt — sie ziehen NICHT live mit den tagesaktuellen Dividenden-Renditen mit. Begründung: die annualisierte Yield einer Indexregion bewegt sich über Quartale nur in der Größenordnung von 20–50 bps, während die Streuung zwischen LTCMA-Anbietern beim Yield-Input deutlich größer ist. Eine Live-Berechnung würde Genauigkeit nur vortäuschen.</>
+                : <><span className="font-semibold text-foreground">Static-by-design:</span> drag values live as constants in <span className="font-mono">WHT_DRAG</span> (src/lib/metrics.ts) — they do NOT track today's published dividend yields in real time. Rationale: an index region's annualised yield moves only ~20–50 bps quarter-on-quarter, while LTCMA-provider dispersion on the yield input is materially larger. A "live" recompute would be false precision.</>}
+            </p>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              {de
+                ? <><span className="font-semibold text-foreground">Bewusste Vereinfachungen:</span> Globale REITs würden in der Praxis ~50 bps Drag tragen (15 % WHT auf ~3.5 % Yield), sind im Modell aber als 0 bps vereinfacht — Bucket ist klein, Effekt &lt; 5 bps auf Portfolio-Ebene. High-Yield-Corporate-Bonds in einzelnen Jurisdiktionen wären streng genommen leicht zu optimistisch mit 0 bps; Major-Treaty-Coverage trägt das Modell aber sauber.</>
+                : <><span className="font-semibold text-foreground">Deliberate simplifications:</span> global REITs would in practice carry ~50 bps drag (15 % WHT on ~3.5 % yield) but are simplified to 0 bps — bucket is small, portfolio-level effect &lt; 5 bps. High-yield corporates in single jurisdictions would strictly be slightly optimistic at 0 bps; major-treaty coverage carries the model cleanly.</>}
+            </p>
+          </div>
+
           <div className="rounded-md border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-950/20 p-3 text-xs space-y-2">
             <p className="font-semibold">{de ? "Synthetik-Carve-Out (v1.5):" : "Synthetic-replication carve-out (v1.5):"}</p>
             <p className="text-muted-foreground">
