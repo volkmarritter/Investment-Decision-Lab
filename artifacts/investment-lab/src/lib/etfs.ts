@@ -268,6 +268,22 @@ const CATALOG: Record<string, ETFRecord> = {
       "FTSE 100 large-cap UK equity used as the GBP home-bias core sleeve; very low TER and deep LSE liquidity.",
     listings: { LSE: { ticker: "CUKX" } },
     defaultExchange: "LSE",
+    alternatives: [
+      {
+        name: "Vanguard FTSE 100 UCITS ETF (GBP) Distributing",
+        isin: "IE00B810Q511",
+        terBps: 9,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Distributing",
+        currency: "GBP",
+        comment: "Vanguard FTSE 100 — alternative provider, same index.",
+        listings: { "LSE": { ticker: "VUKE" }, "XETRA": { ticker: "VUKE" } },
+        defaultExchange: "LSE",
+        aumMillionsEUR: 5085,
+        inceptionDate: "2012-05-22",
+      },
+    ],
   }),
   "Equity-Japan": E({
     name: "iShares Core MSCI Japan IMI UCITS",
