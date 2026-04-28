@@ -767,6 +767,21 @@ const CATALOG: Record<string, ETFRecord> = {
         aumMillionsEUR: 2236,
         inceptionDate: "2015-09-28",
       },
+
+      {
+        name: "WisdomTree Cybersecurity UCITS ETF USD Acc",
+        isin: "IE00BLPK3577",
+        terBps: 45,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment: "WisdomTree Cybersecurity — newer cybersec alternative.",
+        listings: { "LSE": { ticker: "WCBR" }, "XETRA": { ticker: "W1TB" } },
+        defaultExchange: "LSE",
+        aumMillionsEUR: 312,
+        inceptionDate: "2021-01-25",
+      },
     ],
   }),
 };
