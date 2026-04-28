@@ -4,7 +4,7 @@ import { defaultExchangeFor, DEFAULT_EXCHANGE_FOR_CURRENCY } from "../src/lib/ex
 import { runValidation } from "../src/lib/validation";
 import { PortfolioInput, BaseCurrency, RiskAppetite } from "../src/lib/types";
 import { profileFor, buildLookthrough } from "../src/lib/lookthrough";
-import { getETFDetails } from "../src/lib/etfs";
+import { getETFDetails, getCatalogEntry } from "../src/lib/etfs";
 import { runStressTest, runReverseStressTest, SCENARIOS } from "../src/lib/scenarios";
 import { estimateFees, getETFTer } from "../src/lib/fees";
 import { buildAiPrompt } from "../src/lib/aiPrompt";
@@ -404,7 +404,9 @@ describe("getETFDetails — share-class selection", () => {
       "USA",
       baseInput({ baseCurrency: "EUR", includeCurrencyHedging: true, preferredExchange: "XETRA" })
     );
-    expect(d.isin).toBe("IE00B3ZW0K18");
+    // Read the expected ISIN from the live catalog so this test stays
+    // green if a curator swaps the default for the Equity-USA-EUR bucket.
+    expect(d.isin).toBe(getCatalogEntry("Equity-USA-EUR")!.isin);
     expect(d.currency).toBe("EUR");
   });
 
@@ -414,7 +416,7 @@ describe("getETFDetails — share-class selection", () => {
       "USA",
       baseInput({ baseCurrency: "GBP", includeCurrencyHedging: true, preferredExchange: "LSE" })
     );
-    expect(d.isin).toBe("IE00BYX5MS15");
+    expect(d.isin).toBe(getCatalogEntry("Equity-USA-GBP")!.isin);
   });
 
   it("synthetic + USD base picks the synthetic S&P 500 (IE00B3YCGJ38)", () => {
@@ -423,7 +425,7 @@ describe("getETFDetails — share-class selection", () => {
       "USA",
       baseInput({ baseCurrency: "USD", includeSyntheticETFs: true })
     );
-    expect(d.isin).toBe("IE00B3YCGJ38");
+    expect(d.isin).toBe(getCatalogEntry("Equity-USA-Synthetic")!.isin);
     expect(d.replication).toBe("Synthetic");
   });
 
@@ -444,12 +446,12 @@ describe("getETFDetails — share-class selection", () => {
 
   it("USD base + no hedging + no synthetic picks the physical CSPX (IE00B5BMR087)", () => {
     const d = getETFDetails("Equity", "USA", baseInput({ baseCurrency: "USD" }));
-    expect(d.isin).toBe("IE00B5BMR087");
+    expect(d.isin).toBe(getCatalogEntry("Equity-USA")!.isin);
   });
 
   it("Switzerland always selects the SPI ETF on SIX", () => {
     const d = getETFDetails("Equity", "Switzerland", baseInput({ baseCurrency: "CHF" }));
-    expect(d.isin).toBe("CH0237935652");
+    expect(d.isin).toBe(getCatalogEntry("Equity-Switzerland")!.isin);
     expect(d.exchange).toBe("SIX");
   });
 
@@ -459,7 +461,7 @@ describe("getETFDetails — share-class selection", () => {
       "Global",
       baseInput({ baseCurrency: "CHF", includeCurrencyHedging: true, preferredExchange: "SIX" })
     );
-    expect(d.isin).toBe("IE00BDBRDN42");
+    expect(d.isin).toBe(getCatalogEntry("FixedIncome-Global-CHF")!.isin);
   });
 
   it("Fixed Income picks the unhedged global aggregate when no hedging", () => {
@@ -468,7 +470,7 @@ describe("getETFDetails — share-class selection", () => {
       "Global",
       baseInput({ baseCurrency: "USD", includeCurrencyHedging: false })
     );
-    expect(d.isin).toBe("IE00B3F81409");
+    expect(d.isin).toBe(getCatalogEntry("FixedIncome-Global")!.isin);
   });
 
   it("preferredExchange=XETRA returns the XETRA ticker for an S&P 500 ETF", () => {
@@ -497,16 +499,16 @@ describe("getETFDetails — share-class selection", () => {
       "Technology",
       baseInput({ thematicPreference: "Technology" })
     );
-    expect(d.isin).toBe("IE00B3WJKG14");
+    expect(d.isin).toBe(getCatalogEntry("Equity-Technology")!.isin);
   });
 
   it("Real Estate, Commodities and Digital Assets all resolve to a real ETF", () => {
     const re = getETFDetails("Real Estate", "Global REITs", baseInput());
     const co = getETFDetails("Commodities", "Gold", baseInput());
     const da = getETFDetails("Digital Assets", "Broad Crypto", baseInput());
-    expect(re.isin).toBe("IE00B1FZS350");
-    expect(co.isin).toBe("IE00B579F325");
-    expect(da.isin).toBe("GB00BLD4ZL17");
+    expect(re.isin).toBe(getCatalogEntry("RealEstate-GlobalREITs")!.isin);
+    expect(co.isin).toBe(getCatalogEntry("Commodities-Gold")!.isin);
+    expect(da.isin).toBe(getCatalogEntry("DigitalAssets-BroadCrypto")!.isin);
   });
 });
 
@@ -670,7 +672,7 @@ describe("equity-region construction (principled, not fixed)", () => {
     // — i.e. UK gets its own ETF implementation row, not a roll-up into Europe.
     const gbpUkEtf = gbp.etfImplementation.find((e) => e.bucket === "Equity - UK");
     expect(gbpUkEtf).toBeDefined();
-    expect(gbpUkEtf!.isin).toBe("IE00B53HP851");
+    expect(gbpUkEtf!.isin).toBe(getCatalogEntry("Equity-UK")!.isin);
   });
 });
 
