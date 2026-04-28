@@ -547,6 +547,22 @@ const CATALOG: Record<string, ETFRecord> = {
     comment: "Global cybersecurity and digital-security theme; smaller AUM, wider spreads possible.",
     listings: { LSE: { ticker: "LOCK" }, XETRA: { ticker: "2B7K" }, Euronext: { ticker: "LOCK" } },
     defaultExchange: "LSE",
+    alternatives: [
+      {
+        name: "L&G Cyber Security UCITS ETF",
+        isin: "IE00BYPLS672",
+        terBps: 69,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment: "L&G Cyber Security — pure-play cybersecurity.",
+        listings: { "LSE": { ticker: "USPY" }, "XETRA": { ticker: "USPY" } },
+        defaultExchange: "LSE",
+        aumMillionsEUR: 2236,
+        inceptionDate: "2015-09-28",
+      },
+    ],
   }),
 };
 
