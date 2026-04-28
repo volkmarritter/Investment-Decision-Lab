@@ -1467,10 +1467,12 @@ function PendingPrsCard({
   prefix,
   refreshKey = 0,
   emptyHint,
+  title,
 }: {
   prefix: string;
   refreshKey?: number;
   emptyHint?: React.ReactNode;
+  title?: React.ReactNode;
 }) {
   const { t, lang } = useAdminT();
   const [prs, setPrs] = useState<OpenPrInfo[] | null>(null);
@@ -1515,10 +1517,11 @@ function PendingPrsCard({
         <div className="flex items-center gap-2">
           <GitPullRequest className="h-4 w-4 text-muted-foreground" />
           <span className="text-sm font-medium">
-            {t({
-              de: "Offene PRs (warten auf Merge)",
-              en: "Open PRs (awaiting merge)",
-            })}
+            {title ??
+              t({
+                de: "Offene PRs (warten auf Merge)",
+                en: "Open PRs (awaiting merge)",
+              })}
           </span>
           {prs && (
             <span className="text-xs text-muted-foreground">
@@ -4841,6 +4844,10 @@ function ConsolidatedEtfTreePanel({
           <PendingPrsCard
             prefix="add-alt/"
             refreshKey={prsRefreshKey}
+            title={t({
+              de: "Alternativen hinzufügen — offene PRs",
+              en: "Add alternatives — open PRs",
+            })}
             emptyHint={t({
               de: "Keine offenen Alt-Add-PRs.",
               en: "No open alt-add PRs.",
@@ -4849,6 +4856,10 @@ function ConsolidatedEtfTreePanel({
           <PendingPrsCard
             prefix="rm-alt/"
             refreshKey={prsRefreshKey}
+            title={t({
+              de: "Alternativen entfernen — offene PRs",
+              en: "Remove alternatives — open PRs",
+            })}
             emptyHint={t({
               de: "Keine offenen Alt-Remove-PRs.",
               en: "No open alt-remove PRs.",
@@ -4857,6 +4868,10 @@ function ConsolidatedEtfTreePanel({
           <PendingPrsCard
             prefix="add-lookthrough-pool/"
             refreshKey={prsRefreshKey}
+            title={t({
+              de: "Look-through-Pool — offene PRs",
+              en: "Look-through pool — open PRs",
+            })}
             emptyHint={t({
               de: "Keine offenen Pool-PRs.",
               en: "No open pool PRs.",
