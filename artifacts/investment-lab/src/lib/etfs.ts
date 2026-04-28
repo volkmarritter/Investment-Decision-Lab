@@ -1,6 +1,7 @@
 import { PortfolioInput } from "./types";
 import overridesFile from "@/data/etfs.overrides.json";
 import { getUserETFOverride } from "./etfOverrides";
+import { getETFSelection } from "./etfSelection";
 
 export interface ETFDetails {
   name: string;
@@ -17,6 +18,28 @@ export interface ETFDetails {
   // (scripts/refresh-justetf.mjs). Undefined when no refresh has run yet.
   aumMillionsEUR?: number;
   inceptionDate?: string; // ISO YYYY-MM-DD
+  // ----------------------------------------------------------------------
+  // Per-bucket ETF picker support. Surfaced from the engine so the UI can
+  // render a dropdown without re-doing the lookupKey() resolution.
+  // ----------------------------------------------------------------------
+  /** Catalog key the engine resolved to. Null when the bucket has no
+   *  catalog entry and a placeholder is returned. */
+  catalogKey: string | null;
+  /** Currently selected slot: 0 = default (the catalog entry itself),
+   *  1 = first alternative, 2 = second alternative. Always 0 when an
+   *  override is active or when no alternatives exist for this bucket. */
+  selectedSlot: 0 | 1 | 2;
+  /** Lightweight summary of the up-to-3 ETFs the user can pick between
+   *  for this bucket: index 0 is the curated default, indices 1+ are
+   *  alternatives. Empty when catalogKey is null OR when an override is
+   *  active (an override hides curated alternatives — once the user has
+   *  hand-replaced the bucket's ETF via the Methodology pane, the curated
+   *  alternatives panel no longer applies). */
+  selectableOptions: ReadonlyArray<{
+    name: string;
+    isin: string;
+    terBps: number;
+  }>;
 }
 
 export type ExchangeCode = "LSE" | "XETRA" | "SIX" | "Euronext";
@@ -37,6 +60,21 @@ export interface ETFRecord {
   // undefined; the override layer fills them once the script has run.
   aumMillionsEUR?: number;
   inceptionDate?: string; // ISO YYYY-MM-DD
+  // ----------------------------------------------------------------------
+  // Curated alternatives (per-bucket ETF picker).
+  // Each bucket exposes 1 default (this record itself) plus up to 2
+  // alternatives. The user picks one via the in-row dropdown on the Build
+  // tab; selection is persisted in localStorage (see lib/etfSelection.ts)
+  // and consulted by getETFDetails() on the next render. Constraints
+  // enforced by validateCatalog():
+  //   • alternatives.length ≤ 2
+  //   • all 1–3 ISINs within a bucket are distinct
+  //   • an ISIN used as an alternative is not used as default OR
+  //     alternative anywhere else in the catalog (uniqueness preserved
+  //     for the alternatives layer; pre-existing default-default ISIN
+  //     duplicates between hedged/synthetic variants are tolerated).
+  // ----------------------------------------------------------------------
+  alternatives?: ETFRecord[];
 }
 
 const E = (r: ETFRecord) => r;
@@ -55,6 +93,34 @@ const CATALOG: Record<string, ETFRecord> = {
       "Single-fund global equity (developed + emerging) tracking MSCI ACWI IMI; used when the ETF budget is too small for region-by-region splits.",
     listings: { LSE: { ticker: "SPYI" }, XETRA: { ticker: "SPYI" }, SIX: { ticker: "SPYI" }, Euronext: { ticker: "SPYI" } },
     defaultExchange: "LSE",
+    alternatives: [
+      {
+        name: "Vanguard FTSE All-World UCITS",
+        isin: "IE00BK5BQT80",
+        terBps: 22,
+        domicile: "Ireland",
+        replication: "Physical (sampled)",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment:
+          "Vanguard's flagship global equity fund: large/mid caps across developed + emerging markets, very deep liquidity on LSE/XETRA/SIX.",
+        listings: { LSE: { ticker: "VWRA" }, XETRA: { ticker: "VWCE" }, SIX: { ticker: "VWRL" }, Euronext: { ticker: "VWCE" } },
+        defaultExchange: "LSE",
+      },
+      {
+        name: "iShares MSCI ACWI UCITS",
+        isin: "IE00B6R52259",
+        terBps: 20,
+        domicile: "Ireland",
+        replication: "Physical (sampled)",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment:
+          "MSCI ACWI (developed + emerging large/mid caps); sister fund to SPYI but on the MSCI ACWI parent index rather than ACWI IMI (excludes small caps).",
+        listings: { LSE: { ticker: "SSAC" }, XETRA: { ticker: "IUSQ" }, SIX: { ticker: "SSAC" }, Euronext: { ticker: "SSAC" } },
+        defaultExchange: "LSE",
+      },
+    ],
   }),
   "Equity-USA": E({
     name: "iShares Core S&P 500 UCITS",
@@ -68,6 +134,34 @@ const CATALOG: Record<string, ETFRecord> = {
       "Largest, most liquid S&P 500 UCITS with very tight tracking and minimal bid-ask spreads.",
     listings: { LSE: { ticker: "CSPX" }, XETRA: { ticker: "SXR8" }, SIX: { ticker: "CSSPX" }, Euronext: { ticker: "CSPX" } },
     defaultExchange: "LSE",
+    alternatives: [
+      {
+        name: "Vanguard S&P 500 UCITS",
+        isin: "IE00BFMXXD54",
+        terBps: 7,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment:
+          "Vanguard's accumulating S&P 500 UCITS; same TER as iShares' CSPX, identical underlying basket — useful for diversifying issuer concentration.",
+        listings: { LSE: { ticker: "VUAA" }, XETRA: { ticker: "VUAA" }, SIX: { ticker: "VUAA" }, Euronext: { ticker: "VUAA" } },
+        defaultExchange: "LSE",
+      },
+      {
+        name: "SPDR S&P 500 UCITS",
+        isin: "IE00B6YX5C33",
+        terBps: 3,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Distributing",
+        currency: "USD",
+        comment:
+          "Lowest-TER S&P 500 UCITS in the catalog (3 bps); distributing share class — preferable when the investor wants regular dividend income rather than reinvestment.",
+        listings: { LSE: { ticker: "SPY5" }, XETRA: { ticker: "SPY5" }, Euronext: { ticker: "SPY5" } },
+        defaultExchange: "LSE",
+      },
+    ],
   }),
   "Equity-USA-Synthetic": E({
     name: "Invesco S&P 500 UCITS (Synthetic)",
@@ -94,6 +188,21 @@ const CATALOG: Record<string, ETFRecord> = {
       "Broad pan-European core exposure across UK, eurozone and Switzerland, with very low TER.",
     listings: { LSE: { ticker: "IMEU" }, XETRA: { ticker: "SXR7" }, SIX: { ticker: "CEU" }, Euronext: { ticker: "IMAE" } },
     defaultExchange: "XETRA",
+    alternatives: [
+      {
+        name: "Vanguard FTSE Developed Europe UCITS",
+        isin: "IE00B945VV12",
+        terBps: 10,
+        domicile: "Ireland",
+        replication: "Physical (sampled)",
+        distribution: "Accumulating",
+        currency: "EUR",
+        comment:
+          "FTSE Developed Europe (large/mid caps, includes UK and Switzerland); marginally lower TER than the iShares MSCI variant.",
+        listings: { LSE: { ticker: "VEUA" }, XETRA: { ticker: "VGEA" }, Euronext: { ticker: "VGEA" } },
+        defaultExchange: "XETRA",
+      },
+    ],
   }),
   "Equity-Switzerland": E({
     name: "iShares Core SPI",
@@ -146,6 +255,21 @@ const CATALOG: Record<string, ETFRecord> = {
       "Broadest emerging-markets ETF including small caps; sampled replication keeps tracking error low.",
     listings: { LSE: { ticker: "EIMI" }, XETRA: { ticker: "IS3N" }, SIX: { ticker: "EIMI" }, Euronext: { ticker: "EMIM" } },
     defaultExchange: "LSE",
+    alternatives: [
+      {
+        name: "Vanguard FTSE Emerging Markets UCITS",
+        isin: "IE00BK5BR733",
+        terBps: 22,
+        domicile: "Ireland",
+        replication: "Physical (sampled)",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment:
+          "Vanguard FTSE EM (large/mid caps; includes Korea — unlike MSCI EM); deeper venue spreads on LSE/XETRA.",
+        listings: { LSE: { ticker: "VFEA" }, XETRA: { ticker: "VFEA" }, Euronext: { ticker: "VFEA" } },
+        defaultExchange: "LSE",
+      },
+    ],
   }),
   // ---------- Equity (hedged variants) ----------
   "Equity-USA-EUR": E({
@@ -198,6 +322,21 @@ const CATALOG: Record<string, ETFRecord> = {
       "Diversified global investment-grade bond exposure; available in EUR, CHF and GBP hedged share classes.",
     listings: { LSE: { ticker: "AGGG" }, XETRA: { ticker: "EUNA" }, SIX: { ticker: "AGGH" }, Euronext: { ticker: "AGGG" } },
     defaultExchange: "LSE",
+    alternatives: [
+      {
+        name: "Xtrackers II Global Government Bond UCITS",
+        isin: "LU0378818131",
+        terBps: 25,
+        domicile: "Luxembourg",
+        replication: "Physical (sampled)",
+        distribution: "Distributing",
+        currency: "USD",
+        comment:
+          "Sovereign-only global bond aggregate (excludes corporates); higher TER than the iShares core but cleaner duration profile for defensive sleeves.",
+        listings: { LSE: { ticker: "XGGB" }, XETRA: { ticker: "DBZB" }, Euronext: { ticker: "XGGB" } },
+        defaultExchange: "XETRA",
+      },
+    ],
   }),
   "FixedIncome-Global-EUR": E({
     name: "iShares Global Aggregate Bond EUR Hedged",
@@ -248,6 +387,34 @@ const CATALOG: Record<string, ETFRecord> = {
       "Physically-backed gold ETC vaulted in London; very low TER and tight spreads vs spot.",
     listings: { LSE: { ticker: "SGLD" }, XETRA: { ticker: "8PSG" }, SIX: { ticker: "SGLD" }, Euronext: { ticker: "SGLD" } },
     defaultExchange: "LSE",
+    alternatives: [
+      {
+        name: "iShares Physical Gold ETC",
+        isin: "IE00B4ND3602",
+        terBps: 12,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment:
+          "iShares' physically-backed gold ETC, vaulted with JPMorgan in London; identical TER to Invesco SGLD, useful for issuer diversification.",
+        listings: { LSE: { ticker: "SGLN" }, XETRA: { ticker: "IGLN" }, SIX: { ticker: "SGLN" }, Euronext: { ticker: "SGLN" } },
+        defaultExchange: "LSE",
+      },
+      {
+        name: "WisdomTree Physical Gold",
+        isin: "JE00B1VS3770",
+        terBps: 39,
+        domicile: "Jersey",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment:
+          "Higher-TER but long-established physical gold ETP (Jersey-domiciled); bullion held with HSBC London — useful as a third issuer alongside Invesco/iShares.",
+        listings: { LSE: { ticker: "PHAU" }, XETRA: { ticker: "VZLD" }, SIX: { ticker: "PHAU" }, Euronext: { ticker: "PHAU" } },
+        defaultExchange: "LSE",
+      },
+    ],
   }),
   // ---------- Real Estate ----------
   "RealEstate-GlobalREITs": E({
@@ -428,7 +595,33 @@ function placeholder(assetClass: string, region: string): ETFDetails {
     distribution: "Accumulating",
     currency: "USD",
     comment: "Illustrative placeholder; replace with a concrete UCITS ETF before any real use.",
+    catalogKey: null,
+    selectedSlot: 0,
+    selectableOptions: [],
   };
+}
+
+// Resolve which curated record (default or alternative) to use for a bucket
+// based on the user's per-bucket selection. Slot 0 always returns the
+// curated default; slots 1/2 return alternatives[0]/alternatives[1] when
+// they exist, falling back to the default if the slot index points past
+// the available alternatives. Kept tiny so the hot path stays cheap.
+function resolveSelectedETF(curated: ETFRecord, slot: number): ETFRecord {
+  if (slot <= 0) return curated;
+  const alt = curated.alternatives?.[slot - 1];
+  return alt ?? curated;
+}
+
+// Clamp a stored slot to 0/1/2 and to what's actually available for the
+// bucket. Used both for resolution and for the `selectedSlot` field
+// surfaced to the UI so the dropdown highlights the right option even
+// when localStorage holds a stale value (e.g. user picked alt-2 of a
+// bucket whose alternatives list has since shrunk to 1).
+function clampSlot(stored: number, alternativesCount: number): 0 | 1 | 2 {
+  if (!Number.isFinite(stored) || stored <= 0) return 0;
+  const max = Math.min(2, alternativesCount);
+  if (stored >= max) return max as 0 | 1 | 2;
+  return stored as 1 | 2;
 }
 
 function pickListing(
@@ -531,10 +724,38 @@ export function getETFDetails(
 ): ETFDetails {
   const key = lookupKey(assetClass, region, input);
   if (!key) return placeholder(assetClass, region);
-  // User overrides take precedence over the curated catalog so the
-  // Methodology "swap ETF" flow flows through every downstream surface
-  // (recommendations, fee table, Monte-Carlo cost basis, etc.).
-  const rec = getUserETFOverride(key) ?? CATALOG[key];
+  // Resolution layers, highest precedence first:
+  //   1. User override (Methodology "swap ETF" pane)  → bypasses the
+  //      curated alternatives entirely; the override IS the answer.
+  //   2. Curated default + user-selected alternative slot (per-bucket
+  //      ETF picker on the Build tab; lib/etfSelection.ts).
+  //   3. Curated default (CATALOG[key]).
+  // Override fully replaces alternatives because it represents an
+  // explicit "use THIS specific ETF" decision; once active, surfacing
+  // alternative-picker UI would be confusing (the user wouldn't see
+  // their pinned override among the choices).
+  const override = getUserETFOverride(key);
+  const curated = CATALOG[key];
+  let rec: ETFRecord;
+  let selectedSlot: 0 | 1 | 2 = 0;
+  let selectableOptions: ETFDetails["selectableOptions"] = [];
+  if (override) {
+    rec = override;
+  } else {
+    const altCount = curated.alternatives?.length ?? 0;
+    selectedSlot = clampSlot(getETFSelection(key), altCount);
+    rec = resolveSelectedETF(curated, selectedSlot);
+    if (altCount > 0) {
+      selectableOptions = [
+        { name: curated.name, isin: curated.isin, terBps: curated.terBps },
+        ...curated.alternatives!.map((a) => ({
+          name: a.name,
+          isin: a.isin,
+          terBps: a.terBps,
+        })),
+      ];
+    }
+  }
   const { ticker, exchange } = pickListing(rec, input.preferredExchange);
   return {
     name: rec.name,
@@ -549,7 +770,95 @@ export function getETFDetails(
     comment: rec.comment,
     aumMillionsEUR: rec.aumMillionsEUR,
     inceptionDate: rec.inceptionDate,
+    catalogKey: key,
+    selectedSlot,
+    selectableOptions,
   };
+}
+
+// ----------------------------------------------------------------------------
+// validateCatalog()
+// ----------------------------------------------------------------------------
+// Deterministic structural integrity check for the curated catalog.
+// Asserts the per-bucket-ETF-picker invariants the operator demanded
+// when introducing the alternatives layer:
+//
+//   • Every CATALOG key has a default (the entry itself — guaranteed by
+//     construction since the key cannot exist without an ETFRecord).
+//   • alternatives.length ≤ 2 per bucket  (max 1 default + 2 alternatives).
+//   • Within a single bucket, all 1–3 ISINs are distinct (no duplicate
+//     "role" within a bucket).
+//   • An ISIN that appears in any bucket's alternatives list does NOT
+//     appear as a default ISIN of another bucket, nor as an alternative
+//     ISIN of any other bucket. ("Jeder ETF zur Auswahl benötigt eine
+//     eindeutige Bucket-Zuordnung.")
+//
+// Pre-existing default-only ISIN duplicates between hedged variant keys
+// (e.g. Equity-USA-EUR and Equity-USA-CHF historically share an ISIN)
+// are tolerated — they're not part of the alternatives layer and the
+// validation rule is scoped to the new picker concept.
+//
+// Wired into a vitest unit test — failures cause CI to refuse the build.
+// ----------------------------------------------------------------------------
+export interface CatalogValidationIssue {
+  severity: "error";
+  bucket: string;
+  message: string;
+}
+
+export function validateCatalog(): CatalogValidationIssue[] {
+  const issues: CatalogValidationIssue[] = [];
+  // First pass: per-bucket invariants (size cap + intra-bucket ISIN
+  // uniqueness). Collect alternative ISINs and their owning bucket for
+  // the cross-bucket pass.
+  const altOwnership = new Map<string, string>(); // alt-ISIN → owning bucket key
+  for (const [key, rec] of Object.entries(CATALOG)) {
+    const alts = rec.alternatives ?? [];
+    if (alts.length > 2) {
+      issues.push({
+        severity: "error",
+        bucket: key,
+        message: `bucket has ${alts.length} alternatives; max is 2 (1 default + 2 alternatives = 3 ETFs total)`,
+      });
+    }
+    const seenInBucket = new Set<string>([rec.isin]);
+    for (const alt of alts) {
+      if (seenInBucket.has(alt.isin)) {
+        issues.push({
+          severity: "error",
+          bucket: key,
+          message: `duplicate ISIN ${alt.isin} within bucket — every ETF slot in a bucket must have a distinct ISIN`,
+        });
+      } else {
+        seenInBucket.add(alt.isin);
+      }
+      const prevOwner = altOwnership.get(alt.isin);
+      if (prevOwner && prevOwner !== key) {
+        issues.push({
+          severity: "error",
+          bucket: key,
+          message: `alternative ISIN ${alt.isin} is also used as an alternative in bucket "${prevOwner}" — alternatives must have a unique bucket assignment`,
+        });
+      } else {
+        altOwnership.set(alt.isin, key);
+      }
+    }
+  }
+  // Second pass: alternative ISIN must not collide with any bucket's
+  // default ISIN (the alternatives layer must be strictly distinct from
+  // the defaults universe).
+  for (const [altIsin, owningBucket] of altOwnership.entries()) {
+    for (const [otherKey, otherRec] of Object.entries(CATALOG)) {
+      if (otherRec.isin === altIsin) {
+        issues.push({
+          severity: "error",
+          bucket: owningBucket,
+          message: `alternative ISIN ${altIsin} also serves as the default ISIN of bucket "${otherKey}" — alternatives must not shadow another bucket's default`,
+        });
+      }
+    }
+  }
+  return issues;
 }
 
 // Backwards-compat helper still used elsewhere (e.g. fee/Monte-Carlo flows that look up by name)

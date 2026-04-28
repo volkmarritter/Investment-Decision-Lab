@@ -60,6 +60,19 @@ export interface ETFImplementation {
    *  the same bucket. Cash is excluded from the implementation table, so the
    *  flag is meaningful only for non-Cash rows. */
   isManualOverride?: boolean;
+  // ----------------------------------------------------------------------
+  // Per-bucket ETF picker plumbing. Surfaced from the engine so the
+  // BuildPortfolio table can render a dropdown without reaching back
+  // into getETFDetails(). Mirrors the same-named fields on ETFDetails;
+  // see lib/etfs.ts for semantics.
+  // ----------------------------------------------------------------------
+  catalogKey: string | null;
+  selectedSlot: 0 | 1 | 2;
+  selectableOptions: ReadonlyArray<{
+    name: string;
+    isin: string;
+    terBps: number;
+  }>;
 }
 
 export interface PortfolioOutput {

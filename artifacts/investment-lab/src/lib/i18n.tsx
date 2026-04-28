@@ -389,6 +389,10 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "build.impl.manual.warnSaturated": "Manual weights sum to {sum}%, which is above 100%. Pinned rows have been scaled down proportionally and the remaining rows are zeroed.",
     "build.impl.manual.warnStale": "{n} stored override(s) do not match any current bucket; they were preserved and will re-apply if the bucket reappears.",
     "build.impl.manual.help": "Type a percentage and press Enter or Tab. Pinned rows stay constant when settings change; remaining rows redistribute proportionally so the total is 100%.",
+    "build.impl.picker.label": "Pick ETF for this bucket",
+    "build.impl.picker.default": "Default",
+    "build.impl.picker.alt": "Alternative",
+    "build.impl.picker.terSuffix": "TER",
 
     // Monte Carlo
     "mc.title": "Monte Carlo Simulation",
@@ -861,6 +865,10 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "build.impl.manual.warnSaturated": "Manuelle Gewichte summieren sich auf {sum}% (über 100%). Fixierte Zeilen wurden proportional skaliert und die übrigen Zeilen auf 0% gesetzt.",
     "build.impl.manual.warnStale": "{n} gespeicherte Override(s) passen zu keinem aktuellen Bucket; sie bleiben erhalten und greifen wieder, sobald der Bucket erneut erscheint.",
     "build.impl.manual.help": "Prozentzahl eingeben und Enter oder Tab drücken. Fixierte Zeilen bleiben bei Einstellungsänderungen konstant; übrige Zeilen werden proportional umverteilt, sodass die Summe 100% ergibt.",
+    "build.impl.picker.label": "ETF für diesen Bucket auswählen",
+    "build.impl.picker.default": "Standard",
+    "build.impl.picker.alt": "Alternative",
+    "build.impl.picker.terSuffix": "TER",
 
     // Monte Carlo
     "mc.title": "Monte-Carlo-Simulation",

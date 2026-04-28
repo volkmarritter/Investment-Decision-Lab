@@ -12,6 +12,11 @@ import {
   MANUAL_WEIGHTS_SUM_EPSILON,
   type ManualWeights,
 } from "@/lib/manualWeights";
+import {
+  setETFSelection,
+  subscribeETFSelections,
+  type ETFSlot,
+} from "@/lib/etfSelection";
 import { buildAiPrompt } from "@/lib/aiPrompt";
 import { AllocationGroupSummary } from "./AllocationGroupSummary";
 import { toast } from "sonner";
@@ -142,6 +147,18 @@ export function BuildPortfolio() {
   const [manualWeights, setManualWeightsState] = useState<ManualWeights>(() => loadManualWeights());
   useEffect(() => subscribeManualWeights(setManualWeightsState), []);
 
+  // Per-bucket ETF selection (default vs. curated alternative). Storage
+  // lives in lib/etfSelection.ts; we don't keep a local copy because
+  // getETFDetails() reads it directly during buildPortfolio(). The
+  // monotonically-increasing tick below is a dep of the rebuild effect
+  // below — incrementing it on every selection change is what forces
+  // buildPortfolio() to re-run and pick up the new slot.
+  const [etfSelectionTick, bumpEtfSelectionTick] = useState(0);
+  useEffect(
+    () => subscribeETFSelections(() => bumpEtfSelectionTick((n) => n + 1)),
+    [],
+  );
+
   useEffect(() => {
     if (hasGenerated && output) {
       const parsedData = form.getValues();
@@ -151,7 +168,7 @@ export function BuildPortfolio() {
       // publishes setLastAllocation, so we don't need to publish here too.
       setOutput(next);
     }
-  }, [lang, manualWeights]);
+  }, [lang, manualWeights, etfSelectionTick]);
 
   // Single source of truth for cross-tab publishing: whenever `output`
   // changes (built, rebuilt, cleared on reset, or cleared on validation
@@ -1125,7 +1142,53 @@ export function BuildPortfolio() {
                                   editTitle={t("build.impl.manual.editTitle")}
                                 />
                               </TableCell>
-                              <TableCell className="font-medium">{etf.exampleETF}</TableCell>
+                              <TableCell className="font-medium">
+                                {etf.catalogKey && etf.selectableOptions.length > 1 ? (
+                                  <Select
+                                    value={String(etf.selectedSlot)}
+                                    onValueChange={(v) =>
+                                      setETFSelection(etf.catalogKey!, Number(v) as ETFSlot)
+                                    }
+                                  >
+                                    <SelectTrigger
+                                      className="h-7 px-2 text-xs gap-1.5 w-auto min-w-[180px] max-w-[280px] font-medium border-dashed hover:border-solid focus:border-solid"
+                                      data-testid={`etf-picker-${etf.bucket}`}
+                                      title={t("build.impl.picker.label")}
+                                      aria-label={`${t("build.impl.picker.label")} — ${etf.bucket}`}
+                                    >
+                                      <SelectValue>{etf.exampleETF}</SelectValue>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {etf.selectableOptions.map((opt, idx) => (
+                                        <SelectItem
+                                          key={`${etf.catalogKey}-${idx}`}
+                                          value={String(idx)}
+                                          data-testid={`etf-picker-option-${etf.bucket}-${idx}`}
+                                        >
+                                          <div className="flex flex-col gap-0.5 min-w-0">
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                              <span className="font-medium text-xs">{opt.name}</span>
+                                              <Badge
+                                                variant={idx === 0 ? "secondary" : "outline"}
+                                                className="text-[9px] px-1.5 py-0 h-4 shrink-0"
+                                              >
+                                                {idx === 0
+                                                  ? t("build.impl.picker.default")
+                                                  : `${t("build.impl.picker.alt")} ${idx}`}
+                                              </Badge>
+                                            </div>
+                                            <span className="text-[10px] text-muted-foreground font-mono">
+                                              {opt.isin} · {(opt.terBps / 100).toFixed(2)}% {t("build.impl.picker.terSuffix")}
+                                            </span>
+                                          </div>
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  etf.exampleETF
+                                )}
+                              </TableCell>
                               <TableCell className="font-mono whitespace-nowrap p-0">
                                 <button
                                   type="button"

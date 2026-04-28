@@ -366,6 +366,9 @@ export function buildPortfolio(
       distribution: d.distribution,
       currency: d.currency,
       comment: d.comment,
+      catalogKey: d.catalogKey,
+      selectedSlot: d.selectedSlot,
+      selectableOptions: d.selectableOptions,
     });
   }
 
