@@ -2060,6 +2060,80 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BYPLS672",
       "_addedAt": "2026-04-28T14:14:00.455Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
+    },
+    "IE00BM67HK77": {
+      "name": "Xtrackers MSCI World Health Care UCITS ETF 1C",
+      "topHoldings": [
+        {
+          "name": "Eli Lilly & Co.",
+          "pct": 9.41
+        },
+        {
+          "name": "Johnson & Johnson",
+          "pct": 7.72
+        },
+        {
+          "name": "AbbVie, Inc.",
+          "pct": 4.98
+        },
+        {
+          "name": "AstraZeneca PLC",
+          "pct": 3.98
+        },
+        {
+          "name": "Merck & Co., Inc.",
+          "pct": 3.88
+        },
+        {
+          "name": "Novartis AG",
+          "pct": 3.77
+        },
+        {
+          "name": "Roche Holding AG",
+          "pct": 3.65
+        },
+        {
+          "name": "UnitedHealth Group",
+          "pct": 3.14
+        },
+        {
+          "name": "Amgen, Inc.",
+          "pct": 2.48
+        },
+        {
+          "name": "Thermo Fisher Scientific",
+          "pct": 2.39
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-28T14:14:22.747Z",
+      "geo": {
+        "United States": 67.78,
+        "United Kingdom": 6.2,
+        "Switzerland": 5.31,
+        "Japan": 4.06,
+        "France": 2.49,
+        "Ireland": 1.74,
+        "Germany": 1.47,
+        "Other": 10.95
+      },
+      "sector": {
+        "Health Care": 90.93,
+        "Consumer Discretionary": 0.9,
+        "Consumer Staples": 0.58,
+        "Other": 7.59
+      },
+      "currency": {
+        "USD": 67.78,
+        "GBP": 6.2,
+        "CHF": 5.31,
+        "JPY": 4.06,
+        "EUR": 5.7,
+        "Other": 10.95
+      },
+      "breakdownsAsOf": "2026-04-28T14:14:22.747Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BM67HK77",
+      "_addedAt": "2026-04-28T14:14:22.747Z",
+      "_addedVia": "admin/bucket-alternatives (auto)"
     }
   }
 }
