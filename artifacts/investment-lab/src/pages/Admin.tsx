@@ -5918,6 +5918,123 @@ function newBatchRow(): BatchRow {
   };
 }
 
+// Local-only diagnostic for a batch row. Mirrors the subset of
+// BulkAltRowStatus the client can decide WITHOUT scraping (i.e. from
+// the catalog already in memory). The server runs the same checks
+// authoritatively on Preview/Submit; this is a UX shortcut so the
+// operator doesn't burn a 10-second scrape pass to learn that two of
+// their four ISINs hit the bucket cap (Task #53).
+type BatchLocalDiagnostic =
+  | { kind: "incomplete" } // parentKey or ISIN not entered yet
+  | { kind: "loading" } // catalog still fetching
+  | { kind: "ok" }
+  | {
+      kind: "problem";
+      status:
+        | "invalid_parent_key"
+        | "invalid_isin"
+        | "parent_missing"
+        | "duplicate_isin"
+        | "cap_exceeded";
+      message: string;
+      conflict?: string;
+    };
+
+// Mirrors the preflight inside artifacts/api-server/src/routes/admin.ts
+// (bulk-bucket-alternatives handler). Run in source order so intra-batch
+// dedup + cap-counting matches the server: an earlier row that grabs
+// the last alternative slot in "Equity-USA" must cause the next row
+// targeting the same bucket to flag cap_exceeded immediately, not on
+// the round-trip.
+function diagnoseBatchRows(
+  rows: BatchRow[],
+  catalog: CatalogSummary | null,
+): Map<string, BatchLocalDiagnostic> {
+  const out = new Map<string, BatchLocalDiagnostic>();
+  if (!catalog) {
+    for (const r of rows) {
+      const parentKey = r.parentKey.trim();
+      const isin = r.isin.trim();
+      out.set(
+        r.uid,
+        !parentKey || !isin ? { kind: "incomplete" } : { kind: "loading" },
+      );
+    }
+    return out;
+  }
+  // Seed with everything currently in the catalog: every default ISIN +
+  // every existing alternative.
+  const usedIsins = new Map<string, string>(); // ISIN → "<parentKey>" or "<parentKey> alt N"
+  const bucketAltCount = new Map<string, number>();
+  for (const [k, e] of Object.entries(catalog)) {
+    if (e.isin) usedIsins.set(e.isin.toUpperCase(), k);
+    const alts = e.alternatives ?? [];
+    for (let i = 0; i < alts.length; i++) {
+      if (alts[i].isin)
+        usedIsins.set(alts[i].isin.toUpperCase(), `${k} alt ${i + 1}`);
+    }
+    bucketAltCount.set(k, alts.length);
+  }
+  for (const r of rows) {
+    const parentKey = r.parentKey.trim();
+    const isinRaw = r.isin.trim();
+    const isin = isinRaw.toUpperCase();
+    if (!parentKey || !isin) {
+      out.set(r.uid, { kind: "incomplete" });
+      continue;
+    }
+    if (!/^[A-Z][A-Za-z0-9-]{2,40}$/.test(parentKey)) {
+      out.set(r.uid, {
+        kind: "problem",
+        status: "invalid_parent_key",
+        message: `parentKey "${parentKey}" doesn't match the catalog key format.`,
+      });
+      continue;
+    }
+    if (!/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(isin)) {
+      out.set(r.uid, {
+        kind: "problem",
+        status: "invalid_isin",
+        message: `ISIN "${isinRaw}" is not a valid ISO 6166 code.`,
+      });
+      continue;
+    }
+    if (!catalog[parentKey]) {
+      out.set(r.uid, {
+        kind: "problem",
+        status: "parent_missing",
+        message: `Parent bucket "${parentKey}" does not exist in the catalog.`,
+      });
+      continue;
+    }
+    const conflict = usedIsins.get(isin);
+    if (conflict) {
+      out.set(r.uid, {
+        kind: "problem",
+        status: "duplicate_isin",
+        message: `ISIN ${isin} is already used by "${conflict}".`,
+        conflict,
+      });
+      continue;
+    }
+    if ((bucketAltCount.get(parentKey) ?? 0) >= 2) {
+      out.set(r.uid, {
+        kind: "problem",
+        status: "cap_exceeded",
+        message: `"${parentKey}" already has 2 alternatives (counting earlier rows in this batch).`,
+      });
+      continue;
+    }
+    // Row passes all client-decidable gates — accumulate intra-batch
+    // state so subsequent rows targeting the same bucket / ISIN see
+    // it as taken.
+    usedIsins.set(isin, `${parentKey} (this batch)`);
+    bucketAltCount.set(parentKey, (bucketAltCount.get(parentKey) ?? 0) + 1);
+    out.set(r.uid, { kind: "ok" });
+  }
+  return out;
+}
+
 function BatchAddAlternativesPanel({
   githubConfigured,
 }: {
@@ -5940,6 +6057,39 @@ function BatchAddAlternativesPanel({
   // PendingPrsCard refetches and shows the new PR without the operator
   // hitting reload.
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // Catalog with curated alternatives populated — drives the live
+  // per-row "duplicate" / "cap full" / "parent missing" badges below
+  // (Task #53). We deliberately fetch our own copy rather than threading
+  // it from ConsolidatedEtfTreePanel: that panel mutates its catalog
+  // reference on every per-row attach/remove, and binding to it would
+  // make the batch panel re-render constantly during unrelated work.
+  // Re-fetched after a successful submit so any newly-merged PR shows
+  // up in the next preflight pass.
+  const [catalog, setCatalog] = useState<CatalogSummary | null>(null);
+  // `unavailable` flips true when the fetch errors. We keep the panel
+  // usable in that case (server still runs the authoritative preflight
+  // on Preview/Submit) but swap the per-row "Checking catalog…" label
+  // for an honest "Catalog unavailable" state so the operator doesn't
+  // wait forever on a spinner that will never resolve.
+  const [catalogUnavailable, setCatalogUnavailable] = useState(false);
+  useEffect(() => {
+    let cancelled = false;
+    setCatalogUnavailable(false);
+    void adminApi.bucketAlternatives().then(
+      (r) => {
+        if (cancelled) return;
+        setCatalog(r.entries);
+      },
+      () => {
+        if (cancelled) return;
+        setCatalogUnavailable(true);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshKey]);
 
   function update(uid: string, patch: Partial<BatchRow>) {
     setRows((rs) => rs.map((r) => (r.uid === uid ? { ...r, ...patch } : r)));
@@ -6031,6 +6181,21 @@ function BatchAddAlternativesPanel({
     (r) => r.parentKey.trim() && r.isin.trim(),
   ).length;
 
+  // Live per-row diagnostics (Task #53). Recomputed on every keystroke
+  // so the operator gets instant feedback once parentKey + ISIN are
+  // both entered. `problemCount` drives the Preview / Submit gating
+  // below — we refuse to round-trip rows the catalog can already reject.
+  const diagnostics = useMemo(
+    () => diagnoseBatchRows(rows, catalog),
+    [rows, catalog],
+  );
+  const problemCount = useMemo(() => {
+    let n = 0;
+    for (const d of diagnostics.values()) if (d.kind === "problem") n++;
+    return n;
+  }, [diagnostics]);
+  const hasLocalProblem = problemCount > 0;
+
   return (
     <Card>
       <CardHeader className="space-y-1 pb-3">
@@ -6107,6 +6272,63 @@ function BatchAddAlternativesPanel({
                       placeholder="IE00B5BMR087"
                       className="h-8 font-mono"
                     />
+                    {(() => {
+                      // Live per-row badge driven by the in-memory
+                      // catalog. We render the same colour palette
+                      // batchRowBadgeClass uses for the post-Preview
+                      // table so the operator sees a consistent
+                      // signal before AND after the round-trip.
+                      const d = diagnostics.get(r.uid);
+                      if (!d || d.kind === "incomplete") return null;
+                      if (d.kind === "loading") {
+                        return (
+                          <div className="mt-1 text-[10px] text-muted-foreground">
+                            {catalogUnavailable
+                              ? t({
+                                  de: "Katalog nicht verfügbar — Vorschau prüft serverseitig.",
+                                  en: "Catalog unavailable — server-side preview will validate.",
+                                })
+                              : t({
+                                  de: "Prüfe Katalog…",
+                                  en: "Checking catalog…",
+                                })}
+                          </div>
+                        );
+                      }
+                      if (d.kind === "ok") {
+                        return (
+                          <Badge
+                            variant="outline"
+                            className="mt-1 text-[10px] border-emerald-600 text-emerald-700 dark:text-emerald-400"
+                            data-testid={`badge-batch-row-${r.uid}-ok`}
+                          >
+                            {t({
+                              de: "Bereit für Vorschau",
+                              en: "Ready for preview",
+                            })}
+                          </Badge>
+                        );
+                      }
+                      return (
+                        <div className="mt-1 space-y-0.5">
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] ${batchRowBadgeClass(d.status)}`}
+                            data-testid={`badge-batch-row-${r.uid}-${d.status}`}
+                          >
+                            {batchRowLabel(d.status, lang)}
+                          </Badge>
+                          <div className="text-[10px] text-muted-foreground leading-tight">
+                            {d.conflict
+                              ? t({
+                                  de: `Konflikt mit ${d.conflict}`,
+                                  en: `Conflicts with ${d.conflict}`,
+                                })
+                              : d.message}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </td>
                   <td className="py-1.5 pr-2">
                     <Select
@@ -6174,7 +6396,13 @@ function BatchAddAlternativesPanel({
             variant="secondary"
             size="sm"
             onClick={() => void runPreview()}
-            disabled={previewing || submitting || filledCount === 0}
+            disabled={
+              previewing ||
+              submitting ||
+              filledCount === 0 ||
+              hasLocalProblem
+            }
+            data-testid="button-batch-preview"
           >
             {previewing
               ? t({ de: "Berechne Vorschau…", en: "Computing preview…" })
@@ -6184,8 +6412,13 @@ function BatchAddAlternativesPanel({
             size="sm"
             onClick={() => void runSubmit()}
             disabled={
-              submitting || previewing || filledCount === 0 || !githubConfigured
+              submitting ||
+              previewing ||
+              filledCount === 0 ||
+              !githubConfigured ||
+              hasLocalProblem
             }
+            data-testid="button-batch-submit"
           >
             {submitting
               ? t({ de: "Sende…", en: "Submitting…" })
@@ -6197,6 +6430,21 @@ function BatchAddAlternativesPanel({
               en: `${filledCount} rows with parentKey + ISIN`,
             })}
           </span>
+          {hasLocalProblem && (
+            // Surface why the buttons are disabled so the operator
+            // doesn't sit there clicking a greyed-out Preview. The
+            // per-row badges already explain WHICH rows are broken;
+            // this is the panel-level summary.
+            <span
+              className="text-xs text-amber-700 dark:text-amber-400"
+              data-testid="text-batch-local-problem-hint"
+            >
+              {t({
+                de: `${problemCount} Zeile${problemCount === 1 ? "" : "n"} mit Katalog-Konflikt — bitte vor der Vorschau korrigieren.`,
+                en: `${problemCount} row${problemCount === 1 ? "" : "s"} blocked by the catalog — fix before previewing.`,
+              })}
+            </span>
+          )}
         </div>
 
         {errMsg && (
