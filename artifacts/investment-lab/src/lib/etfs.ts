@@ -216,6 +216,20 @@ const CATALOG: Record<string, ETFRecord> = {
       "Comprehensive Swiss equity benchmark covering large, mid and small caps; very deep liquidity on SIX.",
     listings: { SIX: { ticker: "CHSPI" } },
     defaultExchange: "SIX",
+    alternatives: [
+      {
+        name: "iShares SLI ETF (CH)",
+        isin: "CH0031768937",
+        terBps: 35,
+        domicile: "Switzerland",
+        replication: "Physical",
+        distribution: "Distributing",
+        currency: "CHF",
+        comment: "",
+        listings: { "SIX": { ticker: "CSSLI" } },
+        defaultExchange: "SIX",
+      },
+    ],
   }),
   "Equity-UK": E({
     name: "iShares Core FTSE 100 UCITS",
