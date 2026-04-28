@@ -23,6 +23,20 @@ interface FeeEstimatorProps {
    * 30-year drag chart immediately.
    */
   etfImplementations?: ReadonlyArray<ETFImplementation>;
+  /**
+   * Optional controlled mode for the investment-amount input. When both
+   * `amountDraft` and `onAmountDraftChange` are provided, the Fee Estimator
+   * uses them as the source of truth for the input string instead of
+   * keeping its own internal state. This is used by the Compare view to
+   *   1. share Portfolio A's input across the desktop and mobile-Tabs
+   *      instances (which would otherwise have independent drafts), and
+   *   2. lift Portfolio A's amount up to the parent so the per-section
+   *      "Portfolio X is N bps cheaper — about CHF Y / year on CHF Z"
+   *      delta sentence stays in sync with what the user typed.
+   * Build leaves both undefined and keeps the original uncontrolled UX.
+   */
+  amountDraft?: string;
+  onAmountDraftChange?: (draft: string) => void;
 }
 
 // Format an integer with US-style thousand separators ("100,000"). We use
@@ -68,6 +82,8 @@ export function FeeEstimator({
   baseCurrency,
   hedged,
   etfImplementations,
+  amountDraft: controlledDraft,
+  onAmountDraftChange,
 }: FeeEstimatorProps) {
   // Raw text buffer is the source of truth so mobile users on Swiss/German/
   // French keyboards can type either "100000" or "100000,50". The numeric
@@ -77,9 +93,24 @@ export function FeeEstimator({
   // Initial value seeded already-formatted ("100,000") to match the live-
   // formatting applied on every keystroke — otherwise the very first render
   // would show a bare "100000" which then jumps when the user starts typing.
-  const [amountDraft, setAmountDraft] = useState<string>(() =>
+  const [internalDraft, setInternalDraft] = useState<string>(() =>
     formatThousandsLive("100000"),
   );
+  // When the parent provides both controlled props, treat the input as a
+  // controlled component (Compare uses this to share Portfolio A's amount
+  // across the desktop + mobile-Tabs instances and to lift it up for the
+  // delta sentence). Otherwise the internal state continues to drive it
+  // exactly as Build does today.
+  const isControlled =
+    controlledDraft !== undefined && onAmountDraftChange !== undefined;
+  const amountDraft = isControlled ? controlledDraft! : internalDraft;
+  const setAmountDraft = (next: string) => {
+    if (isControlled) {
+      onAmountDraftChange!(next);
+    } else {
+      setInternalDraft(next);
+    }
+  };
   const investmentAmount = useMemo(() => {
     // Strip thousand separators (commas, spaces, Swiss apostrophes) before
     // parsing — parseDecimalInput's whitelist regex only knows digits +

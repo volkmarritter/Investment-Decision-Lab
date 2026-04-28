@@ -33,6 +33,12 @@ import type { ManualWeights } from "@/lib/manualWeights";
 import { PortfolioMetrics } from "./PortfolioMetrics";
 import { StressTest } from "./StressTest";
 import { MonteCarloSimulation } from "./MonteCarloSimulation";
+import { FeeEstimator, formatThousandsLive } from "./FeeEstimator";
+import { CurrencyOverview } from "./CurrencyOverview";
+import { LookThroughAnalysis } from "./LookThroughAnalysis";
+import { TopHoldings } from "./TopHoldings";
+import { estimateFees } from "@/lib/fees";
+import { parseDecimalInput } from "@/lib/manualWeights";
 import { useT } from "@/lib/i18n";
 
 interface CompareFormValues {
@@ -114,6 +120,28 @@ export function ComparePortfolios() {
   const [manualWeightsB, setManualWeightsB] = useState<ManualWeights | undefined>(undefined);
   const [hasGenerated, setHasGenerated] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
+
+  // Lifted Fee Estimator amount draft for Portfolio A. Owning this here
+  // (instead of letting each FeeEstimator keep its own internal state) lets
+  // us
+  //   - share the same value across the desktop and mobile-Tabs A
+  //     instances of the Fee Estimator (otherwise switching viewports would
+  //     flash a different number), and
+  //   - feed the actual user-entered amount into the "Portfolio X is N bps
+  //     cheaper — about CHF Y / year on CHF Z" delta sentence so the
+  //     reference figure matches what's typed in Portfolio A's input.
+  // Seeded already-formatted to match what FeeEstimator displays on first
+  // render (avoids a 100000 → 100,000 jump on the very first keystroke).
+  const [portAFeeAmountDraft, setPortAFeeAmountDraft] = useState<string>(() =>
+    formatThousandsLive("100000"),
+  );
+  // Numeric value for the delta calc. Strip thousand separators (commas,
+  // spaces, Swiss apostrophes) before parseDecimalInput, same convention as
+  // FeeEstimator's own derivation.
+  const portAFeeAmount = (() => {
+    const cleaned = portAFeeAmountDraft.replace(/[\s',\u2019]/g, "");
+    return parseDecimalInput(cleaned, { min: 0 }) ?? 0;
+  })();
 
   const onSubmit = (data: CompareFormValues) => {
     const parse = (p: PortfolioInput): PortfolioInput => ({
@@ -804,6 +832,314 @@ export function ComparePortfolios() {
                           />
                           <PortfolioMetrics allocation={outputB!.allocation} baseCurrency={inputB.baseCurrency} etfImplementation={inputB.lookThroughView ? outputB!.etfImplementation : undefined} includeSyntheticETFs={inputB.includeSyntheticETFs} hedged={inputB.includeCurrencyHedging} />
                           <StressTest allocation={outputB!.allocation} baseCurrency={inputB.baseCurrency} />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Fees & Costs (TER) — Fee Estimator for both portfolios + delta.
+                 *  Portfolio A's investment-amount input is lifted to the
+                 *  parent (portAFeeAmountDraft) so:
+                 *    - the desktop and mobile-Tabs A instances share the
+                 *      same draft value, and
+                 *    - the delta sentence below uses Portfolio A's actual
+                 *      typed amount (not a hardcoded reference) when
+                 *      computing the annual-fee gap. */}
+                {inputA && inputB && outputA && outputB && (() => {
+                  const feesA = estimateFees(outputA.allocation, inputA.horizon, portAFeeAmount, {
+                    hedged: inputA.includeCurrencyHedging && inputA.baseCurrency !== "USD",
+                    etfImplementations: outputA.etfImplementation,
+                  });
+                  const feesB = estimateFees(outputB.allocation, inputB.horizon, portAFeeAmount, {
+                    hedged: inputB.includeCurrencyHedging && inputB.baseCurrency !== "USD",
+                    etfImplementations: outputB.etfImplementation,
+                  });
+                  const terDiffBps = feesA.blendedTerBps - feesB.blendedTerBps;
+                  const cheaperSide: "A" | "B" | null =
+                    terDiffBps > 0.5 ? "B" : terDiffBps < -0.5 ? "A" : null;
+                  const absBps = Math.round(Math.abs(terDiffBps));
+                  const annualFeeDiff = (Math.abs(terDiffBps) / 10000) * portAFeeAmount;
+                  const fmtA = (v: number) =>
+                    new Intl.NumberFormat("en-US", {
+                      style: "currency",
+                      currency: inputA.baseCurrency,
+                      maximumFractionDigits: 0,
+                    }).format(v);
+                  const refLabel = fmtA(portAFeeAmount);
+                  const deltaText: string =
+                    portAFeeAmount <= 0
+                      ? lang === "de"
+                        ? `Geben Sie einen Anlagebetrag in Portfolio A ein, um den jährlichen Gebührenunterschied zu sehen.`
+                        : `Enter an investment amount in Portfolio A to see the annual fee gap.`
+                      : cheaperSide === null
+                      ? lang === "de"
+                        ? "Beide Portfolios haben praktisch dieselbe Blended TER."
+                        : "Both portfolios have effectively the same blended TER."
+                      : lang === "de"
+                      ? `Portfolio ${cheaperSide} ist ${absBps} Bp günstiger — ca. ${fmtA(annualFeeDiff)} / Jahr bei ${refLabel}.`
+                      : `Portfolio ${cheaperSide} is ${absBps} bps cheaper — about ${fmtA(annualFeeDiff)} / year on ${refLabel}.`;
+                  return (
+                    <Card>
+                      <CardHeader>
+                        <CardTitle>{lang === "de" ? "Gebühren & Kosten (TER)" : "Fees & Costs (TER)"}</CardTitle>
+                        <CardDescription>
+                          {lang === "de"
+                            ? "Geschätzte Blended TER und Gebühren-Drag über den Anlagehorizont — je Portfolio mit der tatsächlich gewählten ETF-Auswahl."
+                            : "Estimated blended TER and projected fee drag over the investment horizon — for each portfolio using its picked ETFs."}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        {/* Mobile: A/B toggle */}
+                        <div className="md:hidden">
+                          <Tabs defaultValue="A" className="w-full" data-testid="compare-fees-mobile-toggle">
+                            <TabsList className="grid w-full max-w-xs grid-cols-2">
+                              <TabsTrigger value="A">Portfolio A</TabsTrigger>
+                              <TabsTrigger value="B">Portfolio B</TabsTrigger>
+                            </TabsList>
+                            <TabsContent value="A" className="mt-4 min-w-0">
+                              <FeeEstimator
+                                allocation={outputA.allocation}
+                                horizonYears={inputA.horizon}
+                                baseCurrency={inputA.baseCurrency}
+                                hedged={inputA.includeCurrencyHedging}
+                                etfImplementations={outputA.etfImplementation}
+                                amountDraft={portAFeeAmountDraft}
+                                onAmountDraftChange={setPortAFeeAmountDraft}
+                              />
+                            </TabsContent>
+                            <TabsContent value="B" className="mt-4 min-w-0">
+                              <FeeEstimator
+                                allocation={outputB.allocation}
+                                horizonYears={inputB.horizon}
+                                baseCurrency={inputB.baseCurrency}
+                                hedged={inputB.includeCurrencyHedging}
+                                etfImplementations={outputB.etfImplementation}
+                              />
+                            </TabsContent>
+                          </Tabs>
+                        </div>
+                        {/* Desktop: side-by-side */}
+                        <div className="hidden md:grid md:grid-cols-2 md:gap-6">
+                          <div className="min-w-0">
+                            <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio A</h3>
+                            <FeeEstimator
+                              allocation={outputA.allocation}
+                              horizonYears={inputA.horizon}
+                              baseCurrency={inputA.baseCurrency}
+                              hedged={inputA.includeCurrencyHedging}
+                              etfImplementations={outputA.etfImplementation}
+                              amountDraft={portAFeeAmountDraft}
+                              onAmountDraftChange={setPortAFeeAmountDraft}
+                            />
+                          </div>
+                          <div className="min-w-0">
+                            <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio B</h3>
+                            <FeeEstimator
+                              allocation={outputB.allocation}
+                              horizonYears={inputB.horizon}
+                              baseCurrency={inputB.baseCurrency}
+                              hedged={inputB.includeCurrencyHedging}
+                              etfImplementations={outputB.etfImplementation}
+                            />
+                          </div>
+                        </div>
+                        <p className="mt-6 text-sm text-muted-foreground" data-testid="compare-fees-delta">
+                          {deltaText}
+                        </p>
+                      </CardContent>
+                    </Card>
+                  );
+                })()}
+
+                {/* Consolidated Currency Overview (Post-Hedge) — always visible for both. */}
+                {inputA && inputB && outputA && outputB && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>
+                        {lang === "de"
+                          ? "Konsolidierte Währungsübersicht (nach Hedge)"
+                          : "Consolidated Currency Overview (Post-Hedge)"}
+                      </CardTitle>
+                      <CardDescription>
+                        {lang === "de"
+                          ? "Effektive Währungsexponierung je Portfolio nach Anwendung von Hedging-Flags und Basiswährung."
+                          : "Effective currency exposure per portfolio after applying hedging flags and base currency."}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="md:hidden">
+                        <Tabs defaultValue="A" className="w-full" data-testid="compare-currency-mobile-toggle">
+                          <TabsList className="grid w-full max-w-xs grid-cols-2">
+                            <TabsTrigger value="A">Portfolio A</TabsTrigger>
+                            <TabsTrigger value="B">Portfolio B</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="A" className="mt-4 min-w-0">
+                            <CurrencyOverview etfs={outputA.etfImplementation} baseCurrency={inputA.baseCurrency} />
+                          </TabsContent>
+                          <TabsContent value="B" className="mt-4 min-w-0">
+                            <CurrencyOverview etfs={outputB.etfImplementation} baseCurrency={inputB.baseCurrency} />
+                          </TabsContent>
+                        </Tabs>
+                      </div>
+                      <div className="hidden md:grid md:grid-cols-2 md:gap-6">
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio A</h3>
+                          <CurrencyOverview etfs={outputA.etfImplementation} baseCurrency={inputA.baseCurrency} />
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio B</h3>
+                          <CurrencyOverview etfs={outputB.etfImplementation} baseCurrency={inputB.baseCurrency} />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Look-Through Analysis — gated per side on lookThroughView. */}
+                {inputA && inputB && outputA && outputB && (inputA.lookThroughView || inputB.lookThroughView) && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>
+                        {lang === "de" ? "Look-Through-Analyse" : "Look-Through Analysis"}
+                      </CardTitle>
+                      <CardDescription>
+                        {lang === "de"
+                          ? "Geografische und Sektor-Verteilung auf Basis der zugrunde liegenden ETF-Bestände."
+                          : "Geographic and sector breakdown derived from the underlying ETF holdings."}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="md:hidden">
+                        <Tabs defaultValue={inputA.lookThroughView ? "A" : "B"} className="w-full" data-testid="compare-lookthrough-mobile-toggle">
+                          <TabsList className="grid w-full max-w-xs grid-cols-2">
+                            <TabsTrigger value="A">Portfolio A</TabsTrigger>
+                            <TabsTrigger value="B">Portfolio B</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="A" className="mt-4 min-w-0">
+                            {inputA.lookThroughView ? (
+                              <LookThroughAnalysis etfs={outputA.etfImplementation} baseCurrency={inputA.baseCurrency} />
+                            ) : (
+                              <p className="text-sm text-muted-foreground italic">
+                                {lang === "de"
+                                  ? "Look-Through ist für Portfolio A deaktiviert."
+                                  : "Look-through is off for Portfolio A."}
+                              </p>
+                            )}
+                          </TabsContent>
+                          <TabsContent value="B" className="mt-4 min-w-0">
+                            {inputB.lookThroughView ? (
+                              <LookThroughAnalysis etfs={outputB.etfImplementation} baseCurrency={inputB.baseCurrency} />
+                            ) : (
+                              <p className="text-sm text-muted-foreground italic">
+                                {lang === "de"
+                                  ? "Look-Through ist für Portfolio B deaktiviert."
+                                  : "Look-through is off for Portfolio B."}
+                              </p>
+                            )}
+                          </TabsContent>
+                        </Tabs>
+                      </div>
+                      <div className="hidden md:grid md:grid-cols-2 md:gap-6">
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio A</h3>
+                          {inputA.lookThroughView ? (
+                            <LookThroughAnalysis etfs={outputA.etfImplementation} baseCurrency={inputA.baseCurrency} />
+                          ) : (
+                            <p className="text-sm text-muted-foreground italic">
+                              {lang === "de"
+                                ? "Look-Through ist für Portfolio A deaktiviert."
+                                : "Look-through is off for Portfolio A."}
+                            </p>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio B</h3>
+                          {inputB.lookThroughView ? (
+                            <LookThroughAnalysis etfs={outputB.etfImplementation} baseCurrency={inputB.baseCurrency} />
+                          ) : (
+                            <p className="text-sm text-muted-foreground italic">
+                              {lang === "de"
+                                ? "Look-Through ist für Portfolio B deaktiviert."
+                                : "Look-through is off for Portfolio B."}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {/* Top 10 Equity Holdings (Look-Through) — gated per side on lookThroughView. */}
+                {inputA && inputB && outputA && outputB && (inputA.lookThroughView || inputB.lookThroughView) && (
+                  <Card>
+                    <CardHeader>
+                      <CardTitle>
+                        {lang === "de"
+                          ? "Top 10 Aktienpositionen (Look-Through)"
+                          : "Top 10 Equity Holdings (Look-Through)"}
+                      </CardTitle>
+                      <CardDescription>
+                        {lang === "de"
+                          ? "Größte Einzelpositionen aggregiert über die zugrunde liegenden Aktien-ETFs je Portfolio."
+                          : "Largest single-name concentrations aggregated across each portfolio's underlying equity ETFs."}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="md:hidden">
+                        <Tabs defaultValue={inputA.lookThroughView ? "A" : "B"} className="w-full" data-testid="compare-topholdings-mobile-toggle">
+                          <TabsList className="grid w-full max-w-xs grid-cols-2">
+                            <TabsTrigger value="A">Portfolio A</TabsTrigger>
+                            <TabsTrigger value="B">Portfolio B</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="A" className="mt-4 min-w-0">
+                            {inputA.lookThroughView ? (
+                              <TopHoldings etfs={outputA.etfImplementation} baseCurrency={inputA.baseCurrency} />
+                            ) : (
+                              <p className="text-sm text-muted-foreground italic">
+                                {lang === "de"
+                                  ? "Look-Through ist für Portfolio A deaktiviert."
+                                  : "Look-through is off for Portfolio A."}
+                              </p>
+                            )}
+                          </TabsContent>
+                          <TabsContent value="B" className="mt-4 min-w-0">
+                            {inputB.lookThroughView ? (
+                              <TopHoldings etfs={outputB.etfImplementation} baseCurrency={inputB.baseCurrency} />
+                            ) : (
+                              <p className="text-sm text-muted-foreground italic">
+                                {lang === "de"
+                                  ? "Look-Through ist für Portfolio B deaktiviert."
+                                  : "Look-through is off for Portfolio B."}
+                              </p>
+                            )}
+                          </TabsContent>
+                        </Tabs>
+                      </div>
+                      <div className="hidden md:grid md:grid-cols-2 md:gap-6">
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio A</h3>
+                          {inputA.lookThroughView ? (
+                            <TopHoldings etfs={outputA.etfImplementation} baseCurrency={inputA.baseCurrency} />
+                          ) : (
+                            <p className="text-sm text-muted-foreground italic">
+                              {lang === "de"
+                                ? "Look-Through ist für Portfolio A deaktiviert."
+                                : "Look-through is off for Portfolio A."}
+                            </p>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio B</h3>
+                          {inputB.lookThroughView ? (
+                            <TopHoldings etfs={outputB.etfImplementation} baseCurrency={inputB.baseCurrency} />
+                          ) : (
+                            <p className="text-sm text-muted-foreground italic">
+                              {lang === "de"
+                                ? "Look-Through ist für Portfolio B deaktiviert."
+                                : "Look-through is off for Portfolio B."}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </CardContent>
