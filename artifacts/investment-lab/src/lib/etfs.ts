@@ -457,6 +457,20 @@ const CATALOG: Record<string, ETFRecord> = {
       "Concentrated US tech-sector tilt; high stock-level concentration in mega-cap names.",
     listings: { LSE: { ticker: "IUIT" }, XETRA: { ticker: "QDVE" }, SIX: { ticker: "IUIT" }, Euronext: { ticker: "IUIT" } },
     defaultExchange: "LSE",
+    alternatives: [
+      {
+        name: "iShares Nasdaq 100 UCITS ETF (Acc)",
+        isin: "IE00B53SZB19",
+        terBps: 30,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment: "",
+        listings: { "LSE": { ticker: "CNDX1" }, "XETRA": { ticker: "SXRV" }, "SIX": { ticker: "CSNDX" } },
+        defaultExchange: "LSE",
+      },
+    ],
   }),
   "Equity-Healthcare": E({
     name: "iShares Healthcare Innovation UCITS",
