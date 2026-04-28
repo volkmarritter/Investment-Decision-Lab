@@ -639,6 +639,21 @@ const CATALOG: Record<string, ETFRecord> = {
         aumMillionsEUR: 1853,
         inceptionDate: "2011-06-20",
       },
+
+      {
+        name: "VanEck Global Real Estate UCITS ETF",
+        isin: "NL0009690239",
+        terBps: 25,
+        domicile: "Netherlands",
+        replication: "Physical",
+        distribution: "Distributing",
+        currency: "EUR",
+        comment: "VanEck Global Real Estate — alternative provider.",
+        listings: { "LSE": { ticker: "TRET" }, "XETRA": { ticker: "TRET" } },
+        defaultExchange: "XETRA",
+        aumMillionsEUR: 411,
+        inceptionDate: "2011-04-14",
+      },
     ],
   }),
   // ---------- Digital Assets ----------
