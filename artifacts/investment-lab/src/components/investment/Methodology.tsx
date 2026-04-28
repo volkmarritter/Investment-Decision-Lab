@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { BookOpen, Database, Calculator, AlertTriangle, ExternalLink, RotateCcw, ShieldQuestion, Layers, Activity, GitCompare, Building2, RefreshCw, Pencil, Replace, Coins } from "lucide-react";
+import { BookOpen, Database, Calculator, AlertTriangle, ExternalLink, RotateCcw, ShieldQuestion, Layers, Activity, GitCompare, Building2, RefreshCw, Pencil, Replace, Coins, Sparkles } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -491,6 +491,23 @@ export function Methodology() {
           </div>
         </CardContent>
       </Card>
+
+      <WhatsNewPanel
+        sectionVersions={SECTION_VERSIONS}
+        sectionLabels={(() => {
+          // Flatten tocBlocks → { value: label } so the panel can render
+          // the human-readable section title next to each version pill
+          // without re-declaring the labels (renaming a section in
+          // tocBlocks automatically updates the panel too).
+          const map: Record<string, string> = {};
+          for (const block of tocBlocks) {
+            for (const item of block.items) map[item.value] = item.label;
+          }
+          return map;
+        })()}
+        de={de}
+        onJump={openAndScrollTo}
+      />
 
       <JumpMenu blocks={tocBlocks} de={de} onJump={openAndScrollTo} />
 
@@ -1910,6 +1927,88 @@ function SectionGroupHeading({
       <div className="text-xs font-bold uppercase tracking-wider">{title}</div>
       <div className="text-[11px] text-muted-foreground mt-0.5 leading-snug">{description}</div>
     </div>
+  );
+}
+
+function WhatsNewPanel({
+  sectionVersions,
+  sectionLabels,
+  de,
+  onJump,
+}: {
+  sectionVersions: Record<string, { version: string; month: string }>;
+  sectionLabels: Record<string, string>;
+  de: boolean;
+  onJump: (value: string) => void;
+}) {
+  // Sort newest-first using a tuple comparator on the numeric segments of
+  // the version string ("v1.6" → [1, 6], "v1.10" → [1, 10]). A naïve
+  // parseFloat would mis-order v1.10 as < v1.9 (1.1 < 1.9); the per-segment
+  // numeric compare keeps the ordering correct as the version scheme
+  // grows. Adding a new entry to SECTION_VERSIONS with a higher version
+  // automatically floats it to the top — no second edit here.
+  const versionParts = (v: string): number[] =>
+    v.replace(/^v/i, "").split(".").map((n) => Number(n) || 0);
+  const compareDesc = (a: number[], b: number[]): number => {
+    const len = Math.max(a.length, b.length);
+    for (let i = 0; i < len; i++) {
+      const diff = (b[i] ?? 0) - (a[i] ?? 0);
+      if (diff !== 0) return diff;
+    }
+    return 0;
+  };
+  const entries = Object.entries(sectionVersions)
+    .map(([value, v]) => ({
+      value,
+      version: v.version,
+      month: v.month,
+      label: sectionLabels[value] ?? value,
+      sortKey: versionParts(v.version),
+    }))
+    .sort((a, b) => compareDesc(a.sortKey, b.sortKey));
+
+  if (entries.length === 0) return null;
+
+  return (
+    <details
+      className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 shadow-sm open:shadow-md"
+      open
+      data-testid="methodology-whats-new"
+    >
+      <summary className="cursor-pointer list-none px-4 py-3 flex items-center gap-2 text-sm font-semibold select-none">
+        <Sparkles className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
+        <span>{de ? "Was ist neu" : "What's new"}</span>
+        <Badge
+          variant="secondary"
+          className="text-[10px] px-1.5 py-0 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
+        >
+          {entries.length}
+        </Badge>
+        <span className="ml-auto text-xs text-muted-foreground font-normal">
+          {de ? "Klicken zum Springen" : "Click to jump"}
+        </span>
+      </summary>
+      <ul className="px-4 pb-3 pt-1 border-t border-emerald-500/20 space-y-1.5">
+        {entries.map((e) => (
+          <li key={e.value}>
+            <button
+              type="button"
+              onClick={() => onJump(e.value)}
+              className="w-full text-left text-xs inline-flex items-baseline gap-2 hover:text-primary hover:underline focus:text-primary focus:underline focus:outline-none rounded-sm py-0.5"
+              data-testid={`whats-new-jump-${e.value}`}
+            >
+              <span className="text-[10px] font-mono font-semibold text-emerald-700 dark:text-emerald-300 shrink-0 tabular-nums">
+                {e.version}
+              </span>
+              <span className="text-[10px] text-muted-foreground shrink-0">
+                · {e.month}
+              </span>
+              <span className="text-foreground truncate">— {e.label}</span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 
