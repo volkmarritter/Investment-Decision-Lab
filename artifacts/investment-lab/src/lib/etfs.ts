@@ -482,6 +482,22 @@ const CATALOG: Record<string, ETFRecord> = {
     comment: "EUR-hedged global aggregate; preferred for euro-based defensive sleeve.",
     listings: { XETRA: { ticker: "AGGH" }, LSE: { ticker: "AGGH" }, Euronext: { ticker: "AGGH" } },
     defaultExchange: "XETRA",
+    alternatives: [
+      {
+        name: "Vanguard Global Aggregate Bond UCITS ETF EUR Hedged Distributing",
+        isin: "IE00BG47KB92",
+        terBps: 8,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Distributing",
+        currency: "EUR",
+        comment: "Vanguard Global Aggregate Bond EUR Hedged — alternative provider.",
+        listings: { "XETRA": { ticker: "VAGE" } },
+        defaultExchange: "XETRA",
+        aumMillionsEUR: 123,
+        inceptionDate: "2019-06-18",
+      },
+    ],
   }),
   "FixedIncome-Global-CHF": E({
     name: "iShares Global Aggregate Bond CHF Hedged",
