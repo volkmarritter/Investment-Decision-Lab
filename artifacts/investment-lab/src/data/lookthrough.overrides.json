@@ -2896,6 +2896,97 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=LU0292100046",
       "_addedAt": "2026-04-28T16:17:45.553Z",
       "_addedVia": "admin/lookthrough-pool"
+    },
+    "IE00BLRB0242": {
+      "name": "Invesco Global Clean Energy UCITS ETF Acc",
+      "topHoldings": [
+        {
+          "name": "Verbio SE",
+          "pct": 1.58
+        },
+        {
+          "name": "SolarEdge Technologies",
+          "pct": 1.35
+        },
+        {
+          "name": "Nordex",
+          "pct": 1.26
+        },
+        {
+          "name": "CS Wind Corp.",
+          "pct": 1.25
+        },
+        {
+          "name": "Boralex",
+          "pct": 1.23
+        },
+        {
+          "name": "Solaria Energía y Medio Ambiente SA",
+          "pct": 1.15
+        },
+        {
+          "name": "Plug Power",
+          "pct": 1.13
+        },
+        {
+          "name": "TSEC",
+          "pct": 1.11
+        },
+        {
+          "name": "Ballard Power Systems",
+          "pct": 1.11
+        },
+        {
+          "name": "Delta Electronics, Inc.",
+          "pct": 1.1
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-28T16:21:28.626Z",
+      "geo": {
+        "United States": 18.08,
+        "Taiwan": 13.2,
+        "South Korea": 8.6,
+        "China": 7.16,
+        "Japan": 5.31,
+        "Spain": 4.98,
+        "Germany": 4.82,
+        "Canada": 3.99,
+        "Israel": 3.97,
+        "France": 3.16,
+        "Denmark": 2.66,
+        "Italy": 2.58,
+        "United Kingdom": 1.9,
+        "Netherlands": 1.67,
+        "Other": 17.92
+      },
+      "sector": {
+        "Industrials": 41.6,
+        "Utilities": 20.32,
+        "Technology": 16.51,
+        "Consumer Discretionary": 5.23,
+        "Energy": 2.64,
+        "Basic Materials": 1.83,
+        "Consumer Staples": 1.07,
+        "Real Estate": 0.93,
+        "Other": 9.87
+      },
+      "currency": {
+        "USD": 18.08,
+        "TWD": 13.2,
+        "KRW": 8.6,
+        "CNY": 7.16,
+        "JPY": 5.31,
+        "EUR": 17.21,
+        "CAD": 3.99,
+        "ILS": 3.97,
+        "DKK": 2.66,
+        "GBP": 1.9,
+        "Other": 17.92
+      },
+      "breakdownsAsOf": "2026-04-28T16:21:28.626Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BLRB0242",
+      "_addedAt": "2026-04-28T16:21:28.626Z",
+      "_addedVia": "admin/lookthrough-pool"
     }
   }
 }
