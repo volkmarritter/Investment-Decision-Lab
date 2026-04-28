@@ -1154,6 +1154,83 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B3RBWM25",
       "_addedAt": "2026-04-27T18:49:41.832Z",
       "_addedVia": "admin/lookthrough-pool"
+    },
+    "FR0007054358": {
+      "name": "Amundi EURO STOXX 50 II UCITS ETF Acc",
+      "topHoldings": [
+        {
+          "name": "ASML Holding NV",
+          "pct": 10.95
+        },
+        {
+          "name": "Siemens AG",
+          "pct": 4.12
+        },
+        {
+          "name": "SAP SE",
+          "pct": 3.96
+        },
+        {
+          "name": "Banco Santander SA",
+          "pct": 3.59
+        },
+        {
+          "name": "Schneider Electric SE",
+          "pct": 3.41
+        },
+        {
+          "name": "TotalEnergies SE",
+          "pct": 3.34
+        },
+        {
+          "name": "Allianz SE",
+          "pct": 3.24
+        },
+        {
+          "name": "LVMH Moët Hennessy Louis Vuitton SE",
+          "pct": 3.03
+        },
+        {
+          "name": "Safran SA",
+          "pct": 2.92
+        },
+        {
+          "name": "Siemens Energy AG",
+          "pct": 2.89
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-28T10:49:43.117Z",
+      "geo": {
+        "Germany": 29.56,
+        "France": 27.96,
+        "Netherlands": 19.21,
+        "Spain": 10.38,
+        "Italy": 7.86,
+        "Belgium": 1.56,
+        "Finland": 1.23,
+        "Other": 2.24
+      },
+      "sector": {
+        "Financials": 24.64,
+        "Industrials": 21.9,
+        "Technology": 16.94,
+        "Consumer Discretionary": 12.51,
+        "Utilities": 4.31,
+        "Energy": 4.18,
+        "Health Care": 4.08,
+        "Consumer Staples": 3.66,
+        "Telecommunication": 2.62,
+        "Basic Materials": 1.17,
+        "Other": 3.99
+      },
+      "currency": {
+        "EUR": 97.76,
+        "Other": 2.24
+      },
+      "breakdownsAsOf": "2026-04-28T10:49:43.117Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=FR0007054358",
+      "_addedAt": "2026-04-28T10:49:43.117Z",
+      "_addedVia": "admin/bucket-alternatives (auto)"
     }
   }
 }
