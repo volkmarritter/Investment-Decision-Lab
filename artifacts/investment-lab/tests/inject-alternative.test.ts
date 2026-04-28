@@ -7,7 +7,8 @@
 //   - "ok"               → injection succeeds, parser sees the new alt
 //   - "parent_missing"   → caller passed a bucket key that doesn't exist
 //   - "isin_present"     → ISIN already used by some default OR alt
-//   - "cap_exceeded"     → parent already has 2 alts (the catalog cap)
+//   - "cap_exceeded"     → parent already has
+//                          MAX_ALTERNATIVES_PER_BUCKET alts (the catalog cap)
 //
 // Plus the two structurally distinct injection paths:
 //   - Append to an existing `alternatives: [...]` array
@@ -21,6 +22,7 @@ import {
   type NewAlternativeEntry,
 } from "../../api-server/src/lib/github";
 import { parseCatalogFromSource } from "../../api-server/src/lib/catalog-parser";
+import { MAX_ALTERNATIVES_PER_BUCKET } from "../../api-server/src/lib/limits";
 
 const FIXTURE_WITH_ALTS = `const CATALOG: Record<string, ETFRecord> = {
   "Equity-Global": E({
@@ -136,32 +138,41 @@ describe("injectAlternative", () => {
     expect(r.conflict).toMatch(/^Equity-Global alt 1$/);
   });
 
-  it("returns cap_exceeded when parent already has 2 alternatives", () => {
-    // Synthetic fixture with 2 existing alts under Equity-Global.
-    const fixture2 = FIXTURE_WITH_ALTS.replace(
-      "    ],\n  }),\n  \"Equity-USA\":",
-      `      {
-        name: "Filler Alt",
-        isin: "IE00FFFFFFF1",
+  it(`returns cap_exceeded when parent already has ${MAX_ALTERNATIVES_PER_BUCKET} alternatives`, () => {
+    // Synthetic fixture filled to the cap under Equity-Global. The base
+    // FIXTURE_WITH_ALTS already carries 1 alternative; we synthesize
+    // (MAX − 1) more filler blocks to reach the limit before injecting.
+    const fillerBlocks = Array.from(
+      { length: MAX_ALTERNATIVES_PER_BUCKET - 1 },
+      (_, i) => {
+        const seq = String(i + 1).padStart(2, "0");
+        return `      {
+        name: "Filler Alt ${seq}",
+        isin: "IE00FFFFFF${seq}",
         terBps: 25,
         domicile: "Ireland",
         replication: "Physical",
         distribution: "Accumulating",
         currency: "USD",
         comment: "Filler.",
-        listings: { LSE: { ticker: "FILL" } },
+        listings: { LSE: { ticker: "FIL${seq}" } },
         defaultExchange: "LSE",
+      },`;
       },
+    ).join("\n");
+    const fixtureFull = FIXTURE_WITH_ALTS.replace(
+      "    ],\n  }),\n  \"Equity-USA\":",
+      `${fillerBlocks}
     ],
   }),
   "Equity-USA":`,
     );
-    const r = injectAlternative(fixture2, "Equity-Global", {
+    const r = injectAlternative(fixtureFull, "Equity-Global", {
       ...NEW_ALT,
       isin: "IE00BNEW1234", // unique so we hit cap, not isin_present
     });
     expect(r.status).toBe("cap_exceeded");
-    expect(r.content).toBe(fixture2);
+    expect(r.content).toBe(fixtureFull);
   });
 
   it("normalises ISIN comparison case-insensitively", () => {

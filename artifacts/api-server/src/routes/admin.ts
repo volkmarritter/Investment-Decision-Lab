@@ -42,6 +42,7 @@ import {
   type NewEtfEntry,
 } from "../lib/github";
 import { findDuplicateIsinKey, loadCatalog } from "../lib/catalog-parser";
+import { MAX_ALTERNATIVES_PER_BUCKET } from "../lib/limits";
 import { getCatalogPath } from "../lib/data-paths";
 import { scrapePreview, PreviewError, normalizeIsin } from "../lib/etf-scrape";
 import { scrapeLookthrough } from "../lib/lookthrough-scrape";
@@ -210,7 +211,7 @@ router.post("/admin/render-entry", (req, res) => {
 
 // --- /api/admin/bucket-alternatives -----------------------------------------
 // Per-bucket curated-alternatives editor (2026-04-28). Each bucket may
-// expose 1 default + up to 2 curated alternatives in the Build tab's ETF
+// expose 1 default + up to MAX_ALTERNATIVES_PER_BUCKET curated alternatives in the Build tab's ETF
 // Implementation picker. The endpoints below let the operator audit and
 // extend the alternatives list via the same PR-based flow already used
 // for add-isin and app-defaults.
@@ -304,10 +305,10 @@ router.post("/admin/bucket-alternatives", async (req, res) => {
       return;
     }
     const existingAlts = parent.alternatives ?? [];
-    if (existingAlts.length >= 2) {
+    if (existingAlts.length >= MAX_ALTERNATIVES_PER_BUCKET) {
       res.status(409).json({
         error: "cap_exceeded",
-        message: `"${parentKey}" already has 2 alternatives. Remove one first.`,
+        message: `"${parentKey}" already has ${MAX_ALTERNATIVES_PER_BUCKET} alternatives. Remove one first.`,
       });
       return;
     }
@@ -675,11 +676,11 @@ router.post("/admin/bucket-alternatives/bulk", async (req, res) => {
       continue;
     }
     // Cumulative cap check.
-    if ((bucketAltCount.get(parentKey) ?? 0) >= 2) {
+    if ((bucketAltCount.get(parentKey) ?? 0) >= MAX_ALTERNATIVES_PER_BUCKET) {
       outcomes.push({
         ...baseOutcome,
         status: "cap_exceeded",
-        message: `"${parentKey}" already has 2 alternatives (counting earlier rows in this batch).`,
+        message: `"${parentKey}" already has ${MAX_ALTERNATIVES_PER_BUCKET} alternatives (counting earlier rows in this batch).`,
       });
       continue;
     }

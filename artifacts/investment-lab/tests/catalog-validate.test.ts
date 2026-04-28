@@ -1,18 +1,23 @@
 // ----------------------------------------------------------------------------
 // catalog-validate.test.ts
 // ----------------------------------------------------------------------------
-// Guards the per-bucket ETF picker invariants. Once the curated catalog
-// gains alternatives (1 default + up to 2 alternatives per bucket), the
-// system relies on validateCatalog() returning [] at build time. CI must
-// fail loudly the moment a future edit violates any of:
-//   • alternatives.length ≤ 2 per bucket
-//   • all 1–3 ISINs within a bucket are distinct
+// Guards the per-bucket ETF picker invariants. The curated catalog
+// carries 1 default + up to MAX_ALTERNATIVES_PER_BUCKET alternatives
+// per bucket, and the system relies on validateCatalog() returning []
+// at build time. CI must fail loudly the moment a future edit violates
+// any of:
+//   • alternatives.length ≤ MAX_ALTERNATIVES_PER_BUCKET per bucket
+//   • all ISINs within a bucket are distinct
 //   • alternative ISINs are unique globally (no overlap with other
 //     buckets' defaults or alternatives)
 // ----------------------------------------------------------------------------
 
 import { describe, it, expect } from "vitest";
-import { validateCatalog, getCatalog } from "../src/lib/etfs";
+import {
+  validateCatalog,
+  getCatalog,
+  MAX_ALTERNATIVES_PER_BUCKET,
+} from "../src/lib/etfs";
 
 describe("validateCatalog()", () => {
   it("returns no issues for the curated catalog", () => {
@@ -20,11 +25,14 @@ describe("validateCatalog()", () => {
     expect(issues, JSON.stringify(issues, null, 2)).toEqual([]);
   });
 
-  it("every bucket has at most 2 alternatives", () => {
+  it(`every bucket has at most ${MAX_ALTERNATIVES_PER_BUCKET} alternatives`, () => {
     const cat = getCatalog();
     for (const [key, rec] of Object.entries(cat)) {
       const altCount = rec.alternatives?.length ?? 0;
-      expect(altCount, `bucket "${key}" has ${altCount} alternatives`).toBeLessThanOrEqual(2);
+      expect(
+        altCount,
+        `bucket "${key}" has ${altCount} alternatives`,
+      ).toBeLessThanOrEqual(MAX_ALTERNATIVES_PER_BUCKET);
     }
   });
 

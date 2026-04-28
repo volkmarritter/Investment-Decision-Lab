@@ -45,6 +45,7 @@ import {
   findPresetById,
 } from "@/lib/appDefaultsPresets";
 import { BUILT_IN_RF, BUILT_IN_HB } from "@/lib/settings";
+import { MAX_ALTERNATIVES_PER_BUCKET } from "@/lib/etfs";
 import { BASE_SEED } from "@/lib/metrics";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -3465,17 +3466,18 @@ function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boolean }) {
 // ---------------------------------------------------------------------------
 // BucketAlternativesPanel — per-bucket curated-alternatives editor (2026-04-28)
 // ---------------------------------------------------------------------------
-// Lists every bucket showing its default ETF + 0–2 curated alternatives
+// Lists every bucket showing its default ETF + its curated alternatives
 // (the same alternatives surfaced by the Build tab's per-bucket ETF picker).
 // Each bucket row exposes an inline-collapsible "Add alternative" form
-// when fewer than 2 alts exist; submitting opens a GitHub PR appending
-// the new alternative to that bucket's `alternatives:[…]` array via the
-// /admin/bucket-alternatives route.
+// while the bucket sits below MAX_ALTERNATIVES_PER_BUCKET; submitting
+// opens a GitHub PR appending the new alternative to that bucket's
+// `alternatives:[…]` array via the /admin/bucket-alternatives route.
 //
 // Operator-Phrase: „Jeder ETF zur Auswahl benötigt eine eindeutige
 // Bucket-Zuordnung." Each curated alternative is positional inside its
-// parent bucket (no `key` of its own) and is capped at 2 by
-// validateCatalog. The cap is enforced both client-side (the form is
+// parent bucket (no `key` of its own) and is capped at
+// MAX_ALTERNATIVES_PER_BUCKET by validateCatalog. The cap is enforced
+// both client-side (the form is
 // hidden when at the cap) and server-side (the route returns 409
 // cap_exceeded if the cap was reached after the form opened).
 function BucketAlternativesPanel({
@@ -3647,7 +3649,7 @@ function BucketAlternativesPanel({
             {sortedKeys.map((key) => {
               const entry = catalog[key];
               const alts = entry.alternatives ?? [];
-              const atCap = alts.length >= 2;
+              const atCap = alts.length >= MAX_ALTERNATIVES_PER_BUCKET;
               const isOpen = openKey === key;
               return (
                 <div
@@ -3660,7 +3662,7 @@ function BucketAlternativesPanel({
                       <div className="flex items-center gap-2 flex-wrap">
                         <code className="text-xs font-semibold">{key}</code>
                         <Badge variant="secondary" className="text-[10px]">
-                          {alts.length}/2{" "}
+                          {alts.length}/{MAX_ALTERNATIVES_PER_BUCKET}{" "}
                           {t({ de: "Alternativen", en: "alternatives" })}
                         </Badge>
                       </div>
@@ -4916,7 +4918,8 @@ function ConsolidatedEtfTreePanel({
                         const entry = catalog[leaf.key];
                         if (!entry) return null;
                         const alts = entry.alternatives ?? [];
-                        const altsAtCap = alts.length >= 2;
+                        const altsAtCap =
+                          alts.length >= MAX_ALTERNATIVES_PER_BUCKET;
                         return (
                           <div
                             key={leaf.key}
@@ -4936,7 +4939,7 @@ function ConsolidatedEtfTreePanel({
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className="text-xs text-muted-foreground">
-                                  {alts.length}/2{" "}
+                                  {alts.length}/{MAX_ALTERNATIVES_PER_BUCKET}{" "}
                                   {t({ de: "Alt.", en: "alt." })}
                                 </span>
                                 {githubConfigured && (
@@ -4957,8 +4960,8 @@ function ConsolidatedEtfTreePanel({
                                     title={
                                       altsAtCap
                                         ? t({
-                                            de: "Maximal 2 Alternativen pro Bucket erreicht",
-                                            en: "Maximum 2 alternatives per bucket reached",
+                                            de: `Maximal ${MAX_ALTERNATIVES_PER_BUCKET} Alternativen pro Bucket erreicht`,
+                                            en: `Maximum ${MAX_ALTERNATIVES_PER_BUCKET} alternatives per bucket reached`,
                                           })
                                         : undefined
                                     }
@@ -5937,8 +5940,8 @@ function newBatchRow(): BatchRow {
 // BulkAltRowStatus the client can decide WITHOUT scraping (i.e. from
 // the catalog already in memory). The server runs the same checks
 // authoritatively on Preview/Submit; this is a UX shortcut so the
-// operator doesn't burn a 10-second scrape pass to learn that two of
-// their four ISINs hit the bucket cap (Task #53).
+// operator doesn't burn a 10-second scrape pass to learn that some
+// of their ISINs hit the per-bucket alternatives cap (Task #53).
 type BatchLocalDiagnostic =
   | { kind: "incomplete" } // parentKey or ISIN not entered yet
   | { kind: "loading" } // catalog still fetching
@@ -6032,11 +6035,11 @@ function diagnoseBatchRows(
       });
       continue;
     }
-    if ((bucketAltCount.get(parentKey) ?? 0) >= 2) {
+    if ((bucketAltCount.get(parentKey) ?? 0) >= MAX_ALTERNATIVES_PER_BUCKET) {
       out.set(r.uid, {
         kind: "problem",
         status: "cap_exceeded",
-        message: `"${parentKey}" already has 2 alternatives (counting earlier rows in this batch).`,
+        message: `"${parentKey}" already has ${MAX_ALTERNATIVES_PER_BUCKET} alternatives (counting earlier rows in this batch).`,
       });
       continue;
     }

@@ -3,19 +3,21 @@
 // ----------------------------------------------------------------------------
 // Per-bucket ETF picker state.
 //
-// The curated catalog (lib/etfs.ts) now exposes 1 default ETF + up to 2
-// alternatives for selected major buckets (Equity-Global, Equity-USA,
-// Equity-Europe, Equity-EM, FixedIncome-Global, Commodities-Gold). The
-// user can switch a bucket to an alternative via a small dropdown in
-// the ETF Implementation table on the Build tab.
+// The curated catalog (lib/etfs.ts) exposes 1 default ETF + up to
+// MAX_ALTERNATIVES_PER_BUCKET alternatives for selected major buckets
+// (Equity-Global, Equity-USA, Equity-Europe, Equity-EM,
+// FixedIncome-Global, Commodities-Gold). The user can switch a bucket
+// to an alternative via a small dropdown in the ETF Implementation
+// table on the Build tab.
 //
 // Selections are stored in localStorage so they survive page reloads
 // without server state. Storage shape: Record<catalogKey, slotIndex>
-// where slotIndex is 1 (alt-1) or 2 (alt-2). Slot 0 is the default and
-// is never persisted — its absence is the signal "use the default", and
-// clearing a key removes the entry entirely. This keeps the storage
-// blob small and means the very first render after a fresh checkout
-// sees no slots set, exactly the same as a clean state.
+// where slotIndex is an integer in [1, MAX_ALTERNATIVES_PER_BUCKET].
+// Slot 0 is the default and is never persisted — its absence is the
+// signal "use the default", and clearing a key removes the entry
+// entirely. This keeps the storage blob small and means the very first
+// render after a fresh checkout sees no slots set, exactly the same as
+// a clean state.
 //
 // Cross-component coordination uses a CustomEvent so the BuildPortfolio
 // rebuild effect can react to picker changes without prop-drilling.
@@ -28,15 +30,23 @@
 // See getETFDetails() for the exact wiring.
 // ----------------------------------------------------------------------------
 
+import { MAX_ALTERNATIVES_PER_BUCKET } from "./etfs";
+
 const KEY = "il.etfSelection.v1";
 const EVENT = "il-etf-selection-changed";
 
-export type ETFSlot = 0 | 1 | 2;
+// Slot index in [0, MAX_ALTERNATIVES_PER_BUCKET]. 0 is the default and
+// never gets persisted; 1..N point at alternatives[N-1]. Typed loosely
+// as `number` rather than a literal union because the upper bound is
+// data-driven (cap can grow without TS-type churn across the codebase).
+export type ETFSlot = number;
 
-// Defensive parse: every value must be the literal 1 or 2. Anything
-// else (legacy values, JSON corruption, hand-edits, slot 0 written by
-// older code) is dropped silently — slot 0 is the implicit default and
-// has no business being persisted.
+// Defensive parse: every value must be a positive integer no larger
+// than MAX_ALTERNATIVES_PER_BUCKET. Anything else (legacy values, JSON
+// corruption, hand-edits, slot 0 written by older code, slots beyond
+// today's cap) is dropped silently — slot 0 is the implicit default
+// and has no business being persisted, and out-of-range slots would
+// just be clamped back to the cap on read by clampSlot() anyway.
 function readAll(): Record<string, ETFSlot> {
   if (typeof window === "undefined") return {};
   let raw: string | null = null;
@@ -51,7 +61,14 @@ function readAll(): Record<string, ETFSlot> {
     if (!parsed || typeof parsed !== "object") return {};
     const out: Record<string, ETFSlot> = {};
     for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
-      if (v === 1 || v === 2) out[k] = v;
+      if (
+        typeof v === "number" &&
+        Number.isInteger(v) &&
+        v >= 1 &&
+        v <= MAX_ALTERNATIVES_PER_BUCKET
+      ) {
+        out[k] = v;
+      }
     }
     return out;
   } catch {

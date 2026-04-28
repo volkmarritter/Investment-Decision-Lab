@@ -3,6 +3,25 @@ import overridesFile from "@/data/etfs.overrides.json";
 import { getUserETFOverride } from "./etfOverrides";
 import { getETFSelection } from "./etfSelection";
 
+// ----------------------------------------------------------------------------
+// Per-bucket alternatives cap.
+// ----------------------------------------------------------------------------
+// The single source of truth for "how many curated alternatives may a
+// bucket carry, on top of its 1 mandatory default ETF". Used by:
+//   • validateCatalog() (build-time invariant)
+//   • clampSlot() (runtime picker bounds)
+//   • the admin UI (single-add gating, batch-add live preflight, badges,
+//     copy)
+//   • the api-server (single-add + bulk-add server-side preflight, the
+//     injectAlternative() helper that writes to etfs.ts via PR, and the
+//     bulk-PR reviewer-checklist body)
+// The api-server can't TS-import this file (it parses etfs.ts as text
+// rather than as a module), so it mirrors the same constant in
+// artifacts/api-server/src/lib/limits.ts. If you change this value,
+// change that one too.
+// ----------------------------------------------------------------------------
+export const MAX_ALTERNATIVES_PER_BUCKET = 10;
+
 export interface ETFDetails {
   name: string;
   isin: string;
@@ -26,9 +45,10 @@ export interface ETFDetails {
    *  catalog entry and a placeholder is returned. */
   catalogKey: string | null;
   /** Currently selected slot: 0 = default (the catalog entry itself),
-   *  1 = first alternative, 2 = second alternative. Always 0 when an
-   *  override is active or when no alternatives exist for this bucket. */
-  selectedSlot: 0 | 1 | 2;
+   *  1..N = nth alternative (where N is at most
+   *  MAX_ALTERNATIVES_PER_BUCKET). Always 0 when an override is active
+   *  or when no alternatives exist for this bucket. */
+  selectedSlot: number;
   /** Lightweight summary of the up-to-3 ETFs the user can pick between
    *  for this bucket: index 0 is the curated default, indices 1+ are
    *  alternatives. Empty when catalogKey is null OR when an override is
@@ -62,13 +82,14 @@ export interface ETFRecord {
   inceptionDate?: string; // ISO YYYY-MM-DD
   // ----------------------------------------------------------------------
   // Curated alternatives (per-bucket ETF picker).
-  // Each bucket exposes 1 default (this record itself) plus up to 2
-  // alternatives. The user picks one via the in-row dropdown on the Build
-  // tab; selection is persisted in localStorage (see lib/etfSelection.ts)
-  // and consulted by getETFDetails() on the next render. Constraints
-  // enforced by validateCatalog():
-  //   • alternatives.length ≤ 2
-  //   • all 1–3 ISINs within a bucket are distinct
+  // Each bucket exposes 1 default (this record itself) plus up to
+  // MAX_ALTERNATIVES_PER_BUCKET alternatives. The user picks one via the
+  // in-row dropdown on the Build tab; selection is persisted in
+  // localStorage (see lib/etfSelection.ts) and consulted by
+  // getETFDetails() on the next render. Constraints enforced by
+  // validateCatalog():
+  //   • alternatives.length ≤ MAX_ALTERNATIVES_PER_BUCKET
+  //   • all ISINs within a bucket (default + alternatives) are distinct
   //   • an ISIN used as an alternative is not used as default OR
   //     alternative anywhere else in the catalog (uniqueness preserved
   //     for the alternatives layer; pre-existing default-default ISIN
@@ -966,25 +987,26 @@ function placeholder(assetClass: string, region: string): ETFDetails {
 
 // Resolve which curated record (default or alternative) to use for a bucket
 // based on the user's per-bucket selection. Slot 0 always returns the
-// curated default; slots 1/2 return alternatives[0]/alternatives[1] when
-// they exist, falling back to the default if the slot index points past
-// the available alternatives. Kept tiny so the hot path stays cheap.
+// curated default; slots 1..N return alternatives[slot-1] when they
+// exist, falling back to the default if the slot index points past the
+// available alternatives. Kept tiny so the hot path stays cheap.
 function resolveSelectedETF(curated: ETFRecord, slot: number): ETFRecord {
   if (slot <= 0) return curated;
   const alt = curated.alternatives?.[slot - 1];
   return alt ?? curated;
 }
 
-// Clamp a stored slot to 0/1/2 and to what's actually available for the
-// bucket. Used both for resolution and for the `selectedSlot` field
-// surfaced to the UI so the dropdown highlights the right option even
-// when localStorage holds a stale value (e.g. user picked alt-2 of a
-// bucket whose alternatives list has since shrunk to 1).
-function clampSlot(stored: number, alternativesCount: number): 0 | 1 | 2 {
+// Clamp a stored slot to 0..MAX_ALTERNATIVES_PER_BUCKET and to what's
+// actually available for the bucket. Used both for resolution and for
+// the `selectedSlot` field surfaced to the UI so the dropdown highlights
+// the right option even when localStorage holds a stale value (e.g.
+// user picked alt-3 of a bucket whose alternatives list has since
+// shrunk to 1).
+function clampSlot(stored: number, alternativesCount: number): number {
   if (!Number.isFinite(stored) || stored <= 0) return 0;
-  const max = Math.min(2, alternativesCount);
-  if (stored >= max) return max as 0 | 1 | 2;
-  return stored as 1 | 2;
+  const max = Math.min(MAX_ALTERNATIVES_PER_BUCKET, alternativesCount);
+  if (stored >= max) return max;
+  return Math.floor(stored);
 }
 
 // ----------------------------------------------------------------------------
@@ -1006,7 +1028,7 @@ function clampSlot(stored: number, alternativesCount: number): 0 | 1 | 2 {
 // ----------------------------------------------------------------------------
 export interface PickerResolution {
   rec: ETFRecord;
-  selectedSlot: 0 | 1 | 2;
+  selectedSlot: number;
   selectableOptions: ETFDetails["selectableOptions"];
 }
 export function resolvePickerSelection(
@@ -1143,7 +1165,7 @@ export function getETFDetails(
   const override = getUserETFOverride(key);
   const curated = CATALOG[key];
   let rec: ETFRecord;
-  let selectedSlot: 0 | 1 | 2 = 0;
+  let selectedSlot: number = 0;
   let selectableOptions: ETFDetails["selectableOptions"] = [];
   if (override) {
     rec = override;
@@ -1182,7 +1204,8 @@ export function getETFDetails(
 //
 //   • Every CATALOG key has a default (the entry itself — guaranteed by
 //     construction since the key cannot exist without an ETFRecord).
-//   • alternatives.length ≤ 2 per bucket  (max 1 default + 2 alternatives).
+//   • alternatives.length ≤ MAX_ALTERNATIVES_PER_BUCKET per bucket
+//     (max 1 default + MAX_ALTERNATIVES_PER_BUCKET alternatives).
 //   • Within a single bucket, all 1–3 ISINs are distinct (no duplicate
 //     "role" within a bucket).
 //   • An ISIN that appears in any bucket's alternatives list does NOT
@@ -1211,11 +1234,11 @@ export function validateCatalog(): CatalogValidationIssue[] {
   const altOwnership = new Map<string, string>(); // alt-ISIN → owning bucket key
   for (const [key, rec] of Object.entries(CATALOG)) {
     const alts = rec.alternatives ?? [];
-    if (alts.length > 2) {
+    if (alts.length > MAX_ALTERNATIVES_PER_BUCKET) {
       issues.push({
         severity: "error",
         bucket: key,
-        message: `bucket has ${alts.length} alternatives; max is 2 (1 default + 2 alternatives = 3 ETFs total)`,
+        message: `bucket has ${alts.length} alternatives; max is ${MAX_ALTERNATIVES_PER_BUCKET} (1 default + ${MAX_ALTERNATIVES_PER_BUCKET} alternatives = ${MAX_ALTERNATIVES_PER_BUCKET + 1} ETFs total)`,
       });
     }
     const seenInBucket = new Set<string>([rec.isin]);

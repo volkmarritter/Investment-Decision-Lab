@@ -67,7 +67,7 @@ export interface ETFImplementation {
   // see lib/etfs.ts for semantics.
   // ----------------------------------------------------------------------
   catalogKey: string | null;
-  selectedSlot: 0 | 1 | 2;
+  selectedSlot: number;
   selectableOptions: ReadonlyArray<{
     name: string;
     isin: string;

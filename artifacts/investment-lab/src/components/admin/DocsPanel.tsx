@@ -602,7 +602,7 @@ export function DocsPanel({ github }: DocsPanelProps) {
                     an, weil die laufende Server-Kopie noch auf dem alten
                     Commit sitzt. Ohne Sync schlagen Folge-Aktionen
                     möglicherweise fehl (Duplikate erkennen Geister, das
-                    2-Alt-Limit blockt obwohl der Slot bereits frei ist).
+                    Alternativen-Limit blockt obwohl ein Slot bereits frei ist).
                   </p>
                   <p>
                     Die Karte oben zeigt, wie viele Commits du{" "}
@@ -628,8 +628,8 @@ export function DocsPanel({ github }: DocsPanelProps) {
                     <strong>briefly shows stale data</strong> because the
                     running server's local checkout still points at the old
                     commit. Without sync, follow-up actions may fail
-                    (duplicate checks see ghosts, the 2-alt cap blocks even
-                    though the slot is free again).
+                    (duplicate checks see ghosts, the alternatives cap blocks
+                    even though a slot is free again).
                   </p>
                   <p>
                     The card above shows how many commits you are{" "}

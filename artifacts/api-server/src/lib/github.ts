@@ -27,6 +27,7 @@ import {
   type NewAlternativeEntry,
 } from "./render-alternative";
 import { findMatchingClose, parseCatalogFromSource } from "./catalog-parser";
+import { MAX_ALTERNATIVES_PER_BUCKET } from "./limits";
 
 // Re-exported so downstream callers (admin.ts, tests) keep importing the
 // canonical entry shape from one place. The implementation lives in
@@ -700,7 +701,7 @@ function escapeRegex(s: string): string {
 // catalog entry's `alternatives: [...]` array. It is NOT wrapped in
 // `E({...})` (the `E` helper applies the `kind: "etf"` discriminator only
 // to top-level catalog entries) and has no `key` field (alternatives are
-// addressed positionally by slot index 1..2).
+// addressed positionally by slot index 1..MAX_ALTERNATIVES_PER_BUCKET).
 //
 // Two cases the injector handles:
 //   1. Parent already has `alternatives: [ ... ]` — append the new
@@ -801,7 +802,7 @@ export function injectAlternative(
     // `{` braces inside the array body.
     const arrayBody = recordBody.slice(openBracketRel + 1, closeBracketRel);
     const existingCount = countTopLevelObjects(arrayBody);
-    if (existingCount >= 2) {
+    if (existingCount >= MAX_ALTERNATIVES_PER_BUCKET) {
       return { content: source, status: "cap_exceeded" };
     }
 
@@ -1147,7 +1148,7 @@ export async function openBulkAddBucketAlternativesPr(args: {
         : r.status === "isin_present"
           ? `ISIN already present${r.conflict ? ` (${r.conflict})` : ""}`
           : r.status === "cap_exceeded"
-            ? "bucket already has 2 alternatives"
+            ? `bucket already has ${MAX_ALTERNATIVES_PER_BUCKET} alternatives`
             : r.status;
     return `- \`${r.parentKey}\` / \`${r.isin}\` — ${reason}`;
   });
@@ -1167,7 +1168,7 @@ export async function openBulkAddBucketAlternativesPr(args: {
     "",
     "**Reviewer checklist**",
     "- Confirm each ISIN is the correct alternative for its bucket.",
-    "- Confirm the per-bucket cap (default + ≤ 2 alternatives) is respected after merge.",
+    `- Confirm the per-bucket cap (default + ≤ ${MAX_ALTERNATIVES_PER_BUCKET} alternatives) is respected after merge.`,
     "- The companion look-through PR (if any) lives on a separate branch and can merge independently.",
   ].join("\n");
 
@@ -1243,7 +1244,7 @@ export async function openAddBucketAlternativePr(
   }
   if (result.status === "cap_exceeded") {
     throw new Error(
-      `"${parentKey}" already has 2 alternatives. Remove one before adding another.`,
+      `"${parentKey}" already has ${MAX_ALTERNATIVES_PER_BUCKET} alternatives. Remove one before adding another.`,
     );
   }
 
