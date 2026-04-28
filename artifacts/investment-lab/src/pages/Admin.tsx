@@ -22,6 +22,7 @@ import {
   type AppDefaultsPayload,
   type AppDefaultsRfCurrency,
   type CatalogSummary,
+  type CatalogEntrySummary,
   type AddBucketAlternativeRequest,
   type AlternativeEntrySummary,
   type ChangeEntry,
@@ -179,7 +180,17 @@ export default function Admin() {
 
       <main className="container mx-auto px-4 py-8 space-y-6">
         <DocsPanel github={githubInfo} />
-        <BrowseBucketsPanel catalog={catalog} catalogError={catalogError} />
+        {/* Consolidated tree (2026-04-28): replaces the former trio
+            BrowseBucketsPanel + LookthroughPoolPanel + BucketAlternativesPanel.
+            All bucket / alternative / pool data is now rendered in one
+            bucket-first tree with look-through columns inline; pool
+            ISINs without a bucket attachment land in the "Nicht
+            zugeordnet" group at the bottom. */}
+        <ConsolidatedEtfTreePanel
+          catalog={catalog}
+          catalogError={catalogError}
+          githubConfigured={githubConfigured}
+        />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <SuggestIsinPanel
             githubConfigured={githubConfigured}
@@ -188,8 +199,6 @@ export default function Admin() {
           />
           <DataUpdatesColumn />
         </div>
-        <LookthroughPoolPanel catalog={catalog} />
-        <BucketAlternativesPanel githubConfigured={githubConfigured} />
         <AppDefaultsPanel githubConfigured={githubConfigured} />
       </main>
     </div>
@@ -3713,15 +3722,23 @@ function AddAlternativeForm({
   parentKey,
   githubConfigured,
   onCreated,
+  presetIsin,
 }: {
   parentKey: string;
   githubConfigured: boolean;
   onCreated: () => void;
+  // Optional ISIN to pre-fill into the draft. Used by the consolidated
+  // tree's "Bucket zuordnen" flow on unclassified pool entries — the
+  // operator already knows the ISIN (it's the row they clicked), so we
+  // skip a typing step. The form re-mounts when this changes (caller
+  // sets a key) so the initial draft picks up the preset cleanly.
+  presetIsin?: string;
 }) {
   const { t, lang } = useAdminT();
-  const [draft, setDraft] = useState<AddBucketAlternativeRequest>(() =>
-    blankAlternativeDraft(),
-  );
+  const [draft, setDraft] = useState<AddBucketAlternativeRequest>(() => {
+    const base = blankAlternativeDraft();
+    return presetIsin ? { ...base, isin: presetIsin.toUpperCase() } : base;
+  });
   const [submitting, setSubmitting] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [autofilling, setAutofilling] = useState(false);
@@ -4123,3 +4140,1109 @@ function blankAlternativeDraft(): AddBucketAlternativeRequest {
 // AlternativeEntrySummary directly elsewhere — the type is re-exported
 // for external consumers via admin-api.
 type _AltSummaryRef = AlternativeEntrySummary;
+
+// ===========================================================================
+// ConsolidatedEtfTreePanel — single tree view replacing three legacy panels
+// ===========================================================================
+// Replaces (2026-04-28):
+//   - BrowseBucketsPanel        (read-only catalog browse)
+//   - LookthroughPoolPanel      (flat table of pool entries)
+//   - BucketAlternativesPanel   (per-bucket alternatives editor)
+//
+// Why: those three views overlapped heavily. Operators had to mentally
+// cross-reference them to answer "which alternatives in this bucket
+// actually have look-through data?". This panel folds everything into
+// one bucket-first tree with look-through columns shown inline.
+//
+// Tree shape:
+//   Asset class           (e.g. "Equity")
+//     └─ Bucket           (e.g. "Equity-USA — iShares MSCI USA")
+//         ├─ Default      (the catalog's primary ETF for that bucket)
+//         ├─ Alternative  (zero or more curated swaps; cap = 2)
+//         └─ Alternative
+//   Nicht zugeordnet      (pool ISINs not used as default OR alternative
+//     └─ Pool-only         anywhere — needs a bucket attachment)
+//
+// Each row shows: ISIN · Name · Type-Badge · Look-through-Status (with
+// top/geo/sector counts + asOf) · Pool source (Kuratiert / Auto-Refresh /
+// Beide / —) · Per-row action (Remove for alts, "Bucket zuordnen" for
+// pool-only).
+//
+// Header bar carries the two pool-level operator levers preserved from
+// LookthroughPoolPanel: single-ISIN pool add and the bulk backfill that
+// scans the catalog for missing look-through data.
+// ===========================================================================
+function ConsolidatedEtfTreePanel({
+  catalog: _topCatalog,
+  catalogError: topCatalogError,
+  githubConfigured,
+}: {
+  catalog: CatalogSummary | null;
+  catalogError: string | null;
+  githubConfigured: boolean;
+}) {
+  const { t, lang } = useAdminT();
+
+  // Catalog WITH alternatives (separate endpoint from the regular catalog
+  // load — only /admin/bucket-alternatives populates the alternatives
+  // field reliably). We re-fetch on every PR-creating action via
+  // prsRefreshKey so the tree reflects post-merge state quickly.
+  const [catalog, setCatalog] = useState<CatalogSummary | null>(null);
+  const [catalogLoadError, setCatalogLoadError] = useState<string | null>(null);
+  const [pool, setPool] = useState<LookthroughPoolEntry[] | null>(null);
+  const [poolLoadError, setPoolLoadError] = useState<string | null>(null);
+  const [prsRefreshKey, setPrsRefreshKey] = useState(0);
+
+  // Header-bar state — single-ISIN pool add and bulk backfill carry their
+  // own submit/result state separate from the per-row attach/remove flows
+  // below so spinners don't visually leak across unrelated operations.
+  const [poolIsin, setPoolIsin] = useState("");
+  const [submittingPoolAdd, setSubmittingPoolAdd] = useState(false);
+  const [headerErrMsg, setHeaderErrMsg] = useState<string | null>(null);
+  const [lastPoolPr, setLastPoolPr] = useState<{
+    url: string;
+    number: number;
+    isin: string;
+  } | null>(null);
+  const [backfilling, setBackfilling] = useState(false);
+  const [backfillResult, setBackfillResult] = useState<{
+    scanned: number;
+    missing: number;
+    added: string[];
+    scrapeFailures: Array<{ isin: string; reason: string }>;
+    skippedAlreadyPresent: string[];
+    prUrl?: string;
+    prNumber?: number;
+  } | null>(null);
+
+  // Tree expansion state — persisted in sessionStorage so the operator's
+  // drilled-in view survives page reloads. Mirrors BrowseBucketsPanel
+  // pattern but stored under a distinct key so the two panels can coexist
+  // during a soft rollout.
+  const [expandedClasses, setExpandedClasses] = useState<Set<string>>(() => {
+    try {
+      const raw = sessionStorage.getItem("admin.etfTree.expanded");
+      return raw ? new Set(JSON.parse(raw) as string[]) : new Set();
+    } catch {
+      return new Set();
+    }
+  });
+  const [unclassifiedOpen, setUnclassifiedOpen] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem("admin.etfTree.unclassifiedOpen") === "1";
+    } catch {
+      return true;
+    }
+  });
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(
+        "admin.etfTree.expanded",
+        JSON.stringify([...expandedClasses]),
+      );
+    } catch {
+      /* sessionStorage may be unavailable — graceful no-op */
+    }
+  }, [expandedClasses]);
+  useEffect(() => {
+    try {
+      sessionStorage.setItem(
+        "admin.etfTree.unclassifiedOpen",
+        unclassifiedOpen ? "1" : "0",
+      );
+    } catch {
+      /* sessionStorage may be unavailable — graceful no-op */
+    }
+  }, [unclassifiedOpen]);
+
+  // Per-row action state. `attaching` = which pool-only ISIN currently
+  // has its "Bucket zuordnen" form expanded (only one at a time so the
+  // UI doesn't sprout multiple inline forms). `addingAltKey` = which
+  // bucket currently has its "+ Alternative" form expanded.
+  const [attaching, setAttaching] = useState<{
+    isin: string;
+    presetName?: string;
+  } | null>(null);
+  const [addingAltKey, setAddingAltKey] = useState<string | null>(null);
+
+  // Load both data sources in parallel. Re-runs whenever a PR succeeds
+  // (prsRefreshKey bump) so the post-merge state surfaces quickly.
+  useEffect(() => {
+    let cancelled = false;
+    setCatalogLoadError(null);
+    setPoolLoadError(null);
+    void Promise.all([
+      adminApi.bucketAlternatives().then(
+        (r) => !cancelled && setCatalog(r.entries),
+        (e: unknown) =>
+          !cancelled &&
+          setCatalogLoadError(e instanceof Error ? e.message : String(e)),
+      ),
+      adminApi.lookthroughPool().then(
+        (r) => !cancelled && setPool(r.entries),
+        (e: unknown) =>
+          !cancelled &&
+          setPoolLoadError(e instanceof Error ? e.message : String(e)),
+      ),
+    ]);
+    return () => {
+      cancelled = true;
+    };
+  }, [prsRefreshKey]);
+
+  // Build a fast lookup: ISIN → look-through pool entry. Used for the
+  // per-row LT columns. Key is uppercase to defeat any source casing
+  // inconsistency between catalog and pool.
+  const poolByIsin = useMemo(() => {
+    const m = new Map<string, LookthroughPoolEntry>();
+    for (const p of pool ?? []) m.set(p.isin.toUpperCase(), p);
+    return m;
+  }, [pool]);
+
+  // Set of ISINs currently used as default OR alternative in the catalog.
+  // Drives the "Nicht zugeordnet" group: pool entries NOT in this set are
+  // bucket-orphan and need attaching.
+  const attachedIsins = useMemo(() => {
+    const s = new Set<string>();
+    if (catalog) {
+      for (const entry of Object.values(catalog)) {
+        if (entry.isin) s.add(entry.isin.toUpperCase());
+        for (const alt of entry.alternatives ?? [])
+          if (alt.isin) s.add(alt.isin.toUpperCase());
+      }
+    }
+    return s;
+  }, [catalog]);
+
+  const unclassifiedPool = useMemo(() => {
+    if (!pool) return [];
+    return pool
+      .filter((p) => !attachedIsins.has(p.isin.toUpperCase()))
+      .sort((a, b) => a.isin.localeCompare(b.isin));
+  }, [pool, attachedIsins]);
+
+  // Group catalog buckets by asset class (Equity/FixedIncome/RealEstate/
+  // Commodities/DigitalAssets) — same convention BrowseBucketsPanel uses.
+  // We DON'T use BucketTree here because we need a wider row layout
+  // (look-through columns + actions) than that component supports.
+  const groups = useMemo(() => {
+    if (!catalog) return [];
+    const byClass = new Map<string, Array<{ key: string; name: string }>>();
+    for (const [key, entry] of Object.entries(catalog)) {
+      const assetClass = key.split("-")[0] || "Other";
+      const list = byClass.get(assetClass) ?? [];
+      list.push({ key, name: entry.name });
+      byClass.set(assetClass, list);
+    }
+    const out: Array<{
+      assetClass: string;
+      label: string;
+      entries: Array<{ key: string; name: string }>;
+    }> = [];
+    for (const [assetClass, entries] of byClass) {
+      entries.sort((a, b) => a.key.localeCompare(b.key));
+      out.push({
+        assetClass,
+        label: assetClass.replace(/([a-z])([A-Z])/g, "$1 $2"),
+        entries,
+      });
+    }
+    out.sort((a, b) => a.label.localeCompare(b.label));
+    return out;
+  }, [catalog]);
+
+  function toggleClass(assetClass: string) {
+    setExpandedClasses((prev) => {
+      const next = new Set(prev);
+      if (next.has(assetClass)) next.delete(assetClass);
+      else next.add(assetClass);
+      return next;
+    });
+  }
+  function expandAll() {
+    setExpandedClasses(new Set(groups.map((g) => g.assetClass)));
+    setUnclassifiedOpen(true);
+  }
+  function collapseAll() {
+    setExpandedClasses(new Set());
+    setUnclassifiedOpen(false);
+  }
+
+  // Single-ISIN pool add (header bar). Reuses the existing endpoint that
+  // LookthroughPoolPanel called — same scrape + 422-incomplete + 409-already
+  // handling, just rewired to refresh the consolidated tree's data after.
+  async function addToPool() {
+    const trimmed = poolIsin.trim().toUpperCase();
+    if (!trimmed) return;
+    setSubmittingPoolAdd(true);
+    setHeaderErrMsg(null);
+    setLastPoolPr(null);
+    try {
+      const r = await adminApi.addLookthroughPoolIsin(trimmed);
+      setLastPoolPr({ url: r.prUrl, number: r.prNumber, isin: r.isin });
+      toast.success(
+        lang === "de"
+          ? `PR #${r.prNumber} geöffnet für ${r.isin}`
+          : `PR #${r.prNumber} opened for ${r.isin}`,
+        {
+          description:
+            lang === "de"
+              ? `${r.topHoldingCount} Holdings · ${r.geoCount} Länder · ${r.sectorCount} Sektoren — Review + merge erforderlich, dann redeploy.`
+              : `${r.topHoldingCount} holdings · ${r.geoCount} countries · ${r.sectorCount} sectors — review + merge required, then redeploy.`,
+          action: {
+            label: t({ de: "Öffnen", en: "Open" }),
+            onClick: () => window.open(r.prUrl, "_blank"),
+          },
+        },
+      );
+      setPoolIsin("");
+      setPrsRefreshKey((k) => k + 1);
+    } catch (e: unknown) {
+      setHeaderErrMsg(e instanceof Error ? e.message : String(e));
+      setPrsRefreshKey((k) => k + 1);
+    } finally {
+      setSubmittingPoolAdd(false);
+    }
+  }
+
+  // Bulk backfill (header bar). Same endpoint introduced 2026-04-28.
+  async function runBackfill() {
+    setBackfilling(true);
+    setHeaderErrMsg(null);
+    setBackfillResult(null);
+    try {
+      const r = await adminApi.backfillLookthroughPool();
+      setBackfillResult({
+        scanned: r.scanned,
+        missing: r.missing,
+        added: r.added,
+        scrapeFailures: r.scrapeFailures,
+        skippedAlreadyPresent: r.skippedAlreadyPresent,
+        prUrl: r.prUrl,
+        prNumber: r.prNumber,
+      });
+      if (r.prNumber && r.prUrl) {
+        toast.success(
+          lang === "de"
+            ? `Bulk-PR #${r.prNumber} mit ${r.added.length} ISIN${r.added.length === 1 ? "" : "s"} geöffnet`
+            : `Bulk PR #${r.prNumber} opened with ${r.added.length} ISIN${r.added.length === 1 ? "" : "s"}`,
+          {
+            action: {
+              label: t({ de: "Öffnen", en: "Open" }),
+              onClick: () => window.open(r.prUrl, "_blank"),
+            },
+          },
+        );
+        setPrsRefreshKey((k) => k + 1);
+      } else if (r.missing === 0) {
+        toast.success(
+          lang === "de"
+            ? "Keine fehlenden Look-through-Daten — alle Katalog-ISINs sind abgedeckt."
+            : "No missing look-through data — every catalog ISIN is covered.",
+        );
+      }
+    } catch (e: unknown) {
+      setHeaderErrMsg(e instanceof Error ? e.message : String(e));
+      setPrsRefreshKey((k) => k + 1);
+    } finally {
+      setBackfilling(false);
+    }
+  }
+
+  // Per-row Remove (alternatives only — defaults are part of the catalog
+  // baseline and removing them needs a different flow). Browser confirm
+  // mirrors the legacy BucketAlternativesPanel pattern.
+  async function removeAlt(parentKey: string, isin: string, name: string) {
+    const confirmed = window.confirm(
+      lang === "de"
+        ? `Pull-Request öffnen, die "${name}" (${isin}) als Alternative aus "${parentKey}" entfernt?\n\nDer Look-through-Datenpool wird NICHT angetastet — die Holdings/Geo/Sektor-Daten bleiben erhalten.`
+        : `Open a pull request removing "${name}" (${isin}) from "${parentKey}"?\n\nThe look-through data pool is NOT touched — holdings/geo/sector data stay available.`,
+    );
+    if (!confirmed) return;
+    try {
+      const r = await adminApi.removeBucketAlternative(parentKey, isin);
+      toast.success(
+        lang === "de"
+          ? `Remove-PR #${r.prNumber} geöffnet`
+          : `Remove PR #${r.prNumber} opened`,
+        {
+          action: {
+            label: t({ de: "Öffnen", en: "Open" }),
+            onClick: () => window.open(r.prUrl, "_blank"),
+          },
+        },
+      );
+      setPrsRefreshKey((k) => k + 1);
+    } catch (e: unknown) {
+      toast.error(
+        lang === "de"
+          ? `Entfernen fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`
+          : `Remove failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  }
+
+  function handlePrCreated() {
+    setAddingAltKey(null);
+    setAttaching(null);
+    setPrsRefreshKey((k) => k + 1);
+  }
+
+  return (
+    <Card data-testid="card-consolidated-etf-tree">
+      <CardHeader>
+        <CardTitle className="text-base flex items-center justify-between gap-2">
+          <span>
+            {t({
+              de: "ETF-Übersicht (Buckets + Look-through-Daten)",
+              en: "ETF overview (buckets + look-through data)",
+            })}
+          </span>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={expandAll}
+              className="text-xs text-primary hover:underline"
+              data-testid="button-tree-expand-all"
+            >
+              {t({ de: "Alle ausklappen", en: "Expand all" })}
+            </button>
+            <span className="text-xs text-muted-foreground">·</span>
+            <button
+              type="button"
+              onClick={collapseAll}
+              className="text-xs text-primary hover:underline"
+              data-testid="button-tree-collapse-all"
+            >
+              {t({ de: "Alle einklappen", en: "Collapse all" })}
+            </button>
+          </div>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Header bar: pool-level operator levers (single add + bulk backfill).
+            Kept separate from the per-row tree actions so the two flows don't
+            visually interfere. */}
+        <div className="rounded-md border bg-muted/30 p-3 space-y-3">
+          <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
+            <div className="text-xs text-muted-foreground sm:flex-1">
+              {lang === "de"
+                ? "ISIN direkt in den Look-through-Datenpool aufnehmen (ohne Bucket-Zuordnung — z.B. als reines Lookup-Ziel)."
+                : "Add an ISIN directly to the look-through data pool (no bucket attachment — e.g. as a lookup-only entry)."}
+            </div>
+            <div className="flex gap-2">
+              <Input
+                placeholder={t({
+                  de: "z. B. IE00B5BMR087",
+                  en: "e.g. IE00B5BMR087",
+                })}
+                value={poolIsin}
+                onChange={(e) => setPoolIsin(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && poolIsin.trim()) void addToPool();
+                }}
+                disabled={submittingPoolAdd || !githubConfigured}
+                className="w-48"
+                data-testid="input-tree-pool-isin"
+              />
+              <Button
+                onClick={() => void addToPool()}
+                disabled={
+                  submittingPoolAdd || !poolIsin.trim() || !githubConfigured
+                }
+                data-testid="button-tree-pool-add"
+              >
+                {submittingPoolAdd ? (
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                ) : (
+                  t({ de: "Pool-Add", en: "Pool add" })
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => void runBackfill()}
+                disabled={backfilling || !githubConfigured}
+                data-testid="button-tree-backfill"
+                title={t({
+                  de: "Scannt Katalog-ISINs ohne Look-through-Daten und öffnet einen gemeinsamen PR (1-2 min).",
+                  en: "Scans catalog ISINs without look-through data and opens one combined PR (1-2 min).",
+                })}
+              >
+                {backfilling ? (
+                  <>
+                    <RefreshCw className="h-4 w-4 animate-spin mr-2" />
+                    {t({ de: "Läuft …", en: "Running …" })}
+                  </>
+                ) : (
+                  t({
+                    de: "Fehlende Daten holen",
+                    en: "Fetch missing data",
+                  })
+                )}
+              </Button>
+            </div>
+          </div>
+          {headerErrMsg && (
+            <Alert variant="destructive">
+              <AlertTitle>{t({ de: "Fehler", en: "Error" })}</AlertTitle>
+              <AlertDescription className="text-xs">
+                {headerErrMsg}
+              </AlertDescription>
+            </Alert>
+          )}
+          {lastPoolPr && (
+            <Alert className="border-emerald-600/40 text-emerald-900 dark:text-emerald-200">
+              <AlertTitle className="text-xs">
+                {lang === "de"
+                  ? `Pool-PR #${lastPoolPr.number} für ${lastPoolPr.isin} geöffnet`
+                  : `Pool PR #${lastPoolPr.number} for ${lastPoolPr.isin} opened`}
+              </AlertTitle>
+              <AlertDescription className="text-xs">
+                <a
+                  href={lastPoolPr.url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="underline"
+                >
+                  {t({ de: "PR auf GitHub →", en: "PR on GitHub →" })}
+                </a>
+              </AlertDescription>
+            </Alert>
+          )}
+          {backfillResult && (
+            <Alert
+              className={
+                backfillResult.prUrl
+                  ? "border-emerald-600/40"
+                  : "border-amber-600/40"
+              }
+            >
+              <AlertTitle className="text-xs">
+                {backfillResult.prUrl
+                  ? lang === "de"
+                    ? `Bulk-PR #${backfillResult.prNumber} mit ${backfillResult.added.length} ISIN${backfillResult.added.length === 1 ? "" : "s"} geöffnet`
+                    : `Bulk PR #${backfillResult.prNumber} opened with ${backfillResult.added.length} ISIN${backfillResult.added.length === 1 ? "" : "s"}`
+                  : backfillResult.missing === 0
+                    ? t({
+                        de: "Alle Katalog-ISINs sind abgedeckt",
+                        en: "All catalog ISINs are covered",
+                      })
+                    : t({
+                        de: "Backfill abgeschlossen — kein PR",
+                        en: "Backfill done — no PR",
+                      })}
+              </AlertTitle>
+              <AlertDescription className="text-xs space-y-1">
+                <div>
+                  {lang === "de"
+                    ? `${backfillResult.scanned} ISINs gescannt · ${backfillResult.missing} ohne Daten · ${backfillResult.added.length} gescraped · ${backfillResult.scrapeFailures.length} fehlgeschlagen.`
+                    : `${backfillResult.scanned} ISINs scanned · ${backfillResult.missing} missing · ${backfillResult.added.length} scraped · ${backfillResult.scrapeFailures.length} failed.`}
+                </div>
+                {backfillResult.scrapeFailures.length > 0 && (
+                  <details>
+                    <summary className="cursor-pointer">
+                      {t({
+                        de: "Fehlgeschlagene ISINs anzeigen",
+                        en: "Show failed ISINs",
+                      })}
+                    </summary>
+                    <ul className="list-disc list-inside ml-2 mt-1">
+                      {backfillResult.scrapeFailures.map((f) => (
+                        <li key={f.isin}>
+                          <code>{f.isin}</code> — {f.reason}
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+                {backfillResult.prUrl && (
+                  <a
+                    href={backfillResult.prUrl}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    className="underline font-medium block mt-1"
+                  >
+                    {t({ de: "Bulk-PR auf GitHub →", en: "Bulk PR on GitHub →" })}
+                  </a>
+                )}
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+
+        {/* Surface catalog + pool load errors separately so neither hides the
+            other (the architect-review caught that the previous first-non-null
+            precedence could mask a real failure). topCatalogError is only
+            mirrored when the panel's own /admin/bucket-alternatives load also
+            failed — otherwise the page-level /admin/catalog error would
+            confuse the operator while the panel's data renders fine. */}
+        {(catalogLoadError ||
+          (topCatalogError && !catalog) ||
+          poolLoadError) && (
+          <Alert variant="destructive">
+            <AlertTitle>
+              {t({
+                de: "Daten konnten nicht geladen werden",
+                en: "Data could not be loaded",
+              })}
+            </AlertTitle>
+            <AlertDescription className="text-xs space-y-1">
+              {catalogLoadError && (
+                <div>
+                  <span className="font-medium">
+                    {t({ de: "Bucket-Daten:", en: "Bucket data:" })}
+                  </span>{" "}
+                  {catalogLoadError}
+                </div>
+              )}
+              {!catalogLoadError && topCatalogError && !catalog && (
+                <div>
+                  <span className="font-medium">
+                    {t({ de: "Katalog:", en: "Catalog:" })}
+                  </span>{" "}
+                  {topCatalogError}
+                </div>
+              )}
+              {poolLoadError && (
+                <div>
+                  <span className="font-medium">
+                    {t({
+                      de: "Look-through-Pool:",
+                      en: "Look-through pool:",
+                    })}
+                  </span>{" "}
+                  {poolLoadError}
+                </div>
+              )}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Combined open-PRs strip — both alt-add and pool-add flows feed
+            into the same tree, so the operator should see all pending PRs
+            in one place. Two cards because the prefix filter is per-call. */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <PendingPrsCard
+            prefix="add-alt/"
+            refreshKey={prsRefreshKey}
+            emptyHint={t({
+              de: "Keine offenen Alt-Add-PRs.",
+              en: "No open alt-add PRs.",
+            })}
+          />
+          <PendingPrsCard
+            prefix="rm-alt/"
+            refreshKey={prsRefreshKey}
+            emptyHint={t({
+              de: "Keine offenen Alt-Remove-PRs.",
+              en: "No open alt-remove PRs.",
+            })}
+          />
+          <PendingPrsCard
+            prefix="add-lookthrough-pool/"
+            refreshKey={prsRefreshKey}
+            emptyHint={t({
+              de: "Keine offenen Pool-PRs.",
+              en: "No open pool PRs.",
+            })}
+          />
+        </div>
+
+        {/* Catalog tree */}
+        {!catalog && !catalogLoadError && (
+          <p className="text-sm text-muted-foreground">
+            {t({ de: "Lade …", en: "Loading …" })}
+          </p>
+        )}
+        {catalog && groups.length > 0 && (
+          <div className="rounded-md border" data-testid="etf-tree-root">
+            {groups.map((g) => {
+              const isOpen = expandedClasses.has(g.assetClass);
+              return (
+                <div key={g.assetClass} className="border-b last:border-b-0">
+                  <button
+                    type="button"
+                    onClick={() => toggleClass(g.assetClass)}
+                    aria-expanded={isOpen}
+                    className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted/40"
+                    data-testid={`tree-class-${g.assetClass}`}
+                  >
+                    {isOpen ? (
+                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                    ) : (
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    )}
+                    <span className="font-medium">{g.label}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {g.entries.length}{" "}
+                      {lang === "de" ? "Bucket" : "bucket"}
+                      {g.entries.length === 1 ? "" : "s"}
+                    </span>
+                  </button>
+                  {isOpen && (
+                    <div className="bg-muted/10">
+                      {g.entries.map((leaf) => {
+                        const entry = catalog[leaf.key];
+                        if (!entry) return null;
+                        const alts = entry.alternatives ?? [];
+                        const altsAtCap = alts.length >= 2;
+                        return (
+                          <div
+                            key={leaf.key}
+                            className="border-t pl-6 pr-3 py-2"
+                            data-testid={`tree-bucket-${leaf.key}`}
+                          >
+                            <div className="flex items-center justify-between gap-2 mb-1">
+                              <div className="text-sm">
+                                <span className="font-mono text-xs text-primary">
+                                  {leaf.key}
+                                </span>
+                                <span className="text-muted-foreground">
+                                  {" "}
+                                  ·{" "}
+                                </span>
+                                <span className="font-medium">{leaf.name}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-muted-foreground">
+                                  {alts.length}/2{" "}
+                                  {t({ de: "Alt.", en: "alt." })}
+                                </span>
+                                {githubConfigured && (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant={
+                                      addingAltKey === leaf.key
+                                        ? "secondary"
+                                        : "outline"
+                                    }
+                                    onClick={() =>
+                                      setAddingAltKey((cur) =>
+                                        cur === leaf.key ? null : leaf.key,
+                                      )
+                                    }
+                                    disabled={altsAtCap}
+                                    title={
+                                      altsAtCap
+                                        ? t({
+                                            de: "Maximal 2 Alternativen pro Bucket erreicht",
+                                            en: "Maximum 2 alternatives per bucket reached",
+                                          })
+                                        : undefined
+                                    }
+                                    data-testid={`button-tree-add-alt-${leaf.key}`}
+                                  >
+                                    {addingAltKey === leaf.key
+                                      ? t({ de: "Schließen", en: "Close" })
+                                      : t({
+                                          de: "+ Alternative",
+                                          en: "+ Alternative",
+                                        })}
+                                  </Button>
+                                )}
+                              </div>
+                            </div>
+                            <BucketRowsTable
+                              parentKey={leaf.key}
+                              defaultEntry={entry}
+                              alternatives={alts}
+                              poolByIsin={poolByIsin}
+                              onRemoveAlt={removeAlt}
+                              githubConfigured={githubConfigured}
+                            />
+                            {addingAltKey === leaf.key && (
+                              <div className="mt-2">
+                                <AddAlternativeForm
+                                  parentKey={leaf.key}
+                                  githubConfigured={githubConfigured}
+                                  onCreated={handlePrCreated}
+                                />
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* "Nicht zugeordnet" group — pool ISINs with no bucket attachment.
+            Each row gets a "Bucket zuordnen" action that pre-fills the
+            standard AddAlternativeForm with the ISIN. Operator picks the
+            target bucket via the inline form (justETF preview still runs
+            so non-pool fields like name/TER/AUM get autofilled). */}
+        {pool && (
+          <div className="rounded-md border" data-testid="etf-tree-unclassified">
+            <button
+              type="button"
+              onClick={() => setUnclassifiedOpen((v) => !v)}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-muted/40"
+              data-testid="tree-unclassified-toggle"
+            >
+              {unclassifiedOpen ? (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              )}
+              <span className="font-medium">
+                {t({
+                  de: "Noch nicht zugeordnet",
+                  en: "Not classified yet",
+                })}
+              </span>
+              <span className="text-xs text-muted-foreground">
+                {unclassifiedPool.length}{" "}
+                {lang === "de"
+                  ? `Pool-Eintr${unclassifiedPool.length === 1 ? "ag" : "äge"} ohne Bucket`
+                  : `pool entr${unclassifiedPool.length === 1 ? "y" : "ies"} without bucket`}
+              </span>
+            </button>
+            {unclassifiedOpen && (
+              <div className="bg-muted/10 px-3 py-2 space-y-2">
+                {unclassifiedPool.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">
+                    {t({
+                      de: "Alle Pool-Einträge sind mindestens einem Bucket zugeordnet.",
+                      en: "Every pool entry is attached to at least one bucket.",
+                    })}
+                  </p>
+                ) : (
+                  unclassifiedPool.map((p) => (
+                    <UnclassifiedRow
+                      key={p.isin}
+                      poolEntry={p}
+                      attaching={attaching}
+                      onAttachOpen={() =>
+                        setAttaching((cur) =>
+                          cur?.isin === p.isin
+                            ? null
+                            : { isin: p.isin, presetName: p.name ?? undefined },
+                        )
+                      }
+                      onCreated={handlePrCreated}
+                      catalogKeys={Object.keys(catalog ?? {})}
+                      githubConfigured={githubConfigured}
+                    />
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// BucketRowsTable — the per-bucket table of [Default + Alternatives] with
+// look-through columns. Pulled out as a sub-component so the main
+// ConsolidatedEtfTreePanel render stays readable. Pure presentational.
+// ---------------------------------------------------------------------------
+function BucketRowsTable({
+  parentKey,
+  defaultEntry,
+  alternatives,
+  poolByIsin,
+  onRemoveAlt,
+  githubConfigured,
+}: {
+  parentKey: string;
+  defaultEntry: CatalogEntrySummary;
+  alternatives: AlternativeEntrySummary[];
+  poolByIsin: Map<string, LookthroughPoolEntry>;
+  onRemoveAlt: (parentKey: string, isin: string, name: string) => void;
+  githubConfigured: boolean;
+}) {
+  const { t, lang } = useAdminT();
+  const rows: Array<{
+    role: "default" | "alt";
+    name: string;
+    isin: string;
+  }> = [
+    { role: "default", name: defaultEntry.name, isin: defaultEntry.isin },
+    ...alternatives.map((a) => ({
+      role: "alt" as const,
+      name: a.name,
+      isin: a.isin,
+    })),
+  ];
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full text-xs" data-testid={`tree-table-${parentKey}`}>
+        <thead className="text-muted-foreground">
+          <tr className="text-left">
+            <th className="px-2 py-1 font-medium w-20">
+              {t({ de: "Rolle", en: "Role" })}
+            </th>
+            <th className="px-2 py-1 font-medium">ISIN</th>
+            <th className="px-2 py-1 font-medium">
+              {t({ de: "Name", en: "Name" })}
+            </th>
+            <th className="px-2 py-1 font-medium">
+              {t({ de: "LT-Status", en: "LT status" })}
+            </th>
+            <th className="px-2 py-1 font-medium" title="Top / Geo / Sektor">
+              T/G/S
+            </th>
+            <th className="px-2 py-1 font-medium">
+              {t({ de: "Quelle", en: "Source" })}
+            </th>
+            <th className="px-2 py-1 font-medium">
+              {t({ de: "Stand", en: "As of" })}
+            </th>
+            <th className="px-2 py-1 font-medium w-24"></th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => {
+            const lt = poolByIsin.get(r.isin.toUpperCase());
+            return (
+              <tr
+                key={`${r.role}-${r.isin}`}
+                className="border-t"
+                data-testid={`tree-row-${parentKey}-${r.isin}`}
+              >
+                <td className="px-2 py-1">
+                  <Badge
+                    variant="outline"
+                    className={
+                      r.role === "default"
+                        ? "border-primary text-primary"
+                        : "border-slate-500 text-slate-700 dark:text-slate-300"
+                    }
+                  >
+                    {r.role === "default"
+                      ? t({ de: "Default", en: "Default" })
+                      : t({ de: "Alt", en: "Alt" })}
+                  </Badge>
+                </td>
+                <td className="px-2 py-1 font-mono">{r.isin}</td>
+                <td className="px-2 py-1">
+                  <span className="truncate inline-block max-w-[36ch]" title={r.name}>
+                    {r.name}
+                  </span>
+                </td>
+                <td className="px-2 py-1">
+                  <LookthroughStatusBadge entry={lt} />
+                </td>
+                <td className="px-2 py-1 font-mono">
+                  {lt
+                    ? `${lt.topHoldingCount}/${lt.geoCount}/${lt.sectorCount}`
+                    : "—"}
+                </td>
+                <td className="px-2 py-1">
+                  <PoolSourceBadge entry={lt} />
+                </td>
+                <td className="px-2 py-1 text-muted-foreground">
+                  {lt?.topHoldingsAsOf || lt?.breakdownsAsOf || "—"}
+                </td>
+                <td className="px-2 py-1 text-right">
+                  {r.role === "alt" && githubConfigured && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => onRemoveAlt(parentKey, r.isin, r.name)}
+                      className="h-7 px-2 text-xs text-rose-700 hover:text-rose-800 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950"
+                      data-testid={`button-tree-remove-alt-${parentKey}-${r.isin}`}
+                    >
+                      {t({ de: "Entfernen", en: "Remove" })}
+                    </Button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// UnclassifiedRow — one pool entry with no bucket attachment. Renders as a
+// compact summary row + an inline "attach" form (bucket picker + the
+// existing AddAlternativeForm pre-keyed to the chosen bucket). The ISIN
+// is pre-filled into the form via a hidden controlled input — operator
+// just needs to click "Vorab-Daten holen" to autofill the rest.
+// ---------------------------------------------------------------------------
+function UnclassifiedRow({
+  poolEntry,
+  attaching,
+  onAttachOpen,
+  onCreated,
+  catalogKeys,
+  githubConfigured,
+}: {
+  poolEntry: LookthroughPoolEntry;
+  attaching: { isin: string; presetName?: string } | null;
+  onAttachOpen: () => void;
+  onCreated: () => void;
+  catalogKeys: string[];
+  githubConfigured: boolean;
+}) {
+  const { t, lang } = useAdminT();
+  const isOpen = attaching?.isin === poolEntry.isin;
+  const [pickedBucket, setPickedBucket] = useState<string>("");
+
+  return (
+    <div
+      className="rounded border bg-background p-2"
+      data-testid={`tree-unclassified-${poolEntry.isin}`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          <Badge
+            variant="outline"
+            className="border-violet-600 text-violet-700 dark:text-violet-400 shrink-0"
+          >
+            {t({ de: "Pool-only", en: "Pool-only" })}
+          </Badge>
+          <span className="font-mono text-xs">{poolEntry.isin}</span>
+          {poolEntry.name && (
+            <span
+              className="text-xs text-muted-foreground italic truncate"
+              title={poolEntry.name}
+            >
+              · {poolEntry.name}
+            </span>
+          )}
+          <LookthroughStatusBadge entry={poolEntry} />
+          <span className="text-xs font-mono text-muted-foreground shrink-0">
+            {poolEntry.topHoldingCount}/{poolEntry.geoCount}/
+            {poolEntry.sectorCount}
+          </span>
+          <PoolSourceBadge entry={poolEntry} />
+        </div>
+        {githubConfigured && (
+          <Button
+            type="button"
+            size="sm"
+            variant={isOpen ? "secondary" : "outline"}
+            onClick={onAttachOpen}
+            data-testid={`button-tree-attach-${poolEntry.isin}`}
+          >
+            {isOpen
+              ? t({ de: "Schließen", en: "Close" })
+              : t({ de: "Bucket zuordnen", en: "Attach to bucket" })}
+          </Button>
+        )}
+      </div>
+      {isOpen && (
+        <div className="mt-2 border-t pt-2 space-y-2">
+          <div className="flex items-center gap-2 text-xs">
+            <label className="font-medium">
+              {t({ de: "Ziel-Bucket:", en: "Target bucket:" })}
+            </label>
+            <select
+              value={pickedBucket}
+              onChange={(e) => setPickedBucket(e.target.value)}
+              className="border rounded px-2 py-1 text-xs bg-background"
+              data-testid={`select-tree-attach-bucket-${poolEntry.isin}`}
+            >
+              <option value="">
+                {t({ de: "— bitte wählen —", en: "— please pick —" })}
+              </option>
+              {catalogKeys
+                .slice()
+                .sort((a, b) => a.localeCompare(b))
+                .map((k) => (
+                  <option key={k} value={k}>
+                    {k}
+                  </option>
+                ))}
+            </select>
+          </div>
+          {pickedBucket ? (
+            <AddAlternativeForm
+              key={`${poolEntry.isin}-${pickedBucket}`}
+              parentKey={pickedBucket}
+              githubConfigured={githubConfigured}
+              onCreated={onCreated}
+              presetIsin={poolEntry.isin}
+            />
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              {t({
+                de: "Bucket wählen, dann erscheint das Add-Formular mit der ISIN vorausgefüllt.",
+                en: "Pick a bucket — the add form will appear with the ISIN pre-filled.",
+              })}
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// LookthroughStatusBadge / PoolSourceBadge — tiny presentational helpers
+// reused across both the per-bucket rows and the unclassified rows.
+// ---------------------------------------------------------------------------
+function LookthroughStatusBadge({
+  entry,
+}: {
+  entry: LookthroughPoolEntry | undefined;
+}) {
+  const { t, lang } = useAdminT();
+  if (!entry) {
+    return (
+      <Badge
+        variant="outline"
+        className="border-rose-600/40 text-rose-700 dark:text-rose-400"
+      >
+        {t({ de: "Keine LT-Daten", en: "No LT data" })}
+      </Badge>
+    );
+  }
+  const status = computePoolStatus(entry);
+  return (
+    <Badge
+      variant="outline"
+      className={
+        status.tone === "ok"
+          ? "border-emerald-600 text-emerald-700 dark:text-emerald-400"
+          : status.tone === "stale"
+            ? "border-amber-600 text-amber-700 dark:text-amber-400"
+            : "border-rose-600 text-rose-700 dark:text-rose-400"
+      }
+    >
+      {poolStatusLabel(status.tone, lang)}
+    </Badge>
+  );
+}
+
+function PoolSourceBadge({
+  entry,
+}: {
+  entry: LookthroughPoolEntry | undefined;
+}) {
+  const { t } = useAdminT();
+  if (!entry) {
+    return <span className="text-xs text-muted-foreground">—</span>;
+  }
+  return (
+    <Badge
+      variant="outline"
+      className={
+        entry.source === "pool"
+          ? "border-sky-600 text-sky-700 dark:text-sky-400"
+          : entry.source === "both"
+            ? "border-violet-600 text-violet-700 dark:text-violet-400"
+            : "border-slate-500 text-slate-700 dark:text-slate-400"
+      }
+    >
+      {entry.source === "pool"
+        ? t({ de: "Auto-Refresh", en: "Auto-refresh" })
+        : entry.source === "both"
+          ? t({ de: "Beide", en: "Both" })
+          : t({ de: "Kuratiert", en: "Curated" })}
+    </Badge>
+  );
+}
