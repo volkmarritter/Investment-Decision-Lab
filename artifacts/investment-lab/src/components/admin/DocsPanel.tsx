@@ -854,38 +854,51 @@ function AfterMergeCallout({
               {lang === "de" ? (
                 <>
                   <p>
-                    Replit zieht den Merge automatisch von GitHub in den
-                    Workspace (kann 1–2 Minuten dauern). Im{" "}
-                    <strong>Files-Tab</strong> links siehst du, ob die geänderte
-                    Datei (z. B. <code>lookthrough.overrides.json</code>)
-                    bereits den neuen Stand zeigt. <strong>Erst dann</strong>{" "}
-                    oben rechts auf <strong>„Republish"</strong> klicken — der
-                    neue Live-Snapshot ist nach 1–3 Min draußen.
+                    Replit zieht den Merge <strong>nicht</strong> von selbst in
+                    den Workspace — du musst ihn aktiv abholen. Dafür ist die
+                    Karte <strong>„Workspace-Synchronisation"</strong> (Flow 6)
+                    da:
+                    {" "}
+                    <strong>„Aus Origin aktualisieren"</strong> klicken,
+                    danach — falls „Hinter Origin" {">"} 0 — auf{" "}
+                    <strong>„Commits ziehen"</strong>. Im{" "}
+                    <strong>Files-Tab</strong> links kannst du gegenchecken,
+                    ob die geänderte Datei (z. B.{" "}
+                    <code>lookthrough.overrides.json</code>) tatsächlich den
+                    neuen Stand zeigt. <strong>Erst dann</strong> oben rechts
+                    auf <strong>„Republish"</strong> klicken — der neue
+                    Live-Snapshot ist nach 1–3 Min draußen.
                   </p>
                   <p>
                     <strong>Optional, einmal einrichten:</strong> Im{" "}
                     Deployments-Tab den Schalter „Redeploy on commit"
-                    einschalten. Dann macht Replit Sync + Republish vollständig
-                    automatisch nach jedem Auto-Merge — du musst gar nichts
-                    mehr klicken.
+                    einschalten. Dann macht Replit den Republish automatisch
+                    nach jedem Auto-Merge. Den Workspace-Sync musst du in
+                    diesem Tab trotzdem nicht selbst machen, weil das Deployment
+                    seinen eigenen frischen Checkout zieht.
                   </p>
                 </>
               ) : (
                 <>
                   <p>
-                    Replit pulls the merge from GitHub into the workspace
-                    automatically (can take 1–2 minutes). In the{" "}
-                    <strong>Files tab</strong> on the left you can see whether
-                    the changed file (e.g. <code>lookthrough.overrides.json</code>)
-                    already reflects the new state. <strong>Only then</strong>{" "}
-                    click <strong>"Republish"</strong> at the top right — the
-                    new live snapshot is out in 1–3 minutes.
+                    Replit does <strong>not</strong> pull the merge into the
+                    workspace on its own — you have to fetch it. That is what
+                    the <strong>"Workspace sync"</strong> card (Flow 6) is for:
+                    click <strong>"Refresh from origin"</strong>, then — if
+                    "Behind origin" {">"} 0 — click <strong>"Pull commits"</strong>.
+                    In the <strong>Files tab</strong> on the left you can
+                    double-check that the changed file (e.g.{" "}
+                    <code>lookthrough.overrides.json</code>) actually reflects
+                    the new state. <strong>Only then</strong> click{" "}
+                    <strong>"Republish"</strong> at the top right — the new
+                    live snapshot is out in 1–3 minutes.
                   </p>
                   <p>
                     <strong>Optional, one-time setup:</strong> In the
                     Deployments tab toggle "Redeploy on commit" on. Then Replit
-                    handles sync + republish fully automatically after every
-                    auto-merge — no clicks needed.
+                    Republishes automatically after every auto-merge. You still
+                    don't need a manual workspace-sync for that path, because
+                    the deployment pulls its own fresh checkout.
                   </p>
                 </>
               )}
@@ -897,18 +910,20 @@ function AfterMergeCallout({
           {lang === "de" ? (
             <>
               <strong>Häufiger Fehler:</strong> „Republish" klicken,{" "}
-              <em>bevor</em> der Workspace die Änderung gezogen hat. Folge:
-              alter Stand wird ausgeliefert, obwohl der PR gemergt ist. Im
-              Files-Tab kontrollieren, ob die Datei aktuell ist —{" "}
-              <strong>dann</strong> erst Republish.
+              <em>ohne vorher den Workspace zu syncen</em>. Folge: alter
+              Stand wird ausgeliefert, obwohl der PR gemergt ist. Reihenfolge
+              ist also: <strong>1.</strong> Workspace-Sync (Flow 6),{" "}
+              <strong>2.</strong> Files-Tab kurz prüfen, <strong>3.</strong>
+              {" "}Republish.
             </>
           ) : (
             <>
               <strong>Common mistake:</strong> Clicking "Republish"{" "}
-              <em>before</em> the workspace has pulled the change. Result: the
-              old state ships even though the PR is merged. Verify in the
-              Files tab that the file is up to date —{" "}
-              <strong>then</strong> Republish.
+              <em>without syncing the workspace first</em>. Result: the old
+              state ships even though the PR is merged. Order is:{" "}
+              <strong>1.</strong> Workspace sync (Flow 6),{" "}
+              <strong>2.</strong> quick check in the Files tab,{" "}
+              <strong>3.</strong> Republish.
             </>
           )}
         </div>
