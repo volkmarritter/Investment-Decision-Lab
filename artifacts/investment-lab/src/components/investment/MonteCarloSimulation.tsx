@@ -23,6 +23,50 @@ import { isSyntheticUsEffective, RiskRegime } from "@/lib/metrics";
 import { parseDecimalInput } from "@/lib/manualWeights";
 import { useT } from "@/lib/i18n";
 
+// ---------------------------------------------------------------------------
+// Money input grouping helpers (MC-local — only the investment-amount field
+// needs thousands separators; weights / percentages stay simple).
+//
+// We use the Swiss apostrophe ' as the grouping mark because it is the only
+// character that is unambiguous in BOTH the DE and EN UIs of a CHF-base app:
+//   - "." would clash with the decimal separator in EN locales.
+//   - "," would clash with the decimal separator in DE/CH locales.
+//   - "'" is recognised internationally as a thousands separator and does
+//     not collide with anything we accept as a decimal separator.
+// The user can paste / type with or without grouping marks; the on-change
+// handler reformats to the canonical apostrophe-grouped representation.
+// ---------------------------------------------------------------------------
+function stripGrouping(s: string): string {
+  // Apostrophe (ASCII + curly), regular space, non-breaking space.
+  return s.replace(/['\u2019\s\u00A0]/g, "");
+}
+
+function formatAmountWithGrouping(raw: string): string {
+  const stripped = stripGrouping(raw);
+  // Lone sign while typing — leave it as-is, the user is mid-edit.
+  if (stripped === "" || stripped === "-" || stripped === "+") return stripped;
+  // Split on the first decimal mark (dot or comma) so we can group only the
+  // integer part. The fractional part is preserved verbatim so trailing
+  // zeros and an in-flight separator survive editing (e.g. "1'234," → after
+  // typing the next digit becomes "1'234,5", not "1'2345" or "12'34,5").
+  const sepIdx = stripped.search(/[.,]/);
+  const intPart = sepIdx === -1 ? stripped : stripped.slice(0, sepIdx);
+  const rest = sepIdx === -1 ? "" : stripped.slice(sepIdx);
+  // If the integer part isn't a clean optional-sign + digits run, bail out
+  // and let parseDecimalInput surface the error downstream — don't try to
+  // re-flow garbage.
+  if (!/^[+-]?\d*$/.test(intPart)) return stripped;
+  const sign = intPart.startsWith("+") || intPart.startsWith("-") ? intPart[0] : "";
+  const digits = sign ? intPart.slice(1) : intPart;
+  if (digits === "") return sign + rest;
+  // Group from the right in 3-digit chunks. Standard regex idiom — \B
+  // anchors at a non-word-boundary (so we never insert before the first
+  // digit) and the lookahead guarantees we only split where exactly a
+  // multiple of 3 digits remain to the right.
+  const grouped = digits.replace(/\B(?=(\d{3})+(?!\d))/g, "'");
+  return sign + grouped + rest;
+}
+
 interface MonteCarloSimulationProps {
   allocation: AssetAllocation[];
   horizonYears: number;
@@ -40,13 +84,15 @@ export function MonteCarloSimulation({
 }: MonteCarloSimulationProps) {
   const { t, lang } = useT();
   // Raw text buffer is the source of truth so mobile users on Swiss/German/
-  // French keyboards can type "100000,50" without `<input type="number">`
+  // French keyboards can type "100'000,50" without `<input type="number">`
   // silently emptying the field. parseDecimalInput accepts dot *and* comma
-  // decimals; null falls back to 0 so the simulation still runs while the
+  // decimals; we strip the apostrophe / space grouping marks before parsing
+  // so the operator can think in CHF amounts (100'000) instead of bare
+  // digit runs. null falls back to 0 so the simulation still runs while the
   // user is mid-edit. See the audit comment in src/lib/manualWeights.ts.
-  const [amountDraft, setAmountDraft] = useState<string>("100000");
+  const [amountDraft, setAmountDraft] = useState<string>(() => formatAmountWithGrouping("100000"));
   const investmentAmount = useMemo(
-    () => parseDecimalInput(amountDraft, { min: 0 }) ?? 0,
+    () => parseDecimalInput(stripGrouping(amountDraft), { min: 0 }) ?? 0,
     [amountDraft],
   );
   // Re-run the simulation whenever the user edits CMA overrides in the
@@ -156,7 +202,7 @@ export function MonteCarloSimulation({
             autoCorrect="off"
             spellCheck={false}
             value={amountDraft}
-            onChange={(e) => setAmountDraft(e.target.value)}
+            onChange={(e) => setAmountDraft(formatAmountWithGrouping(e.target.value))}
             className="mt-1"
           />
         </div>
