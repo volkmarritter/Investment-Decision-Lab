@@ -441,6 +441,79 @@ export function Methodology() {
                 : "RF is selected per base currency, but the capital-market assumptions (μ per asset class — see CMAs section) are currency-nominal and are not FX-translated into the base currency. In practice the FX translation is smaller than the dispersion across LTCMA providers; with larger RF spreads (e.g. CHF vs. USD) this still produces slightly different Sharpe values than a strictly FX-consistent calculation would."}
             </AlertDescription>
           </Alert>
+
+          {/* Why CHF Sharpe looks higher — frequent operator question. The
+              difference is mechanical (denominator of (r − rf)/σ shrinks
+              when rf is small), not a property of the portfolio. We show
+              the same r/σ across base currencies and let the rf column do
+              the explaining. Numbers match a typical 60/40 expectation set
+              and the Defaults shown in the table above. */}
+          <div
+            className="rounded-md border border-border bg-muted/20 p-3 space-y-3"
+            data-testid="rf-chf-sharpe-explainer"
+          >
+            <div className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-semibold">
+                {de ? "Warum CHF-Strategien einen höheren Sharpe zeigen" : "Why CHF strategies show a higher Sharpe"}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {de
+                ? "Die Sharpe-Ratio ist (r − rf) / σ. Die Asset-Renditen μ und Volatilitäten σ sind in dieser App währungs-nominal modelliert — sie verschieben sich zwischen Basiswährungen kaum. Was sich stark verschiebt, ist der Abzug rf: der CHF-Geldmarktsatz liegt mit ~0,50 % deutlich unter USD (~4,25 %) oder EUR (~2,50 %). Bei identischem Portfolio bleibt deshalb für CHF ein viel größerer Excess-Return übrig — und damit ein höherer Sharpe."
+                : "Sharpe is (r − rf) / σ. Asset returns μ and volatilities σ are modelled currency-nominal in this app — they barely shift between base currencies. What does shift sharply is the rf deduction: the CHF cash rate at ~0.50% sits well below USD (~4.25%) or EUR (~2.50%). For the same portfolio, the CHF view therefore has a much larger excess return left over — and thus a higher Sharpe."}
+            </p>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[80px]">{de ? "Basis" : "Base"}</TableHead>
+                    <TableHead className="text-right">{de ? "Portfolio-Rendite r" : "Portfolio return r"}</TableHead>
+                    <TableHead className="text-right">rf</TableHead>
+                    <TableHead className="text-right">{de ? "Excess (r − rf)" : "Excess (r − rf)"}</TableHead>
+                    <TableHead className="text-right">σ</TableHead>
+                    <TableHead className="text-right font-semibold">Sharpe</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="text-xs font-mono">
+                  <TableRow>
+                    <TableCell className="font-semibold">USD</TableCell>
+                    <TableCell className="text-right">5.50%</TableCell>
+                    <TableCell className="text-right">4.25%</TableCell>
+                    <TableCell className="text-right">1.25%</TableCell>
+                    <TableCell className="text-right">9.50%</TableCell>
+                    <TableCell className="text-right font-semibold">0.13</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-semibold">EUR</TableCell>
+                    <TableCell className="text-right">5.50%</TableCell>
+                    <TableCell className="text-right">2.50%</TableCell>
+                    <TableCell className="text-right">3.00%</TableCell>
+                    <TableCell className="text-right">9.50%</TableCell>
+                    <TableCell className="text-right font-semibold">0.32</TableCell>
+                  </TableRow>
+                  <TableRow className="bg-muted/40">
+                    <TableCell className="font-semibold">CHF</TableCell>
+                    <TableCell className="text-right">5.50%</TableCell>
+                    <TableCell className="text-right">0.50%</TableCell>
+                    <TableCell className="text-right">5.00%</TableCell>
+                    <TableCell className="text-right">9.50%</TableCell>
+                    <TableCell className="text-right font-semibold">0.53</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              {de
+                ? <><span className="font-semibold text-foreground">Wichtig:</span> Das ist <span className="italic">kein</span> Free Lunch und kein Argument für eine bestimmte Basiswährung. Die Sharpe-Ratio misst, was eine Anlage relativ zur risikolosen Cash-Alternative <span className="italic">in derselben Währung</span> liefert. Ein CHF-Investor hat eine niedrigere Cash-Hürde — also wirkt jede Risiko-Anlage gegen diese Hürde besser. Eine CHF-Sharpe und eine USD-Sharpe sind nicht direkt vergleichbar; sie bewerten unterschiedliche Spielfelder.</>
+                : <><span className="font-semibold text-foreground">Important:</span> This is <span className="italic">not</span> a free lunch and not an argument for any specific base currency. Sharpe measures what an investment delivers relative to the risk-free cash alternative <span className="italic">in the same currency</span>. A CHF investor has a lower cash hurdle, so any risk asset looks better against that hurdle. A CHF Sharpe and a USD Sharpe are not directly comparable; they grade different fields.</>}
+            </p>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              {de
+                ? <><span className="font-semibold text-foreground">Schneller Selbsttest:</span> Setzen Sie oben in der Tabelle den CHF-RF testweise auf 4,25 % (US-Niveau) und beobachten Sie, wie der CHF-Sharpe in der Build-Kachel auf das Niveau von USD zusammenfällt. Das beweist: Der Unterschied stammt vollständig aus dem Cash-Diskont, nicht aus einer Eigenschaft der Allokation.</>
+                : <><span className="font-semibold text-foreground">Quick self-test:</span> in the table above, temporarily set the CHF RF to 4.25% (US level) and watch the CHF Sharpe in the Build tile collapse to the USD level. This proves the gap comes entirely from the cash discount, not from any property of the allocation.</>}
+            </p>
+          </div>
         </Section>
 
         <Section
