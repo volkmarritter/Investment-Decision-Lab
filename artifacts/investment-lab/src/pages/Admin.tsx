@@ -3723,6 +3723,8 @@ function AddAlternativeForm({
   githubConfigured,
   onCreated,
   presetIsin,
+  presetName,
+  presetInfo,
 }: {
   parentKey: string;
   githubConfigured: boolean;
@@ -3733,17 +3735,55 @@ function AddAlternativeForm({
   // skip a typing step. The form re-mounts when this changes (caller
   // sets a key) so the initial draft picks up the preset cleanly.
   presetIsin?: string;
+  // Optional name pre-fill (we know it from the look-through pool when
+  // attaching an existing pool entry). Saves another typing step and
+  // means the form looks "ready to save" on open instead of blank.
+  presetName?: string;
+  // Optional small info card rendered above the form fields. The
+  // attach-from-pool flow uses this to show what we already know about
+  // the ISIN (source, last fetched, holding counts) so the operator
+  // doesn't think the data is missing.
+  presetInfo?: React.ReactNode;
 }) {
   const { t, lang } = useAdminT();
   const [draft, setDraft] = useState<AddBucketAlternativeRequest>(() => {
     const base = blankAlternativeDraft();
-    return presetIsin ? { ...base, isin: presetIsin.toUpperCase() } : base;
+    return {
+      ...base,
+      ...(presetIsin ? { isin: presetIsin.toUpperCase() } : {}),
+      ...(presetName ? { name: presetName } : {}),
+    };
   });
   const [submitting, setSubmitting] = useState(false);
   const [previewing, setPreviewing] = useState(false);
   const [autofilling, setAutofilling] = useState(false);
   const [code, setCode] = useState<string | null>(null);
   const [errMsg, setErrMsg] = useState<string | null>(null);
+  // Track whether we already fired the auto-justETF-fetch for this mount.
+  // We only auto-fetch when `presetIsin` was supplied (i.e. the operator
+  // came in through the "Bucket zuordnen" flow on an existing pool ISIN
+  // — they already committed to attaching this ETF, so racing the
+  // network for the metadata is the right default). For manually-typed
+  // ISINs we keep the existing "user clicks Vorab-Daten" UX so we don't
+  // spam justETF on every keystroke.
+  const [didAutoFetch, setDidAutoFetch] = useState(false);
+
+  // When the form mounts with a `presetIsin`, fetch justETF metadata
+  // automatically so the operator sees a populated form (TER, domicile,
+  // listings, …) instead of an empty one. Without this, "Bucket
+  // zuordnen" feels like it lost data — the operator already saw the
+  // pool entry on the row but the open form is blank until they click
+  // Vorab-Daten themselves. Guarded by `didAutoFetch` so we only fire
+  // once per mount even with React StrictMode double-invokes.
+  useEffect(() => {
+    if (!presetIsin || didAutoFetch) return;
+    setDidAutoFetch(true);
+    void runAutofill();
+    // runAutofill is stable in this component scope (closure over draft
+    // is fine because it only reads draft.isin which we pre-set in the
+    // initial state above).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [presetIsin, didAutoFetch]);
 
   // Auto-fill from justETF — same backend (`/admin/preview-isin`) as the
   // SuggestIsinPanel uses, just adapted to the alt-shape (no `key`
@@ -3900,6 +3940,40 @@ function AddAlternativeForm({
 
   return (
     <div className="mt-3 pt-3 border-t space-y-3">
+      {presetInfo}
+      {/* Sticky save bar — kept at the top of the form (not just at the
+          bottom) so the operator on the attach-from-pool flow always
+          knows where the action button is, even before they scroll past
+          the 12+ field grid. The full-width primary button at the bottom
+          is preserved for the manual-add flow's existing UX. */}
+      {presetIsin && (
+        <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border bg-muted/40 px-3 py-2">
+          <div className="text-xs text-muted-foreground">
+            {autofilling
+              ? t({
+                  de: "Hole Stammdaten von justETF …",
+                  en: "Fetching base data from justETF …",
+                })
+              : t({
+                  de: "Felder geprüft? Speichern öffnet einen Pull-Request, der die ISIN dem Bucket als Alternative zuordnet.",
+                  en: "Fields look right? Saving opens a pull request that attaches the ISIN to the bucket as an alternative.",
+                })}
+          </div>
+          <Button
+            size="sm"
+            onClick={submitPr}
+            disabled={submitting || autofilling || !githubConfigured}
+            data-testid={`button-submit-alt-top-${parentKey}`}
+          >
+            {submitting
+              ? t({ de: "Speichere …", en: "Saving …" })
+              : t({
+                  de: "Speichern (PR öffnen)",
+                  en: "Save (open PR)",
+                })}
+          </Button>
+        </div>
+      )}
       <div className="grid grid-cols-2 gap-3">
         <Field label="ISIN">
           <div className="flex gap-2">
@@ -5166,12 +5240,73 @@ function UnclassifiedRow({
               githubConfigured={githubConfigured}
               onCreated={onCreated}
               presetIsin={poolEntry.isin}
+              presetName={poolEntry.name ?? undefined}
+              presetInfo={
+                <div
+                  className="rounded-md border bg-sky-50 dark:bg-sky-950/40 p-3 text-xs space-y-1"
+                  data-testid={`tree-attach-info-${poolEntry.isin}`}
+                >
+                  <div className="font-medium text-sky-900 dark:text-sky-200">
+                    {t({
+                      de: "Bereits im Look-through-Pool vorhanden:",
+                      en: "Already on file in the look-through pool:",
+                    })}
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-0.5 text-sky-900 dark:text-sky-200">
+                    <span className="text-muted-foreground">ISIN</span>
+                    <span className="font-mono">{poolEntry.isin}</span>
+                    {poolEntry.name && (
+                      <>
+                        <span className="text-muted-foreground">
+                          {t({ de: "Name", en: "Name" })}
+                        </span>
+                        <span>{poolEntry.name}</span>
+                      </>
+                    )}
+                    <span className="text-muted-foreground">
+                      {t({ de: "Quelle", en: "Source" })}
+                    </span>
+                    <span>
+                      {poolEntry.source === "pool"
+                        ? t({ de: "Auto-Refresh", en: "Auto-refresh" })
+                        : poolEntry.source === "both"
+                          ? t({ de: "Beide", en: "Both" })
+                          : t({ de: "Kuratiert", en: "Curated" })}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {t({ de: "Top/Geo/Sektor", en: "Top/Geo/Sector" })}
+                    </span>
+                    <span className="font-mono">
+                      {poolEntry.topHoldingCount}/{poolEntry.geoCount}/
+                      {poolEntry.sectorCount}
+                    </span>
+                    {(poolEntry.topHoldingsAsOf ||
+                      poolEntry.breakdownsAsOf) && (
+                      <>
+                        <span className="text-muted-foreground">
+                          {t({ de: "Stand", en: "As of" })}
+                        </span>
+                        <span>
+                          {poolEntry.topHoldingsAsOf ||
+                            poolEntry.breakdownsAsOf}
+                        </span>
+                      </>
+                    )}
+                  </div>
+                  <div className="text-muted-foreground pt-1 border-t border-sky-200 dark:border-sky-900 mt-2">
+                    {t({
+                      de: "ISIN und Name wurden bereits eingetragen. Wir holen die übrigen Stammdaten (TER, Domizil, Listings …) automatisch von justETF — danach prüfen und oben speichern.",
+                      en: "ISIN and name are already filled in. We fetch the remaining base data (TER, domicile, listings …) from justETF automatically — review them and save above.",
+                    })}
+                  </div>
+                </div>
+              }
             />
           ) : (
             <p className="text-xs text-muted-foreground">
               {t({
-                de: "Bucket wählen, dann erscheint das Add-Formular mit der ISIN vorausgefüllt.",
-                en: "Pick a bucket — the add form will appear with the ISIN pre-filled.",
+                de: "Bucket wählen, dann erscheint das Add-Formular mit der ISIN und den bekannten Pool-Daten vorausgefüllt.",
+                en: "Pick a bucket — the add form will appear with the ISIN and the known pool data pre-filled.",
               })}
             </p>
           )}
