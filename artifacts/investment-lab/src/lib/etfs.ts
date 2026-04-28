@@ -695,6 +695,21 @@ const CATALOG: Record<string, ETFRecord> = {
         aumMillionsEUR: 2699,
         inceptionDate: "2016-03-04",
       },
+
+      {
+        name: "iShares S&P 500 Health Care Sector UCITS ETF (Acc)",
+        isin: "IE00B43HR379",
+        terBps: 15,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment: "iShares S&P 500 Health Care Sector — US-focused alternative.",
+        listings: { "LSE": { ticker: "IUHC" }, "XETRA": { ticker: "QDVG" } },
+        defaultExchange: "LSE",
+        aumMillionsEUR: 2096,
+        inceptionDate: "2015-11-20",
+      },
     ],
   }),
   "Equity-Sustainability": E({
