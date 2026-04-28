@@ -220,6 +220,82 @@ export function DocsPanel({ github }: DocsPanelProps) {
 
           <Separator />
 
+          {/* Flow 1b — batch alternatives (2026-04-28) */}
+          <FlowSection
+            number="1b"
+            testid="docs-flow-batch-alternatives"
+            title={t({
+              de: "Alternativen sammelweise (ein PR statt vieler)",
+              en: "Batch alternatives (one PR instead of many)",
+            })}
+            tone="emerald"
+            scope={t({
+              de: "Alle Nutzer nach Merge + Redeploy",
+              en: "All users after merge + redeploy",
+            })}
+            trigger={t({
+              de: '„Alternativen sammelweise hinzufügen" → Zeilen einfügen → „Vorab prüfen" → „Alle als ein PR öffnen"',
+              en: "'Add alternatives in batch' → paste rows → 'Preview' → 'Submit all as one PR'",
+            })}
+            file="artifacts/investment-lab/src/lib/etfs.ts"
+            fileLink={fileUrl(
+              github,
+              "artifacts/investment-lab/src/lib/etfs.ts",
+            )}
+            prListLink={prListUrl(github, "add-alt/")}
+            body={
+              lang === "de" ? (
+                <>
+                  <p>
+                    Wenn mehrere kuratierte Alternativen auf einmal anstehen,
+                    nutzt diese Sammel-Variante <strong>genau einen
+                    Katalog-PR</strong> für alle Zeilen statt einen pro ISIN.
+                    Verhindert die typischen Folge-Konflikte (mehrere
+                    add-alt-Branches greifen auf dieselbe Zeile in
+                    <code>etfs.ts</code> zu) und macht das Review angenehmer
+                    — eine Tabelle, eine Diff.
+                  </p>
+                  <p>
+                    Format pro Zeile: <code>BucketKey ISIN [Kommentar]</code>.
+                    Komma, Tab oder Whitespace sind als Trenner OK.{" "}
+                    <strong>Vorab prüfen</strong> zeigt für jede Zeile, ob sie
+                    landen würde (OK / Duplikat / Limit erreicht / Bucket
+                    fehlt / Scrape-Problem). Erst bei{" "}
+                    <strong>Alle als ein PR öffnen</strong> wird tatsächlich
+                    ein PR erzeugt — zusätzlich öffnet der Server
+                    best-effort einen einzelnen Look-through-PR für die
+                    ISINs, die noch keine Pool-Daten haben.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p>
+                    When several curated alternatives are pending at once,
+                    this batch variant ships <strong>exactly one catalog
+                    PR</strong> for every row instead of one PR per ISIN.
+                    Avoids the typical follow-on conflicts (multiple
+                    add-alt branches racing for the same line in{" "}
+                    <code>etfs.ts</code>) and makes review pleasant — one
+                    table, one diff.
+                  </p>
+                  <p>
+                    One row per line: <code>BucketKey ISIN [comment]</code>.
+                    Comma, tab or whitespace are all OK as separators.{" "}
+                    <strong>Preview</strong> shows for each row whether it
+                    would land (OK / duplicate / cap reached / bucket
+                    missing / scrape failure). Only{" "}
+                    <strong>Submit all as one PR</strong> actually opens
+                    a PR — and the server best-effort opens one
+                    accompanying look-through PR for the ISINs that don't
+                    yet have pool data.
+                  </p>
+                </>
+              )
+            }
+          />
+
+          <Separator />
+
           <FlowSection
             number={2}
             testid="docs-flow-lookthrough-pool"
@@ -481,10 +557,76 @@ export function DocsPanel({ github }: DocsPanelProps) {
 
           <Separator />
 
+          {/* Flow 6 — workspace sync (2026-04-28) */}
+          <FlowSection
+            number={6}
+            testid="docs-flow-workspace-sync"
+            title={t({
+              de: "Workspace-Sync (laufende Server-Kopie auffrischen)",
+              en: "Workspace sync (refresh the running server's checkout)",
+            })}
+            tone="violet"
+            scope={t({
+              de: "Nur Admin-Pane; betrifft die Server-Kopie der Daten-Dateien zwischen Merge und Redeploy",
+              en: "Admin pane only; affects the server's local copy of the data files between merge and redeploy",
+            })}
+            trigger={t({
+              de: '„Workspace-Synchronisation" → wenn „Hinter Origin" > 0 → „Commits ziehen"',
+              en: "'Workspace sync' → if 'Behind origin' > 0 → 'Pull commits'",
+            })}
+            file="(git fetch origin main && git merge --ff-only)"
+            fileLink={null}
+            prListLink={null}
+            body={
+              lang === "de" ? (
+                <>
+                  <p>
+                    Nach jedem Merge eines Katalog- oder Pool-PRs zeigt der
+                    Admin-Pane <strong>kurzzeitig veraltete Daten</strong>{" "}
+                    an, weil die laufende Server-Kopie noch auf dem alten
+                    Commit sitzt. Ohne Sync schlagen Folge-Aktionen
+                    möglicherweise fehl (Duplikate erkennen Geister, das
+                    2-Alt-Limit blockt obwohl der Slot bereits frei ist).
+                  </p>
+                  <p>
+                    Die Karte oben zeigt, wie viele Commits du{" "}
+                    <strong>hinter Origin</strong> liegst. Ein Klick auf{" "}
+                    <strong>Commits ziehen</strong> macht ein
+                    fast-forward-Merge — keine Konflikte, keine eigenen
+                    Änderungen werden angefasst. Falls die Arbeitskopie
+                    schmutzig oder gelockt ist, wird der Sync abgelehnt
+                    und der Grund klar erklärt.
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p>
+                    After each catalog or pool PR is merged, the admin pane{" "}
+                    <strong>briefly shows stale data</strong> because the
+                    running server's local checkout still points at the old
+                    commit. Without sync, follow-up actions may fail
+                    (duplicate checks see ghosts, the 2-alt cap blocks even
+                    though the slot is free again).
+                  </p>
+                  <p>
+                    The card above shows how many commits you are{" "}
+                    <strong>behind origin</strong>. Clicking{" "}
+                    <strong>Pull commits</strong> performs a fast-forward
+                    merge — no conflicts, no local changes touched. If the
+                    working copy is dirty or locked, the sync is refused
+                    with a clear reason.
+                  </p>
+                </>
+              )
+            }
+          />
+
+          <Separator />
+
           <p className="text-xs text-muted-foreground">
             {t({
-              de: 'Reihenfolge in der Praxis: Flow 1 + 2 öffnen PRs (review, merge, redeploy). Flow 3 öffnet einen PR für Default-Werte. Flow 4 ist eine reine Browser-Einstellung. Flow 5 läuft automatisch und braucht nur Beobachtung.',
-              en: "Practical order: flows 1 + 2 open PRs (review, merge, redeploy). Flow 3 opens a PR for default values. Flow 4 is a pure browser-only setting. Flow 5 runs on its own and only needs monitoring.",
+              de: 'Reihenfolge in der Praxis: Flow 1 + 1b + 2 öffnen PRs (review, merge, redeploy); 1b spart einen PR pro Alternative ein. Flow 3 öffnet einen PR für Default-Werte. Flow 4 ist eine reine Browser-Einstellung. Flow 5 läuft automatisch. Flow 6 (Workspace-Sync) hilft direkt nach einem Merge, damit der Server die neuen Daten sieht.',
+              en: "Practical order: flows 1 + 1b + 2 open PRs (review, merge, redeploy); 1b saves one PR per alternative. Flow 3 opens a PR for default values. Flow 4 is a pure browser-only setting. Flow 5 runs on its own. Flow 6 (workspace sync) helps right after a merge so the server sees the new data.",
             })}
           </p>
 
@@ -773,7 +915,7 @@ function FlowSection({
   prListLabel,
   body,
 }: {
-  number: number;
+  number: number | string;
   testid: string;
   title: string;
   tone: "emerald" | "sky" | "violet" | "amber" | "slate";

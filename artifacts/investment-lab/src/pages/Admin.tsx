@@ -181,6 +181,10 @@ export default function Admin() {
 
       <main className="container mx-auto px-4 py-8 space-y-6">
         <DocsPanel github={githubInfo} />
+        {/* Workspace sync (2026-04-28): pull merged PRs into the
+            running checkout so /admin/catalog and the dup/cap checks
+            see fresh data without a redeploy. */}
+        <WorkspaceSyncPanel />
         {/* Consolidated tree (2026-04-28): replaces the former trio
             BrowseBucketsPanel + LookthroughPoolPanel + BucketAlternativesPanel.
             All bucket / alternative / pool data is now rendered in one
@@ -192,6 +196,10 @@ export default function Admin() {
           catalogError={catalogError}
           githubConfigured={githubConfigured}
         />
+        {/* Batch alternatives (2026-04-28): paste many (parentKey, ISIN)
+            rows; one combined PR for the catalog plus one optional
+            companion PR for look-through data. */}
+        <BatchAddAlternativesPanel githubConfigured={githubConfigured} />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <SuggestIsinPanel
             githubConfigured={githubConfigured}
@@ -5420,4 +5428,702 @@ function PoolSourceBadge({
           : t({ de: "Kuratiert", en: "Curated" })}
     </Badge>
   );
+}
+
+// ---------------------------------------------------------------------------
+// WorkspaceSyncPanel — pulls origin/main into the local checkout
+// ---------------------------------------------------------------------------
+// Why this exists (2026-04-28): after the operator merges a curated PR
+// from /admin, the api-server's on-disk copy of etfs.ts and
+// lookthrough.overrides.json still reflects the pre-merge state until
+// someone manually pulls. That stale state silently breaks the next
+// add-alternative attempt — duplicate checks see ghosts, the 2-alt cap
+// blocks adds that the live tree has already cleared. This panel
+// surfaces "you are N commits behind" with a single Sync button so the
+// operator can refresh without leaving the admin pane.
+function WorkspaceSyncPanel() {
+  const { t } = useAdminT();
+  const [status, setStatus] = useState<
+    | null
+    | (
+        | { ok: true; data: import("@/lib/admin-api").WorkspaceStatusResponse }
+        | { ok: false; error: string }
+      )
+  >(null);
+  const [loadingStatus, setLoadingStatus] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+  const [lastSync, setLastSync] = useState<
+    null | import("@/lib/admin-api").WorkspaceSyncResponse
+  >(null);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  const refresh = useCallback(async () => {
+    setLoadingStatus(true);
+    try {
+      const data = await adminApi.workspaceStatus();
+      setStatus({ ok: true, data });
+    } catch (err) {
+      setStatus({
+        ok: false,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    } finally {
+      setLoadingStatus(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
+
+  const onSync = useCallback(async () => {
+    setSyncError(null);
+    setSyncing(true);
+    try {
+      const r = await adminApi.workspaceSync();
+      setLastSync(r);
+      toast.success(
+        r.alreadyUpToDate
+          ? t({
+              de: "Workspace ist bereits auf dem neusten Stand",
+              en: "Workspace is already up to date",
+            })
+          : t({
+              de: `Workspace synchronisiert (${r.commitsMerged} Commit${r.commitsMerged === 1 ? "" : "s"})`,
+              en: `Workspace synced (${r.commitsMerged} commit${r.commitsMerged === 1 ? "" : "s"})`,
+            }),
+      );
+      // Re-load status so the badges reflect the new SHA.
+      await refresh();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setSyncError(msg);
+      toast.error(t({ de: "Sync fehlgeschlagen", en: "Sync failed" }), {
+        description: msg,
+      });
+    } finally {
+      setSyncing(false);
+    }
+  }, [refresh, t]);
+
+  const data = status?.ok ? status.data : null;
+  const isBehind = (data?.behindCount ?? 0) > 0;
+  const isDirty = data?.dirty === true;
+  const isLocked = data?.lockHeld === true;
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-3">
+        <CardTitle className="text-base">
+          {t({
+            de: "Workspace-Synchronisation",
+            en: "Workspace sync",
+          })}
+        </CardTitle>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={refresh}
+          disabled={loadingStatus}
+        >
+          <RefreshCw
+            className={`h-4 w-4 ${loadingStatus ? "animate-spin" : ""}`}
+          />
+        </Button>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        <p className="text-sm text-muted-foreground">
+          {t({
+            de: "Holt frisch zusammengeführte Änderungen von GitHub in die laufende Server-Kopie. Notwendig, damit das Admin-Panel direkt nach einem PR-Merge die neuen Daten sieht.",
+            en: "Pulls freshly merged changes from GitHub into the running server's checkout. Needed so the admin pane sees new data right after a PR merge.",
+          })}
+        </p>
+
+        {status?.ok === false && (
+          <Alert variant="destructive">
+            <AlertTitle>
+              {t({ de: "Status nicht verfügbar", en: "Status unavailable" })}
+            </AlertTitle>
+            <AlertDescription className="text-xs">
+              {status.error}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {data && (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+            <div>
+              <div className="text-xs uppercase text-muted-foreground">
+                {t({ de: "Branch", en: "Branch" })}
+              </div>
+              <div className="font-mono text-xs truncate" title={data.currentBranch}>
+                {data.currentBranch}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs uppercase text-muted-foreground">
+                {t({ de: "Lokaler Commit", en: "Local commit" })}
+              </div>
+              <div className="font-mono text-xs">
+                {data.headSha.slice(0, 7)}
+              </div>
+            </div>
+            <div>
+              <div className="text-xs uppercase text-muted-foreground">
+                {t({ de: "Hinter Origin", en: "Behind origin" })}
+              </div>
+              <div>
+                <Badge
+                  variant={isBehind ? "destructive" : "secondary"}
+                  className={
+                    isBehind ? "" : "bg-emerald-100 text-emerald-900"
+                  }
+                >
+                  {data.behindCount}
+                </Badge>
+              </div>
+            </div>
+            <div>
+              <div className="text-xs uppercase text-muted-foreground">
+                {t({ de: "Vor Origin", en: "Ahead of origin" })}
+              </div>
+              <div>
+                <Badge variant="secondary">{data.aheadCount}</Badge>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {data?.upstreamError && (
+          <p className="text-xs text-amber-700 dark:text-amber-400">
+            {t({
+              de: "Konnte Origin nicht erreichen — Behind-Zähler eventuell veraltet.",
+              en: "Could not reach origin — behind-counter may be stale.",
+            })}{" "}
+            <span className="font-mono">({data.upstreamError})</span>
+          </p>
+        )}
+
+        {isDirty && (
+          <Alert variant="destructive">
+            <AlertTitle>
+              {t({
+                de: "Unsaubere Arbeitskopie",
+                en: "Dirty working tree",
+              })}
+            </AlertTitle>
+            <AlertDescription className="text-xs">
+              {t({
+                de: "Im Server-Checkout liegen nicht-committete Änderungen. Ein Sync würde abgelehnt — bitte auf dem Host aufräumen.",
+                en: "The server checkout has uncommitted changes. Sync would be refused — clean up on the host first.",
+              })}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {isLocked && (
+          <Alert variant="destructive">
+            <AlertTitle>
+              {t({ de: "Git-Operation läuft", en: "Git operation in progress" })}
+            </AlertTitle>
+            <AlertDescription className="text-xs">
+              {t({
+                de: "Eine andere git-Operation hält gerade die Sperre. Bitte ein paar Sekunden warten und dann erneut versuchen.",
+                en: "Another git operation is holding the lock. Wait a few seconds and try again.",
+              })}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <div className="flex items-center gap-3">
+          <Button
+            onClick={onSync}
+            disabled={syncing || isDirty || isLocked || !data}
+          >
+            {syncing
+              ? t({ de: "Synchronisiere …", en: "Syncing …" })
+              : isBehind
+                ? t({
+                    de: `${data?.behindCount} Commit${data?.behindCount === 1 ? "" : "s"} ziehen`,
+                    en: `Pull ${data?.behindCount} commit${data?.behindCount === 1 ? "" : "s"}`,
+                  })
+                : t({
+                    de: "Trotzdem synchronisieren",
+                    en: "Sync anyway",
+                  })}
+          </Button>
+          {lastSync && (
+            <span className="text-xs text-muted-foreground">
+              {lastSync.alreadyUpToDate
+                ? t({
+                    de: "Bereits auf dem neusten Stand.",
+                    en: "Already up to date.",
+                  })
+                : t({
+                    de: `${lastSync.beforeSha.slice(0, 7)} → ${lastSync.afterSha.slice(0, 7)} (${lastSync.changedFiles.length} Datei${lastSync.changedFiles.length === 1 ? "" : "en"})`,
+                    en: `${lastSync.beforeSha.slice(0, 7)} → ${lastSync.afterSha.slice(0, 7)} (${lastSync.changedFiles.length} file${lastSync.changedFiles.length === 1 ? "" : "s"})`,
+                  })}
+            </span>
+          )}
+        </div>
+
+        {syncError && (
+          <Alert variant="destructive">
+            <AlertTitle>
+              {t({ de: "Sync fehlgeschlagen", en: "Sync failed" })}
+            </AlertTitle>
+            <AlertDescription className="text-xs">{syncError}</AlertDescription>
+          </Alert>
+        )}
+
+        {lastSync && !lastSync.alreadyUpToDate && lastSync.changedFiles.length > 0 && (
+          <details className="text-xs">
+            <summary className="cursor-pointer text-muted-foreground">
+              {t({
+                de: `Geänderte Dateien (${lastSync.changedFiles.length})`,
+                en: `Changed files (${lastSync.changedFiles.length})`,
+              })}
+            </summary>
+            <ul className="mt-2 space-y-0.5 font-mono">
+              {lastSync.changedFiles.map((f) => (
+                <li key={f}>{f}</li>
+              ))}
+            </ul>
+          </details>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// BatchAddAlternativesPanel — paste many (parentKey, ISIN) rows; one PR.
+// ---------------------------------------------------------------------------
+// Why this exists (2026-04-28): the per-row AddAlternativeForm opens one
+// PR per ISIN. Three curated alternatives = three serialised
+// commit/branch/PR cycles, three file-level conflicts to resolve, three
+// review rounds. This panel collects N rows up-front, runs the same
+// scrape+validate pipeline server-side in one pass, and ships ALL
+// successful rows in ONE etfs.ts PR (+ ONE companion look-through PR).
+//
+// Input format: free-text textarea, one row per line, parts separated
+// by comma OR whitespace OR tab. Each row: <parentKey> <ISIN> [comment].
+// Lines starting with "#" are ignored as comments. Empty lines ignored.
+function BatchAddAlternativesPanel({
+  githubConfigured,
+}: {
+  githubConfigured: boolean;
+}) {
+  const { t } = useAdminT();
+  type Row = import("@/lib/admin-api").BulkBucketAlternativeRow;
+  type Outcome = import("@/lib/admin-api").BulkBucketAlternativeOutcome;
+  type SubmitResult = import("@/lib/admin-api").BulkBucketAlternativesResponse;
+
+  const [text, setText] = useState("");
+  const [parsedRows, setParsedRows] = useState<Row[] | null>(null);
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [previewRows, setPreviewRows] = useState<Outcome[] | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitResult, setSubmitResult] = useState<SubmitResult | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+
+  const parseInput = useCallback((raw: string): Row[] | string => {
+    const rows: Row[] = [];
+    const lines = raw.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (!line || line.startsWith("#")) continue;
+      const parts = line.split(/[,\t]|\s{2,}|\s+/).filter(Boolean);
+      if (parts.length < 2) {
+        return `Zeile ${i + 1}: brauche mindestens "parentKey ISIN".`;
+      }
+      const parentKey = parts[0];
+      const isin = parts[1].toUpperCase();
+      const comment = parts.slice(2).join(" ").trim();
+      rows.push({
+        parentKey,
+        isin,
+        ...(comment ? { comment } : {}),
+      });
+    }
+    if (rows.length === 0) return "Keine gültigen Zeilen erkannt.";
+    if (rows.length > 25) return "Maximal 25 Zeilen pro Batch.";
+    return rows;
+  }, []);
+
+  const handleParse = useCallback(() => {
+    setSubmitResult(null);
+    setSubmitError(null);
+    setPreviewRows(null);
+    const parsed = parseInput(text);
+    if (typeof parsed === "string") {
+      setParseError(parsed);
+      setParsedRows(null);
+      return;
+    }
+    setParseError(null);
+    setParsedRows(parsed);
+  }, [parseInput, text]);
+
+  const handlePreview = useCallback(async () => {
+    if (!parsedRows) return;
+    setPreviewing(true);
+    setSubmitResult(null);
+    setSubmitError(null);
+    try {
+      const r = await adminApi.previewBulkBucketAlternatives(parsedRows);
+      setPreviewRows(r.rows);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      toast.error(
+        t({ de: "Vorschau fehlgeschlagen", en: "Preview failed" }),
+        { description: msg },
+      );
+    } finally {
+      setPreviewing(false);
+    }
+  }, [parsedRows, t]);
+
+  const handleSubmit = useCallback(async () => {
+    if (!parsedRows) return;
+    setSubmitting(true);
+    setSubmitResult(null);
+    setSubmitError(null);
+    try {
+      const r = await adminApi.bulkAddBucketAlternatives(parsedRows);
+      setSubmitResult(r);
+      setPreviewRows(r.rows);
+      toast.success(
+        t({
+          de: `Sammel-PR geöffnet (#${r.prNumber})`,
+          en: `Batch PR opened (#${r.prNumber})`,
+        }),
+        {
+          action: {
+            label: t({ de: "Öffnen", en: "Open" }),
+            onClick: () => window.open(r.prUrl, "_blank", "noopener"),
+          },
+        },
+      );
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setSubmitError(msg);
+      toast.error(t({ de: "Batch fehlgeschlagen", en: "Batch failed" }), {
+        description: msg,
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  }, [parsedRows, t]);
+
+  const okCount =
+    previewRows?.filter((r) => r.status === "ok").length ?? 0;
+  const skipCount = (previewRows?.length ?? 0) - okCount;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <Layers className="h-4 w-4" />
+          {t({
+            de: "Alternativen sammelweise hinzufügen",
+            en: "Add alternatives in batch",
+          })}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="text-sm text-muted-foreground space-y-2">
+          <p>
+            {t({
+              de: "Pro Zeile: Bucket-Schlüssel und ISIN, optional ein Kommentar. Eine Zeile = eine Alternative. Beispiel:",
+              en: "One row per line: bucket key and ISIN, optional comment. Example:",
+            })}
+          </p>
+          <pre className="text-xs bg-muted/50 rounded p-2 font-mono overflow-x-auto">
+{`Equity-Global IE00BK5BQT80 Vanguard FTSE All-World
+Equity-USA IE00B5BMR087 iShares Core S&P 500
+Equity-EM IE00BTJRMP35 EM IMI breit`}
+          </pre>
+          <p className="text-xs">
+            {t({
+              de: "Maximum 25 Zeilen. Leere Zeilen und Zeilen mit # am Anfang werden ignoriert. Es entsteht GENAU EIN PR (plus optional einer für Look-through-Daten).",
+              en: "Maximum 25 rows. Empty lines and lines starting with # are ignored. Produces EXACTLY ONE PR (plus optionally one for look-through data).",
+            })}
+          </p>
+        </div>
+
+        <Textarea
+          rows={6}
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          placeholder={t({
+            de: "Equity-Global IE00BK5BQT80",
+            en: "Equity-Global IE00BK5BQT80",
+          })}
+          className="font-mono text-sm"
+        />
+
+        <div className="flex flex-wrap gap-2 items-center">
+          <Button variant="secondary" onClick={handleParse}>
+            {t({ de: "Zeilen einlesen", en: "Parse rows" })}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={handlePreview}
+            disabled={!parsedRows || previewing}
+          >
+            {previewing
+              ? t({ de: "Prüfe …", en: "Checking …" })
+              : t({ de: "Vorab prüfen", en: "Preview" })}
+          </Button>
+          <Button
+            onClick={handleSubmit}
+            disabled={
+              !parsedRows ||
+              submitting ||
+              !githubConfigured ||
+              (previewRows !== null && okCount === 0)
+            }
+          >
+            {submitting
+              ? t({
+                  de: "Öffne Sammel-PR …",
+                  en: "Opening batch PR …",
+                })
+              : t({
+                  de: "Alle als ein PR öffnen",
+                  en: "Submit all as one PR",
+                })}
+          </Button>
+          {parsedRows && (
+            <span className="text-xs text-muted-foreground">
+              {t({
+                de: `${parsedRows.length} Zeile(n) eingelesen`,
+                en: `${parsedRows.length} row(s) parsed`,
+              })}
+            </span>
+          )}
+        </div>
+
+        {parseError && (
+          <Alert variant="destructive">
+            <AlertDescription className="text-xs">
+              {parseError}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {!githubConfigured && (
+          <Alert>
+            <AlertDescription className="text-xs">
+              {t({
+                de: "GitHub ist nicht konfiguriert — Vorschau funktioniert, aber kein PR möglich.",
+                en: "GitHub is not configured — preview works but no PR can be opened.",
+              })}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {previewRows && previewRows.length > 0 && (
+          <div className="space-y-2">
+            <div className="flex items-center gap-2 text-sm">
+              <Badge className="bg-emerald-100 text-emerald-900">
+                {okCount} {t({ de: "OK", en: "OK" })}
+              </Badge>
+              {skipCount > 0 && (
+                <Badge variant="destructive">
+                  {skipCount} {t({ de: "übersprungen", en: "skipped" })}
+                </Badge>
+              )}
+              {submitResult && (
+                <a
+                  href={submitResult.prUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="ml-auto inline-flex items-center gap-1 text-sm text-primary hover:underline"
+                >
+                  PR #{submitResult.prNumber}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </div>
+            <div className="border rounded overflow-hidden">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/50">
+                  <tr>
+                    <th className="text-left p-2">
+                      {t({ de: "Bucket", en: "Bucket" })}
+                    </th>
+                    <th className="text-left p-2">ISIN</th>
+                    <th className="text-left p-2">
+                      {t({ de: "Status", en: "Status" })}
+                    </th>
+                    <th className="text-left p-2">
+                      {t({ de: "Detail", en: "Detail" })}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewRows.map((r, i) => (
+                    <tr
+                      key={`${r.parentKey}-${r.isin}-${i}`}
+                      className="border-t"
+                    >
+                      <td className="p-2 font-mono">{r.parentKey}</td>
+                      <td className="p-2 font-mono">{r.isin}</td>
+                      <td className="p-2">
+                        <BatchStatusBadge status={r.status} />
+                      </td>
+                      <td className="p-2 text-muted-foreground">
+                        {r.name && <span className="block">{r.name}</span>}
+                        {r.message && (
+                          <span className="block text-[11px]">
+                            {r.message}
+                          </span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+
+        {submitResult && (
+          <div className="space-y-2 border rounded p-3 bg-muted/30">
+            <div className="text-sm">
+              <a
+                href={submitResult.prUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-primary hover:underline"
+              >
+                <GitPullRequest className="h-4 w-4" />
+                {t({
+                  de: `Katalog-PR #${submitResult.prNumber} geöffnet`,
+                  en: `Catalog PR #${submitResult.prNumber} opened`,
+                })}
+                <ExternalLink className="h-3 w-3" />
+              </a>
+            </div>
+            {submitResult.lookthroughPrUrl && (
+              <div className="text-sm">
+                <a
+                  href={submitResult.lookthroughPrUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-primary hover:underline"
+                >
+                  <GitPullRequest className="h-4 w-4" />
+                  {t({
+                    de: `Look-through-PR #${submitResult.lookthroughPrNumber} (${submitResult.lookthroughAdded?.length ?? 0} ISINs)`,
+                    en: `Look-through PR #${submitResult.lookthroughPrNumber} (${submitResult.lookthroughAdded?.length ?? 0} ISINs)`,
+                  })}
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              </div>
+            )}
+            {submitResult.lookthroughError && (
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                {t({
+                  de: "Look-through-PR konnte nicht geöffnet werden:",
+                  en: "Look-through PR could not be opened:",
+                })}{" "}
+                {submitResult.lookthroughError}
+              </p>
+            )}
+            {submitResult.lookthroughSkipped &&
+              submitResult.lookthroughSkipped.length > 0 && (
+                <details className="text-xs">
+                  <summary className="cursor-pointer text-muted-foreground">
+                    {t({
+                      de: `Look-through übersprungen (${submitResult.lookthroughSkipped.length})`,
+                      en: `Look-through skipped (${submitResult.lookthroughSkipped.length})`,
+                    })}
+                  </summary>
+                  <ul className="mt-2 space-y-0.5">
+                    {submitResult.lookthroughSkipped.map((s) => (
+                      <li key={s.isin}>
+                        <span className="font-mono">{s.isin}</span> — {s.reason}
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+            <p className="text-xs text-muted-foreground">
+              {t({
+                de: "Nach dem Merge: oben \u201EWorkspace synchronisieren\u201C klicken, damit der Server die neuen Daten sieht.",
+                en: "After merging: click \u201CWorkspace sync\u201D above so the server sees the new data.",
+              })}
+            </p>
+          </div>
+        )}
+
+        {submitError && (
+          <Alert variant="destructive">
+            <AlertTitle>
+              {t({ de: "Batch fehlgeschlagen", en: "Batch failed" })}
+            </AlertTitle>
+            <AlertDescription className="text-xs">{submitError}</AlertDescription>
+          </Alert>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function BatchStatusBadge({
+  status,
+}: {
+  status: import("@/lib/admin-api").BulkBucketAlternativeStatus;
+}) {
+  const { t } = useAdminT();
+  switch (status) {
+    case "ok":
+      return (
+        <Badge className="bg-emerald-100 text-emerald-900">
+          {t({ de: "OK", en: "OK" })}
+        </Badge>
+      );
+    case "duplicate_isin":
+      return (
+        <Badge variant="outline" className="border-amber-500 text-amber-700 dark:text-amber-400">
+          {t({ de: "Duplikat", en: "Duplicate" })}
+        </Badge>
+      );
+    case "cap_exceeded":
+      return (
+        <Badge variant="outline" className="border-amber-500 text-amber-700 dark:text-amber-400">
+          {t({ de: "Limit", en: "Cap" })}
+        </Badge>
+      );
+    case "parent_missing":
+      return (
+        <Badge variant="destructive">
+          {t({ de: "Bucket fehlt", en: "Bucket missing" })}
+        </Badge>
+      );
+    case "invalid_isin":
+      return (
+        <Badge variant="destructive">
+          {t({ de: "ISIN ungültig", en: "Invalid ISIN" })}
+        </Badge>
+      );
+    case "scrape_failed":
+      return (
+        <Badge variant="destructive">
+          {t({ de: "Scrape fehlgeschlagen", en: "Scrape failed" })}
+        </Badge>
+      );
+    case "scrape_invalid":
+      return (
+        <Badge variant="destructive">
+          {t({ de: "Daten unvollständig", en: "Data incomplete" })}
+        </Badge>
+      );
+    default:
+      return <Badge variant="secondary">{status}</Badge>;
+  }
 }

@@ -344,7 +344,104 @@ export const adminApi = {
       message?: string;
     }>(`/admin/github/prs${qs}`);
   },
+  // Batch-add curated alternatives (2026-04-28). Operator pastes a list
+  // of (parentKey, ISIN) pairs in the /admin batch panel. The server
+  // scrapes each ISIN, validates, simulates, and ships ALL successful
+  // rows in ONE etfs.ts PR + ONE companion look-through PR. The preview
+  // call returns per-row status without opening anything.
+  previewBulkBucketAlternatives: (rows: BulkBucketAlternativeRow[]) =>
+    call<{ rows: BulkBucketAlternativeOutcome[] }>(
+      "/admin/bucket-alternatives/bulk/preview",
+      {
+        method: "POST",
+        body: JSON.stringify({ rows }),
+      },
+    ),
+  bulkAddBucketAlternatives: (rows: BulkBucketAlternativeRow[]) =>
+    call<BulkBucketAlternativesResponse>("/admin/bucket-alternatives/bulk", {
+      method: "POST",
+      body: JSON.stringify({ rows }),
+    }),
+  // Local git workspace sync (2026-04-28). Pulls fast-forward changes
+  // from origin/main into the running api-server's checkout so freshly
+  // merged PRs (catalog edits, look-through pool refreshes, app
+  // defaults) become visible to the next /admin/catalog request without
+  // requiring a redeploy. Refuses to merge over a dirty tree or a
+  // diverged history — see the typed 4xx errors below.
+  workspaceStatus: () =>
+    call<WorkspaceStatusResponse>("/admin/workspace-status"),
+  workspaceSync: () =>
+    call<WorkspaceSyncResponse>("/admin/workspace-sync", {
+      method: "POST",
+    }),
 };
+
+export interface BulkBucketAlternativeRow {
+  parentKey: string;
+  isin: string;
+  comment?: string;
+}
+
+// Mirrors BulkAltRowStatus on the server. Each status maps to a
+// distinct UI badge in the batch panel:
+//   "ok"             — green (will be / was added)
+//   "parent_missing" — red   (catalog key typo)
+//   "duplicate_isin" — amber (already in that bucket OR another)
+//   "cap_exceeded"   — amber (bucket already has 2 alts)
+//   "invalid_isin"   — red   (12-char format check failed)
+//   "scrape_failed"  — red   (justETF returned an error)
+//   "scrape_invalid" — red   (scrape worked but data missed validation)
+export type BulkBucketAlternativeStatus =
+  | "ok"
+  | "parent_missing"
+  | "duplicate_isin"
+  | "cap_exceeded"
+  | "invalid_isin"
+  | "scrape_failed"
+  | "scrape_invalid";
+
+export interface BulkBucketAlternativeOutcome {
+  parentKey: string;
+  isin: string;
+  status: BulkBucketAlternativeStatus;
+  name?: string;
+  conflict?: string;
+  message?: string;
+}
+
+export interface BulkBucketAlternativesResponse {
+  ok: true;
+  prUrl: string;
+  prNumber: number;
+  rows: BulkBucketAlternativeOutcome[];
+  lookthroughPrUrl?: string;
+  lookthroughPrNumber?: number;
+  lookthroughAdded?: string[];
+  lookthroughSkipped?: Array<{ isin: string; reason: string }>;
+  lookthroughError?: string;
+}
+
+export interface WorkspaceStatusResponse {
+  ok: true;
+  headSha: string;
+  currentBranch: string;
+  baseBranch: string;
+  dirty: boolean;
+  lockHeld: boolean;
+  behindCount: number;
+  aheadCount: number;
+  upstreamSha: string | null;
+  upstreamError?: string;
+}
+
+export interface WorkspaceSyncResponse {
+  ok: true;
+  beforeSha: string;
+  afterSha: string;
+  changedFiles: string[];
+  commitsMerged: number;
+  alreadyUpToDate: boolean;
+}
 
 export interface OpenPrInfo {
   number: number;

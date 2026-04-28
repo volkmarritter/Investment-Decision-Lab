@@ -18,15 +18,19 @@
 // ----------------------------------------------------------------------------
 
 import { Router, type IRouter } from "express";
+import { execFile } from "node:child_process";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
+import { promisify } from "node:util";
 import { requireAdmin } from "../middlewares/admin-auth";
-import { dataFile } from "../lib/data-paths";
+import { dataFile, getCatalogPath } from "../lib/data-paths";
 import {
   githubConfigured,
   injectAlternative,
   listOpenPrs,
   openAddBucketAlternativePr,
+  openBulkAddBucketAlternativesPr,
   openRemoveBucketAlternativePr,
   openAddEtfPr,
   openAddLookthroughPoolPr,
@@ -34,6 +38,7 @@ import {
   openUpdateAppDefaultsPr,
   renderAlternativeBlock,
   renderEntryBlock,
+  type BulkAlternativeOutcome,
   type LookthroughPoolEntry,
   type NewAlternativeEntry,
   type NewEtfEntry,
@@ -47,6 +52,8 @@ import {
   validateAppDefaults,
   type AppDefaults,
 } from "../lib/app-defaults";
+
+const execFileP = promisify(execFile);
 
 const router: IRouter = Router();
 
@@ -456,6 +463,481 @@ router.post("/admin/bucket-alternatives", async (req, res) => {
           lookthroughAlreadyPresentSource,
         }
       : {}),
+    ...(lookthroughError ? { lookthroughError } : {}),
+  });
+});
+
+// --- /api/admin/bucket-alternatives/bulk -----------------------------------
+// Batch-add curated alternatives (2026-04-28). Operator pastes a list of
+// (parentKey, ISIN) pairs in the /admin batch panel. The server scrapes
+// each ISIN from justETF, validates the resulting draft, and ships ALL
+// successful rows in ONE etfs.ts PR + ONE companion look-through PR
+// (instead of N separate PRs that pile up file-level conflicts).
+//
+// Both endpoints share the same per-row "scrape + validate + simulate"
+// loop — the preview variant just stops short of opening any PR so the
+// operator can inspect the per-row outcome (added / parent_missing /
+// duplicate_isin / cap_exceeded / scrape_failed / scrape_invalid)
+// before committing.
+//
+// Request shape:
+//   { rows: Array<{ parentKey: string; isin: string; comment?: string }> }
+//
+// Response shape (preview):
+//   { rows: Array<{ parentKey, isin, status, name?, conflict?, message? }> }
+//
+// Response shape (submit) on success (≥1 row landed):
+//   {
+//     ok: true,
+//     prUrl, prNumber,
+//     rows: Array<{ ... same as preview ... }>,
+//     lookthroughPrUrl?, lookthroughPrNumber?,
+//     lookthroughAdded?: string[],          // ISINs that landed in the LT PR
+//     lookthroughSkipped?: Array<{ isin, reason }>,
+//   }
+type BulkAltRowStatus =
+  | "ok"
+  | "parent_missing"
+  | "duplicate_isin"
+  | "cap_exceeded"
+  | "invalid_isin"
+  | "scrape_failed"
+  | "scrape_invalid";
+
+interface BulkAltPreviewRow {
+  parentKey: string;
+  isin: string;
+  status: BulkAltRowStatus;
+  name?: string;
+  conflict?: string;
+  message?: string;
+}
+
+interface BulkAltInputRow {
+  parentKey: string;
+  isin: string;
+  comment?: string;
+}
+
+const BULK_MAX_ROWS = 25;
+
+function parseBulkRows(body: unknown): BulkAltInputRow[] | string {
+  if (!body || typeof body !== "object") return "rows missing";
+  const raw = (body as { rows?: unknown }).rows;
+  if (!Array.isArray(raw)) return "rows must be an array";
+  if (raw.length === 0) return "rows is empty";
+  if (raw.length > BULK_MAX_ROWS) {
+    return `too many rows (max ${BULK_MAX_ROWS} per batch)`;
+  }
+  const out: BulkAltInputRow[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const r = raw[i] as Record<string, unknown> | undefined;
+    if (!r || typeof r !== "object") return `row ${i + 1}: not an object`;
+    const parentKey =
+      typeof r.parentKey === "string" ? r.parentKey.trim() : "";
+    const isin =
+      typeof r.isin === "string" ? r.isin.trim().toUpperCase() : "";
+    if (!parentKey || !/^[A-Z][A-Za-z0-9-]{2,40}$/.test(parentKey)) {
+      return `row ${i + 1}: parentKey "${parentKey}" must match the catalog key format`;
+    }
+    if (!isin) return `row ${i + 1}: isin missing`;
+    const comment =
+      typeof r.comment === "string" ? r.comment.slice(0, 1000) : undefined;
+    out.push({
+      parentKey,
+      isin,
+      ...(comment !== undefined ? { comment } : {}),
+    });
+  }
+  return out;
+}
+
+// Build a fully-populated NewAlternativeEntry from a scraped preview.
+// Mirrors the front-end's mergePreviewIntoAlternativeDraft so the bulk
+// flow yields the same insertion as if the operator had opened the
+// single-row form, clicked "Vorab-Daten holen" and submitted unchanged.
+function alternativeFromPreview(
+  isin: string,
+  comment: string,
+  preview: Awaited<ReturnType<typeof scrapePreview>>,
+): NewAlternativeEntry | { error: string } {
+  const f = preview.fields;
+  const listings: NewAlternativeEntry["listings"] = {};
+  if (preview.listings && typeof preview.listings === "object") {
+    for (const ex of EXCHANGES) {
+      const v = (preview.listings as Record<string, { ticker?: unknown }>)[ex];
+      if (v && typeof v === "object" && typeof v.ticker === "string") {
+        listings[ex] = { ticker: v.ticker };
+      }
+    }
+  }
+  const listingKeys = Object.keys(listings) as ExchangeKey[];
+  if (listingKeys.length === 0) {
+    return { error: "no listings on justETF profile" };
+  }
+  const defaultExchange = listingKeys[0];
+
+  const name = typeof f.name === "string" ? f.name : "";
+  const terBps = typeof f.terBps === "number" ? f.terBps : NaN;
+  const domicile = typeof f.domicile === "string" ? f.domicile : "";
+  const currency = typeof f.currency === "string" ? f.currency : "";
+  const repRaw = String(f.replication ?? "").toLowerCase();
+  const replication: NewAlternativeEntry["replication"] = repRaw.includes(
+    "sampl",
+  )
+    ? "Physical (sampled)"
+    : repRaw.includes("synth") || repRaw.includes("swap")
+      ? "Synthetic"
+      : "Physical";
+  const distRaw = String(f.distribution ?? "").toLowerCase();
+  const distribution: NewAlternativeEntry["distribution"] = distRaw.startsWith(
+    "dist",
+  )
+    ? "Distributing"
+    : "Accumulating";
+
+  const entry: NewAlternativeEntry = {
+    isin,
+    name,
+    terBps,
+    domicile,
+    replication,
+    distribution,
+    currency,
+    comment,
+    defaultExchange,
+    listings,
+    ...(typeof f.aumMillionsEUR === "number"
+      ? { aumMillionsEUR: f.aumMillionsEUR }
+      : {}),
+    ...(typeof f.inceptionDate === "string"
+      ? { inceptionDate: f.inceptionDate }
+      : {}),
+  };
+  const validationError = validateAlternative(entry);
+  if (validationError) return { error: validationError };
+  return entry;
+}
+
+// Shared per-row pipeline used by both /bulk/preview and /bulk: scrape,
+// build a NewAlternativeEntry, simulate injection on a running content
+// snapshot. Returns the per-row outcomes plus the prepared rows that
+// passed (for /bulk to forward to openBulkAddBucketAlternativesPr).
+async function buildBulkAltOutcomes(
+  inputs: BulkAltInputRow[],
+  catalog: Awaited<ReturnType<typeof loadCatalog>>,
+  source: string,
+): Promise<{
+  outcomes: BulkAltPreviewRow[];
+  preparedRows: Array<{ parentKey: string; entry: NewAlternativeEntry }>;
+  runningContent: string;
+}> {
+  let runningContent = source;
+  const outcomes: BulkAltPreviewRow[] = [];
+  const preparedRows: Array<{
+    parentKey: string;
+    entry: NewAlternativeEntry;
+  }> = [];
+
+  for (const row of inputs) {
+    if (!/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(row.isin)) {
+      outcomes.push({
+        parentKey: row.parentKey,
+        isin: row.isin,
+        status: "invalid_isin",
+        message: "ISIN format invalid (expected 12 chars, ISO format).",
+      });
+      continue;
+    }
+    if (!catalog[row.parentKey]) {
+      outcomes.push({
+        parentKey: row.parentKey,
+        isin: row.isin,
+        status: "parent_missing",
+        message: `Parent bucket "${row.parentKey}" not found in catalog.`,
+      });
+      continue;
+    }
+
+    let preview: Awaited<ReturnType<typeof scrapePreview>>;
+    try {
+      preview = await scrapePreview(row.isin);
+    } catch (err) {
+      outcomes.push({
+        parentKey: row.parentKey,
+        isin: row.isin,
+        status: "scrape_failed",
+        message: err instanceof Error ? err.message : String(err),
+      });
+      continue;
+    }
+
+    const built = alternativeFromPreview(row.isin, row.comment ?? "", preview);
+    if ("error" in built) {
+      outcomes.push({
+        parentKey: row.parentKey,
+        isin: row.isin,
+        status: "scrape_invalid",
+        message: built.error,
+      });
+      continue;
+    }
+
+    // Simulate the injection on the running content so duplicate/cap
+    // checks roll forward across rows in the same batch.
+    const sim = injectAlternative(runningContent, row.parentKey, built);
+    if (sim.status === "parent_missing") {
+      outcomes.push({
+        parentKey: row.parentKey,
+        isin: row.isin,
+        status: "parent_missing",
+        name: built.name,
+        message: `Parent bucket "${row.parentKey}" not found.`,
+      });
+      continue;
+    }
+    if (sim.status === "isin_present") {
+      outcomes.push({
+        parentKey: row.parentKey,
+        isin: row.isin,
+        status: "duplicate_isin",
+        name: built.name,
+        conflict: sim.conflict,
+        message: `ISIN already used by "${sim.conflict}".`,
+      });
+      continue;
+    }
+    if (sim.status === "cap_exceeded") {
+      outcomes.push({
+        parentKey: row.parentKey,
+        isin: row.isin,
+        status: "cap_exceeded",
+        name: built.name,
+        message: `"${row.parentKey}" already has 2 alternatives.`,
+      });
+      continue;
+    }
+    runningContent = sim.content;
+    preparedRows.push({ parentKey: row.parentKey, entry: built });
+    outcomes.push({
+      parentKey: row.parentKey,
+      isin: row.isin,
+      status: "ok",
+      name: built.name,
+    });
+  }
+
+  return { outcomes, preparedRows, runningContent };
+}
+
+router.post("/admin/bucket-alternatives/bulk/preview", async (req, res) => {
+  const parsed = parseBulkRows(req.body);
+  if (typeof parsed === "string") {
+    res.status(400).json({ error: "invalid_rows", message: parsed });
+    return;
+  }
+  let catalog: Awaited<ReturnType<typeof loadCatalog>>;
+  let source: string;
+  try {
+    catalog = await loadCatalog();
+    // Read the raw etfs.ts content so injectAlternative simulations operate
+    // on the same bytes the bulk PR helper would later commit.
+    source = await readFile(getCatalogPath(), "utf8");
+  } catch (err) {
+    res.status(500).json({
+      error: "catalog_parse_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+
+  const { outcomes } = await buildBulkAltOutcomes(parsed, catalog, source);
+  res.json({ rows: outcomes });
+});
+
+router.post("/admin/bucket-alternatives/bulk", async (req, res) => {
+  const parsed = parseBulkRows(req.body);
+  if (typeof parsed === "string") {
+    res.status(400).json({ error: "invalid_rows", message: parsed });
+    return;
+  }
+  if (!githubConfigured()) {
+    res.status(503).json({
+      error: "github_not_configured",
+      message:
+        "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
+    });
+    return;
+  }
+
+  let catalog: Awaited<ReturnType<typeof loadCatalog>>;
+  let source: string;
+  try {
+    catalog = await loadCatalog();
+    source = await readFile(getCatalogPath(), "utf8");
+  } catch (err) {
+    res.status(500).json({
+      error: "catalog_parse_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+
+  const { outcomes, preparedRows } = await buildBulkAltOutcomes(
+    parsed,
+    catalog,
+    source,
+  );
+
+  if (preparedRows.length === 0) {
+    res.status(409).json({
+      error: "no_rows_landed",
+      message:
+        "Every row was rejected before PR creation. Check the per-row reasons and try again.",
+      rows: outcomes,
+    });
+    return;
+  }
+
+  // 1. Open the etfs.ts PR (always — at least one row landed).
+  let prUrl: string;
+  let prNumber: number;
+  let serverOutcomes: BulkAlternativeOutcome[];
+  try {
+    const pr = await openBulkAddBucketAlternativesPr({ rows: preparedRows });
+    prUrl = pr.url;
+    prNumber = pr.number;
+    serverOutcomes = pr.outcomes;
+  } catch (err) {
+    res.status(502).json({
+      error: "pr_creation_failed",
+      message: err instanceof Error ? err.message : String(err),
+      rows: outcomes,
+    });
+    return;
+  }
+
+  // Cross-check: the server-side helper re-ran injectAlternative on the
+  // FRESH base file content (not our local snapshot). If a row that
+  // looked OK locally raced with a concurrent PR merge and now collides,
+  // promote the per-row outcome to the helper's verdict so the operator
+  // sees the truth.
+  const serverByKey = new Map(
+    serverOutcomes.map((o) => [`${o.parentKey}::${o.isin}`, o]),
+  );
+  const reconciled = outcomes.map((o) => {
+    if (o.status !== "ok") return o;
+    const sv = serverByKey.get(`${o.parentKey}::${o.isin}`);
+    if (!sv) return o;
+    if (sv.status === "ok") return o;
+    return {
+      ...o,
+      status: sv.status as BulkAltRowStatus,
+      ...(sv.conflict ? { conflict: sv.conflict } : {}),
+      message:
+        sv.status === "parent_missing"
+          ? "Parent bucket missing on the live base branch."
+          : sv.status === "duplicate_isin"
+            ? `ISIN already used by ${sv.conflict ?? "another entry"} on the live base branch.`
+            : "Parent already at the 2-alt cap on the live base branch.",
+    } satisfies BulkAltPreviewRow;
+  });
+
+  // 2. Best-effort companion look-through PR — gather every ISIN that
+  // actually landed in the etfs.ts PR AND isn't already in the LT pool.
+  // Scrape each, then ship them in ONE bulk LT PR via the existing
+  // openBulkAddLookthroughPoolPr helper.
+  const lookthroughCandidates = reconciled
+    .filter((r) => r.status === "ok")
+    .map((r) => r.isin);
+
+  const lookthroughSkipped: Array<{ isin: string; reason: string }> = [];
+  let lookthroughPrUrl: string | undefined;
+  let lookthroughPrNumber: number | undefined;
+  let lookthroughAdded: string[] | undefined;
+  let lookthroughError: string | undefined;
+  try {
+    const sources = await readLookthroughSources();
+    const ltEntries: Array<{
+      isin: string;
+      entry: LookthroughPoolEntry;
+    }> = [];
+    for (const isin of lookthroughCandidates) {
+      if (sources.pool[isin] || sources.overrides[isin]) {
+        lookthroughSkipped.push({
+          isin,
+          reason: "already in look-through pool",
+        });
+        continue;
+      }
+      try {
+        const scraped = await scrapeLookthrough(isin);
+        const top = scraped.topHoldings;
+        const geo = scraped.geo;
+        const sector = scraped.sector;
+        const currency = scraped.currency;
+        if (
+          !top ||
+          top.length === 0 ||
+          !geo ||
+          Object.keys(geo).length === 0 ||
+          !sector ||
+          Object.keys(sector).length === 0 ||
+          !currency
+        ) {
+          lookthroughSkipped.push({
+            isin,
+            reason: "scrape returned incomplete look-through data",
+          });
+          continue;
+        }
+        ltEntries.push({
+          isin,
+          entry: {
+            ...(scraped.name ? { name: scraped.name } : {}),
+            topHoldings: top,
+            topHoldingsAsOf: scraped.asOf,
+            geo,
+            sector,
+            currency,
+            breakdownsAsOf: scraped.asOf,
+            _source: scraped.sourceUrl,
+            _addedAt: scraped.asOf,
+            _addedVia: "admin/bucket-alternatives/bulk (auto)",
+          },
+        });
+      } catch (err) {
+        lookthroughSkipped.push({
+          isin,
+          reason: err instanceof Error ? err.message : String(err),
+        });
+      }
+    }
+    if (ltEntries.length > 0) {
+      const ltPr = await openBulkAddLookthroughPoolPr({ entries: ltEntries });
+      lookthroughPrUrl = ltPr.url;
+      lookthroughPrNumber = ltPr.number;
+      lookthroughAdded = ltPr.added;
+      for (const skipped of ltPr.skippedAlreadyPresent) {
+        lookthroughSkipped.push({
+          isin: skipped,
+          reason: "already in look-through pool (race)",
+        });
+      }
+    }
+  } catch (err) {
+    lookthroughError = err instanceof Error ? err.message : String(err);
+  }
+
+  res.json({
+    ok: true,
+    prUrl,
+    prNumber,
+    rows: reconciled,
+    ...(lookthroughPrUrl
+      ? { lookthroughPrUrl, lookthroughPrNumber, lookthroughAdded }
+      : {}),
+    ...(lookthroughSkipped.length > 0 ? { lookthroughSkipped } : {}),
     ...(lookthroughError ? { lookthroughError } : {}),
   });
 });
@@ -1328,6 +1810,306 @@ router.post("/admin/app-defaults", async (req, res) => {
       message: err instanceof Error ? err.message : String(err),
     });
   }
+});
+
+// --- /api/admin/workspace ---------------------------------------------------
+// Local git workspace sync (2026-04-28). After the operator merges a PR
+// the repo on disk still points at the pre-merge commit until someone
+// pulls — which means /admin/catalog and /admin/lookthrough-pool keep
+// returning stale data and the next add-alternative attempt may either
+// re-flag a dup that no longer exists or believe the cap hasn't been
+// reached. The two endpoints below let the operator pull main into the
+// running workspace without leaving the admin pane:
+//
+//   GET  /admin/workspace-status — current SHA, behind/ahead counts,
+//                                  whether the working tree is dirty,
+//                                  whether a git lock is held.
+//   POST /admin/workspace-sync   — `git fetch origin main` then
+//                                  `git merge --ff-only origin/main`.
+//
+// Refuses to merge when:
+//   - the working tree is dirty (uncommitted local edits)
+//   - a `.git/index.lock` is held (a git op is in flight)
+//   - the merge wouldn't be fast-forward (remote diverged from local)
+// Each refusal returns a typed 4xx so the UI can render plain-language
+// guidance instead of a generic 500.
+//
+// Why exec git directly: we already shell out via the github.ts helpers
+// for PR creation, but those operate against the GitHub API. Mutating
+// the local checkout is a different concern — same set of git plumbing
+// commands you'd type by hand. Keeping the surface tiny (status + ff
+// merge) means there's nothing the operator can break that `git status`
+// won't reveal.
+
+async function runGit(
+  args: string[],
+  cwd: string,
+): Promise<{ stdout: string; stderr: string }> {
+  return execFileP("git", args, { cwd, maxBuffer: 4 * 1024 * 1024 });
+}
+
+async function repoRoot(): Promise<string> {
+  // Anchor on the catalog path so we always end up inside the same git
+  // repo as the data files we PR against, regardless of cwd.
+  const start = resolve(getCatalogPath(), "..");
+  const { stdout } = await runGit(["rev-parse", "--show-toplevel"], start);
+  return stdout.trim();
+}
+
+router.get("/admin/workspace-status", async (_req, res) => {
+  let root: string;
+  try {
+    root = await repoRoot();
+  } catch (err) {
+    res.status(500).json({
+      error: "git_unavailable",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+  const base = process.env.GITHUB_BASE_BRANCH ?? "main";
+  try {
+    const [head, branchRes, statusRes] = await Promise.all([
+      runGit(["rev-parse", "HEAD"], root),
+      runGit(["rev-parse", "--abbrev-ref", "HEAD"], root),
+      runGit(["status", "--porcelain"], root),
+    ]);
+    const headSha = head.stdout.trim();
+    const currentBranch = branchRes.stdout.trim();
+    const dirty = statusRes.stdout.trim().length > 0;
+    // .git/index.lock detection — best-effort. If git itself is locked
+    // /admin/workspace-sync would fail with "Another git process seems
+    // to be running" anyway; surfacing it here keeps the UI honest.
+    let lockHeld = false;
+    try {
+      lockHeld = existsSync(`${root}/.git/index.lock`);
+    } catch {
+      // ignore
+    }
+
+    let behindCount = 0;
+    let aheadCount = 0;
+    let upstreamSha: string | null = null;
+    let upstreamError: string | null = null;
+    try {
+      // Touch the network so "behind" is meaningful. --quiet keeps stderr
+      // clean; failures here are non-fatal (offline, no network) — we
+      // still report local state.
+      await runGit(["fetch", "--quiet", "origin", base], root);
+      const upstream = await runGit(
+        ["rev-parse", `origin/${base}`],
+        root,
+      );
+      upstreamSha = upstream.stdout.trim();
+      const counts = await runGit(
+        ["rev-list", "--left-right", "--count", `HEAD...origin/${base}`],
+        root,
+      );
+      const [a, b] = counts.stdout.trim().split(/\s+/).map(Number);
+      aheadCount = Number.isFinite(a) ? a : 0;
+      behindCount = Number.isFinite(b) ? b : 0;
+    } catch (err) {
+      upstreamError = err instanceof Error ? err.message : String(err);
+    }
+
+    res.json({
+      ok: true,
+      headSha,
+      currentBranch,
+      baseBranch: base,
+      dirty,
+      lockHeld,
+      behindCount,
+      aheadCount,
+      upstreamSha,
+      ...(upstreamError ? { upstreamError } : {}),
+    });
+  } catch (err) {
+    res.status(500).json({
+      error: "git_status_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+router.post("/admin/workspace-sync", async (_req, res) => {
+  let root: string;
+  try {
+    root = await repoRoot();
+  } catch (err) {
+    res.status(500).json({
+      error: "git_unavailable",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+  const base = process.env.GITHUB_BASE_BRANCH ?? "main";
+
+  // Pre-flight 0: branch check. The endpoint contract is "pull origin/<base>
+  // into the local checkout"; running it on a feature branch would silently
+  // fast-forward THAT branch instead of base, which is rarely what the
+  // operator wants. Refuse with a recognisable 409 so the UI can render
+  // plain-language guidance.
+  let currentBranch: string;
+  try {
+    const { stdout } = await runGit(["rev-parse", "--abbrev-ref", "HEAD"], root);
+    currentBranch = stdout.trim();
+  } catch (err) {
+    res.status(500).json({
+      error: "git_status_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+  if (currentBranch !== base) {
+    res.status(409).json({
+      error: "wrong_branch",
+      message: `Workspace is on "${currentBranch}", but sync only runs on the base branch "${base}". Switch on the host first.`,
+      currentBranch,
+      baseBranch: base,
+    });
+    return;
+  }
+
+  // Pre-flight 1: lock check. If a git process is in flight we'd block
+  // for a long time; better to fail fast with a recognisable message.
+  try {
+    if (existsSync(`${root}/.git/index.lock`)) {
+      res.status(409).json({
+        error: "git_locked",
+        message:
+          "A git operation is currently in progress (.git/index.lock exists). Wait a few seconds and try again.",
+      });
+      return;
+    }
+  } catch {
+    // ignore
+  }
+
+  // Pre-flight 2: clean working tree. Refuse to merge over local edits;
+  // we don't want to silently stash or clobber operator changes.
+  let dirtyOutput = "";
+  try {
+    const { stdout } = await runGit(["status", "--porcelain"], root);
+    dirtyOutput = stdout.trim();
+  } catch (err) {
+    res.status(500).json({
+      error: "git_status_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+  if (dirtyOutput.length > 0) {
+    res.status(409).json({
+      error: "workspace_dirty",
+      message:
+        "The local workspace has uncommitted changes. Commit, stash or discard them before syncing.",
+      details: dirtyOutput.split("\n").slice(0, 20),
+    });
+    return;
+  }
+
+  // Snapshot HEAD before touching the remote so the response can show
+  // "before / after" SHAs even if everything ends up at the same commit.
+  let beforeSha: string;
+  try {
+    const { stdout } = await runGit(["rev-parse", "HEAD"], root);
+    beforeSha = stdout.trim();
+  } catch (err) {
+    res.status(500).json({
+      error: "git_status_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+
+  try {
+    await runGit(["fetch", "origin", base], root);
+  } catch (err) {
+    res.status(502).json({
+      error: "fetch_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+
+  // Determine if the merge would be fast-forward. If HEAD is not an
+  // ancestor of origin/<base> then merging would create a merge commit,
+  // which is well outside the "pull updates after a PR merge" use case
+  // this endpoint serves.
+  let canFastForward = false;
+  try {
+    await runGit(
+      ["merge-base", "--is-ancestor", "HEAD", `origin/${base}`],
+      root,
+    );
+    canFastForward = true;
+  } catch {
+    canFastForward = false;
+  }
+  if (!canFastForward) {
+    res.status(409).json({
+      error: "not_fast_forward",
+      message:
+        "Local branch has diverged from the remote — fast-forward not possible. Resolve manually (rebase or merge) on the host.",
+    });
+    return;
+  }
+
+  try {
+    await runGit(["merge", "--ff-only", `origin/${base}`], root);
+  } catch (err) {
+    res.status(502).json({
+      error: "merge_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+
+  let afterSha = beforeSha;
+  try {
+    const { stdout } = await runGit(["rev-parse", "HEAD"], root);
+    afterSha = stdout.trim();
+  } catch {
+    // ignore — beforeSha is acceptable fallback
+  }
+
+  let changedFiles: string[] = [];
+  let commitsMerged = 0;
+  if (beforeSha !== afterSha) {
+    try {
+      const { stdout } = await runGit(
+        ["diff", "--name-only", `${beforeSha}..${afterSha}`],
+        root,
+      );
+      changedFiles = stdout
+        .split("\n")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .slice(0, 100);
+    } catch {
+      // ignore
+    }
+    try {
+      const { stdout } = await runGit(
+        ["rev-list", "--count", `${beforeSha}..${afterSha}`],
+        root,
+      );
+      const n = Number(stdout.trim());
+      if (Number.isFinite(n)) commitsMerged = n;
+    } catch {
+      // ignore
+    }
+  }
+
+  res.json({
+    ok: true,
+    beforeSha,
+    afterSha,
+    changedFiles,
+    commitsMerged,
+    alreadyUpToDate: beforeSha === afterSha,
+  });
 });
 
 function buildAppDefaultsPrBody(
