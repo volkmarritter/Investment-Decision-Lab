@@ -247,7 +247,8 @@ const CATALOG: Record<string, ETFRecord> = {
         replication: "Physical",
         distribution: "Accumulating",
         currency: "EUR",
-        comment: "",
+        comment:
+          "EURO STOXX 50 (eurozone blue-chips only, 50 names); much narrower than the broad MSCI/FTSE Europe alternatives — no UK or Swiss exposure.",
         listings: { "XETRA": { ticker: "LYSX" }, "SIX": { ticker: "MSE" }, "Euronext": { ticker: "MSE" } },
         defaultExchange: "XETRA",
       },
@@ -274,7 +275,8 @@ const CATALOG: Record<string, ETFRecord> = {
         replication: "Physical",
         distribution: "Distributing",
         currency: "CHF",
-        comment: "",
+        comment:
+          "Swiss Leader Index (top 30 Swiss blue-chips with weight caps); narrower than SPI but caps the dominance of Nestlé / Novartis / Roche.",
         listings: { "SIX": { ticker: "CSSLI" } },
         defaultExchange: "SIX",
       },
@@ -287,7 +289,8 @@ const CATALOG: Record<string, ETFRecord> = {
         replication: "Synthetic",
         distribution: "Accumulating",
         currency: "CHF",
-        comment: "",
+        comment:
+          "MSCI Switzerland (large/mid caps, ~40 names); synthetic, accumulating, Luxembourg-domiciled — alternative for portfolios that prefer swap-based replication or accumulation over the SPI default's Swiss-domicile distributing share class.",
         listings: { "LSE": { ticker: "CSWU" }, "XETRA": { ticker: "18MN" }, "SIX": { ticker: "CSWCHF" } },
         defaultExchange: "SIX",
       },
@@ -744,7 +747,8 @@ const CATALOG: Record<string, ETFRecord> = {
         replication: "Physical",
         distribution: "Accumulating",
         currency: "USD",
-        comment: "",
+        comment:
+          "Nasdaq 100 (top 100 non-financial Nasdaq names); broader than the IT-sector default but still mega-cap tech-tilted, with sizeable consumer-discretionary and communication-services weights.",
         listings: { "LSE": { ticker: "CNDX1" }, "XETRA": { ticker: "SXRV" }, "SIX": { ticker: "CSNDX" } },
         defaultExchange: "LSE",
       },
