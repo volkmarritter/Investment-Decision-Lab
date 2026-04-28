@@ -2134,6 +2134,93 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BM67HK77",
       "_addedAt": "2026-04-28T14:14:22.747Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
+    },
+    "IE00BFNM3J75": {
+      "name": "iShares MSCI World Screened UCITS ETF USD (Acc)",
+      "topHoldings": [
+        {
+          "name": "NVIDIA Corp.",
+          "pct": 5.8
+        },
+        {
+          "name": "Apple",
+          "pct": 5.11
+        },
+        {
+          "name": "Microsoft",
+          "pct": 3.58
+        },
+        {
+          "name": "Amazon.com, Inc.",
+          "pct": 2.74
+        },
+        {
+          "name": "Alphabet, Inc. A",
+          "pct": 2.29
+        },
+        {
+          "name": "Alphabet, Inc. C",
+          "pct": 1.91
+        },
+        {
+          "name": "Broadcom Inc.",
+          "pct": 1.91
+        },
+        {
+          "name": "Meta Platforms",
+          "pct": 1.71
+        },
+        {
+          "name": "Tesla",
+          "pct": 1.44
+        },
+        {
+          "name": "JPMorgan Chase & Co.",
+          "pct": 1.1
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-28T14:14:48.627Z",
+      "geo": {
+        "United States": 67.74,
+        "Japan": 5.92,
+        "Canada": 3,
+        "United Kingdom": 2.91,
+        "France": 2.35,
+        "Germany": 2.06,
+        "Switzerland": 1.85,
+        "Australia": 1.67,
+        "Netherlands": 1.43,
+        "Ireland": 1.32,
+        "Other": 9.75
+      },
+      "sector": {
+        "Technology": 28.96,
+        "Financials": 15.56,
+        "Consumer Discretionary": 9.96,
+        "Industrials": 9.86,
+        "Health Care": 9.46,
+        "Telecommunication": 9.22,
+        "Consumer Staples": 3.04,
+        "Basic Materials": 2.87,
+        "Energy": 2.49,
+        "Utilities": 2.09,
+        "Real Estate": 1.96,
+        "Other": 4.53
+      },
+      "currency": {
+        "USD": 67.74,
+        "JPY": 5.92,
+        "CAD": 3,
+        "GBP": 2.91,
+        "EUR": 7.16,
+        "CHF": 1.85,
+        "AUD": 1.67,
+        "Other": 9.75
+      },
+      "breakdownsAsOf": "2026-04-28T14:14:48.627Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BFNM3J75",
+      "_addedAt": "2026-04-28T14:14:48.627Z",
+      "_addedVia": "admin/bucket-alternatives (auto)"
     }
   }
 }
