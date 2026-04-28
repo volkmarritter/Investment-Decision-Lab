@@ -131,24 +131,66 @@ describe("getETFDetails resolution with selection", () => {
     expect(d.isin).toBe("IE00B6YX5C33"); // SPDR SPY5
   });
 
+  // --------------------------------------------------------------------------
+  // Picker-resolution canaries.
+  //
+  // Earlier revisions of these two tests pointed at live curated buckets
+  // (Equity-Europe for "1 alternative" and Equity-Switzerland for "no
+  // alternatives") and asserted slot/ISIN values that depended on the
+  // exact number of alternatives those buckets had at the time of writing.
+  // Every operator-curated PR that adds an alternative ISIN to one of
+  // those buckets silently invalidated the assumption — the test would
+  // start failing not because the picker logic regressed, but because the
+  // catalog grew. To make the canaries durable they now exercise the
+  // pure resolvePickerSelection() helper against synthetic ETFRecord
+  // fixtures, decoupling the assertion from the live curated alternatives
+  // list. The end-to-end integration of getETFDetails() with localStorage
+  // is still covered by the slot-1 / slot-2 / default cases above using
+  // Equity-USA.
+  // --------------------------------------------------------------------------
+  function makeFixture(altCount: 0 | 1 | 2): import("../src/lib/etfs").ETFRecord {
+    const base = {
+      domicile: "Ireland",
+      replication: "Physical" as const,
+      distribution: "Accumulating" as const,
+      currency: "USD",
+      comment: "Synthetic test fixture — not a real ETF.",
+      listings: { LSE: { ticker: "FIXT" } },
+      defaultExchange: "LSE" as const,
+    };
+    return {
+      ...base,
+      name: "Fixture Default",
+      isin: "IE00FIXTURE00",
+      terBps: 5,
+      alternatives: Array.from({ length: altCount }, (_, i) => ({
+        ...base,
+        name: `Fixture Alt ${i + 1}`,
+        isin: `IE00FIXTUREA${i + 1}`,
+        terBps: 6 + i,
+      })),
+    };
+  }
+
   it("slot pointing past the end clamps to highest available alternative", async () => {
-    // Equity-Europe has only 1 alternative — slot 2 must clamp to 1
-    // rather than silently falling back to the default.
-    const { setETFSelection } = await import("../src/lib/etfSelection");
-    setETFSelection("Equity-Europe", 2);
-    const { getETFDetails } = await import("../src/lib/etfs");
-    const d = getETFDetails("Equity", "Europe", baseInput as any);
-    expect(d.selectedSlot).toBe(1);
-    expect(d.isin).toBe("IE00B945VV12"); // Vanguard VEUA
+    // A bucket with exactly 1 alternative receiving stored-slot=2 must
+    // clamp to slot 1 (not fall back to the default and not return alt-2).
+    const { resolvePickerSelection } = await import("../src/lib/etfs");
+    const r = resolvePickerSelection(makeFixture(1), 2);
+    expect(r.selectedSlot).toBe(1);
+    expect(r.rec.isin).toBe("IE00FIXTUREA1");
+    expect(r.selectableOptions).toHaveLength(2);
   });
 
   it("buckets without alternatives expose empty selectableOptions", async () => {
-    const { getETFDetails } = await import("../src/lib/etfs");
-    // Equity-Switzerland (CH0237935652) is curated as a single-default
-    // bucket with no alternatives — picker UI must stay hidden.
-    const d = getETFDetails("Equity", "Switzerland", baseInput as any);
-    expect(d.selectableOptions).toEqual([]);
-    expect(d.selectedSlot).toBe(0);
+    // A bucket with no alternatives must surface selectableOptions=[]
+    // (so the picker UI stays hidden) and pin selectedSlot to 0 even
+    // when localStorage holds a stale non-zero slot.
+    const { resolvePickerSelection } = await import("../src/lib/etfs");
+    const r = resolvePickerSelection(makeFixture(0), 1);
+    expect(r.selectableOptions).toEqual([]);
+    expect(r.selectedSlot).toBe(0);
+    expect(r.rec.isin).toBe("IE00FIXTURE00");
   });
 
   // --------------------------------------------------------------------------

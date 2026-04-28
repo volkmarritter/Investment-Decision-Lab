@@ -664,6 +664,49 @@ function clampSlot(stored: number, alternativesCount: number): 0 | 1 | 2 {
   return stored as 1 | 2;
 }
 
+// ----------------------------------------------------------------------------
+// resolvePickerSelection()
+// ----------------------------------------------------------------------------
+// Pure picker-resolution helper extracted from getETFDetails(). Given a
+// curated bucket entry and a stored slot index (e.g. from localStorage),
+// returns the chosen ETFRecord, the clamped slot the UI should highlight,
+// and the dropdown's selectableOptions list (empty when the bucket has no
+// alternatives, signalling the picker UI should stay hidden).
+//
+// Exposed so canary tests can validate the picker semantics — slot
+// clamping, default vs alternative selection, and the empty-options
+// contract — against synthetic ETFRecord fixtures rather than live
+// curated buckets. The live catalog grows new alternatives over time
+// (every refresh PR or operator-curated addition can flip a bucket from
+// "0 alternatives" to "1", or "1" to "2"), which would silently break
+// any test that hard-codes "Equity-Europe has exactly 1 alternative".
+// ----------------------------------------------------------------------------
+export interface PickerResolution {
+  rec: ETFRecord;
+  selectedSlot: 0 | 1 | 2;
+  selectableOptions: ETFDetails["selectableOptions"];
+}
+export function resolvePickerSelection(
+  curated: ETFRecord,
+  storedSlot: number
+): PickerResolution {
+  const altCount = curated.alternatives?.length ?? 0;
+  const selectedSlot = clampSlot(storedSlot, altCount);
+  const rec = resolveSelectedETF(curated, selectedSlot);
+  const selectableOptions: ETFDetails["selectableOptions"] =
+    altCount > 0
+      ? [
+          { name: curated.name, isin: curated.isin, terBps: curated.terBps },
+          ...curated.alternatives!.map((a) => ({
+            name: a.name,
+            isin: a.isin,
+            terBps: a.terBps,
+          })),
+        ]
+      : [];
+  return { rec, selectedSlot, selectableOptions };
+}
+
 function pickListing(
   rec: ETFRecord,
   preferred: PortfolioInput["preferredExchange"]
@@ -782,19 +825,10 @@ export function getETFDetails(
   if (override) {
     rec = override;
   } else {
-    const altCount = curated.alternatives?.length ?? 0;
-    selectedSlot = clampSlot(getETFSelection(key), altCount);
-    rec = resolveSelectedETF(curated, selectedSlot);
-    if (altCount > 0) {
-      selectableOptions = [
-        { name: curated.name, isin: curated.isin, terBps: curated.terBps },
-        ...curated.alternatives!.map((a) => ({
-          name: a.name,
-          isin: a.isin,
-          terBps: a.terBps,
-        })),
-      ];
-    }
+    ({ rec, selectedSlot, selectableOptions } = resolvePickerSelection(
+      curated,
+      getETFSelection(key)
+    ));
   }
   const { ticker, exchange } = pickListing(rec, input.preferredExchange);
   return {
