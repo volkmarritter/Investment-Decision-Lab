@@ -482,6 +482,22 @@ const CATALOG: Record<string, ETFRecord> = {
       "Physically-backed bitcoin ETP with cold-storage custody; concentrated single-asset exposure.",
     listings: { LSE: { ticker: "BITC" }, XETRA: { ticker: "BITC" }, SIX: { ticker: "BITC" }, Euronext: { ticker: "BITC" } },
     defaultExchange: "SIX",
+    alternatives: [
+      {
+        name: "21shares Bitcoin Core ETP",
+        isin: "CH1199067674",
+        terBps: 10,
+        domicile: "Switzerland",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment: "21Shares Bitcoin Core — Swiss-listed, native CHF.",
+        listings: { "LSE": { ticker: "CBTU" }, "XETRA": { ticker: "21BC" } },
+        defaultExchange: "LSE",
+        aumMillionsEUR: 389,
+        inceptionDate: "2022-06-29",
+      },
+    ],
   }),
   // ---------- Thematic ----------
   "Equity-Technology": E({
