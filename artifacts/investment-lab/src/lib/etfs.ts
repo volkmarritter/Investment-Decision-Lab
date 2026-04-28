@@ -547,6 +547,22 @@ const CATALOG: Record<string, ETFRecord> = {
     comment: "Global cybersecurity and digital-security theme; smaller AUM, wider spreads possible.",
     listings: { LSE: { ticker: "LOCK" }, XETRA: { ticker: "2B7K" }, Euronext: { ticker: "LOCK" } },
     defaultExchange: "LSE",
+    alternatives: [
+      {
+        name: "WisdomTree Cybersecurity UCITS ETF USD Acc",
+        isin: "IE00BLPK3577",
+        terBps: 45,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment: "WisdomTree Cybersecurity — newer cybersec alternative.",
+        listings: { "LSE": { ticker: "WCBR" }, "XETRA": { ticker: "W1TB" } },
+        defaultExchange: "LSE",
+        aumMillionsEUR: 312,
+        inceptionDate: "2021-01-25",
+      },
+    ],
   }),
 };
 
