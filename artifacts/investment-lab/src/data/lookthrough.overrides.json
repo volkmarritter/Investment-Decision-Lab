@@ -2297,6 +2297,84 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B810Q511",
       "_addedAt": "2026-04-28T14:15:09.421Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
+    },
+    "NL0009690239": {
+      "name": "VanEck Global Real Estate UCITS ETF",
+      "topHoldings": [
+        {
+          "name": "Welltower",
+          "pct": 10.79
+        },
+        {
+          "name": "Prologis, Inc.",
+          "pct": 9.57
+        },
+        {
+          "name": "Digital Realty Trust, Inc.",
+          "pct": 4.81
+        },
+        {
+          "name": "Simon Property Group, Inc.",
+          "pct": 4.71
+        },
+        {
+          "name": "Realty Income",
+          "pct": 4.46
+        },
+        {
+          "name": "Public Storage",
+          "pct": 3.34
+        },
+        {
+          "name": "Ventas, Inc.",
+          "pct": 3
+        },
+        {
+          "name": "Mitsubishi Estate Co., Ltd.",
+          "pct": 2.45
+        },
+        {
+          "name": "VICI Properties",
+          "pct": 2.28
+        },
+        {
+          "name": "Mitsui Fudosan Co., Ltd.",
+          "pct": 2.22
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-28T14:16:13.229Z",
+      "geo": {
+        "United States": 67.86,
+        "Japan": 10.61,
+        "Australia": 3.28,
+        "United Kingdom": 2.77,
+        "Singapore": 2.32,
+        "France": 2.18,
+        "Switzerland": 2.08,
+        "Germany": 2,
+        "Hong Kong": 1.81,
+        "Other": 5.09
+      },
+      "sector": {
+        "Real Estate": 98.47,
+        "Consumer Discretionary": 0.06,
+        "Other": 1.47
+      },
+      "currency": {
+        "USD": 67.86,
+        "JPY": 10.61,
+        "AUD": 3.28,
+        "GBP": 2.77,
+        "SGD": 2.32,
+        "EUR": 4.18,
+        "CHF": 2.08,
+        "HKD": 1.81,
+        "Other": 5.09
+      },
+      "breakdownsAsOf": "2026-04-28T14:16:13.229Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=NL0009690239",
+      "_addedAt": "2026-04-28T14:16:13.229Z",
+      "_addedVia": "admin/bucket-alternatives (auto)"
     }
   }
 }
