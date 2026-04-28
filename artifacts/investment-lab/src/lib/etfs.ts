@@ -241,6 +241,19 @@ const CATALOG: Record<string, ETFRecord> = {
         listings: { "SIX": { ticker: "CSSLI" } },
         defaultExchange: "SIX",
       },
+
+      {
+        name: "Amundi MSCI Switzerland UCITS ETF CHF",
+        isin: "LU1681044993",
+        terBps: 25,
+        domicile: "Luxembourg",
+        replication: "Synthetic",
+        distribution: "Accumulating",
+        currency: "CHF",
+        comment: "",
+        listings: { "LSE": { ticker: "CSWU" }, "XETRA": { ticker: "18MN" }, "SIX": { ticker: "CSWCHF" } },
+        defaultExchange: "SIX",
+      },
     ],
   }),
   "Equity-UK": E({
