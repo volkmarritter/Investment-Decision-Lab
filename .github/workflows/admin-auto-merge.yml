@@ -5,11 +5,11 @@ name: Auto-merge admin PRs
 # republished too early" loop documented in DocsPanel's AfterMergeCallout.
 #
 # Scope is intentionally narrow: only branches whose name starts with one
-# of the four admin-flow prefixes (`add-etf/`, `add-lookthrough-pool/`,
-# `update-app-defaults/`, `backfill-`) are touched. Anything human-authored
-# (manual hotfixes, refactors, dependency bumps) merges the normal way.
-# Draft PRs are also skipped, so the operator can still "convert to draft"
-# on a PR they want to inspect first.
+# of the admin-flow prefixes (`add-etf/`, `add-alt/`, `rm-alt/`,
+# `add-lookthrough-pool/`, `update-app-defaults/`, `backfill-`) are touched.
+# Anything human-authored (manual hotfixes, refactors, dependency bumps)
+# merges the normal way. Draft PRs are also skipped, so the operator can
+# still "convert to draft" on a PR they want to inspect first.
 #
 # Safety: the action polls GitHub until `mergeable` is decided (it can be
 # null right after PR creation while GitHub computes the merge), and
@@ -26,12 +26,14 @@ permissions:
 
 jobs:
   auto-merge:
-    # Only act on the four admin-generated branch prefixes, and never on
-    # drafts. Anything else is left alone for human review.
+    # Only act on the admin-generated branch prefixes, and never on drafts.
+    # Anything else is left alone for human review.
     if: |
       !github.event.pull_request.draft &&
       (
         startsWith(github.event.pull_request.head.ref, 'add-etf/') ||
+        startsWith(github.event.pull_request.head.ref, 'add-alt/') ||
+        startsWith(github.event.pull_request.head.ref, 'rm-alt/') ||
         startsWith(github.event.pull_request.head.ref, 'add-lookthrough-pool/') ||
         startsWith(github.event.pull_request.head.ref, 'update-app-defaults/') ||
         startsWith(github.event.pull_request.head.ref, 'backfill-')
