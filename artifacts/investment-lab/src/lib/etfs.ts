@@ -535,6 +535,22 @@ const CATALOG: Record<string, ETFRecord> = {
       "Concentrated global clean-energy basket; historically high volatility and sector concentration.",
     listings: { LSE: { ticker: "INRG" }, XETRA: { ticker: "IQQH" }, SIX: { ticker: "INRG" }, Euronext: { ticker: "INRG" } },
     defaultExchange: "LSE",
+    alternatives: [
+      {
+        name: "iShares Global Clean Energy Transition UCITS ETF USD (Acc)",
+        isin: "IE000U58J0M1",
+        terBps: 65,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment: "L&G Clean Energy — newer clean-energy alternative.",
+        listings: { "LSE": { ticker: "INRA" }, "XETRA": { ticker: "Q8Y0" } },
+        defaultExchange: "XETRA",
+        aumMillionsEUR: 732,
+        inceptionDate: "2022-02-23",
+      },
+    ],
   }),
   "Equity-Cybersecurity": E({
     name: "iShares Digital Security UCITS",
