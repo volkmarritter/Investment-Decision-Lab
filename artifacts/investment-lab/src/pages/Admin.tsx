@@ -2120,6 +2120,70 @@ function formatRunTimestamp(iso: string, lang: "de" | "en"): {
   return { local, relative, utc };
 }
 
+// GitHub freshness lookup. The deployed app ships a static snapshot of
+// refresh-runs.log.md from build time — but the cron jobs continue to commit
+// new rows to GitHub between deploys. To answer the operator's recurring
+// question "is what I'm looking at actually current?" we hit the public
+// GitHub commits API for that one file path and compare its latest commit
+// timestamp against the bundle's freshest run row. If GitHub is meaningfully
+// ahead, the card surfaces a "republish fällig" pill.
+//
+// Why public anonymous fetch and not a proxied server endpoint: 60 anon
+// requests/hour/IP is plenty for a single-operator console (this is one
+// request per page load), and going through the api-server would just add
+// rate-limit + secret-handling complexity we don't need.
+const GITHUB_REPO = "volkmarritter/Investment-Decision-Lab";
+const RUN_LOG_PATH = "artifacts/investment-lab/src/data/refresh-runs.log.md";
+
+interface GithubCommitState {
+  status: "loading" | "ok" | "error";
+  date?: string;
+  sha?: string;
+  htmlUrl?: string;
+  error?: string;
+}
+
+function useGithubLastCommit(filePath: string): GithubCommitState {
+  const [state, setState] = useState<GithubCommitState>({ status: "loading" });
+  useEffect(() => {
+    const ctrl = new AbortController();
+    (async () => {
+      try {
+        const url = `https://api.github.com/repos/${GITHUB_REPO}/commits?path=${encodeURIComponent(filePath)}&per_page=1`;
+        const r = await fetch(url, {
+          signal: ctrl.signal,
+          headers: { Accept: "application/vnd.github+json" },
+        });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const data = (await r.json()) as Array<{
+          sha?: string;
+          html_url?: string;
+          commit?: { committer?: { date?: string }; author?: { date?: string } };
+        }>;
+        if (!Array.isArray(data) || data.length === 0)
+          throw new Error("no commits");
+        const c = data[0];
+        const date = c?.commit?.committer?.date ?? c?.commit?.author?.date;
+        if (!date) throw new Error("no commit date");
+        setState({
+          status: "ok",
+          date,
+          sha: c.sha,
+          htmlUrl: c.html_url,
+        });
+      } catch (e) {
+        if (ctrl.signal.aborted) return;
+        setState({
+          status: "error",
+          error: e instanceof Error ? e.message : String(e),
+        });
+      }
+    })();
+    return () => ctrl.abort();
+  }, [filePath]);
+  return state;
+}
+
 function RunCell({
   col,
   value,
@@ -2149,9 +2213,42 @@ function RunCell({
   return <span className="whitespace-nowrap">{value}</span>;
 }
 
+// Threshold for the "republish fällig" warning. The cron commits the log row
+// a few seconds AFTER the script started, so a small positive offset between
+// GitHub's commit time and the bundle's newest "Started (UTC)" is normal even
+// for an up-to-date deploy. 10 minutes is comfortably above that noise floor
+// and well below a typical cron cadence (daily/weekly/monthly).
+const REPUBLISH_LAG_THRESHOLD_MS = 10 * 60 * 1000;
+
 function RecentRunsCard({ runs }: { runs: RunLogRow[] }) {
   const { t, lang } = useAdminT();
   const cols = runs[0] ? Object.keys(runs[0]).slice(0, 6) : [];
+  const githubCommit = useGithubLastCommit(RUN_LOG_PATH);
+  // The newest run row in the bundled log file. runs[0] is the freshest per
+  // /admin/run-log's reverse-tail behaviour. Defensive: try both column-name
+  // variants in case the log header ever shifts.
+  const bundleNewestIso =
+    runs[0]?.["Started (UTC)"] ??
+    runs[0]?.["Started"] ??
+    "";
+  const bundleNewestDate =
+    bundleNewestIso && ISO_TIMESTAMP_RX.test(bundleNewestIso)
+      ? new Date(bundleNewestIso)
+      : null;
+  const githubDate =
+    githubCommit.status === "ok" && githubCommit.date
+      ? new Date(githubCommit.date)
+      : null;
+  // Both sides must parse cleanly before we can claim staleness in either
+  // direction. If the bundle row is missing/malformed or GitHub is still
+  // loading/errored, surface an "unbekannt" pill rather than a misleading
+  // green "aktuell" — the operator should never see a confident OK state
+  // that's based on an implicit zero on one side of the comparison.
+  const canCompare = !!bundleNewestDate && !!githubDate;
+  const lagMs = canCompare
+    ? githubDate!.getTime() - bundleNewestDate!.getTime()
+    : 0;
+  const republishOverdue = canCompare && lagMs > REPUBLISH_LAG_THRESHOLD_MS;
   // Localised header label for the timestamp column — the raw "Started (UTC)"
   // is technically still accurate (the underlying value IS UTC) but it is no
   // longer the primary thing displayed in the cell, so we soften it.
@@ -2175,6 +2272,91 @@ function RecentRunsCard({ runs }: { runs: RunLogRow[] }) {
         </CardTitle>
       </CardHeader>
       <CardContent>
+        {runs.length > 0 && (
+          <div
+            className={`mb-3 rounded-md border px-3 py-2 text-[11px] ${
+              republishOverdue
+                ? "border-amber-300 bg-amber-50"
+                : "border-muted bg-muted/30"
+            }`}
+            data-testid="run-log-freshness-banner"
+          >
+            <div className="flex items-baseline justify-between gap-2">
+              <span className="font-medium text-muted-foreground">
+                {t({ de: "Live-Bundle", en: "Live bundle" })}
+              </span>
+              <span className="tabular-nums" title={bundleNewestIso}>
+                {bundleNewestDate
+                  ? (() => {
+                      const f = formatRunTimestamp(bundleNewestIso, lang);
+                      return `${f.local} · ${f.relative}`;
+                    })()
+                  : "—"}
+              </span>
+            </div>
+            <div className="flex items-baseline justify-between gap-2 mt-0.5">
+              <span className="font-medium text-muted-foreground">
+                {t({ de: "GitHub", en: "GitHub" })}
+              </span>
+              <span className="tabular-nums">
+                {githubCommit.status === "loading" && (
+                  <span className="text-muted-foreground">
+                    {t({ de: "lädt …", en: "loading …" })}
+                  </span>
+                )}
+                {githubCommit.status === "error" && (
+                  <span
+                    className="text-muted-foreground"
+                    title={githubCommit.error}
+                  >
+                    {t({
+                      de: "nicht erreichbar",
+                      en: "unavailable",
+                    })}
+                  </span>
+                )}
+                {githubCommit.status === "ok" && githubDate && (
+                  <a
+                    href={githubCommit.htmlUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="hover:underline"
+                    title={githubCommit.date}
+                  >
+                    {(() => {
+                      const f = formatRunTimestamp(githubCommit.date!, lang);
+                      return `${f.local} · ${f.relative}`;
+                    })()}
+                  </a>
+                )}
+              </span>
+            </div>
+            <div className="mt-1.5 flex items-center justify-between gap-2">
+              <span className="text-[10px] text-muted-foreground">
+                {t({
+                  de: "Cron-Commits seit dem letzten Republish sind erst nach erneutem Deploy in der Live-App sichtbar.",
+                  en: "Cron commits since the last republish only show up in the live app after a fresh deploy.",
+                })}
+              </span>
+              {!canCompare ? (
+                <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground whitespace-nowrap">
+                  {t({ de: "Status unbekannt", en: "status unknown" })}
+                </span>
+              ) : republishOverdue ? (
+                <span
+                  className="inline-flex items-center rounded-full bg-amber-200 px-2 py-0.5 text-[10px] font-medium text-amber-900 whitespace-nowrap"
+                  data-testid="run-log-republish-pill"
+                >
+                  {t({ de: "Republish fällig", en: "Republish due" })}
+                </span>
+              ) : (
+                <span className="inline-flex items-center rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-medium text-emerald-800 whitespace-nowrap">
+                  {t({ de: "aktuell", en: "up to date" })}
+                </span>
+              )}
+            </div>
+          </div>
+        )}
         {runs.length === 0 && (
           <p className="text-sm text-muted-foreground">
             {t({

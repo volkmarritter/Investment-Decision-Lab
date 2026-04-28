@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-04-28 (admin-recent-runs-readable-timestamps)
+Last updated: 2026-04-28 (admin-recent-runs-github-freshness-banner)
 
 ---
 
@@ -619,6 +619,17 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-04-28 (admin-recent-runs-github-freshness-banner) — „Live-Bundle vs. GitHub"-Vergleichszeile
+- **Operator-Folgefrage nach dem Timestamp-Polish:** „Aber morgen früh zeigt die Live-App ja noch den alten Stand, weil das Bundle statisch ist?" — exakt richtig erkannt. Replit-Autoscale-Deploys triggern nicht automatisch auf Cron-Pushes nach GitHub. Statt einen Auto-Deploy-Hook zu bauen, gibt die Admin-Konsole jetzt sichtbar Auskunft über die Lücke.
+- **Neue Banner-Zeile in `RecentRunsCard`** (oberhalb der Tabelle, `data-testid="run-log-freshness-banner"`) mit zwei Vergleichszeilen + Status-Pill:
+  - **Live-Bundle:** der frischeste Run im ausgelieferten `refresh-runs.log.md` (entspricht `runs[0]["Started (UTC)"]`), formatiert via dem bestehenden `formatRunTimestamp()` als „28.04.2026, 07:37 · vor 1 Std.". `title=`-Tooltip zeigt das Original-ISO.
+  - **GitHub:** Commit-Datum des letzten Commits, der `refresh-runs.log.md` geändert hat — geholt direkt vom Browser via `https://api.github.com/repos/volkmarritter/Investment-Decision-Lab/commits?path=...&per_page=1` (anonymes Read, 60/h/IP — für Single-Operator-Konsole reichlich; bewusst KEIN Server-Proxy gebaut, weil das nur Rate-Limit + Secret-Handling ohne Mehrwert addiert hätte). Drei Zustände: `lädt …` während des Fetch, klickbarer Commit-Link bei Erfolg, dezentes „nicht erreichbar" mit Error-Tooltip bei Rate-Limit/Network-Fehler.
+  - **Status-Pill:** vergleicht GitHub-Commit-Datum mit Bundle-Newest. Differenz > `REPUBLISH_LAG_THRESHOLD_MS` (10 min — komfortabel über dem Cron-Commit-Lag von ~Sekunden, weit unter jeder Cron-Kadenz) → amber „Republish fällig" (`data-testid="run-log-republish-pill"`) plus amber Banner-Background. Sonst grün „aktuell". 10-Minuten-Schwelle bewusst, damit der natürliche „Cron startet → Cron finished+commit" Versatz von ~5–60 Sekunden nicht ständig zu False-Positives führt.
+- **Neuer `useGithubLastCommit(filePath)`-Hook** vor `RunCell`. `AbortController` für Component-Unmount, defensives Parsing (committer.date → author.date Fallback), TypeScript-Interface `GithubCommitState` mit Discriminated Union via `status`. Eine Anfrage pro Page-Mount, kein Polling — der Operator lädt die Admin-Konsole sowieso bewusst.
+- **Erklär-Caption unter den beiden Datums-Zeilen:** „Cron-Commits seit dem letzten Republish sind erst nach erneutem Deploy in der Live-App sichtbar." — beantwortet die Frage direkt im UI, statt sie der Operator-Memory zu überlassen.
+- **Bewusste Nicht-Änderungen:** kein Auto-Deploy-Hook (das ist eine Replit-Settings-Frage, kein Code-Problem); kein Server-Endpoint (Browser-Fetch ist hier ehrlicher und einfacher); kein Test-Touch (visuelle Add-on-UI ohne neue Geschäftslogik); Repo-Name als Konstante hartkodiert (`GITHUB_REPO = "volkmarritter/Investment-Decision-Lab"`) — single-tenant Tool, keine Konfigurations-Notwendigkeit.
+- **352/352 Tests grün, Typecheck clean. e2e bestätigt:** Banner erscheint, Live-Bundle „28/04/2026, 05:37 · 1 hour ago", GitHub „28/04/2026, 05:38 · 1 hour ago" (1 Min Versatz = innerhalb Schwelle), grüne „up to date"-Pill, GitHub-Datum ist klickbarer Link auf den Commit (`github.com/volkmarritter/Investment-Decision-Lab/commit/<sha>`).
 
 ### 2026-04-28 (admin-recent-runs-readable-timestamps) — „Recent runs"-Tabelle: ISO → leserlich
 - **Operator-Beschwerde:** in der Admin-Konsole zeigte die Karte „Letzte Läufe / Recent runs" rohe ISO-Strings wie `2026-04-27T05:31:06.809Z` in der ersten Spalte. Korrekt (UTC ist die ehrlichste Speicherform für ein cron-getriebenes Log), aber für Augenüberflug ungeeignet. Jetzt zweizeilige Zelle, lokal-zentriert.
