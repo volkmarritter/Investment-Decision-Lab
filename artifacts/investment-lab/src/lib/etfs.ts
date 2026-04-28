@@ -800,6 +800,19 @@ const CATALOG: Record<string, ETFRecord> = {
         inceptionDate: "2018-10-19",
       },
 
+
+      {
+        name: "Invesco Global Clean Energy UCITS ETF Acc",
+        isin: "IE00BLRB0242",
+        terBps: 60,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment: "",
+        listings: { "LSE": { ticker: "GCLE" }, "XETRA": { ticker: "G1CE" }, "SIX": { ticker: "GCLE" } },
+        defaultExchange: "LSE",
+      },
     ],
   }),
   "Equity-Cybersecurity": E({
