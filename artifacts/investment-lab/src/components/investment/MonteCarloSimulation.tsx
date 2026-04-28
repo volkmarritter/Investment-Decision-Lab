@@ -17,16 +17,62 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AssetAllocation } from "@/lib/types";
-import { runMonteCarlo } from "@/lib/monteCarlo";
+import { AssetAllocation, BaseCurrency } from "@/lib/types";
+import { runMonteCarlo, TailModel } from "@/lib/monteCarlo";
+import { isSyntheticUsEffective, RiskRegime } from "@/lib/metrics";
 import { parseDecimalInput } from "@/lib/manualWeights";
 import { useT } from "@/lib/i18n";
+
+// ---------------------------------------------------------------------------
+// Money input grouping helpers (MC-local — only the investment-amount field
+// needs thousands separators; weights / percentages stay simple).
+//
+// We use the Swiss apostrophe ' as the grouping mark because it is the only
+// character that is unambiguous in BOTH the DE and EN UIs of a CHF-base app:
+//   - "." would clash with the decimal separator in EN locales.
+//   - "," would clash with the decimal separator in DE/CH locales.
+//   - "'" is recognised internationally as a thousands separator and does
+//     not collide with anything we accept as a decimal separator.
+// The user can paste / type with or without grouping marks; the on-change
+// handler reformats to the canonical apostrophe-grouped representation.
+// ---------------------------------------------------------------------------
+function stripGrouping(s: string): string {
+  // Apostrophe (ASCII + curly), regular space, non-breaking space.
+  return s.replace(/['\u2019\s\u00A0]/g, "");
+}
+
+function formatAmountWithGrouping(raw: string): string {
+  const stripped = stripGrouping(raw);
+  // Lone sign while typing — leave it as-is, the user is mid-edit.
+  if (stripped === "" || stripped === "-" || stripped === "+") return stripped;
+  // Split on the first decimal mark (dot or comma) so we can group only the
+  // integer part. The fractional part is preserved verbatim so trailing
+  // zeros and an in-flight separator survive editing (e.g. "1'234," → after
+  // typing the next digit becomes "1'234,5", not "1'2345" or "12'34,5").
+  const sepIdx = stripped.search(/[.,]/);
+  const intPart = sepIdx === -1 ? stripped : stripped.slice(0, sepIdx);
+  const rest = sepIdx === -1 ? "" : stripped.slice(sepIdx);
+  // If the integer part isn't a clean optional-sign + digits run, bail out
+  // and let parseDecimalInput surface the error downstream — don't try to
+  // re-flow garbage.
+  if (!/^[+-]?\d*$/.test(intPart)) return stripped;
+  const sign = intPart.startsWith("+") || intPart.startsWith("-") ? intPart[0] : "";
+  const digits = sign ? intPart.slice(1) : intPart;
+  if (digits === "") return sign + rest;
+  // Group from the right in 3-digit chunks. Standard regex idiom — \B
+  // anchors at a non-word-boundary (so we never insert before the first
+  // digit) and the lookahead guarantees we only split where exactly a
+  // multiple of 3 digits remain to the right.
+  const grouped = digits.replace(/\B(?=(\d{3})+(?!\d))/g, "'");
+  return sign + grouped + rest;
+}
 
 interface MonteCarloSimulationProps {
   allocation: AssetAllocation[];
   horizonYears: number;
-  baseCurrency: string;
+  baseCurrency: BaseCurrency;
   hedged?: boolean;
+  includeSyntheticETFs?: boolean;
 }
 
 export function MonteCarloSimulation({
@@ -34,16 +80,19 @@ export function MonteCarloSimulation({
   horizonYears,
   baseCurrency,
   hedged,
+  includeSyntheticETFs,
 }: MonteCarloSimulationProps) {
   const { t, lang } = useT();
   // Raw text buffer is the source of truth so mobile users on Swiss/German/
-  // French keyboards can type "100000,50" without `<input type="number">`
+  // French keyboards can type "100'000,50" without `<input type="number">`
   // silently emptying the field. parseDecimalInput accepts dot *and* comma
-  // decimals; null falls back to 0 so the simulation still runs while the
+  // decimals; we strip the apostrophe / space grouping marks before parsing
+  // so the operator can think in CHF amounts (100'000) instead of bare
+  // digit runs. null falls back to 0 so the simulation still runs while the
   // user is mid-edit. See the audit comment in src/lib/manualWeights.ts.
-  const [amountDraft, setAmountDraft] = useState<string>("100000");
+  const [amountDraft, setAmountDraft] = useState<string>(() => formatAmountWithGrouping("100000"));
   const investmentAmount = useMemo(
-    () => parseDecimalInput(amountDraft, { min: 0 }) ?? 0,
+    () => parseDecimalInput(stripGrouping(amountDraft), { min: 0 }) ?? 0,
     [amountDraft],
   );
   // Re-run the simulation whenever the user edits CMA overrides in the
@@ -52,13 +101,37 @@ export function MonteCarloSimulation({
   const [cmaVersion, setCmaVersion] = useState(0);
   useEffect(() => subscribeCMAOverrides(() => { applyCMALayers(); setCmaVersion((v) => v + 1); }), []);
 
+  // Synthetic-US carve-out: gate the swap-based US-equity WHT exemption
+  // through the same shared helper that PortfolioMetrics uses, so MC and
+  // analytical views shift together when the toggle flips.
+  const syntheticUsEffective = isSyntheticUsEffective(includeSyntheticETFs, baseCurrency, hedged);
+
+  // Tail-realism toggles. Both default to the backward-compatible Gauss /
+  // normal-correlation regime so the existing baselines (probLoss,
+  // CVaR, MDD) are byte-identical until the operator opts in.
+  // - riskRegime: feeds the corr() call inside portfolioSigma. Crisis
+  //   inflates equity-equity / equity-REITs / equity-bonds correlations,
+  //   so the MC fan widens and CVaR / Path-MDD-P05 strictly worsen.
+  // - tailModel: switches the per-year shock distribution. studentT
+  //   keeps σ unchanged but adds heavy tails — same width median-band,
+  //   noticeably worse 99 %-CVaR.
+  // Both toggles are independent: the operator can study Crisis-Σ alone,
+  // Student-t alone, or both stacked (the "everything goes wrong" view).
+  const [riskRegime, setRiskRegime] = useState<RiskRegime>("normal");
+  const [tailModel, setTailModel] = useState<TailModel>("gauss");
+  const studentTDf = 5; // operator default; df-slider can be added later
+
   const result = useMemo(
     () =>
       runMonteCarlo(allocation, horizonYears, investmentAmount, {
         hedged: !!hedged,
         baseCurrency,
+        syntheticUsEffective,
+        riskRegime,
+        tailModel,
+        studentTDf,
       }),
-    [allocation, horizonYears, investmentAmount, hedged, baseCurrency, cmaVersion]
+    [allocation, horizonYears, investmentAmount, hedged, baseCurrency, syntheticUsEffective, riskRegime, tailModel, cmaVersion]
   );
 
   const formatCurrency = (value: number) => {
@@ -129,9 +202,95 @@ export function MonteCarloSimulation({
             autoCorrect="off"
             spellCheck={false}
             value={amountDraft}
-            onChange={(e) => setAmountDraft(e.target.value)}
+            onChange={(e) => setAmountDraft(formatAmountWithGrouping(e.target.value))}
             className="mt-1"
           />
+        </div>
+
+        {/* Tail-realism toggles. Two independent dimensions:
+         *   1. Correlation regime (normal vs crisis) — feeds portfolioSigma.
+         *   2. Tail distribution (Gauss vs Student-t df=5) — feeds the per-
+         *      year shock draw inside the path loop.
+         *  Both default off so the existing baselines are unchanged.
+         *  See Methodology → "Tail-Realismus" for the calibration anchors. */}
+        <div className="rounded-md border border-border bg-muted/10 p-3 space-y-2" data-testid="mc-tail-controls">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
+            {lang === "de" ? "Tail-Realismus (optional)" : "Tail realism (optional)"}
+          </p>
+          <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs">
+            {/* Correlation regime */}
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">
+                {lang === "de" ? "Korrelations-Regime:" : "Correlation regime:"}
+              </span>
+              <div className="inline-flex rounded-md border border-border overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setRiskRegime("normal")}
+                  data-testid="mc-regime-normal"
+                  className={`px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                    riskRegime === "normal"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  {lang === "de" ? "Normal" : "Normal"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRiskRegime("crisis")}
+                  data-testid="mc-regime-crisis"
+                  className={`px-2.5 py-0.5 text-[11px] font-medium transition-colors border-l border-border ${
+                    riskRegime === "crisis"
+                      ? "bg-destructive text-destructive-foreground"
+                      : "bg-background text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  {lang === "de" ? "Krise" : "Crisis"}
+                </button>
+              </div>
+            </div>
+
+            {/* Tail model */}
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">
+                {lang === "de" ? "Verteilung:" : "Distribution:"}
+              </span>
+              <div className="inline-flex rounded-md border border-border overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setTailModel("gauss")}
+                  data-testid="mc-tail-gauss"
+                  className={`px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                    tailModel === "gauss"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  {lang === "de" ? "Gauss" : "Gauss"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTailModel("studentT")}
+                  data-testid="mc-tail-student"
+                  className={`px-2.5 py-0.5 text-[11px] font-medium transition-colors border-l border-border ${
+                    tailModel === "studentT"
+                      ? "bg-destructive text-destructive-foreground"
+                      : "bg-background text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  {lang === "de" ? `Student-t (df=${studentTDf})` : `Student-t (df=${studentTDf})`}
+                </button>
+              </div>
+            </div>
+          </div>
+          {(riskRegime === "crisis" || tailModel === "studentT") && (
+            <p className="text-[10px] text-destructive italic leading-snug">
+              {lang === "de"
+                ? "Pessimistische Sicht aktiv: Tails sind fetter als unter den Standard-Annahmen — CVaR99 und Pfad-MDD-P05 verschlechtern sich, der Median bleibt nahezu unverändert."
+                : "Pessimistic lens active: tails are heavier than the default assumptions — CVaR99 and Path-MDD-P05 worsen, the median is largely unchanged."}
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
@@ -211,6 +370,45 @@ export function MonteCarloSimulation({
           </div>
           <p className="text-[10px] text-muted-foreground mt-2 leading-snug">
             {t("mc.tail.desc")}
+          </p>
+        </div>
+
+        {/* Path-based realized Max Drawdown — replaces the analytical
+            heuristic from metrics.ts for the simulation view. We report
+            the median (typical path) and the 5th-percentile (bad-tail
+            path) of the worst peak-to-trough drop observed *along* each
+            simulated path. Honest tail measure, simulation-consistent. */}
+        <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3" data-testid="mc-realized-mdd">
+          <div className="flex items-center gap-2 mb-2 text-[11px] font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+            <TrendingDown className="h-3 w-3" />
+            {t("mc.mdd.title")}
+          </div>
+          <div className="grid grid-cols-2 gap-4 text-center">
+            <div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                {t("mc.mdd.median")}
+              </div>
+              <div
+                className="text-base font-semibold mt-1 font-mono"
+                data-testid="mc-mdd-p50"
+              >
+                {(result.realizedMddP50 * 100).toFixed(1)}%
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] text-muted-foreground uppercase tracking-wide">
+                {t("mc.mdd.p05")}
+              </div>
+              <div
+                className="text-base font-semibold mt-1 font-mono text-amber-600 dark:text-amber-400"
+                data-testid="mc-mdd-p05"
+              >
+                {(result.realizedMddP05 * 100).toFixed(1)}%
+              </div>
+            </div>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-2 leading-snug">
+            {t("mc.mdd.desc")}
           </p>
         </div>
 

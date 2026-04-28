@@ -5,16 +5,23 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { InfoHint } from "@/components/ui/info-hint";
-import { AssetAllocation, BaseCurrency } from "@/lib/types";
-import { computeMetrics, computeFrontier, buildCorrelationMatrix, mapAllocationToAssets, CMA } from "@/lib/metrics";
+import { AssetAllocation, BaseCurrency, ETFImplementation } from "@/lib/types";
+import { computeMetrics, computeFrontier, buildCorrelationMatrix, mapAllocationToAssetsLookthrough, mapAllocationToAssets, decomposeTrackingError, CMA, isSyntheticUsEffective, RiskRegime } from "@/lib/metrics";
 import { getRiskFreeRate, subscribeRiskFreeRate, subscribeCMAOverrides } from "@/lib/settings";
 import { applyCMALayers } from "@/lib/metrics";
 import { useT } from "@/lib/i18n";
 
-export function PortfolioMetrics({ allocation, baseCurrency }: { allocation: AssetAllocation[]; baseCurrency: BaseCurrency }) {
+export function PortfolioMetrics({ allocation, baseCurrency, etfImplementation, includeSyntheticETFs, hedged }: { allocation: AssetAllocation[]; baseCurrency: BaseCurrency; etfImplementation?: ETFImplementation[]; includeSyntheticETFs?: boolean; hedged?: boolean }) {
   const { t, lang } = useT();
   const de = lang === "de";
-  const [expanded, setExpanded] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
+  // Risk-regime toggle: default "normal" so the tile renders identically
+  // to before this feature shipped (backward compatible). Flipping to
+  // "crisis" swaps the correlation matrix into CRISIS_C — vol / β / TE /
+  // Sharpe / α / max-DD / frontier / correlation matrix all re-compute
+  // against the stress regime without touching expected returns. See
+  // metrics.ts:CRISIS_C for the calibration anchors.
+  const [riskRegime, setRiskRegime] = useState<RiskRegime>("normal");
   const [rf, setRf] = useState<number>(() => getRiskFreeRate(baseCurrency));
   useEffect(() => subscribeRiskFreeRate((all) => setRf(all[baseCurrency])), [baseCurrency]);
   // Re-read RF whenever the active base currency changes (Sharpe / Alpha must
@@ -25,10 +32,21 @@ export function PortfolioMetrics({ allocation, baseCurrency }: { allocation: Ass
   const [cmaVersion, setCmaVersion] = useState(0);
   useEffect(() => subscribeCMAOverrides(() => { applyCMALayers(); setCmaVersion((v) => v + 1); }), []);
 
-  const m = useMemo(() => computeMetrics(allocation, baseCurrency), [allocation, baseCurrency, rf, cmaVersion]);
-  const frontier = useMemo(() => computeFrontier(allocation, baseCurrency), [allocation, baseCurrency, rf, cmaVersion]);
-  const correlation = useMemo(() => buildCorrelationMatrix(allocation), [allocation]);
-  const exposures = useMemo(() => mapAllocationToAssets(allocation), [allocation]);
+  // Look-through-aware metrics: when etfImplementation is supplied, vol /
+  // beta / TE / alpha and the TE-contribution table reflect the actual ETF
+  // holdings (e.g. UK + CH content inside an Equity-Europe ETF). When the
+  // prop is omitted (legacy callers), we fall back to region-based routing.
+  // Synthetic-US carve-out: when the toggle is on AND the ETF picker
+  // actually selects a swap-based US share class (not gated off by hedged
+  // non-USD), the equity_us WHT drag is zero — see metrics.ts.
+  const syntheticUsEffective = isSyntheticUsEffective(includeSyntheticETFs, baseCurrency, hedged);
+  const m = useMemo(() => computeMetrics(allocation, baseCurrency, etfImplementation, syntheticUsEffective, riskRegime), [allocation, baseCurrency, etfImplementation, syntheticUsEffective, riskRegime, rf, cmaVersion]);
+  const frontier = useMemo(() => computeFrontier(allocation, baseCurrency, etfImplementation, syntheticUsEffective, riskRegime), [allocation, baseCurrency, etfImplementation, syntheticUsEffective, riskRegime, rf, cmaVersion]);
+  const correlation = useMemo(() => buildCorrelationMatrix(allocation, baseCurrency, etfImplementation, riskRegime), [allocation, baseCurrency, etfImplementation, riskRegime]);
+  const exposures = useMemo(() => etfImplementation
+    ? mapAllocationToAssetsLookthrough(allocation, etfImplementation, baseCurrency)
+    : mapAllocationToAssets(allocation, baseCurrency), [allocation, baseCurrency, etfImplementation]);
+  const teDecomp = useMemo(() => decomposeTrackingError(allocation, baseCurrency, etfImplementation, riskRegime), [allocation, baseCurrency, etfImplementation, riskRegime, cmaVersion]);
 
   const explain = {
     expReturn: {
@@ -70,8 +88,8 @@ export function PortfolioMetrics({ allocation, baseCurrency }: { allocation: Ass
     te: {
       title: t("metrics.te"),
       body: de
-        ? "Wie weit Ihre Jahresrendite typischerweise vom globalen Aktienmarkt abweichen wird – nach oben oder unten. Höher = mutigere Wetten gegen den Markt."
-        : "How far your annual return will typically drift from the global stock market — up or down. Higher = bolder bets away from the index.",
+        ? "Wie weit Ihre Jahresrendite typischerweise vom globalen Aktienmarkt abweichen wird — nach oben oder unten. Gemessen gegen einen 100 %-Aktien-ACWI-Proxy: Anlageklassen, die der Benchmark gar nicht enthält (Cash, Anleihen, Gold), erhöhen diese Zahl mechanisch. Regionale Über-/Untergewichte gegenüber dem ACWI-Mix können den TE je nach Wechselwirkung mit den übrigen aktiven Wetten erhöhen oder auch teilweise wieder absorbieren. Klicken Sie auf »Details anzeigen«, um die Beitragstabelle Position für Position zu sehen."
+        : "How far your annual return will typically drift from the global stock market — up or down. Measured against a 100% equity ACWI proxy: asset classes the benchmark holds none of (cash, bonds, gold) mechanically add to this number. Regional over- or underweights vs the ACWI mix can either add to TE or partly absorb it, depending on how they interact with the rest of the active book. Click »Show Details« to see the contribution table position by position.",
     },
     outperf: {
       title: t("metrics.outperf"),
@@ -103,79 +121,163 @@ export function PortfolioMetrics({ allocation, baseCurrency }: { allocation: Ass
   return (
     <Card className="mt-6">
       <CardHeader>
-        <div className="flex flex-row items-start justify-between gap-4">
-          <div className="space-y-1">
-            <CardTitle className="flex items-center gap-2">
-              <Sigma className="h-5 w-5" /> {t("metrics.title")}
-            </CardTitle>
-            <CardDescription>{t("metrics.desc")}</CardDescription>
-            <div className="flex flex-wrap gap-x-4 gap-y-1 pt-2 text-xs font-mono text-muted-foreground">
-              <span><span className="text-foreground font-semibold">{pct(m.expReturn)}</span> {t("metrics.expReturn").toLowerCase()}</span>
-              <span><span className="text-foreground font-semibold">{pct(m.vol)}</span> {t("metrics.vol").toLowerCase()}</span>
-              <span><span className="text-foreground font-semibold">{num(m.sharpe)}</span> {t("metrics.sharpe").toLowerCase()}</span>
-              <span><span className="text-foreground font-semibold">{pct(m.maxDrawdown, 1)}</span> {t("metrics.maxDD").toLowerCase()}</span>
-            </div>
-          </div>
-          <Button variant="outline" size="sm" onClick={() => setExpanded((v) => !v)} className="shrink-0">
-            {expanded ? <ChevronUp className="h-4 w-4 mr-1" /> : <ChevronDown className="h-4 w-4 mr-1" />}
-            {expanded ? t("build.homeBias.collapse") : t("build.homeBias.expand")}
-          </Button>
-        </div>
+        <CardTitle className="flex items-center gap-2">
+          <Sigma className="h-5 w-5" /> {t("metrics.title")}
+        </CardTitle>
+        <CardDescription>{t("metrics.desc")}</CardDescription>
       </CardHeader>
-      {expanded && (
       <CardContent className="space-y-6">
-        {/* Scalar metrics grid */}
+        {/* Scalar metrics grid — 8 tiles, always visible */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
           <MetricTile label={t("metrics.expReturn")} value={pct(m.expReturn)} sub={de ? "p.a." : "p.a."} info={explain.expReturn} />
           <MetricTile label={t("metrics.vol")} value={pct(m.vol)} sub={de ? "Standardabw." : "stdev"} info={explain.vol} />
           <MetricTile label={t("metrics.sharpe")} value={num(m.sharpe)} sub={`Rf ${pct(rf, 1)}`} accent={m.sharpe >= 0.4 ? "good" : m.sharpe >= 0.2 ? "neutral" : "warn"} info={explain.sharpe} />
-          <MetricTile label={t("metrics.maxDD")} value={pct(m.maxDrawdown, 1)} sub={de ? "geschätzt" : "estimated"} accent="warn" info={explain.maxDD} />
+          <MetricTile label={t("metrics.maxDD")} value={pct(m.maxDrawdown, 1)} sub={de ? "Heuristik · MC-Tab für Pfad-MDD" : "heuristic · see MC tab for path-based MDD"} accent="warn" info={explain.maxDD} />
           <MetricTile label={t("metrics.beta")} value={num(m.beta)} sub={de ? "vs. ACWI" : "vs ACWI"} info={explain.beta} />
           <MetricTile label={t("metrics.alpha")} value={pct(m.alpha)} sub={de ? "p.a. vs. ACWI" : "p.a. vs ACWI"} accent={m.alpha >= 0 ? "good" : "warn"} info={explain.alpha} />
           <MetricTile label={t("metrics.te")} value={pct(m.trackingError, 1)} sub={de ? "p.a." : "p.a."} info={explain.te} />
           <MetricTile label={t("metrics.outperf")} value={`${m.outperformance >= 0 ? "+" : ""}${pct(m.outperformance)}`} sub={de ? "vs. ACWI p.a." : "vs ACWI p.a."} accent={m.outperformance >= 0 ? "good" : "warn"} info={explain.outperf} />
         </div>
 
-        {/* Per-asset expected returns table */}
+        {/* Risk-regime pill: switches the correlation matrix used by every
+         *  σ-driven metric on this tile (vol / β / TE / Sharpe / α / max-DD,
+         *  efficient frontier, correlation matrix) between the long-run
+         *  "normal" matrix and the stress-aware "crisis" matrix. Default
+         *  off so the tile is byte-identical to the pre-feature baseline.
+         *  See Methodology → "Tail-Realismus" section for the calibration. */}
+        <div className="flex flex-wrap items-center justify-center gap-2 pt-1" data-testid="risk-regime-toggle">
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+            {de ? "Korrelations-Regime" : "Correlation regime"}:
+          </span>
+          <div className="inline-flex rounded-md border border-border overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setRiskRegime("normal")}
+              data-testid="risk-regime-normal"
+              className={`px-3 py-1 text-xs font-medium transition-colors ${
+                riskRegime === "normal"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              {de ? "Normal" : "Normal"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setRiskRegime("crisis")}
+              data-testid="risk-regime-crisis"
+              className={`px-3 py-1 text-xs font-medium transition-colors border-l border-border ${
+                riskRegime === "crisis"
+                  ? "bg-destructive text-destructive-foreground"
+                  : "bg-background text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              {de ? "Krise" : "Crisis"}
+            </button>
+          </div>
+          {riskRegime === "crisis" && (
+            <span className="text-[10px] text-destructive italic">
+              {de ? "höhere Korrelationen — σ, β, TE pessimistischer" : "higher correlations — σ, β, TE more pessimistic"}
+            </span>
+          )}
+        </div>
+
+        {/* Show Details toggle — reveals asset table, efficient frontier, correlation matrix */}
+        <div className="flex justify-center pt-1">
+          <Button variant="outline" size="sm" onClick={() => setShowDetails((v) => !v)}>
+            {showDetails ? <ChevronUp className="h-4 w-4 mr-1" /> : <ChevronDown className="h-4 w-4 mr-1" />}
+            {showDetails ? t("build.homeBias.collapse") : t("build.homeBias.expand")}
+          </Button>
+        </div>
+
+        {showDetails && (
+          <>
+            {/* Per-asset expected returns table */}
+            <div className="space-y-3 pt-2 border-t">
+              <h4 className="text-sm font-semibold flex items-center gap-2">
+                <TrendingUp className="h-4 w-4" /> {t("metrics.assetTable.title")}
+              </h4>
+              <p className="text-xs text-muted-foreground">{t("metrics.assetTable.desc")}</p>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>{t("metrics.assetTable.asset")}</TableHead>
+                      <TableHead className="text-right">{t("metrics.assetTable.weight")}</TableHead>
+                      <TableHead className="text-right">{t("metrics.assetTable.expReturn")}</TableHead>
+                      <TableHead className="text-right">{t("metrics.assetTable.vol")}</TableHead>
+                      <TableHead className="text-right">{t("metrics.assetTable.contribution")}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {exposures.map((e) => {
+                      const cma = CMA[e.key];
+                      return (
+                        <TableRow key={e.key}>
+                          <TableCell className="font-medium text-xs">{cma.label}</TableCell>
+                          <TableCell className="text-right font-mono text-xs">{(e.weight * 100).toFixed(1)}%</TableCell>
+                          <TableCell className="text-right font-mono text-xs">{(cma.expReturn * 100).toFixed(2)}%</TableCell>
+                          <TableCell className="text-right font-mono text-xs">{(cma.vol * 100).toFixed(1)}%</TableCell>
+                          <TableCell className="text-right font-mono text-xs">{(e.weight * cma.expReturn * 100).toFixed(2)}%</TableCell>
+                        </TableRow>
+                      );
+                    })}
+                    <TableRow className="bg-muted/30">
+                      <TableCell className="font-semibold text-xs">{t("metrics.assetTable.total")}</TableCell>
+                      <TableCell className="text-right font-mono text-xs font-semibold">100.0%</TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+                      <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
+                      <TableCell className="text-right font-mono text-xs font-semibold">{(m.expReturn * 100).toFixed(2)}%</TableCell>
+                    </TableRow>
+                  </TableBody>
+                </Table>
+              </div>
+            </div>
+
+        {/* Tracking-error contribution table */}
         <div className="space-y-3 pt-2 border-t">
           <h4 className="text-sm font-semibold flex items-center gap-2">
-            <TrendingUp className="h-4 w-4" /> {t("metrics.assetTable.title")}
+            <Sigma className="h-4 w-4" /> {t("metrics.teContrib.title")}
           </h4>
-          <p className="text-xs text-muted-foreground">{t("metrics.assetTable.desc")}</p>
+          <p className="text-xs text-muted-foreground">{t("metrics.teContrib.desc")}</p>
           <div className="overflow-x-auto">
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>{t("metrics.assetTable.asset")}</TableHead>
-                  <TableHead className="text-right">{t("metrics.assetTable.weight")}</TableHead>
-                  <TableHead className="text-right">{t("metrics.assetTable.expReturn")}</TableHead>
-                  <TableHead className="text-right">{t("metrics.assetTable.vol")}</TableHead>
-                  <TableHead className="text-right">{t("metrics.assetTable.contribution")}</TableHead>
+                  <TableHead>{t("metrics.teContrib.asset")}</TableHead>
+                  <TableHead className="text-right">{t("metrics.teContrib.portfolio")}</TableHead>
+                  <TableHead className="text-right">{t("metrics.teContrib.benchmark")}</TableHead>
+                  <TableHead className="text-right">{t("metrics.teContrib.active")}</TableHead>
+                  <TableHead className="text-right">{t("metrics.teContrib.contribution")}</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {exposures.map((e) => {
-                  const cma = CMA[e.key];
+                {teDecomp.rows.map((r) => {
+                  const activePp = r.activeWeight * 100;
+                  const contribPp = r.contribution * 100;
+                  const sign = (n: number) => (n > 0 ? "+" : n < 0 ? "" : " ");
                   return (
-                    <TableRow key={e.key}>
-                      <TableCell className="font-medium text-xs">{cma.label}</TableCell>
-                      <TableCell className="text-right font-mono text-xs">{(e.weight * 100).toFixed(1)}%</TableCell>
-                      <TableCell className="text-right font-mono text-xs">{(cma.expReturn * 100).toFixed(2)}%</TableCell>
-                      <TableCell className="text-right font-mono text-xs">{(cma.vol * 100).toFixed(1)}%</TableCell>
-                      <TableCell className="text-right font-mono text-xs">{(e.weight * cma.expReturn * 100).toFixed(2)}%</TableCell>
+                    <TableRow key={r.key}>
+                      <TableCell className="font-medium text-xs">{r.label}</TableCell>
+                      <TableCell className="text-right font-mono text-xs">{(r.portfolioWeight * 100).toFixed(1)}%</TableCell>
+                      <TableCell className="text-right font-mono text-xs text-muted-foreground">{(r.benchmarkWeight * 100).toFixed(1)}%</TableCell>
+                      <TableCell className={`text-right font-mono text-xs ${activePp > 0 ? "text-emerald-600" : activePp < 0 ? "text-destructive" : ""}`}>
+                        {sign(activePp)}{activePp.toFixed(1)} pp
+                      </TableCell>
+                      <TableCell className={`text-right font-mono text-xs ${contribPp > 0 ? "text-foreground" : "text-muted-foreground"}`}>
+                        {sign(contribPp)}{contribPp.toFixed(2)}%
+                      </TableCell>
                     </TableRow>
                   );
                 })}
                 <TableRow className="bg-muted/30">
-                  <TableCell className="font-semibold text-xs">{t("metrics.assetTable.total")}</TableCell>
-                  <TableCell className="text-right font-mono text-xs font-semibold">100.0%</TableCell>
-                  <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
-                  <TableCell className="text-right text-xs text-muted-foreground">—</TableCell>
-                  <TableCell className="text-right font-mono text-xs font-semibold">{(m.expReturn * 100).toFixed(2)}%</TableCell>
+                  <TableCell className="font-semibold text-xs" colSpan={4}>{t("metrics.teContrib.total")}</TableCell>
+                  <TableCell className="text-right font-mono text-xs font-semibold">{(teDecomp.total * 100).toFixed(2)}%</TableCell>
                 </TableRow>
               </TableBody>
             </Table>
           </div>
+          <p className="text-[11px] text-muted-foreground">{t("metrics.teContrib.legend")}</p>
         </div>
 
         {/* Efficient frontier */}
@@ -281,13 +383,14 @@ export function PortfolioMetrics({ allocation, baseCurrency }: { allocation: Ass
           </p>
           <p className="text-[11px] text-muted-foreground">{t("metrics.corr.legend")}</p>
         </div>
+          </>
+        )}
 
         <p className="text-[11px] text-muted-foreground border-t pt-3 flex items-start gap-2">
           <BarChart3 className="h-3 w-3 mt-0.5 shrink-0" />
           <span>{t("metrics.disclaimer")}</span>
         </p>
       </CardContent>
-      )}
     </Card>
   );
 }

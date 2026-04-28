@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
-import { AlertCircle, CheckCircle2, Info, Target, ShieldAlert, BookOpen, ArrowRight, Download, Loader2, RotateCcw, ClipboardCopy, X, Minus, Plus } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info, Target, ShieldAlert, BookOpen, ArrowRight, Download, Loader2, RotateCcw, ClipboardCopy, X, Minus, Plus, Search } from "lucide-react";
 import {
   loadManualWeights,
   setManualWeight,
@@ -12,6 +12,11 @@ import {
   MANUAL_WEIGHTS_SUM_EPSILON,
   type ManualWeights,
 } from "@/lib/manualWeights";
+import {
+  setETFSelection,
+  subscribeETFSelections,
+  type ETFSlot,
+} from "@/lib/etfSelection";
 import { buildAiPrompt } from "@/lib/aiPrompt";
 import { AllocationGroupSummary } from "./AllocationGroupSummary";
 import { toast } from "sonner";
@@ -35,8 +40,10 @@ import { Separator } from "@/components/ui/separator";
 import { PortfolioInput, PortfolioOutput, ValidationResult } from "@/lib/types";
 import { runValidation } from "@/lib/validation";
 import { buildPortfolio, computeNaturalBucketCount } from "@/lib/portfolio";
+import { mapAllocationToAssetsLookthrough, CMA } from "@/lib/metrics";
+import { colorForBucket, compareBuckets } from "@/lib/chartColors";
 import { defaultExchangeFor } from "@/lib/exchange";
-import { setLastAllocation } from "@/lib/settings";
+import { setLastAllocation, setLastEtfImplementation } from "@/lib/settings";
 import { StressTest } from "./StressTest";
 import { FeeEstimator } from "./FeeEstimator";
 import { MonteCarloSimulation } from "./MonteCarloSimulation";
@@ -46,19 +53,12 @@ import { GeoExposureMap } from "./GeoExposureMap";
 import { HomeBiasAnalysis } from "./HomeBiasAnalysis";
 import { CurrencyOverview } from "./CurrencyOverview";
 import { TopHoldings } from "./TopHoldings";
+import { ETFDetailsDialog } from "./ETFDetailsDialog";
 import { ETFSnapshotFreshness } from "./SnapshotFreshness";
 import { SavedScenariosUI } from "./SavedScenariosUI";
 import { DisclaimerPdfBlock } from "./Disclaimer";
+import { PortfolioReport } from "./PortfolioReport";
 import { useT } from "@/lib/i18n";
-
-const COLORS = [
-  "hsl(var(--chart-1))",
-  "hsl(var(--chart-2))",
-  "hsl(var(--chart-3))",
-  "hsl(var(--chart-4))",
-  "hsl(var(--chart-5))",
-  "hsl(var(--primary))",
-];
 
 const defaultValues: PortfolioInput = {
   baseCurrency: "CHF",
@@ -87,9 +87,12 @@ export function BuildPortfolio() {
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [hasGenerated, setHasGenerated] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isExportingDetailed, setIsExportingDetailed] = useState(false);
   const [numETFsMode, setNumETFsMode] = useState<"auto" | "manual">("auto");
+  const [detailsEtf, setDetailsEtf] = useState<import("@/lib/types").ETFImplementation | null>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const pdfRef = useRef<HTMLDivElement>(null);
+  const pdfDetailedRef = useRef<HTMLDivElement>(null);
 
   // Auto-adjust the Number of ETFs to match the natural bucket count whenever
   // the user toggles satellite asset classes (Commodities, REITs, Crypto) or
@@ -144,6 +147,18 @@ export function BuildPortfolio() {
   const [manualWeights, setManualWeightsState] = useState<ManualWeights>(() => loadManualWeights());
   useEffect(() => subscribeManualWeights(setManualWeightsState), []);
 
+  // Per-bucket ETF selection (default vs. curated alternative). Storage
+  // lives in lib/etfSelection.ts; we don't keep a local copy because
+  // getETFDetails() reads it directly during buildPortfolio(). The
+  // monotonically-increasing tick below is a dep of the rebuild effect
+  // below — incrementing it on every selection change is what forces
+  // buildPortfolio() to re-run and pick up the new slot.
+  const [etfSelectionTick, bumpEtfSelectionTick] = useState(0);
+  useEffect(
+    () => subscribeETFSelections(() => bumpEtfSelectionTick((n) => n + 1)),
+    [],
+  );
+
   useEffect(() => {
     if (hasGenerated && output) {
       const parsedData = form.getValues();
@@ -153,16 +168,25 @@ export function BuildPortfolio() {
       // publishes setLastAllocation, so we don't need to publish here too.
       setOutput(next);
     }
-  }, [lang, manualWeights]);
+  }, [lang, manualWeights, etfSelectionTick]);
 
   // Single source of truth for cross-tab publishing: whenever `output`
   // changes (built, rebuilt, cleared on reset, or cleared on validation
   // failure), publish the new allocation (or null) so other tabs like
   // Methodology can react — e.g. mark which rows of the static correlation
   // matrix are actually held.
+  // The `lookThroughView` toggle gates the look-through routing globally:
+  // when OFF, downstream metric/correlation consumers fall back to the simpler
+  // row-region routing (Europe ETF row → continental EU bucket etc.). When ON,
+  // we publish the actual etfImplementation so look-through can decompose
+  // multi-country ETFs (UK/CH split out of the Europe ETF, etc.).
+  const watchedLookThroughView = form.watch("lookThroughView");
   useEffect(() => {
     setLastAllocation(output?.allocation ?? null);
-  }, [output]);
+    setLastEtfImplementation(
+      watchedLookThroughView && output?.etfImplementation ? output.etfImplementation : null,
+    );
+  }, [output, watchedLookThroughView]);
 
   // Auto-sync preferred exchange to base currency.
   const watchedBaseCcy = form.watch("baseCurrency");
@@ -193,6 +217,32 @@ export function BuildPortfolio() {
     }
   };
 
+  // Detailed PDF export — same off-screen pattern as the basic report, but
+  // points at the second pdfDetailedRef which mounts a <PortfolioReport
+  // variant="detailed" />. The detailed variant adds Top 10 Equity Holdings
+  // (always look-through), Monte Carlo summary + chart, and Fee Estimator
+  // summary, so the resulting PDF naturally spans two pages — exportToPdf's
+  // pagination already handles multi-page output cleanly.
+  const handleExportDetailedPDF = async () => {
+    if (!pdfDetailedRef.current || !output) return;
+
+    setIsExportingDetailed(true);
+    try {
+      const { baseCurrency, riskAppetite } = form.getValues();
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      const filename = `investment-decision-lab_detailed_${baseCurrency}_${riskAppetite}_${timestamp}.pdf`;
+
+      const { exportToPdf } = await import("@/lib/exportPdf");
+      await exportToPdf(pdfDetailedRef.current, filename);
+      toast.success(t("build.pdf.successDetailed"));
+    } catch (error) {
+      console.error(error);
+      toast.error(t("build.pdf.error"));
+    } finally {
+      setIsExportingDetailed(false);
+    }
+  };
+
   const onSubmit = (data: PortfolioInput) => {
     // Coerce numeric types that might come back as strings from the form inputs
     const parsedData: PortfolioInput = {
@@ -220,10 +270,29 @@ export function BuildPortfolio() {
     }, 100);
   };
 
-  const chartData = output?.allocation.map(a => ({
+  const baseChartData = (output?.allocation.map(a => ({
     name: `${a.assetClass} - ${a.region}`,
     value: a.weight
-  })) || [];
+  })) || []).slice().sort(compareBuckets);
+
+  // When Look-Through is ON and an ETF implementation exists, decompose the
+  // pie/stacked-bar into the underlying country buckets (e.g. Equity-Europe
+  // splits into UK / CH / Continental EU based on the actual MSCI Europe
+  // holdings). When OFF or no implementation yet, use the row-level buckets.
+  const chartData = (() => {
+    if (!output || !watchedLookThroughView || output.etfImplementation.length === 0) {
+      return baseChartData;
+    }
+    const lt = mapAllocationToAssetsLookthrough(
+      output.allocation,
+      output.etfImplementation,
+      watchedBaseCcy,
+    );
+    return lt
+      .filter(e => e.weight > 0)
+      .map(e => ({ name: CMA[e.key].label, value: e.weight * 100 }))
+      .sort(compareBuckets);
+  })();
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -739,23 +808,40 @@ export function BuildPortfolio() {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <h2 className="text-2xl font-bold tracking-tight">Portfolio Results</h2>
               {output && validation.isValid && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={handleExportPDF}
-                  disabled={isExporting}
-                >
-                  {isExporting ? (
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  ) : (
-                    <Download className="h-4 w-4 mr-2" />
-                  )}
-                  {isExporting ? "Generating PDF..." : "Export PDF"}
-                </Button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleExportPDF}
+                    disabled={isExporting || isExportingDetailed}
+                  >
+                    {isExporting ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4 mr-2" />
+                    )}
+                    {isExporting ? t("build.btn.exportingPdf") : t("build.btn.exportPdf")}
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={handleExportDetailedPDF}
+                    disabled={isExporting || isExportingDetailed}
+                  >
+                    {isExportingDetailed ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Download className="h-4 w-4 mr-2" />
+                    )}
+                    {isExportingDetailed
+                      ? t("build.btn.exportingPdf")
+                      : t("build.btn.exportPdfDetailed")}
+                  </Button>
+                </div>
               )}
             </div>
 
-            <div ref={pdfRef} className="space-y-6 bg-background">
+            <div className="space-y-6 bg-background">
               {/* Section 2: Validation */}
             {validation.errors.length > 0 && (
               <Alert variant="destructive">
@@ -848,13 +934,15 @@ export function BuildPortfolio() {
                               paddingAngle={2}
                               dataKey="value"
                               stroke="none"
+                              startAngle={90}
+                              endAngle={-270}
                             >
                               {chartData.map((entry, index) => (
-                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                <Cell key={`cell-${index}`} fill={colorForBucket(entry.name)} />
                               ))}
                             </Pie>
                             <RechartsTooltip
-                              formatter={(value: number) => [`${value}%`, 'Weight']}
+                              formatter={(value: number, name: string) => [`${value.toFixed(1)}%`, name]}
                               contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }}
                             />
                           </PieChart>
@@ -867,13 +955,53 @@ export function BuildPortfolio() {
                       {chartData.map((d, i) => (
                         <div 
                           key={i} 
-                          style={{ width: `${d.value}%`, backgroundColor: COLORS[i % COLORS.length] }} 
-                          title={`${d.name}: ${d.value}%`}
+                          style={{ width: `${d.value}%`, backgroundColor: colorForBucket(d.name) }} 
+                          title={`${d.name}: ${d.value.toFixed(1)}%`}
                           className="h-full transition-all duration-500 hover:brightness-110"
                         />
                       ))}
                     </div>
 
+                    {/* Legend (mirrors Compare-tab layout): one row per
+                     * pie slice with color swatch, label, and weight %. */}
+                    <ul
+                      className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1 text-xs"
+                      aria-label={lang === "de" ? "Legende" : "Legend"}
+                      data-testid="build-allocation-legend"
+                    >
+                      {chartData.map((d, i) => (
+                        <li key={i} className="flex items-center gap-2 min-w-0">
+                          <span
+                            className="inline-block h-2.5 w-2.5 rounded-sm shrink-0"
+                            style={{ backgroundColor: colorForBucket(d.name) }}
+                            aria-hidden
+                          />
+                          <span className="truncate text-muted-foreground" title={d.name}>{d.name}</span>
+                          <span className="ml-auto tabular-nums font-medium">{d.value.toFixed(1)}%</span>
+                        </li>
+                      ))}
+                    </ul>
+
+                    {/* Heading for the bucket table. Makes explicit that
+                     * this table shows the user-selected rows — i.e. it is
+                     * NOT look-through-decomposed even when the toggle is
+                     * ON (in which case the pie + bar above ARE
+                     * decomposed). Avoids the ambiguity an operator
+                     * flagged after the look-through pie change. */}
+                    <div className="space-y-1">
+                      <h4 className="text-sm font-semibold">
+                        {lang === "de" ? "Allokation nach Bucket (deine Auswahl)" : "Allocation by bucket (your selection)"}
+                      </h4>
+                      <p className="text-xs text-muted-foreground">
+                        {watchedLookThroughView && output.etfImplementation.length > 0
+                          ? (lang === "de"
+                              ? "Diese Tabelle zeigt die von dir gewählten Buckets — ohne Look-Through. Pie und Balken oben sind über die ETF-Bestände zerlegt."
+                              : "This table shows the buckets you picked — without look-through. The pie and bar above are decomposed via the ETF holdings.")
+                          : (lang === "de"
+                              ? "Die von dir gewählten Buckets. Look-Through ist aus, daher zeigen Pie, Balken und Tabelle dieselbe Sicht."
+                              : "The buckets you picked. Look-through is off, so the pie, bar and table all show the same view.")}
+                      </p>
+                    </div>
                     <div className="rounded-md border">
                       <Table>
                         <TableHeader>
@@ -884,7 +1012,13 @@ export function BuildPortfolio() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {output.allocation.map((alloc, i) => (
+                          {output.allocation
+                            .slice()
+                            .sort((a, b) => compareBuckets(
+                              { name: `${a.assetClass} - ${a.region}`, value: a.weight },
+                              { name: `${b.assetClass} - ${b.region}`, value: b.weight },
+                            ))
+                            .map((alloc, i) => (
                             <TableRow key={i}>
                               <TableCell className="font-medium">{alloc.assetClass}</TableCell>
                               <TableCell className="text-muted-foreground">{alloc.region}</TableCell>
@@ -1008,8 +1142,66 @@ export function BuildPortfolio() {
                                   editTitle={t("build.impl.manual.editTitle")}
                                 />
                               </TableCell>
-                              <TableCell className="font-medium">{etf.exampleETF}</TableCell>
-                              <TableCell className="font-mono whitespace-nowrap">{etf.isin}</TableCell>
+                              <TableCell className="font-medium">
+                                {etf.catalogKey && etf.selectableOptions.length > 1 ? (
+                                  <Select
+                                    value={String(etf.selectedSlot)}
+                                    onValueChange={(v) =>
+                                      setETFSelection(etf.catalogKey!, Number(v) as ETFSlot)
+                                    }
+                                  >
+                                    <SelectTrigger
+                                      className="h-7 px-2 text-xs gap-1.5 w-auto min-w-[180px] max-w-[280px] font-medium border-dashed hover:border-solid focus:border-solid"
+                                      data-testid={`etf-picker-${etf.bucket}`}
+                                      title={t("build.impl.picker.label")}
+                                      aria-label={`${t("build.impl.picker.label")} — ${etf.bucket}`}
+                                    >
+                                      <SelectValue>{etf.exampleETF}</SelectValue>
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      {etf.selectableOptions.map((opt, idx) => (
+                                        <SelectItem
+                                          key={`${etf.catalogKey}-${idx}`}
+                                          value={String(idx)}
+                                          data-testid={`etf-picker-option-${etf.bucket}-${idx}`}
+                                        >
+                                          <div className="flex flex-col gap-0.5 min-w-0">
+                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                              <span className="font-medium text-xs">{opt.name}</span>
+                                              <Badge
+                                                variant={idx === 0 ? "secondary" : "outline"}
+                                                className="text-[9px] px-1.5 py-0 h-4 shrink-0"
+                                              >
+                                                {idx === 0
+                                                  ? t("build.impl.picker.default")
+                                                  : `${t("build.impl.picker.alt")} ${idx}`}
+                                              </Badge>
+                                            </div>
+                                            <span className="text-[10px] text-muted-foreground font-mono">
+                                              {opt.isin} · {(opt.terBps / 100).toFixed(2)}% {t("build.impl.picker.terSuffix")}
+                                            </span>
+                                          </div>
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                ) : (
+                                  etf.exampleETF
+                                )}
+                              </TableCell>
+                              <TableCell className="font-mono whitespace-nowrap p-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setDetailsEtf(etf)}
+                                  className="inline-flex items-center gap-1 px-2 py-1.5 -mx-2 -my-1.5 rounded hover:bg-muted/60 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors text-left"
+                                  data-testid={`etf-isin-button-${etf.bucket}`}
+                                  title={t("build.impl.isin.openDetails")}
+                                  aria-label={`${t("build.impl.isin.openDetails")} — ${etf.isin}`}
+                                >
+                                  <span>{etf.isin}</span>
+                                  <Search className="h-3 w-3 opacity-60 shrink-0" />
+                                </button>
+                              </TableCell>
                               <TableCell className="font-mono whitespace-nowrap">
                                 {etf.ticker}
                                 {etf.exchange && etf.exchange !== "—" && (
@@ -1037,6 +1229,14 @@ export function BuildPortfolio() {
                     <ETFSnapshotFreshness />
                   </CardContent>
                 </Card>
+
+                <ETFDetailsDialog
+                  etf={detailsEtf}
+                  open={!!detailsEtf}
+                  onOpenChange={(o) => {
+                    if (!o) setDetailsEtf(null);
+                  }}
+                />
 
                 {/* Always-visible: Consolidated Currency Overview (post-hedge) */}
                 <CurrencyOverview
@@ -1070,10 +1270,17 @@ export function BuildPortfolio() {
                   horizonYears={form.getValues().horizon}
                   baseCurrency={form.getValues().baseCurrency}
                   hedged={form.getValues().includeCurrencyHedging}
+                  includeSyntheticETFs={form.getValues().includeSyntheticETFs}
                 />
 
                 {/* Risk & Performance Metrics (Sharpe, Beta, Alpha, TE, Max DD, Frontier, Correlation) */}
-                <PortfolioMetrics allocation={output.allocation} baseCurrency={form.getValues().baseCurrency} />
+                <PortfolioMetrics
+                  allocation={output.allocation}
+                  baseCurrency={form.getValues().baseCurrency}
+                  etfImplementation={watchedLookThroughView ? output.etfImplementation : undefined}
+                  includeSyntheticETFs={form.getValues().includeSyntheticETFs}
+                  hedged={form.getValues().includeCurrencyHedging}
+                />
 
                 {/* Scenario Stress Test */}
                 <StressTest allocation={output.allocation} baseCurrency={watchedBaseCcy} />
@@ -1147,6 +1354,58 @@ export function BuildPortfolio() {
             )}
             <DisclaimerPdfBlock />
             </div>
+
+            {/* Off-screen curated one-page PDF report. The export pipeline
+             *  (handleExportPDF -> exportToPdf) photographs THIS container
+             *  rather than the screen-visible cards, so the resulting PDF is a
+             *  banker-style single-page summary instead of a stacked
+             *  screenshot of every card. Positioned off-screen so html2canvas
+             *  can still measure layout, while the user never sees it. */}
+            {output && validation.isValid && (
+              <div
+                ref={pdfRef}
+                aria-hidden="true"
+                style={{
+                  position: "fixed",
+                  left: "-99999px",
+                  top: 0,
+                  width: "210mm",
+                  pointerEvents: "none",
+                }}
+              >
+                <PortfolioReport
+                  output={output}
+                  input={form.getValues()}
+                  generatedAt={new Date()}
+                />
+              </div>
+            )}
+
+            {/* Off-screen detailed PDF report. Same off-screen pattern as the
+             *  basic report above, but mounts <PortfolioReport
+             *  variant="detailed" /> which adds Top 10 Holdings (always
+             *  look-through), Monte Carlo summary + chart, and Fee Estimator
+             *  summary. The exporter naturally paginates across two pages. */}
+            {output && validation.isValid && (
+              <div
+                ref={pdfDetailedRef}
+                aria-hidden="true"
+                style={{
+                  position: "fixed",
+                  left: "-99999px",
+                  top: 0,
+                  width: "210mm",
+                  pointerEvents: "none",
+                }}
+              >
+                <PortfolioReport
+                  output={output}
+                  input={form.getValues()}
+                  generatedAt={new Date()}
+                  variant="detailed"
+                />
+              </div>
+            )}
           </motion.div>
         )}
       </div>

@@ -227,6 +227,144 @@ describe("parseCatalogFromSource", () => {
     });
   });
 
+  it("is not fooled by 'alternatives:' inside a comment string (regression for splitAlternatives)", () => {
+    // Adversarial source: the parent's `comment` field contains the
+    // literal token `alternatives:` BEFORE the real `alternatives` field.
+    // A naive `body.indexOf("alternatives:")` would land on the comment,
+    // see no `[` after it and bail out — silently dropping the real
+    // alternatives array. That bypass would let the admin pane miss an
+    // ISIN already present in another bucket's alts and open a duplicate
+    // PR. Lock the comment-aware behaviour with this test.
+    const src = `const CATALOG: Record<string, ETFRecord> = {
+  "Equity-Tricky": E({
+    name: "Trick ETF",
+    isin: "IE00BTRK1111",
+    terBps: 10,
+    domicile: "Ireland",
+    replication: "Physical",
+    distribution: "Accumulating",
+    currency: "USD",
+    comment: "see alternatives: VWRA, SSAC for parent index variants",
+    listings: { LSE: { ticker: "TRCK" } },
+    defaultExchange: "LSE",
+    alternatives: [
+      {
+        name: "Real Alt",
+        isin: "IE00BREAL222",
+        terBps: 12,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment: "the real alternative",
+        listings: { LSE: { ticker: "REAL" } },
+        defaultExchange: "LSE",
+      },
+    ],
+  }),
+};
+`;
+    const out = parseCatalogFromSource(src);
+    expect(out["Equity-Tricky"]).toBeDefined();
+    expect(out["Equity-Tricky"].alternatives?.length).toBe(1);
+    expect(out["Equity-Tricky"].alternatives?.[0].isin).toBe("IE00BREAL222");
+    // The parent's own scalar fields must still be intact (the strip
+    // step removed only the real alternatives:[…], not the comment).
+    expect(out["Equity-Tricky"].isin).toBe("IE00BTRK1111");
+    expect(out["Equity-Tricky"].comment).toContain("alternatives:");
+  });
+
+  it("does not match substring lookalikes like 'altUnknown:' or 'someAlternatives:'", () => {
+    // Both decoy fields share a token boundary with `alternatives:` but
+    // are NOT the field we want. The walker must reject them and keep
+    // scanning until it finds the real `alternatives` field after them.
+    // Without the boundary checks (prev-char + non-identifier-after) a
+    // naive regex/indexOf would either match `someAlternatives:` (right
+    // edge) or fail to advance past `altUnknown:` (left edge).
+    const src = `const CATALOG: Record<string, ETFRecord> = {
+  "Equity-Decoys": E({
+    name: "Decoy ETF",
+    isin: "IE00BDECY111",
+    terBps: 9,
+    domicile: "Ireland",
+    replication: "Physical",
+    distribution: "Accumulating",
+    currency: "USD",
+    comment: "two decoy field-name lookalikes follow",
+    listings: { LSE: { ticker: "DCY1" } },
+    defaultExchange: "LSE",
+    altUnknown: "ignored-decoy-1",
+    someAlternatives: "ignored-decoy-2",
+    alternatives: [
+      {
+        name: "Real Alt",
+        isin: "IE00BREAL333",
+        terBps: 11,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment: "real",
+        listings: { LSE: { ticker: "REAL" } },
+        defaultExchange: "LSE",
+      },
+    ],
+  }),
+};
+`;
+    const out = parseCatalogFromSource(src);
+    expect(out["Equity-Decoys"].alternatives?.length).toBe(1);
+    expect(out["Equity-Decoys"].alternatives?.[0].isin).toBe("IE00BREAL333");
+    expect(out["Equity-Decoys"].isin).toBe("IE00BDECY111");
+  });
+
+  it("finds the alternatives field even when its key is quoted ('\"alternatives\":')", () => {
+    // The catalog convention uses unquoted keys for scalar fields, but a
+    // future operator who copy-pastes from a JSON dump or a tool emitting
+    // `JSON.stringify` could end up with the alternatives key in quoted
+    // form. The walker must locate it either way — without this support
+    // the array would be silently ignored and the global-ISIN-uniqueness
+    // check in injectAlternative() could miss conflicts in that bucket.
+    // (Other scalar fields stay unquoted because stringField/numberField
+    // assume the unquoted form, which mirrors today's catalog source.)
+    const src = `const CATALOG: Record<string, ETFRecord> = {
+  "Equity-MixedQuoting": E({
+    name: "Mixed ETF",
+    isin: "IE00BMIX1111",
+    terBps: 13,
+    domicile: "Ireland",
+    replication: "Physical",
+    distribution: "Accumulating",
+    currency: "USD",
+    comment: "scalars unquoted, alternatives key quoted",
+    listings: { LSE: { ticker: "MIX1" } },
+    defaultExchange: "LSE",
+    "alternatives": [
+      {
+        name: "Mixed Alt",
+        isin: "IE00BMALT222",
+        terBps: 14,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment: "alt 1",
+        listings: { LSE: { ticker: "MALT" } },
+        defaultExchange: "LSE",
+      },
+    ],
+  }),
+};
+`;
+    const out = parseCatalogFromSource(src);
+    expect(out["Equity-MixedQuoting"]).toBeDefined();
+    expect(out["Equity-MixedQuoting"].isin).toBe("IE00BMIX1111");
+    expect(out["Equity-MixedQuoting"].alternatives?.length).toBe(1);
+    expect(out["Equity-MixedQuoting"].alternatives?.[0].isin).toBe(
+      "IE00BMALT222",
+    );
+  });
+
   it("parses the real etfs.ts and finds well-known buckets", async () => {
     // Sanity check against the live source — if this fails, an etfs.ts
     // refactor has broken the parser shape and the admin pane's diff

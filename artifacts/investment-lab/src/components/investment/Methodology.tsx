@@ -10,8 +10,8 @@ import { Label } from "@/components/ui/label";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { CMA, BENCHMARK, buildCorrelationMatrix, getCMAConsensus, getCMASources, getCMASeed, applyCMALayers, AssetKey, CMA_BUILDING_BLOCKS, sumBuildingBlocks } from "@/lib/metrics";
 import { SCENARIOS } from "@/lib/scenarios";
-import { getRiskFreeRates, getRiskFreeRateOverrides, setRiskFreeRate, resetRiskFreeRate, resetAllRiskFreeRates, subscribeRiskFreeRate, RF_DEFAULTS, RFCurrency, getCMAOverrides, setCMAOverrides, resetCMAOverrides, resetCMAOverride, subscribeCMAOverrides, CMAUserOverrides, getHomeBiasOverrides, setHomeBiasOverrides, resetHomeBiasOverrides, resetHomeBiasOverride, subscribeHomeBiasOverrides, resolvedHomeBias, HOME_BIAS_DEFAULTS, HomeBiasCurrency, getLastAllocation, subscribeLastAllocation } from "@/lib/settings";
-import type { AssetAllocation } from "@/lib/types";
+import { getRiskFreeRates, getRiskFreeRateOverrides, setRiskFreeRate, resetRiskFreeRate, resetAllRiskFreeRates, subscribeRiskFreeRate, RF_DEFAULTS, RFCurrency, getCMAOverrides, setCMAOverrides, resetCMAOverrides, resetCMAOverride, subscribeCMAOverrides, CMAUserOverrides, getHomeBiasOverrides, setHomeBiasOverrides, resetHomeBiasOverrides, resetHomeBiasOverride, subscribeHomeBiasOverrides, resolvedHomeBias, HOME_BIAS_DEFAULTS, HomeBiasCurrency, getLastAllocation, subscribeLastAllocation, getLastEtfImplementation, subscribeLastEtfImplementation } from "@/lib/settings";
+import type { AssetAllocation, ETFImplementation } from "@/lib/types";
 import { useT } from "@/lib/i18n";
 import { parseDecimalInput } from "@/lib/manualWeights";
 import {
@@ -167,11 +167,35 @@ export function Methodology() {
   // built a portfolio yet, so the matrix still renders as a pure reference.
   const [lastAlloc, setLastAlloc] = useState<AssetAllocation[] | null>(() => getLastAllocation() as AssetAllocation[] | null);
   useEffect(() => subscribeLastAllocation((a) => setLastAlloc(a as AssetAllocation[] | null)), []);
+  // Mirror BuildPortfolio's etfImplementation so the reference matrix routes
+  // exposures via look-through (UK/CH split out of the Europe ETF, etc.) — the
+  // same way PortfolioMetrics does. Falls back to undefined when no portfolio
+  // has been built, in which case buildCorrelationMatrix uses its row-region
+  // routing (the BENCHMARK fallback case).
+  const [lastEtfImpl, setLastEtfImpl] = useState<ETFImplementation[] | null>(
+    () => getLastEtfImplementation() as ETFImplementation[] | null,
+  );
+  useEffect(
+    () => subscribeLastEtfImplementation((i) => setLastEtfImpl(i as ETFImplementation[] | null)),
+    [],
+  );
 
   const corrSourceAllocation: AssetAllocation[] = (lastAlloc && lastAlloc.length > 0)
     ? lastAlloc
     : BENCHMARK.map((b) => ({ assetClass: "Equity", region: regionFromKey(b.key), weight: b.weight * 100 }));
-  const sampleCorr = buildCorrelationMatrix(corrSourceAllocation);
+  // Only pass etfImplementation when it pairs with the user's actual allocation;
+  // pairing it with the BENCHMARK fallback would mis-route (the impl describes
+  // the user's holdings, not the benchmark).
+  const corrEtfImpl: ETFImplementation[] | undefined =
+    lastAlloc && lastAlloc.length > 0 && lastEtfImpl && lastEtfImpl.length > 0
+      ? lastEtfImpl
+      : undefined;
+  // baseCurrency left at the function default ("USD"): Methodology has no
+  // direct access to the user's selected base currency, and the previous call
+  // also used the default. Look-through routing of multi-country ETFs (the
+  // 3rd arg) is independent of base currency, so this still correctly lights
+  // up the UK/CH cells when a Europe ETF is held.
+  const sampleCorr = buildCorrelationMatrix(corrSourceAllocation, undefined, corrEtfImpl);
   const corrReflectsPortfolio = !!(lastAlloc && lastAlloc.length > 0);
 
   // ------------------------------------------------------ ETF bucket browser
@@ -417,6 +441,79 @@ export function Methodology() {
                 : "RF is selected per base currency, but the capital-market assumptions (μ per asset class — see CMAs section) are currency-nominal and are not FX-translated into the base currency. In practice the FX translation is smaller than the dispersion across LTCMA providers; with larger RF spreads (e.g. CHF vs. USD) this still produces slightly different Sharpe values than a strictly FX-consistent calculation would."}
             </AlertDescription>
           </Alert>
+
+          {/* Why CHF Sharpe looks higher — frequent operator question. The
+              difference is mechanical (denominator of (r − rf)/σ shrinks
+              when rf is small), not a property of the portfolio. We show
+              the same r/σ across base currencies and let the rf column do
+              the explaining. Numbers match a typical 60/40 expectation set
+              and the Defaults shown in the table above. */}
+          <div
+            className="rounded-md border border-border bg-muted/20 p-3 space-y-3"
+            data-testid="rf-chf-sharpe-explainer"
+          >
+            <div className="flex items-center gap-2">
+              <Activity className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-semibold">
+                {de ? "Warum CHF-Strategien einen höheren Sharpe zeigen" : "Why CHF strategies show a higher Sharpe"}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {de
+                ? "Die Sharpe-Ratio ist (r − rf) / σ. Die Asset-Renditen μ und Volatilitäten σ sind in dieser App währungs-nominal modelliert — sie verschieben sich zwischen Basiswährungen kaum. Was sich stark verschiebt, ist der Abzug rf: der CHF-Geldmarktsatz liegt mit ~0,50 % deutlich unter USD (~4,25 %) oder EUR (~2,50 %). Bei identischem Portfolio bleibt deshalb für CHF ein viel größerer Excess-Return übrig — und damit ein höherer Sharpe."
+                : "Sharpe is (r − rf) / σ. Asset returns μ and volatilities σ are modelled currency-nominal in this app — they barely shift between base currencies. What does shift sharply is the rf deduction: the CHF cash rate at ~0.50% sits well below USD (~4.25%) or EUR (~2.50%). For the same portfolio, the CHF view therefore has a much larger excess return left over — and thus a higher Sharpe."}
+            </p>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[80px]">{de ? "Basis" : "Base"}</TableHead>
+                    <TableHead className="text-right">{de ? "Portfolio-Rendite r" : "Portfolio return r"}</TableHead>
+                    <TableHead className="text-right">rf</TableHead>
+                    <TableHead className="text-right">{de ? "Excess (r − rf)" : "Excess (r − rf)"}</TableHead>
+                    <TableHead className="text-right">σ</TableHead>
+                    <TableHead className="text-right font-semibold">Sharpe</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="text-xs font-mono">
+                  <TableRow>
+                    <TableCell className="font-semibold">USD</TableCell>
+                    <TableCell className="text-right">5.50%</TableCell>
+                    <TableCell className="text-right">4.25%</TableCell>
+                    <TableCell className="text-right">1.25%</TableCell>
+                    <TableCell className="text-right">9.50%</TableCell>
+                    <TableCell className="text-right font-semibold">0.13</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-semibold">EUR</TableCell>
+                    <TableCell className="text-right">5.50%</TableCell>
+                    <TableCell className="text-right">2.50%</TableCell>
+                    <TableCell className="text-right">3.00%</TableCell>
+                    <TableCell className="text-right">9.50%</TableCell>
+                    <TableCell className="text-right font-semibold">0.32</TableCell>
+                  </TableRow>
+                  <TableRow className="bg-muted/40">
+                    <TableCell className="font-semibold">CHF</TableCell>
+                    <TableCell className="text-right">5.50%</TableCell>
+                    <TableCell className="text-right">0.50%</TableCell>
+                    <TableCell className="text-right">5.00%</TableCell>
+                    <TableCell className="text-right">9.50%</TableCell>
+                    <TableCell className="text-right font-semibold">0.53</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              {de
+                ? <><span className="font-semibold text-foreground">Wichtig:</span> Das ist <span className="italic">kein</span> Free Lunch und kein Argument für eine bestimmte Basiswährung. Die Sharpe-Ratio misst, was eine Anlage relativ zur risikolosen Cash-Alternative <span className="italic">in derselben Währung</span> liefert. Ein CHF-Investor hat eine niedrigere Cash-Hürde — also wirkt jede Risiko-Anlage gegen diese Hürde besser. Eine CHF-Sharpe und eine USD-Sharpe sind nicht direkt vergleichbar; sie bewerten unterschiedliche Spielfelder.</>
+                : <><span className="font-semibold text-foreground">Important:</span> This is <span className="italic">not</span> a free lunch and not an argument for any specific base currency. Sharpe measures what an investment delivers relative to the risk-free cash alternative <span className="italic">in the same currency</span>. A CHF investor has a lower cash hurdle, so any risk asset looks better against that hurdle. A CHF Sharpe and a USD Sharpe are not directly comparable; they grade different fields.</>}
+            </p>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              {de
+                ? <><span className="font-semibold text-foreground">Schneller Selbsttest:</span> Setzen Sie oben in der Tabelle den CHF-RF testweise auf 4,25 % (US-Niveau) und beobachten Sie, wie der CHF-Sharpe in der Build-Kachel auf das Niveau von USD zusammenfällt. Das beweist: Der Unterschied stammt vollständig aus dem Cash-Diskont, nicht aus einer Eigenschaft der Allokation.</>
+                : <><span className="font-semibold text-foreground">Quick self-test:</span> in the table above, temporarily set the CHF RF to 4.25% (US level) and watch the CHF Sharpe in the Build tile collapse to the USD level. This proves the gap comes entirely from the cash discount, not from any property of the allocation.</>}
+            </p>
+          </div>
         </Section>
 
         <Section
@@ -1018,6 +1115,73 @@ export function Methodology() {
               ? <><span className="text-primary/80">●</span> {de ? "Markierte Zeilen/Spalten sind die in Ihrem aktuellen Portfolio (Tab Build) tatsächlich gehaltenen Anlageklassen." : "Marked rows/columns are the asset classes actually held in your current portfolio (Build tab)."}</>
               : (de ? "Hinweis: Sobald Sie im Tab Build ein Portfolio erzeugen, werden die tatsächlich gehaltenen Anlageklassen hier hervorgehoben." : "Note: once you build a portfolio in the Build tab, the asset classes actually held will be highlighted here.")}
           </p>
+          {corrReflectsPortfolio && (
+            <p className="text-[11px] text-muted-foreground italic">
+              {corrEtfImpl
+                ? (de
+                  ? "Look-Through-Routing aktiv: Multi-Country-ETFs wie iShares Core MSCI Europe werden in ihre tatsächlichen Länderanteile (z. B. UK ~20 %, CH ~14 %) zerlegt; entsprechend leuchten auch diese Detail-Zeilen als gehalten auf."
+                  : "Look-Through routing active: multi-country ETFs such as iShares Core MSCI Europe are decomposed into their actual country shares (e.g. UK ~20 %, CH ~14 %); the corresponding detail rows light up as held.")
+                : (de
+                  ? "Look-Through-Routing aus (Schalter im Tab Build): Multi-Country-ETFs werden hier wie ein einzelner Region-Bucket behandelt. Für die feinere Aufteilung den Schalter \u201ELook-Through-Analyse\u201C einschalten."
+                  : "Look-Through routing off (toggle in Build tab): multi-country ETFs are treated as a single regional bucket here. Turn on the “Look-Through Analysis” toggle for the finer split.")}
+            </p>
+          )}
+        </Section>
+
+        <Section value="lookthrough" icon={<Layers className="h-4 w-4" />} title={de ? "Look-Through-Routing" : "Look-Through Routing"}>
+          <p className="text-sm text-muted-foreground">
+            {de
+              ? "ETFs wie iShares Core MSCI Europe (IE00B4K48X80) sind aus Sicht der Risiko-Engine keine homogene \u201EEurope\u201C-Position: rund 20 % entfallen auf UK und 14 % auf die Schweiz, der Rest auf Kontinental-EU. Die Look-Through-Logik nutzt die kuratierten Index-Geo-Profile (siehe Look-Through-Pool unten und src/data/lookthrough.overrides.json) und routet jede Allokationszeile gewichtet auf die korrekten Länder-Buckets — bevor Vola, Beta, TE, Alpha, der TE-Beitrag und die Korrelationsmatrix berechnet werden."
+              : "From the risk engine's perspective, ETFs like iShares Core MSCI Europe (IE00B4K48X80) are not a homogeneous “Europe” position: roughly 20 % is UK and 14 % is Switzerland, with the rest in continental EU. The look-through logic uses the curated index geo profiles (see Look-Through Pool below and src/data/lookthrough.overrides.json) and routes each allocation row, weighted, onto the correct country buckets — before Vol, Beta, TE, Alpha, the TE contribution and the correlation matrix are computed."}
+          </p>
+
+          <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+            <p className="text-xs font-semibold">{de ? "Wo das Routing greift" : "Where the routing applies"}</p>
+            <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+              <li>{de ? "Allokations-Pie-Chart und Stacked-Bar (Aktien-Buckets werden in Länder zerlegt, z. B. Equity-Europe → UK / CH / Kontinental-EU)" : "Allocation pie chart and stacked bar (equity buckets are decomposed into countries, e.g. Equity-Europe → UK / CH / Continental EU)"}</li>
+              <li>{de ? "Risiko- & Performance-Kennzahlen im Tab Build (Vola, Beta, TE, Alpha, Sharpe)" : "Risk & Performance metrics in the Build tab (Vol, Beta, TE, Alpha, Sharpe)"}</li>
+              <li>{de ? "TE-Contribution-Tabelle (Treiberzuordnung pro Bucket)" : "TE-Contribution table (per-bucket driver attribution)"}</li>
+              <li>{de ? "Effiziente Frontier (Marker-Position des Portfolios)" : "Efficient Frontier (portfolio marker position)"}</li>
+              <li>{de ? "Korrelationsmatrix oben (welche Zeilen als \u201Egehalten\u201C markiert werden)" : "Correlation matrix above (which rows are marked as “held”)"}</li>
+              <li>{de ? "Compare-Tab (Portfolios A und B unabhängig, je nach deren Toggle-Stellung)" : "Compare tab (Portfolios A and B independently, depending on each one’s toggle setting)"}</li>
+            </ul>
+          </div>
+
+          <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+            <p className="text-xs font-semibold">{de ? "Wo das Routing (bewusst) NICHT greift" : "Where the routing (intentionally) does NOT apply"}</p>
+            <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+              <li>{de ? "Allokations-Tabelle (unter dem Pie-Chart): zeigt bewusst die vom Nutzer gewählten Buckets, damit „was ich ausgewählt habe\u201C nachvollziehbar bleibt." : "Allocation table (below the pie chart): intentionally shows the user-selected buckets, so that “what I picked” stays traceable."}</li>
+              <li>{de ? "Monte-Carlo-Simulation: nutzt einen eigenen, älteren Bucket-Pfad (`monteCarlo.ts`); Look-Through dort als bekannter Folge-Schritt offen." : "Monte Carlo simulation: uses its own older bucket path (`monteCarlo.ts`); look-through there is a known follow-up."}</li>
+              <li>{de ? "Stress-Test: schockt direkt die deklarierten Buckets, da die historischen Schock-Vektoren auf Region/Asset-Klassen-Ebene kalibriert sind." : "Stress test: shocks the declared buckets directly, because the historical shock vectors are calibrated at region / asset-class level."}</li>
+            </ul>
+          </div>
+
+          <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+            <p className="text-xs font-semibold">{de ? "Steuerung: der Schalter im Tab Build" : "Control: the toggle in the Build tab"}</p>
+            <p className="text-xs text-muted-foreground">
+              {de
+                ? "Der Schalter \u201ELook-Through-Analyse\u201C im Tab Build steuert das Routing global. AN (Default) → Risiko-Kennzahlen und Korrelationsmatrix verwenden die echten ETF-Bestände, plus das Look-Through-Panel (Geo-Map + Top 10) wird angezeigt. AUS → die Engine fällt auf das einfachere Zeilen-Region-Routing zurück (jede Allokationszeile zählt als ein einzelner Region-Bucket gemäss der Asset-Class-/Region-Spalte), und das Panel ist ausgeblendet. Der Vergleichs-Tab respektiert den Schalter pro Portfolio (A und B unabhängig)."
+                : "The “Look-Through Analysis” toggle in the Build tab controls the routing globally. ON (default) → risk metrics and the correlation matrix use the actual ETF holdings, plus the look-through panel (geo map + top 10) is shown. OFF → the engine falls back to the simpler row-region routing (each allocation row counts as a single regional bucket per its asset-class/region column), and the panel is hidden. The Compare tab respects the toggle per portfolio (A and B independently)."}
+            </p>
+          </div>
+
+          <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+            <p className="text-xs font-semibold">{de ? "Wenn AUS: feste Aufteilung für \u201EEquity-Global\u201C-Zeilen" : "When OFF: fixed split for “Equity-Global” rows"}</p>
+            <p className="text-xs text-muted-foreground">
+              {de
+                ? "Auch ohne Look-Through braucht die Risiko-Engine konkrete Länder-Buckets. Eine Allokationszeile vom Typ Equity-Global (typischerweise ein einzelner Welt-ETF wie ACWI / FTSE All-World) wird daher gemäss einem festen ACWI-ähnlichen Schlüssel verteilt: US 60 % · Europa 14 % · UK 4 % · CH 4 % · Japan 4 % · EM 14 %. Ohne diesen Fallback würde die Zeile in den Default-Bucket Equity-Thematic fallen (σ ≈ 22 %, niedrige ACWI-Korrelation), und Vola, Beta und TE würden für ein nahezu reines ACWI-Portfolio massiv überzeichnet. Equity-Home-Zeilen (Sleeve-Compaction bei knappem ETF-Budget) routen analog auf den Home-Markt-Bucket der Basiswährung (CHF → Equity-Switzerland, EUR → Equity-Europe, USD → Equity-USA). Bei einem reinen Welt-ETF-Portfolio sind die Kennzahlen mit AN und AUS daher nahezu identisch; der Unterschied wird erst bei Länder-Tilts sichtbar."
+                : "Even without look-through, the risk engine needs concrete country buckets. An allocation row of type Equity-Global (typically a single global ETF such as ACWI / FTSE All-World) is therefore distributed via a fixed ACWI-like split: US 60 % · Europe 14 % · UK 4 % · CH 4 % · Japan 4 % · EM 14 %. Without this fallback the row would land in the default Equity-Thematic bucket (σ ≈ 22 %, low ACWI correlation), and Vol, Beta and TE would be massively overstated for a near-pure ACWI portfolio. Equity-Home rows (sleeve compaction under tight ETF budget) route analogously onto the home-market bucket of the base currency (CHF → Equity-Switzerland, EUR → Equity-Europe, USD → Equity-USA). For a pure global-ETF portfolio the metrics with the toggle ON vs OFF are therefore nearly identical; the difference only becomes visible once country tilts are added."}
+            </p>
+          </div>
+
+          <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+            <p className="text-xs font-semibold">{de ? "Konservativer Länder-Map (worauf wird zerlegt)" : "Conservative country map (what gets decomposed)"}</p>
+            <p className="text-xs text-muted-foreground">
+              {de
+                ? "Aus den Index-Geo-Profilen werden nur eindeutig zuordenbare Länder ausgespalten: UK, CH, JP und US (entwickelte Märkte mit eigenem Bucket) sowie Polen → Equity EM. Mehrdeutige Buckets im Profil — etwa \u201EOther Europe\u201C oder \u201EIreland\u201C — bleiben bewusst beim Region-Bucket der Allokationszeile, damit Total-Gewichte invariant bleiben und keine falschen Vola-Annahmen entstehen. Total-Gewicht ist unter allen Routing-Pfaden identisch."
+                : "Only countries that map unambiguously are split out from the index geo profiles: UK, CH, JP and US (developed markets with their own bucket) plus Poland → Equity EM. Ambiguous profile buckets — such as “Other Europe” or “Ireland” — intentionally fall back to the allocation row’s regional bucket, so total weights stay invariant and no spurious volatility assumptions are introduced. Total weight is identical under all routing paths."}
+            </p>
+          </div>
         </Section>
 
         <Section value="bench" icon={<Layers className="h-4 w-4" />} title={de ? "Benchmark (MSCI ACWI Proxy)" : "Benchmark (MSCI ACWI Proxy)"}>
@@ -1080,12 +1244,229 @@ export function Methodology() {
             <li>{de ? "Verteilung: log-normale jährliche Renditen pro Anlageklasse, gezogen aus der CMA-Tabelle (μ und σ wie oben)." : "Distribution: log-normal annual returns per asset class, drawn from the CMA table above (μ and σ as listed)."}</li>
             <li>{de ? "Korrelation: die Portfolio-Volatilität σₚ wird vorab aus der vollständigen Korrelationsmatrix berechnet (Formel im Abschnitt „Formeln“); anschließend wird das Portfolio als Ganzes simuliert (eine Gauß-Ziehung pro Jahr)." : "Correlation: portfolio volatility σₚ is computed up front from the full correlation matrix (formula in the \"Formulas\" section); the portfolio is then simulated as a single asset (one Gaussian draw per year)."}</li>
             <li>{de ? "Pfade: 2.000 unabhängige Pfade über den Anlagehorizont des Nutzers." : "Paths: 2,000 independent paths over the user's chosen horizon."}</li>
-            <li>{de ? "Ausgewiesen: Median, P10, P90, Wahrscheinlichkeit eines Verlusts." : "Reported: median, P10, P90, probability of loss."}</li>
+            <li>{de ? "Ausgewiesen: Median, P10, P90, Wahrscheinlichkeit eines Verlusts, CVaR(95)/CVaR(99) am Horizont und pfadbasierter realisierter Max-Drawdown (Median + 5.-Perzentil)." : "Reported: median, P10, P90, probability of loss, CVaR(95)/CVaR(99) at horizon, and path-based realized Max Drawdown (median + 5th-percentile)."}</li>
           </ul>
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 my-3">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400 mb-1">
+              {de ? "Pfadbasierter Max Drawdown (v1.4, Apr 2026)" : "Path-based Max Drawdown (v1.4, Apr 2026)"}
+            </p>
+            <p className="text-xs text-muted-foreground leading-snug">
+              {de
+                ? "Für jeden simulierten Pfad wird der schlimmste Peak-to-Trough-Verlust *entlang* des Pfads berechnet (laufendes Maximum bis zum Jahr y, dann (Wert/Peak − 1)). Über alle Pfade berichten wir Median (typischer Pfad-Worst-Case) und 5.-Perzentil (Bad-Tail). Ersetzt für die Simulationsansicht die ältere analytische Heuristik MDD ≈ −min(0.85, (1.8 + 1.4·equityShare)·σₚ), die auf der Risk-&-Performance-Kachel weiterhin als Grobschätzung dient (markiert als „Heuristik“)."
+                : "For every simulated path we compute the worst peak-to-trough loss *along* the path (running max up to year y, then (value/peak − 1)). Across all paths we report the median (typical path's worst case) and the 5th-percentile (bad-tail). Replaces the older analytical heuristic MDD ≈ −min(0.85, (1.8 + 1.4·equityShare)·σₚ) for the simulation view; the heuristic is kept on the Risk & Performance tile as a quick analytical proxy (labeled \"heuristic\")."}
+            </p>
+          </div>
           <p className="text-xs text-muted-foreground">
             {de
-              ? "Limitierung: ohne Tail-Korrelationen, ohne Inflations-/Steuermodell, ohne Sequence-of-Returns-Pfade über Cash-Flows."
-              : "Limitations: no tail correlations, no inflation/tax model, no cash-flow sequence-of-returns modelling."}
+              ? "Standard-Annahmen sind bewusst konservativ-mainstream: Gauss-Verteilung pro Jahr und Long-Run-Korrelationsmatrix. Für eine pessimistischere Sicht stehen die optionalen Schalter „Crisis-Σ\" und „Student-t\" zur Verfügung — dokumentiert im Abschnitt „Tail-Realismus\" direkt unten. Weitere bewusst nicht modellierte Effekte: Inflations-/Steuermodell (außer dem WHT-Drag — siehe Abschnitt „Quellensteuer-Drag\"), Sequence-of-Returns-Pfade über Cash-Flows."
+              : "Default assumptions are deliberately conservative-mainstream: Gauss distribution per year and the long-run correlation matrix. For a more pessimistic lens, the optional \"Crisis-Σ\" and \"Student-t\" toggles are available — documented in the \"Tail Realism\" section directly below. Other deliberately unmodelled effects: inflation/tax (apart from the WHT drag — see \"Withholding-Tax Drag\" section), cash-flow sequence-of-returns paths."}
+          </p>
+        </Section>
+
+        <Section value="tail-realism" icon={<Calculator className="h-4 w-4" />} title={de ? "Tail-Realismus (v1.6, Apr 2026)" : "Tail Realism (v1.6, Apr 2026)"}>
+          <p className="text-sm text-muted-foreground">
+            {de
+              ? "Zwei optionale Schalter erlauben dem Operator, die Standard-Annahmen pessimistischer zu kalibrieren — ohne den ausgewiesenen Median oder die erwartete Rendite zu verändern. Beide Schalter sind in der Default-Stellung „aus\" — alle bisherigen Auswertungen bleiben unverändert reproduzierbar. Sie greifen unabhängig voneinander und können einzeln oder gemeinsam aktiviert werden."
+              : "Two optional toggles let the operator calibrate the default assumptions more pessimistically — without changing the reported median or expected return. Both toggles default to \"off\" — every prior reading remains exactly reproducible. They are independent and can be flipped individually or stacked."}
+          </p>
+
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 my-3 space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+              {de ? "1. Crisis-Σ (Korrelations-Regime)" : "1. Crisis-Σ (correlation regime)"}
+            </p>
+            <p className="text-xs text-muted-foreground leading-snug">
+              {de
+                ? "In normalen Marktphasen sind Equity-Equity-Korrelationen typischerweise 0.55–0.85, Equity↔Bonds nahe null bzw. leicht positiv (~+0.10 im Post-2022-Regime), Equity↔Gold leicht positiv (~+0.05), Equity↔Cash genau 0. In Krisen (2008, März 2020) konvergieren alle riskanten Assets nach oben: Equity-Equity-Pärchen rücken auf 0.85–0.95, Equity↔Bonds steigt auf +0.30 (Flight-to-Quality bricht zusammen), Equity↔REITs auf 0.80–0.88 (REITs handeln wie gehebelte Aktien), Equity↔Crypto auf 0.55–0.75. Gold und Cash bleiben die einzigen verlässlichen Diversifier (Equity↔Gold dreht auf 0 bis −0.05, Equity↔Cash bewusst auf 0 belassen). Die Krisen-Matrix ist konservativ-konsensuell aus AQR-/Bridgewater-Stress-Studien kalibriert."
+                : "In normal markets, equity-equity correlations are typically 0.55–0.85, equity↔bonds near zero or slightly positive (~+0.10 in the post-2022 regime), equity↔gold slightly positive (~+0.05), equity↔cash exactly 0. In crises (2008, March 2020) all risky assets converge upward: equity-equity pairs jump to 0.85–0.95, equity↔bonds rises to +0.30 (flight-to-quality breaks down), equity↔REITs to 0.80–0.88 (REITs trade as levered equity), equity↔crypto to 0.55–0.75. Gold and cash remain the only reliable diversifiers (equity↔gold flips to 0 / −0.05, equity↔cash deliberately kept at 0). The crisis matrix is calibrated conservatively from AQR/Bridgewater stress studies."}
+            </p>
+            <p className="text-xs text-muted-foreground leading-snug">
+              {de
+                ? "Wirkung: σ, β, Tracking Error, Sharpe, Alpha, Heuristik-MDD und die effiziente Frontier rechnen mit der Crisis-Matrix neu — die ausgewiesene Vol steigt strikt für jeden imperfekt korrelierten Mix; Diversifikations-Vorteile schrumpfen. In der Monte-Carlo-Simulation verbreitert sich der Fan, CVaR99 und Path-MDD-P05 verschlechtern sich, der Median bleibt nahezu unverändert (er wird vom Drift, nicht von der Korrelation getrieben)."
+                : "Effect: σ, β, tracking error, Sharpe, alpha, heuristic MDD and the efficient frontier all recompute against the crisis matrix — reported vol strictly rises for any imperfectly-correlated mix; diversification benefits shrink. In the Monte Carlo simulation the fan widens, CVaR99 and Path-MDD-P05 worsen, the median is largely unchanged (it is driven by drift, not by correlation)."}
+            </p>
+          </div>
+
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 my-3 space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+              {de ? "2. Student-t Tail-Modell (df=5)" : "2. Student-t tail model (df=5)"}
+            </p>
+            <p className="text-xs text-muted-foreground leading-snug">
+              {de
+                ? "Die Default-Annahme einer Gauss-Verteilung unterschätzt die Häufigkeit extremer Ereignisse — empirisch zeigen Aktien-Tagesrenditen (und auch Jahresrenditen) Kurtosis-Werte von 4–7 statt der Gauss-3. Der Student-t-Schalter ersetzt den jährlichen Schock durch eine Student-t-Verteilung mit 5 Freiheitsgraden (Standard-Wahl in der akademischen Literatur, z. B. Cont 2001) — die σ wird über √((df−2)/df) korrigiert, sodass sie identisch zur Gauss-σ bleibt."
+                : "The default Gauss assumption understates the frequency of extreme events — equity daily returns (and annual returns) empirically show kurtosis of 4–7 vs Gauss's 3. The Student-t toggle replaces the annual shock with a Student-t distribution at 5 degrees of freedom (standard choice in the academic literature, e.g. Cont 2001) — σ is corrected via √((df−2)/df) so it stays identical to the Gauss σ."}
+            </p>
+            <p className="text-xs text-muted-foreground leading-snug">
+              {de
+                ? "Wirkung: Median, P10/P90 und P/(L) ändern sich nur marginal (gleiche σ, gleicher Drift). CVaR99 verschlechtert sich messbar (typischerweise 5–15 % schlechter), Path-MDD-P05 ebenso — die fetteren Tails treffen genau die extremen Pfade, die diese Kennzahlen messen."
+                : "Effect: median, P10/P90 and P/L barely change (same σ, same drift). CVaR99 worsens measurably (typically 5–15 % worse), Path-MDD-P05 likewise — the heavier tails hit exactly the extreme paths these metrics measure."}
+            </p>
+          </div>
+
+          <div className="rounded-md border border-border bg-muted/30 p-3 my-3 space-y-2">
+            <p className="text-xs font-semibold">
+              {de ? "Wo bedienen?" : "Where to operate?"}
+            </p>
+            <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-5">
+              <li>{de ? "Crisis-Σ: Risk-&-Performance-Kachel (oben Mitte) — wirkt auf alle σ-getriebenen Kennzahlen, Frontier und Korrelationsmatrix." : "Crisis-Σ: Risk & Performance tile (top center) — affects every σ-driven metric, the frontier, and the correlation matrix."}</li>
+              <li>{de ? "Crisis-Σ + Student-t: Monte-Carlo-Kachel (Tail-Realismus-Box) — beide Schalter unabhängig, Pfad-Aggregate (CVaR, Path-MDD) reagieren entsprechend." : "Crisis-Σ + Student-t: Monte Carlo tile (Tail-Realism box) — both toggles independent, path aggregates (CVaR, Path-MDD) respond accordingly."}</li>
+              <li>{de ? "Stress-Test (Szenarien-Tab) ist deterministisch konstruiert — er nutzt fixe historische Drawdowns je Asset und ist damit Σ-unabhängig (keine Doppel-Pessimismus-Falle)." : "Stress-Test (Scenarios tab) is deterministic by construction — it uses fixed historical drawdowns per asset and is Σ-independent (no double-pessimism trap)."}</li>
+            </ul>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            {de
+              ? "Empfohlener Use: Standard-Aussage mit Default-Annahmen (Gauss + Normal-Σ) + Robustheits-Check mit beiden Schaltern aktiv („Worst-realistic\"-Linse). Wenn die Investment-These auch unter Crisis-Σ + Student-t trägt, ist sie deutlich robuster validiert als unter den Defaults allein."
+              : "Recommended use: produce the standard reading with the default assumptions (Gauss + normal Σ), then a robustness check with both toggles active (the \"worst-realistic\" lens). If the investment thesis still holds under Crisis-Σ + Student-t, it is materially better validated than under the defaults alone."}
+          </p>
+        </Section>
+
+        <Section value="wht" icon={<Coins className="h-4 w-4" />} title={de ? "Quellensteuer-Drag (v1.5, Apr 2026)" : "Withholding-Tax Drag (v1.5, Apr 2026)"}>
+          <p className="text-sm text-muted-foreground">
+            {de
+              ? "Jede ausgewiesene erwartete Rendite (Risk-&-Performance-Kachel, effiziente Frontier, Monte-Carlo-Pfade, Vergleichstab) ist NETTO der nicht-rückforderbaren Quellensteuer auf Dividenden — die Steuer, die ein typischer CH/EU-Privatanleger über IE-domizilierte UCITS-ETFs trotz aller Doppelbesteuerungs-Treaties tatsächlich zahlt. Symmetrisch wird derselbe Drag auch auf den ACWI-Benchmark angewandt, sodass Alpha und Outperformance nicht künstlich erhöht werden."
+              : "Every reported expected return (Risk & Performance tile, efficient frontier, Monte Carlo paths, Compare tab) is NET of irrecoverable withholding tax on dividends — the tax a typical CH/EU retail investor actually pays via IE-domiciled UCITS ETFs even after the most favorable double-taxation treaty. The same drag is applied symmetrically to the ACWI benchmark so alpha and outperformance aren't artificially inflated."}
+          </p>
+
+          {/* Derivation block — answers the recurring operator question
+              "how do the bp numbers actually come about?". WHT only ever
+              touches the dividend / coupon stream (capital gains aren't
+              withheld at source under any major treaty), so the formula
+              is mechanically just dividend yield × residual WHT rate.
+              We show the derivation per bucket so the operator can
+              sanity-check or override the assumption against current
+              published yields. The numbers in this table MUST stay
+              consistent with WHT_DRAG in src/lib/metrics.ts — they were
+              generated from those exact constants. */}
+          <div
+            className="rounded-md border border-border bg-muted/20 p-3 space-y-3"
+            data-testid="wht-derivation-block"
+          >
+            <div className="flex items-center gap-2">
+              <Coins className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-semibold">
+                {de ? "Wie der Drag berechnet wird" : "How the drag is computed"}
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {de
+                ? <>Quellensteuer trifft <span className="font-semibold text-foreground">nur Dividenden</span> (bzw. Coupons), nicht Kursgewinne — Capital Gains werden in keinem Major-Treaty an der Quelle besteuert. Die jährliche Belastung ist deshalb mechanisch:</>
+                : <>Withholding tax only ever touches <span className="font-semibold text-foreground">dividends</span> (or coupons), not capital gains — no major treaty withholds capital gains at source. The annual drag is therefore mechanically:</>}
+            </p>
+            <Formula
+              label={de ? "Drag pro Anlageklasse (p.a.)" : "Drag per asset class (p.a.)"}
+              expr="drag = WHT-rate (after treaty) × dividend yield"
+            />
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {de
+                ? "Konkrete Herleitung pro Bucket — die WHT-Sätze sind die Residual-Sätze, die ein IE-domizilierter UCITS-ETF nach Anwendung des günstigsten Doppelbesteuerungs-Treaty noch trägt; die Yields sind langfristige Index-Annahmen:"
+                : "Concrete derivation per bucket — WHT rates are the residual rates an IE-domiciled UCITS ETF still carries after applying the most favourable double-taxation treaty; yields are long-run index assumptions:"}
+            </p>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-[180px]">{de ? "Anlageklasse" : "Asset class"}</TableHead>
+                    <TableHead className="text-right">{de ? "Div-Yield (Annahme)" : "Div yield (assumed)"}</TableHead>
+                    <TableHead className="text-right">{de ? "WHT-Satz nach Treaty" : "WHT rate after treaty"}</TableHead>
+                    <TableHead className="text-right font-semibold">{de ? "Drag p.a." : "Drag p.a."}</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody className="text-xs font-mono">
+                  <TableRow>
+                    <TableCell className="font-semibold">US Equity</TableCell>
+                    <TableCell className="text-right">2.00%</TableCell>
+                    <TableCell className="text-right">15%</TableCell>
+                    <TableCell className="text-right font-semibold">30 bps</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-semibold">EM Equity</TableCell>
+                    <TableCell className="text-right">~2.5%</TableCell>
+                    <TableCell className="text-right">~20% {de ? "(gemischt)" : "(blended)"}</TableCell>
+                    <TableCell className="text-right font-semibold">40 bps</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-semibold">EU / UK / JP / Thematic</TableCell>
+                    <TableCell className="text-right">~2.0%</TableCell>
+                    <TableCell className="text-right">~10% {de ? "(blended Treaty)" : "(blended treaty)"}</TableCell>
+                    <TableCell className="text-right font-semibold">20 bps</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-semibold">CH Equity (non-CHF resident)</TableCell>
+                    <TableCell className="text-right">~3.0%</TableCell>
+                    <TableCell className="text-right">~7% {de ? "(Treaty-Residual)" : "(treaty residual)"}</TableCell>
+                    <TableCell className="text-right font-semibold">20 bps</TableCell>
+                  </TableRow>
+                  <TableRow className="bg-muted/40">
+                    <TableCell className="font-semibold">CH Equity (CHF resident)</TableCell>
+                    <TableCell className="text-right">~3.0%</TableCell>
+                    <TableCell className="text-right font-semibold">0% {de ? "— voll rückforderbar" : "— fully reclaimable"}</TableCell>
+                    <TableCell className="text-right font-semibold">0 bps</TableCell>
+                  </TableRow>
+                  <TableRow className="bg-emerald-50/60 dark:bg-emerald-950/20">
+                    <TableCell className="font-semibold">US Equity (synthetic ETF)</TableCell>
+                    <TableCell className="text-right">2.00%</TableCell>
+                    <TableCell className="text-right font-semibold">0% {de ? "— Swap umgeht WHT" : "— swap bypasses WHT"}</TableCell>
+                    <TableCell className="text-right font-semibold">0 bps</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-semibold">Bonds / Cash</TableCell>
+                    <TableCell className="text-right">{de ? "Coupon" : "coupon"}</TableCell>
+                    <TableCell className="text-right">0% {de ? "(Major-Treaties)" : "(major treaties)"}</TableCell>
+                    <TableCell className="text-right font-semibold">0 bps</TableCell>
+                  </TableRow>
+                  <TableRow>
+                    <TableCell className="font-semibold">Gold / REITs / Crypto</TableCell>
+                    <TableCell className="text-right">—</TableCell>
+                    <TableCell className="text-right">—</TableCell>
+                    <TableCell className="text-right font-semibold">0 bps</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+            </div>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              {de
+                ? <><span className="font-semibold text-foreground">Hinweis zur Statik:</span> Die Drag-Werte sind als Konstanten in <span className="font-mono">WHT_DRAG</span> (src/lib/metrics.ts) hinterlegt — sie ziehen NICHT live mit den tagesaktuellen Dividenden-Renditen mit. Begründung: die annualisierte Yield einer Indexregion bewegt sich über Quartale nur in der Größenordnung von 20–50 bps, während die Streuung zwischen LTCMA-Anbietern beim Yield-Input deutlich größer ist. Eine Live-Berechnung würde Genauigkeit nur vortäuschen.</>
+                : <><span className="font-semibold text-foreground">Static-by-design:</span> drag values live as constants in <span className="font-mono">WHT_DRAG</span> (src/lib/metrics.ts) — they do NOT track today's published dividend yields in real time. Rationale: an index region's annualised yield moves only ~20–50 bps quarter-on-quarter, while LTCMA-provider dispersion on the yield input is materially larger. A "live" recompute would be false precision.</>}
+            </p>
+            <p className="text-[11px] text-muted-foreground leading-relaxed">
+              {de
+                ? <><span className="font-semibold text-foreground">Bewusste Vereinfachungen:</span> Globale REITs würden in der Praxis ~50 bps Drag tragen (15 % WHT auf ~3.5 % Yield), sind im Modell aber als 0 bps vereinfacht — Bucket ist klein, Effekt &lt; 5 bps auf Portfolio-Ebene. High-Yield-Corporate-Bonds in einzelnen Jurisdiktionen wären streng genommen leicht zu optimistisch mit 0 bps; Major-Treaty-Coverage trägt das Modell aber sauber.</>
+                : <><span className="font-semibold text-foreground">Deliberate simplifications:</span> global REITs would in practice carry ~50 bps drag (15 % WHT on ~3.5 % yield) but are simplified to 0 bps — bucket is small, portfolio-level effect &lt; 5 bps. High-yield corporates in single jurisdictions would strictly be slightly optimistic at 0 bps; major-treaty coverage carries the model cleanly.</>}
+            </p>
+          </div>
+
+          <div className="rounded-md border border-emerald-200 dark:border-emerald-900/50 bg-emerald-50/50 dark:bg-emerald-950/20 p-3 text-xs space-y-2">
+            <p className="font-semibold">{de ? "Synthetik-Carve-Out (v1.5):" : "Synthetic-replication carve-out (v1.5):"}</p>
+            <p className="text-muted-foreground">
+              {de
+                ? "Wenn der Synthetic-ETF-Schalter im Builder aktiv ist (und nicht durch Hedging in einer non-USD-Basiswährung überschrieben wird), entfällt der US-Equity-Drag von 30 bp auf der Portfolio-Seite — ein swap-basierter UCITS-ETF auf den S&P 500 (z. B. Invesco IE00B3YCGJ38) erhält die US-Dividenden rechtlich nicht selbst und vermeidet die 15 % US-WHT strukturell. Der ACWI-Benchmark behält bewusst seinen vollen Drag (er steht für die praktische Alternative — ein physisch replizierender ACWI-ETF), sodass die Synthetik korrekt als Implementations-Alpha sichtbar wird (~30 bp × US-Anteil im Aktien-Sleeve, also ~18 bp bei 60 % US-Equity)."
+                : "When the synthetic-ETF toggle in the builder is active (and not overridden by currency hedging in a non-USD base), the 30 bps US-equity drag is removed on the portfolio side — a swap-based UCITS ETF on the S&P 500 (e.g. Invesco IE00B3YCGJ38) doesn't legally receive US dividends and structurally avoids the 15 % US WHT. The ACWI benchmark deliberately keeps its full drag (it represents the practical alternative — a physical-replication ACWI ETF), so the synthetic structure shows up correctly as implementation alpha (~30 bps × US share of the equity sleeve, i.e. ~18 bps at 60 % US equity)."}
+            </p>
+            <p className="text-muted-foreground">
+              {de
+                ? "Risiko: Im Tausch gegen den Steuervorteil entsteht kontrolliertes Kontrahentenrisiko zu den Swap-Counterparts (begrenzt durch tägliches Collateral-Management und die UCITS-10 %-Grenze pro Kontrahent). Vol, β, Tracking Error sind unverändert — der Carve-Out wirkt ausschließlich auf den Renditeterm."
+                : "Risk: in exchange for the tax pickup, the portfolio takes controlled counterparty risk to the swap counterparties (mitigated by daily collateral and the UCITS 10 %-per-counterparty cap). Vol, β, tracking error are unchanged — the carve-out is a pure return adjustment."}
+            </p>
+          </div>
+          <div className="rounded-md border border-border bg-muted/30 p-3 text-xs">
+            <p className="font-semibold mb-2">{de ? "Default-Drag-Sätze (jährlich, in bp):" : "Default drag rates (annual, in bps):"}</p>
+            <ul className="space-y-1 list-disc pl-5">
+              <li>{de ? "US-Equity: 30 bp (15 % WHT auf ~2 % Div-Yield, IE-Treaty). US-domizilierte ETFs würden 60 bp produzieren." : "US Equity: 30 bps (15 % WHT on ~2 % div yield, IE treaty). US-domiciled ETFs would yield 60 bps."}</li>
+              <li>{de ? "EM-Equity: 40 bp (gemischt ~20 % WHT auf ~2.5 % Div-Yield, leicht konservativ gerundet)." : "EM Equity: 40 bps (blended ~20 % WHT on ~2.5 % div yield, rounded slightly conservative)."}</li>
+              <li>{de ? "DM ex-US (EU / UK / JP / Thematic): 20 bp." : "DM ex-US (EU / UK / JP / Thematic): 20 bps."}</li>
+              <li>{de ? "CH-Equity: 20 bp regulär — aber 0 bp bei Basiswährung CHF (CH-Resident kann die 35 % Verrechnungssteuer voll zurückfordern)." : "CH Equity: 20 bps standard — but 0 bps when base currency is CHF (CH residents can fully reclaim the 35 % federal anticipatory tax)."}</li>
+              <li>{de ? "Bonds, Cash, Gold, Real Estate, Crypto: 0 bp (Coupons in den meisten Treaties WHT-frei; REITs vereinfacht)." : "Bonds, Cash, Gold, Real Estate, Crypto: 0 bps (coupons largely WHT-free in major treaties; REITs simplified)."}</li>
+            </ul>
+            <p className="mt-2 text-muted-foreground">
+              {de
+                ? "Quelle: WHT_DRAG-Konstante in src/lib/metrics.ts, dort werden die Sätze und Quellen-Annahmen versioniert."
+                : "Source: WHT_DRAG constant in src/lib/metrics.ts — rates and source assumptions are versioned there."}
+            </p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            {de
+              ? "Limitierung: Modell unterstellt IE-domizilierte Vehikel und einen CH-Resident als Default-Anleger. Für US-domizilierte ETFs, EU-Resident-Setups oder andere Domizil-Kombinationen sind die Sätze konservativ und teilweise zu niedrig (US-domiziliert: ~60 bp statt 30 bp). Kapitalgewinn- und Vermögenssteuer (kantonal, CH) sind weiterhin nicht modelliert."
+              : "Limitation: model assumes IE-domiciled vehicles and a CH-resident default investor. For US-domiciled ETFs, EU-resident setups or other domicile combinations the rates are conservative and partly too low (US-domiciled: ~60 bps instead of 30 bps). Capital-gains and wealth tax (cantonal, CH) are still not modelled."}
           </p>
         </Section>
 
@@ -1136,7 +1517,9 @@ export function Methodology() {
             <Formula label="Beta vs benchmark" expr="βₚ = Cov(Rₚ, R_b) / Var(R_b)" />
             <Formula label="Alpha (Jensen)" expr="αₚ = E[Rₚ] − [Rf + βₚ · (E[R_b] − Rf)]" />
             <Formula label="Tracking Error" expr="TE = √(σₚ² + σ_b² − 2·Cov(Rₚ, R_b))" />
-            <Formula label="Max Drawdown (heuristic)" expr="MDD ≈ −min(0.85, (1.8 + 1.4 · equityShare) · σₚ)" />
+            <Formula label="Max Drawdown (heuristic — Risk & Performance tile)" expr="MDD ≈ −min(0.85, (1.8 + 1.4 · equityShare) · σₚ)" />
+            <Formula label="Max Drawdown (path-based — MC tile)" expr="MDDₚₐₜₕ = minₜ (Vₜ / maxₛ≤ₜ Vₛ − 1);  reported = quantileₚ(MDDₚₐₜₕ)  for p ∈ {0.50, 0.05}" />
+            <Formula label="WHT-net Expected Return" expr="E[Rₚ]ₙₑₜ = Σᵢ wᵢ · (μᵢ − whtᵢ)" />
           </div>
         </Section>
 

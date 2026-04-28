@@ -25,6 +25,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PortfolioInput, PortfolioOutput, ValidationResult } from "@/lib/types";
 import { runValidation } from "@/lib/validation";
 import { buildPortfolio } from "@/lib/portfolio";
+import { mapAllocationToAssetsLookthrough, CMA } from "@/lib/metrics";
+import { colorForBucket, compareBuckets } from "@/lib/chartColors";
 import { defaultExchangeFor } from "@/lib/exchange";
 import { diffPortfolios } from "@/lib/compare";
 import type { ManualWeights } from "@/lib/manualWeights";
@@ -32,15 +34,6 @@ import { PortfolioMetrics } from "./PortfolioMetrics";
 import { StressTest } from "./StressTest";
 import { MonteCarloSimulation } from "./MonteCarloSimulation";
 import { useT } from "@/lib/i18n";
-
-const COLORS = [
-  "hsl(var(--chart-1))",
-  "hsl(var(--chart-2))",
-  "hsl(var(--chart-3))",
-  "hsl(var(--chart-4))",
-  "hsl(var(--chart-5))",
-  "hsl(var(--primary))",
-];
 
 interface CompareFormValues {
   portA: PortfolioInput;
@@ -162,8 +155,33 @@ export function ComparePortfolios() {
     }, 100);
   };
 
-  const chartDataA = outputA?.allocation.map(a => ({ name: `${a.assetClass} - ${a.region}`, value: a.weight })) || [];
-  const chartDataB = outputB?.allocation.map(a => ({ name: `${a.assetClass} - ${a.region}`, value: a.weight })) || [];
+  // When Look-Through is ON for a portfolio (per-portfolio toggle, mirrors
+  // BuildPortfolio behavior), decompose the pie into the underlying country
+  // buckets via the actual ETF holdings. Otherwise use the row-level buckets.
+  const buildChartData = (
+    out: PortfolioOutput | null,
+    input: PortfolioInput | null,
+  ): { name: string; value: number }[] => {
+    if (!out) return [];
+    const base = out.allocation.map(a => ({
+      name: `${a.assetClass} - ${a.region}`,
+      value: a.weight,
+    }));
+    if (!input || !input.lookThroughView || out.etfImplementation.length === 0) {
+      return base.slice().sort(compareBuckets);
+    }
+    const lt = mapAllocationToAssetsLookthrough(
+      out.allocation,
+      out.etfImplementation,
+      input.baseCurrency,
+    );
+    return lt
+      .filter(e => e.weight > 0)
+      .map(e => ({ name: CMA[e.key].label, value: e.weight * 100 }))
+      .sort(compareBuckets);
+  };
+  const chartDataA = buildChartData(outputA, inputA);
+  const chartDataB = buildChartData(outputB, inputB);
 
   const diff = (outputA && outputB) ? diffPortfolios(outputA, outputB) : null;
 
@@ -590,19 +608,19 @@ export function ComparePortfolios() {
                           <div className="h-[250px] w-full">
                             <ResponsiveContainer width="100%" height="100%">
                               <PieChart>
-                                <Pie data={item.data} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={2} dataKey="value" stroke="none">
-                                  {item.data.map((_entry, index) => (
-                                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                <Pie data={item.data} cx="50%" cy="50%" innerRadius={60} outerRadius={80} paddingAngle={2} dataKey="value" stroke="none" startAngle={90} endAngle={-270}>
+                                  {item.data.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={colorForBucket(entry.name)} />
                                   ))}
                                 </Pie>
-                                <RechartsTooltip formatter={(value: number) => [`${value}%`, tr("Weight", "Gewicht")]} contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }} />
+                                <RechartsTooltip formatter={(value: number, name: string) => [`${value.toFixed(1)}%`, name]} contentStyle={{ borderRadius: '8px', border: '1px solid hsl(var(--border))' }} />
                               </PieChart>
                             </ResponsiveContainer>
                           </div>
                         </div>
                         <div className="h-4 w-full flex rounded-full overflow-hidden mt-4">
                           {item.data.map((d, i) => (
-                            <div key={i} style={{ width: `${d.value}%`, backgroundColor: COLORS[i % COLORS.length] }} title={`${d.name}: ${d.value}%`} className="h-full" />
+                            <div key={i} style={{ width: `${d.value}%`, backgroundColor: colorForBucket(d.name) }} title={`${d.name}: ${d.value.toFixed(1)}%`} className="h-full" />
                           ))}
                         </div>
                         <ul
@@ -614,7 +632,7 @@ export function ComparePortfolios() {
                             <li key={i} className="flex items-center gap-2 min-w-0">
                               <span
                                 className="inline-block h-2.5 w-2.5 rounded-sm shrink-0"
-                                style={{ backgroundColor: COLORS[i % COLORS.length] }}
+                                style={{ backgroundColor: colorForBucket(d.name) }}
                                 aria-hidden
                               />
                               <span className="truncate text-muted-foreground" title={d.name}>{d.name}</span>
@@ -718,6 +736,7 @@ export function ComparePortfolios() {
                               horizonYears={inputA.horizon}
                               baseCurrency={inputA.baseCurrency}
                               hedged={inputA.includeCurrencyHedging}
+                              includeSyntheticETFs={inputA.includeSyntheticETFs}
                             />
                           </TabsContent>
                           <TabsContent value="B" className="mt-4">
@@ -726,6 +745,7 @@ export function ComparePortfolios() {
                               horizonYears={inputB.horizon}
                               baseCurrency={inputB.baseCurrency}
                               hedged={inputB.includeCurrencyHedging}
+                              includeSyntheticETFs={inputB.includeSyntheticETFs}
                             />
                           </TabsContent>
                         </Tabs>
@@ -737,10 +757,10 @@ export function ComparePortfolios() {
                             <TabsTrigger value="B">Portfolio B</TabsTrigger>
                           </TabsList>
                           <TabsContent value="A" className="mt-4">
-                            <PortfolioMetrics allocation={outputA!.allocation} baseCurrency={inputA.baseCurrency} />
+                            <PortfolioMetrics allocation={outputA!.allocation} baseCurrency={inputA.baseCurrency} etfImplementation={inputA.lookThroughView ? outputA!.etfImplementation : undefined} includeSyntheticETFs={inputA.includeSyntheticETFs} hedged={inputA.includeCurrencyHedging} />
                           </TabsContent>
                           <TabsContent value="B" className="mt-4">
-                            <PortfolioMetrics allocation={outputB!.allocation} baseCurrency={inputB.baseCurrency} />
+                            <PortfolioMetrics allocation={outputB!.allocation} baseCurrency={inputB.baseCurrency} etfImplementation={inputB.lookThroughView ? outputB!.etfImplementation : undefined} includeSyntheticETFs={inputB.includeSyntheticETFs} hedged={inputB.includeCurrencyHedging} />
                           </TabsContent>
                         </Tabs>
 
@@ -768,8 +788,9 @@ export function ComparePortfolios() {
                             horizonYears={inputA.horizon}
                             baseCurrency={inputA.baseCurrency}
                             hedged={inputA.includeCurrencyHedging}
+                            includeSyntheticETFs={inputA.includeSyntheticETFs}
                           />
-                          <PortfolioMetrics allocation={outputA!.allocation} baseCurrency={inputA.baseCurrency} />
+                          <PortfolioMetrics allocation={outputA!.allocation} baseCurrency={inputA.baseCurrency} etfImplementation={inputA.lookThroughView ? outputA!.etfImplementation : undefined} includeSyntheticETFs={inputA.includeSyntheticETFs} hedged={inputA.includeCurrencyHedging} />
                           <StressTest allocation={outputA!.allocation} baseCurrency={inputA.baseCurrency} />
                         </div>
                         <div className="space-y-0 min-w-0">
@@ -779,8 +800,9 @@ export function ComparePortfolios() {
                             horizonYears={inputB.horizon}
                             baseCurrency={inputB.baseCurrency}
                             hedged={inputB.includeCurrencyHedging}
+                            includeSyntheticETFs={inputB.includeSyntheticETFs}
                           />
-                          <PortfolioMetrics allocation={outputB!.allocation} baseCurrency={inputB.baseCurrency} />
+                          <PortfolioMetrics allocation={outputB!.allocation} baseCurrency={inputB.baseCurrency} etfImplementation={inputB.lookThroughView ? outputB!.etfImplementation : undefined} includeSyntheticETFs={inputB.includeSyntheticETFs} hedged={inputB.includeCurrencyHedging} />
                           <StressTest allocation={outputB!.allocation} baseCurrency={inputB.baseCurrency} />
                         </div>
                       </div>

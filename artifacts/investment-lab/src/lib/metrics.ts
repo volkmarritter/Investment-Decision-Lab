@@ -1,7 +1,8 @@
-import { AssetAllocation, BaseCurrency } from "./types";
+import { AssetAllocation, BaseCurrency, ETFImplementation } from "./types";
 import { getRiskFreeRate, getCMAOverrides } from "./settings";
 import consensusFile from "@/data/cmas.consensus.json";
 import { APP_DEFAULTS } from "./appDefaults";
+import { profileFor } from "./lookthrough";
 
 export type AssetKey =
   | "equity_us"
@@ -342,6 +343,10 @@ export function sumBuildingBlocks(key: AssetKey): number {
   return CMA_BUILDING_BLOCKS[key].components.reduce((s, c) => s + c.value, 0);
 }
 
+// Normal-regime correlation matrix: long-run averages used when markets
+// are not in stress. Sourced from the same long-horizon CMA notes that
+// drive μ and σ in CMA above. Pairwise (upper-triangular only — corr() is
+// symmetric).
 const C: Partial<Record<AssetKey, Partial<Record<AssetKey, number>>>> = {
   equity_us: { equity_eu: 0.82, equity_uk: 0.78, equity_ch: 0.70, equity_jp: 0.70, equity_em: 0.72, equity_thematic: 0.85, bonds: 0.10, cash: 0.00, gold: 0.05, reits: 0.70, crypto: 0.30 },
   equity_eu: { equity_uk: 0.85, equity_ch: 0.78, equity_jp: 0.65, equity_em: 0.72, equity_thematic: 0.78, bonds: 0.10, cash: 0.00, gold: 0.05, reits: 0.70, crypto: 0.28 },
@@ -356,11 +361,80 @@ const C: Partial<Record<AssetKey, Partial<Record<AssetKey, number>>>> = {
   reits: { crypto: 0.30 },
 };
 
-export function corr(a: AssetKey, b: AssetKey): number {
+// Crisis-regime correlation matrix: parallel structure to C, calibrated to
+// how cross-asset correlations actually behave during severe stress
+// episodes (2008 GFC, 2020 COVID, 2022 stagflation).
+//
+// Calibration anchors:
+//  - Equity-equity correlations collapse toward 0.85-0.95 globally
+//    ("diversification fails when you need it most"). Empirically the
+//    realised cross-region equity correlation in Q4-2008 / Mar-2020 was
+//    > 0.90 across all regional pairs.
+//  - Equity-bonds correlation flips from the long-run +0.10 to roughly
+//    +0.30 in stagflation regimes (2022 actual: > +0.5 at peak; +0.30 is
+//    a conservative annual-window estimate).
+//  - Equity-gold correlation goes mildly negative or zero (flight-to-
+//    quality), down from +0.05 normal.
+//  - Equity-REITs correlation rises toward 0.85+ (REITs trade as
+//    leveraged equity in stress).
+//  - Equity-crypto correlation rises sharply from ~0.30 to ~0.65
+//    (post-2020 "risk-off, sell crypto" regime).
+//  - Bonds-REITs rises (both rate-sensitive in 2022-style shocks).
+//
+// The matrix is intentionally NOT a strict superset of C — equity-gold
+// for example is *lower* in crisis (gold acts as hedge). What matters
+// for the Risk-Tile and MC use-cases is that the resulting portfolio
+// variance σ²_p = w' Σ w is strictly higher than under C for any
+// equity-heavy allocation, because the variance gain on the equity-
+// equity / equity-REITs / equity-bonds blocks dominates the small
+// gold-equity reduction. The frontier shifts right (more vol for the
+// same μ) and MC tails fatten accordingly.
+//
+// Positive-semi-definiteness: we do not Cholesky-factor this matrix
+// (the MC sampler is 1-D univariate; correlations are folded analytically
+// into portfolioSigma). The portfolioVol() implementation guards via
+// Math.max(v, 0). Empirically all sleeves stay safely positive across
+// the realistic CMA-sigma vector.
+const CRISIS_C: Partial<Record<AssetKey, Partial<Record<AssetKey, number>>>> = {
+  // Crisis-Σ calibration anchors (AQR/Bridgewater stress studies, 2008 + Mar-2020):
+  //   - Equity-equity pairs: 0.85–0.95 (vs 0.55–0.85 normal).
+  //   - Equity-Bonds: +0.30 (vs ~+0.10 normal — flight-to-quality breaks down once
+  //     fed/ECB hike into stress; this is the post-2022 stylized fact).
+  //   - Equity-REITs: 0.80–0.88 (vs ~0.65 normal — REITs trade as levered equity in stress).
+  //   - Equity-Crypto: 0.55–0.75 (vs ~0.20–0.45 normal — risk-on/off coupling tightens).
+  //   - Equity-Gold: 0 to -0.05 (gold remains the cleanest safe haven).
+  //   - Equity-Cash: 0 across the board (cash is *the* uncorrelated leg in crisis;
+  //     deliberately matched to the normal matrix so cash stays a clean diversifier
+  //     — any non-zero would dilute the "cash + gold are the only true diversifiers"
+  //     narrative documented in Methodology).
+  equity_us: { equity_eu: 0.95, equity_uk: 0.93, equity_ch: 0.90, equity_jp: 0.88, equity_em: 0.90, equity_thematic: 0.95, bonds: 0.30, cash: 0.00, gold: -0.05, reits: 0.88, crypto: 0.65 },
+  equity_eu: { equity_uk: 0.95, equity_ch: 0.92, equity_jp: 0.85, equity_em: 0.88, equity_thematic: 0.92, bonds: 0.30, cash: 0.00, gold: -0.05, reits: 0.85, crypto: 0.62 },
+  equity_uk: { equity_ch: 0.90, equity_jp: 0.82, equity_em: 0.85, equity_thematic: 0.85, bonds: 0.30, cash: 0.00, gold: 0.00, reits: 0.82, crypto: 0.58 },
+  equity_ch: { equity_jp: 0.82, equity_em: 0.85, equity_thematic: 0.85, bonds: 0.30, cash: 0.00, gold: 0.00, reits: 0.80, crypto: 0.55 },
+  equity_jp: { equity_em: 0.85, equity_thematic: 0.85, bonds: 0.25, cash: 0.00, gold: -0.05, reits: 0.78, crypto: 0.55 },
+  equity_em: { equity_thematic: 0.90, bonds: 0.25, cash: 0.00, gold: 0.05, reits: 0.82, crypto: 0.70 },
+  equity_thematic: { bonds: 0.25, cash: 0.00, gold: -0.05, reits: 0.82, crypto: 0.75 },
+  bonds: { cash: 0.40, gold: 0.20, reits: 0.45, crypto: 0.20 },
+  cash: { gold: 0.05, reits: 0.05, crypto: 0.00 },
+  gold: { reits: 0.05, crypto: 0.10 },
+  reits: { crypto: 0.50 },
+};
+
+/** Two correlation regimes the engine knows about. `"normal"` (default,
+ *  backward compatible) uses the long-run C matrix; `"crisis"` swaps in
+ *  CRISIS_C for stress-aware Risk-Tile, frontier and Monte-Carlo views. */
+export type RiskRegime = "normal" | "crisis";
+
+export function corr(
+  a: AssetKey,
+  b: AssetKey,
+  regime: RiskRegime = "normal",
+): number {
   if (a === b) return 1;
-  const ab = C[a]?.[b];
+  const matrix = regime === "crisis" ? CRISIS_C : C;
+  const ab = matrix[a]?.[b];
   if (ab !== undefined) return ab;
-  const ba = C[b]?.[a];
+  const ba = matrix[b]?.[a];
   if (ba !== undefined) return ba;
   return 0;
 }
@@ -370,11 +444,25 @@ export interface AssetExposure {
   weight: number;
 }
 
-export function mapAllocationToAssets(allocation: AssetAllocation[]): AssetExposure[] {
+// Base-currency → home equity bucket. Mirrors the ETF picker in
+// `etfs.ts:480-494`, which maps `region === "Home"` to the corresponding
+// regional ETF (Equity-USA for USD, Equity-Switzerland for CHF, etc.).
+const HOME_EQUITY_KEY: Record<BaseCurrency, AssetKey> = {
+  USD: "equity_us",
+  EUR: "equity_eu",
+  GBP: "equity_uk",
+  CHF: "equity_ch",
+};
+
+export function mapAllocationToAssets(
+  allocation: AssetAllocation[],
+  baseCurrency: BaseCurrency = "USD",
+): AssetExposure[] {
   const map: Record<AssetKey, number> = {
     equity_us: 0, equity_eu: 0, equity_uk: 0, equity_ch: 0, equity_jp: 0, equity_em: 0,
     equity_thematic: 0, bonds: 0, cash: 0, gold: 0, reits: 0, crypto: 0,
   };
+  const benchSum = BENCHMARK.reduce((s, e) => s + e.weight, 0);
   for (const a of allocation) {
     const w = a.weight / 100;
     if (a.assetClass === "Fixed Income") map.bonds += w;
@@ -390,9 +478,202 @@ export function mapAllocationToAssets(allocation: AssetAllocation[]): AssetExpos
       else if (r === "Switzerland") map.equity_ch += w;
       else if (r === "Japan") map.equity_jp += w;
       else if (r === "EM") map.equity_em += w;
+      // Equity sleeve compaction: when the ETF budget is too tight to give
+      // every region its own slot, the engine emits "Equity-Home" + "Equity-
+      // Global" rows (see portfolio.ts:280-287, etfs.ts:480-494). Resolve
+      // them to real CMA buckets so vol / Sharpe / TE / beta stay
+      // consistent with the underlying ACWI-IMI exposure. Without this,
+      // both rows fall through to equity_thematic (vol 22%, low ACWI corr),
+      // which makes vol read as 22%, beta jump to ~1.25 and TE balloon to
+      // double-digits even for a near-pure ACWI portfolio.
+      else if (r === "Home") map[HOME_EQUITY_KEY[baseCurrency]] += w;
+      else if (r === "Global") {
+        for (const b of BENCHMARK) map[b.key] += w * (b.weight / benchSum);
+      }
       else map.equity_thematic += w;
     }
   }
+  return (Object.keys(map) as AssetKey[])
+    .filter((k) => map[k] > 0)
+    .map((k) => ({ key: k, weight: map[k] }));
+}
+
+// ---------------------------------------------------------------------------
+// Look-through-aware allocation → CMA bucket mapping.
+// ---------------------------------------------------------------------------
+// `mapAllocationToAssets` above routes each row by its declared *region*
+// (e.g. `Equity-Europe` → `equity_eu`). That is the right shape if the user
+// only ever held single-country ETFs, but the actual ETF that implements an
+// "Equity-Europe" row is iShares Core MSCI Europe (IE00B4K48X80), whose
+// holdings are 23% UK + 15% Switzerland + 17% France + 15% Germany + ...
+// The region-based router treats those 38% UK+CH inside the Europe ETF as if
+// they were continental-EU equities (σ 17%), which (a) understates UK/CH
+// exposure in vol/beta/TE and (b) makes UK/CH look perpetually
+// "underweight" in the TE-contribution table even when held implicitly
+// through a multi-country ETF.
+//
+// `mapAllocationToAssetsLookthrough` fixes this by reading the curated
+// `LookthroughProfile.geo` map (lookthrough.ts PROFILES) for the ETF that
+// actually implements each row, and distributing the row's weight across
+// CMA buckets by those geo percentages. Non-equity rows and rows whose ETF
+// has no curated profile fall back to the region-based routing above so the
+// total weight is preserved.
+// IMPORTANT: only list country labels whose CMA bucket is unambiguous
+// regardless of which ETF the label appears in. Context-dependent labels
+// like "Other" (Europe ETF: 8.6% Other Europe; S&P 500: 3.4% Other DM;
+// EM IMI: 10.6% Other EM) and "Ireland" (Europe ETF: Bank of Ireland;
+// S&P 500: Accenture, Medtronic — US-domiciled but Irish-incorporated)
+// must be omitted so they fall back to routeByRegion(row.region), which
+// routes by the *row's* declared region — the correct context-aware
+// behavior.
+const COUNTRY_TO_EQUITY_KEY: Record<string, AssetKey> = {
+  // Americas → US bucket (Canada has no separate CMA; ~95% US-correlated).
+  "United States": "equity_us",
+  "USA": "equity_us",
+  "Canada": "equity_us",
+  // UK home market (FTSE-100).
+  "United Kingdom": "equity_uk",
+  "UK": "equity_uk",
+  // Switzerland home market (SMI/SLI).
+  "Switzerland": "equity_ch",
+  // Japan home market (TOPIX/Nikkei).
+  "Japan": "equity_jp",
+  // Continental Europe ex-UK ex-CH (developed) → equity_eu.
+  "France": "equity_eu",
+  "Germany": "equity_eu",
+  "Netherlands": "equity_eu",
+  "Sweden": "equity_eu",
+  "Italy": "equity_eu",
+  "Spain": "equity_eu",
+  "Denmark": "equity_eu",
+  "Norway": "equity_eu",
+  "Belgium": "equity_eu",
+  "Austria": "equity_eu",
+  "Finland": "equity_eu",
+  "Portugal": "equity_eu",
+  "Other Europe": "equity_eu",
+  "Other EU": "equity_eu",
+  // Generic "Europe" buckets in look-through profiles (e.g. MSCI World) lump
+  // UK + CH inside a single slice. Without sub-country detail we route to
+  // continental EU as the closest single bucket; the explicit single-country
+  // ETFs (Core MSCI Europe, FTSE-100, SLI) carry the granular breakdown
+  // and handle the UK/CH leakage correctly.
+  "Europe": "equity_eu",
+  "Europe ex-UK": "equity_eu",
+  // Asia-Pacific developed ex-Japan: no separate CMA bucket, route to Japan
+  // as the nearest developed-Asia proxy.
+  "Australia": "equity_jp",
+  "Hong Kong": "equity_jp",
+  "Singapore": "equity_jp",
+  "New Zealand": "equity_jp",
+  // Emerging markets.
+  "China": "equity_em",
+  "India": "equity_em",
+  "Taiwan": "equity_em",
+  "Brazil": "equity_em",
+  "South Korea": "equity_em",
+  "Mexico": "equity_em",
+  "South Africa": "equity_em",
+  "Saudi Arabia": "equity_em",
+  "Indonesia": "equity_em",
+  "Thailand": "equity_em",
+  "Malaysia": "equity_em",
+  // Poland: MSCI reclassified to EM in 2018 — appears in EM IMI / EM
+  // breakdowns (~1%), not in MSCI Europe.
+  "Poland": "equity_em",
+  "United Arab Emirates": "equity_em",
+  "UAE": "equity_em",
+  "Qatar": "equity_em",
+  "Kuwait": "equity_em",
+  "Egypt": "equity_em",
+  "Turkey": "equity_em",
+  "Greece": "equity_em",
+  "Hungary": "equity_em",
+  "Czech Republic": "equity_em",
+  "Chile": "equity_em",
+  "Colombia": "equity_em",
+  "Peru": "equity_em",
+  "Philippines": "equity_em",
+  "Vietnam": "equity_em",
+  "Other EM": "equity_em",
+  "EM": "equity_em",
+};
+
+export function mapAllocationToAssetsLookthrough(
+  allocation: AssetAllocation[],
+  etfImplementation: ETFImplementation[],
+  baseCurrency: BaseCurrency = "USD",
+): AssetExposure[] {
+  // bucketKey convention from portfolio.ts:349 / manualWeights.ts:25
+  // is `${assetClass} - ${region}` (space-dash-space).
+  const isinByBucket = new Map<string, string>();
+  for (const e of etfImplementation) isinByBucket.set(e.bucket, e.isin);
+
+  const map: Record<AssetKey, number> = {
+    equity_us: 0, equity_eu: 0, equity_uk: 0, equity_ch: 0, equity_jp: 0, equity_em: 0,
+    equity_thematic: 0, bonds: 0, cash: 0, gold: 0, reits: 0, crypto: 0,
+  };
+  const benchSum = BENCHMARK.reduce((s, e) => s + e.weight, 0);
+
+  // Route a row using the existing region-based logic. Used for non-equity
+  // rows and as a fallback for equity rows whose ETF lacks a curated
+  // look-through profile (or whose profile contains an unmapped country
+  // label).
+  const routeByRegion = (a: AssetAllocation, w: number): void => {
+    if (a.assetClass === "Fixed Income") map.bonds += w;
+    else if (a.assetClass === "Cash") map.cash += w;
+    else if (a.assetClass === "Commodities") map.gold += w;
+    else if (a.assetClass === "Real Estate") map.reits += w;
+    else if (a.assetClass === "Digital Assets") map.crypto += w;
+    else if (a.assetClass === "Equity") {
+      const r = a.region;
+      if (r === "USA") map.equity_us += w;
+      else if (r === "Europe") map.equity_eu += w;
+      else if (r === "UK" || r === "United Kingdom") map.equity_uk += w;
+      else if (r === "Switzerland") map.equity_ch += w;
+      else if (r === "Japan") map.equity_jp += w;
+      else if (r === "EM") map.equity_em += w;
+      else if (r === "Home") map[HOME_EQUITY_KEY[baseCurrency]] += w;
+      else if (r === "Global") {
+        for (const b of BENCHMARK) map[b.key] += w * (b.weight / benchSum);
+      }
+      else map.equity_thematic += w;
+    }
+  };
+
+  for (const a of allocation) {
+    const w = a.weight / 100;
+    if (w <= 0) continue;
+    // Non-equity asset classes don't benefit from look-through bucket
+    // routing (bonds stay bonds regardless of country, etc.).
+    if (a.assetClass !== "Equity") {
+      routeByRegion(a, w);
+      continue;
+    }
+    const isin = isinByBucket.get(`${a.assetClass} - ${a.region}`);
+    const profile = isin ? profileFor(isin) : null;
+    if (!profile || !profile.isEquity) {
+      routeByRegion(a, w);
+      continue;
+    }
+    const totalGeo = Object.values(profile.geo).reduce((s, v) => s + v, 0);
+    if (totalGeo <= 0) {
+      routeByRegion(a, w);
+      continue;
+    }
+    let unmappedShare = 0;
+    for (const [country, pct] of Object.entries(profile.geo)) {
+      const share = (pct / totalGeo) * w;
+      const key = COUNTRY_TO_EQUITY_KEY[country];
+      if (key) map[key] += share;
+      else unmappedShare += share;
+    }
+    // Any unmapped country labels (e.g. a freshly-renamed label not yet in
+    // the country map) fall back to region-based routing so we never
+    // silently drop weight. Total weight per row is invariant.
+    if (unmappedShare > 0) routeByRegion(a, unmappedShare);
+  }
+
   return (Object.keys(map) as AssetKey[])
     .filter((k) => map[k] > 0)
     .map((k) => ({ key: k, weight: map[k] }));
@@ -404,23 +685,118 @@ export function portfolioReturn(exp: AssetExposure[]): number {
   return r;
 }
 
-export function portfolioVol(exp: AssetExposure[]): number {
+// ---------------------------------------------------------------------------
+// Withholding-tax (WHT) drag on dividends — the "irrecoverable" tax that an
+// IE-domiciled UCITS ETF investor pays even after applying the most generous
+// double-tax treaty. Subtracted from the gross expReturn so headline metrics
+// (Sharpe, alpha, MC paths) reflect what actually hits the investor's
+// account, not the index-level gross return.
+//
+// Defaults assume IE-domiciled UCITS ETFs (the dominant CH/EU retail vehicle).
+// Values are net-net drag in decimal-of-NAV per year. Sources:
+//   - US equity: 15 % WHT on ~2 % div yield → ~30 bps p.a. (US-IE treaty;
+//     a US-domiciled ETF would face 30 % WHT for a non-US investor → 60 bps).
+//   - EM equity: blended ~20 % WHT on ~2.5 % div yield → ~50 bps; we round
+//     to 40 bps to stay slightly conservative on EM yield assumptions.
+//   - DM ex-US (EU / UK / JP / Thematic): 15 % WHT on ~2 % div yield → 20 bps.
+//   - CH equity: nominal 35 % CH WHT, but a CHF-resident reclaims 100 %
+//     via the annual tax return → 0 bps; non-CHF residents face the full
+//     drag (treated below as 20 bps after partial treaty refund).
+//   - Bonds / Cash: coupons largely WHT-free in major treaties → 0 bps.
+//   - Real Estate / Gold / Crypto: 0 bps in this model (REIT WHT is real
+//     but our reits bucket is global-blended and small; flagged as a known
+//     simplification in the Methodology tab).
+//
+// The drag enters every public-facing metric (computeMetrics, runMonteCarlo,
+// buildPortfolio rationale via computeMetrics, frontier) so the entire app
+// reports NET expected returns. Tests that previously asserted equality with
+// CMA[k].expReturn must subtract the corresponding drag.
+export const WHT_DRAG: Record<AssetKey, number> = {
+  equity_us:        0.0030,
+  equity_eu:        0.0020,
+  equity_uk:        0.0020,
+  equity_ch:        0.0020, // overridden to 0 for CHF residents — see whtDragForKey
+  equity_jp:        0.0020,
+  equity_em:        0.0040,
+  equity_thematic:  0.0020,
+  bonds:            0,
+  cash:             0,
+  gold:             0,
+  reits:            0,
+  crypto:           0,
+};
+
+export function whtDragForKey(
+  key: AssetKey,
+  baseCurrency: BaseCurrency,
+  syntheticUsEffective: boolean = false,
+): number {
+  // CH equity is fully WHT-reclaimable for CHF residents (annual tax return
+  // refunds the 35 % federal anticipatory tax). For all other base currencies
+  // the standard partial-treaty residual applies.
+  if (key === "equity_ch" && baseCurrency === "CHF") return 0;
+  // Synthetic-replication carve-out: a swap-based UCITS ETF on the S&P 500
+  // (e.g. Invesco IE00B3YCGJ38) doesn't legally receive US dividends — the
+  // total-return swap delivers the gross index return, so the 15 % US
+  // dividend WHT does NOT leak. Applies only to equity_us and only when
+  // the synthetic toggle is *effective* (the etfs.ts picker already gates
+  // synthetic off when the user wants currency hedging on a non-USD base,
+  // because a hedged synthetic share class isn't the standard pick).
+  if (key === "equity_us" && syntheticUsEffective) return 0;
+  return WHT_DRAG[key];
+}
+
+export function portfolioWhtDrag(
+  exp: AssetExposure[],
+  baseCurrency: BaseCurrency,
+  syntheticUsEffective: boolean = false,
+): number {
+  let d = 0;
+  for (const e of exp) d += e.weight * whtDragForKey(e.key, baseCurrency, syntheticUsEffective);
+  return d;
+}
+
+// The synthetic-ETF toggle's "is it actually firing?" gate. Mirrors the
+// condition in portfolio.ts:378 and etfs.ts:488/500 so all three places
+// agree on when the swap-based pick is in effect. Centralised here so any
+// future change to the gate (e.g. allowing hedged synthetic share classes)
+// only needs to be made once.
+export function isSyntheticUsEffective(
+  includeSyntheticETFs: boolean | undefined,
+  baseCurrency: BaseCurrency,
+  hedged: boolean | undefined,
+): boolean {
+  if (!includeSyntheticETFs) return false;
+  // Hedged + non-USD base: ETF picker keeps the physical pick, so the WHT
+  // drag stays in.
+  if (hedged && baseCurrency !== "USD") return false;
+  return true;
+}
+
+export function portfolioVol(
+  exp: AssetExposure[],
+  regime: RiskRegime = "normal",
+): number {
   let v = 0;
   for (let i = 0; i < exp.length; i++) {
     for (let j = 0; j < exp.length; j++) {
       const wi = exp[i].weight, wj = exp[j].weight;
       const si = CMA[exp[i].key].vol, sj = CMA[exp[j].key].vol;
-      v += wi * wj * si * sj * corr(exp[i].key, exp[j].key);
+      v += wi * wj * si * sj * corr(exp[i].key, exp[j].key, regime);
     }
   }
   return Math.sqrt(Math.max(v, 0));
 }
 
-export function covariance(a: AssetExposure[], b: AssetExposure[]): number {
+export function covariance(
+  a: AssetExposure[],
+  b: AssetExposure[],
+  regime: RiskRegime = "normal",
+): number {
   let cov = 0;
   for (const ea of a) {
     for (const eb of b) {
-      cov += ea.weight * eb.weight * CMA[ea.key].vol * CMA[eb.key].vol * corr(ea.key, eb.key);
+      cov += ea.weight * eb.weight * CMA[ea.key].vol * CMA[eb.key].vol * corr(ea.key, eb.key, regime);
     }
   }
   return cov;
@@ -451,15 +827,39 @@ export interface PortfolioMetricsResult {
   benchmarkVol: number;
 }
 
-export function computeMetrics(allocation: AssetAllocation[], baseCurrency: BaseCurrency): PortfolioMetricsResult {
+export function computeMetrics(
+  allocation: AssetAllocation[],
+  baseCurrency: BaseCurrency,
+  etfImplementation?: ETFImplementation[],
+  syntheticUsEffective: boolean = false,
+  riskRegime: RiskRegime = "normal",
+): PortfolioMetricsResult {
   const rf = getRiskFreeRate(baseCurrency);
-  const exp = mapAllocationToAssets(allocation);
-  const r = portfolioReturn(exp);
-  const v = portfolioVol(exp);
-  const rB = portfolioReturn(BENCHMARK);
-  const vB = portfolioVol(BENCHMARK);
+  // When the caller passes etfImplementation, we use look-through-aware
+  // bucket routing so vol/beta/TE/alpha reflect what the user actually
+  // holds (e.g. the UK + CH content inside an Equity-Europe ETF). When
+  // absent (older callers, tests), fall back to the region-based router.
+  const exp = etfImplementation
+    ? mapAllocationToAssetsLookthrough(allocation, etfImplementation, baseCurrency)
+    : mapAllocationToAssets(allocation, baseCurrency);
+  // Net of irrecoverable withholding-tax drag on dividends. Applied
+  // symmetrically to the portfolio AND the benchmark so alpha /
+  // outperformance aren't inflated by a tax the benchmark would also
+  // pay — EXCEPT for the synthetic-replication carve-out: the benchmark
+  // is treated as the practical alternative (a physical ACWI ETF), so
+  // it always carries full WHT. When the user opts into a swap-based US
+  // sleeve, that's a real implementation alpha vs the physical-ACWI
+  // counterfactual (~30 bps × US weight in the equity sleeve).
+  // Risk-regime: vol / β / TE / Sharpe / α / max-DD all flip together
+  // when the user toggles into "crisis". Returns are NOT regime-shifted —
+  // higher correlations don't mechanically change μ, only the dispersion
+  // around it. So Sharpe and α drop honestly under crisis.
+  const r = portfolioReturn(exp) - portfolioWhtDrag(exp, baseCurrency, syntheticUsEffective);
+  const v = portfolioVol(exp, riskRegime);
+  const rB = portfolioReturn(BENCHMARK) - portfolioWhtDrag(BENCHMARK, baseCurrency, false);
+  const vB = portfolioVol(BENCHMARK, riskRegime);
 
-  const cov_pb = covariance(exp, BENCHMARK);
+  const cov_pb = covariance(exp, BENCHMARK, riskRegime);
   const beta = vB > 0 ? cov_pb / (vB * vB) : 0;
   const alpha = r - (rf + beta * (rB - rf));
 
@@ -489,6 +889,81 @@ export function computeMetrics(allocation: AssetAllocation[], baseCurrency: Base
   };
 }
 
+// ---------------------------------------------------------------------------
+// Tracking-error decomposition.
+// ---------------------------------------------------------------------------
+// TE = sqrt(a' Σ a) where a = w_p − w_b are the active weights vs the
+// benchmark. The marginal contribution of asset i is
+//   c_i = a_i · (Σa)_i / TE,
+// and Σ c_i = a' Σ a / TE = TE² / TE = TE — i.e. the contributions sum
+// exactly to the total tracking error and tell the operator which active
+// bets are actually driving it (e.g. gold, home-bias, missing UK).
+// Contributions are signed: negative entries indicate positions that
+// diversify against the rest of the active book.
+export interface TrackingErrorContribution {
+  key: AssetKey;
+  label: string;
+  portfolioWeight: number;
+  benchmarkWeight: number;
+  activeWeight: number;
+  contribution: number;
+}
+export interface TrackingErrorDecomposition {
+  total: number;
+  rows: TrackingErrorContribution[];
+}
+
+export function decomposeTrackingError(
+  allocation: AssetAllocation[],
+  baseCurrency: BaseCurrency,
+  etfImplementation?: ETFImplementation[],
+  riskRegime: RiskRegime = "normal",
+): TrackingErrorDecomposition {
+  const exp = etfImplementation
+    ? mapAllocationToAssetsLookthrough(allocation, etfImplementation, baseCurrency)
+    : mapAllocationToAssets(allocation, baseCurrency);
+  const merged: Partial<Record<AssetKey, { p: number; b: number }>> = {};
+  for (const e of exp) {
+    const slot = (merged[e.key] ??= { p: 0, b: 0 });
+    slot.p += e.weight;
+  }
+  for (const b of BENCHMARK) {
+    const slot = (merged[b.key] ??= { p: 0, b: 0 });
+    slot.b += b.weight;
+  }
+  const keys = Object.keys(merged) as AssetKey[];
+  const a = keys.map((k) => merged[k]!.p - merged[k]!.b);
+
+  // Σa per asset (covariance row · active vector)
+  const sigmaA = keys.map((ki) => {
+    let s = 0;
+    for (let j = 0; j < keys.length; j++) {
+      s += a[j] * CMA[ki].vol * CMA[keys[j]].vol * corr(ki, keys[j], riskRegime);
+    }
+    return s;
+  });
+  const teVar = a.reduce((s, ai, i) => s + ai * sigmaA[i], 0);
+  const te = Math.sqrt(Math.max(teVar, 0));
+
+  const rows: TrackingErrorContribution[] = keys.map((k, i) => ({
+    key: k,
+    label: CMA[k].label,
+    portfolioWeight: merged[k]!.p,
+    benchmarkWeight: merged[k]!.b,
+    activeWeight: a[i],
+    contribution: te > 0 ? (a[i] * sigmaA[i]) / te : 0,
+  }));
+
+  // Drop rows the user has no relationship with (neither portfolio nor
+  // benchmark exposure), then sort by contribution magnitude so the biggest
+  // TE drivers are at the top.
+  const filtered = rows
+    .filter((r) => r.portfolioWeight > 1e-6 || r.benchmarkWeight > 1e-6)
+    .sort((x, y) => Math.abs(y.contribution) - Math.abs(x.contribution));
+
+  return { total: te, rows: filtered };
+}
+
 // Efficient frontier: scale equity sleeve from 0% to 100%, keeping internal mix.
 export interface FrontierPoint {
   equityPct: number;
@@ -498,9 +973,17 @@ export interface FrontierPoint {
   isCurrent?: boolean;
 }
 
-export function computeFrontier(allocation: AssetAllocation[], baseCurrency: BaseCurrency): { points: FrontierPoint[]; current: FrontierPoint } {
+export function computeFrontier(
+  allocation: AssetAllocation[],
+  baseCurrency: BaseCurrency,
+  etfImplementation?: ETFImplementation[],
+  syntheticUsEffective: boolean = false,
+  riskRegime: RiskRegime = "normal",
+): { points: FrontierPoint[]; current: FrontierPoint } {
   const rf = getRiskFreeRate(baseCurrency);
-  const exp = mapAllocationToAssets(allocation);
+  const exp = etfImplementation
+    ? mapAllocationToAssetsLookthrough(allocation, etfImplementation, baseCurrency)
+    : mapAllocationToAssets(allocation, baseCurrency);
   const equityKeys: AssetKey[] = ["equity_us", "equity_eu", "equity_uk", "equity_ch", "equity_jp", "equity_em", "equity_thematic", "reits", "crypto"];
   const isEq = (k: AssetKey) => equityKeys.includes(k);
 
@@ -524,8 +1007,12 @@ export function computeFrontier(allocation: AssetAllocation[], baseCurrency: Bas
       ...eqMix.map((e) => ({ key: e.key, weight: e.weight * w })),
       ...defMix.map((e) => ({ key: e.key, weight: e.weight * (1 - w) })),
     ];
-    const r = portfolioReturn(blended);
-    const v = portfolioVol(blended);
+    // Net of WHT drag — keeps the frontier on the same return scale as the
+    // metric tile and rationale strings (see computeMetrics above). The
+    // synthetic-US carve-out applies here too, so the curve faithfully shifts
+    // up when the toggle flips.
+    const r = portfolioReturn(blended) - portfolioWhtDrag(blended, baseCurrency, syntheticUsEffective);
+    const v = portfolioVol(blended, riskRegime);
     points.push({
       equityPct: pct,
       vol: v,
@@ -535,8 +1022,8 @@ export function computeFrontier(allocation: AssetAllocation[], baseCurrency: Bas
   }
 
   const currentEqPct = Math.round(eqWeightSum * 100);
-  const r = portfolioReturn(exp);
-  const v = portfolioVol(exp);
+  const r = portfolioReturn(exp) - portfolioWhtDrag(exp, baseCurrency, syntheticUsEffective);
+  const v = portfolioVol(exp, riskRegime);
   const current: FrontierPoint = {
     equityPct: currentEqPct,
     vol: v,
@@ -563,17 +1050,24 @@ const CORR_DISPLAY_ORDER: AssetKey[] = [
   "gold", "reits", "crypto",
 ];
 
-export function buildCorrelationMatrix(allocation: AssetAllocation[]): {
+export function buildCorrelationMatrix(
+  allocation: AssetAllocation[],
+  baseCurrency: BaseCurrency = "USD",
+  etfImplementation?: ETFImplementation[],
+  riskRegime: RiskRegime = "normal",
+): {
   keys: AssetKey[];
   labels: string[];
   matrix: number[][];
   held: boolean[];
 } {
-  const exp = mapAllocationToAssets(allocation);
+  const exp = etfImplementation
+    ? mapAllocationToAssetsLookthrough(allocation, etfImplementation, baseCurrency)
+    : mapAllocationToAssets(allocation, baseCurrency);
   const heldSet = new Set<AssetKey>(exp.map((e) => e.key));
   const keys = [...CORR_DISPLAY_ORDER];
   const labels = keys.map((k) => CMA[k].label);
-  const matrix = keys.map((a) => keys.map((b) => corr(a, b)));
+  const matrix = keys.map((a) => keys.map((b) => corr(a, b, riskRegime)));
   const held = keys.map((k) => heldSet.has(k));
   return { keys, labels, matrix, held };
 }

@@ -856,6 +856,7 @@
   },
   "pool": {
     "CH0031768937": {
+      "name": "iShares SLI ETF (CH)",
       "topHoldings": [
         {
           "name": "Novartis AG",
@@ -922,6 +923,982 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=CH0031768937",
       "_addedAt": "2026-04-27T11:05:00.725Z",
       "_addedVia": "admin/lookthrough-pool"
+    },
+    "IE00B53SZB19": {
+      "name": "iShares Nasdaq 100 UCITS ETF (Acc)",
+      "topHoldings": [
+        {
+          "name": "NVIDIA Corp.",
+          "pct": 8.73
+        },
+        {
+          "name": "Apple",
+          "pct": 7.84
+        },
+        {
+          "name": "Microsoft",
+          "pct": 5.8
+        },
+        {
+          "name": "Amazon.com, Inc.",
+          "pct": 4.32
+        },
+        {
+          "name": "Tesla",
+          "pct": 3.96
+        },
+        {
+          "name": "Meta Platforms",
+          "pct": 3.75
+        },
+        {
+          "name": "Alphabet, Inc. A",
+          "pct": 3.47
+        },
+        {
+          "name": "Walmart, Inc.",
+          "pct": 3.26
+        },
+        {
+          "name": "Alphabet, Inc. C",
+          "pct": 3.23
+        },
+        {
+          "name": "Broadcom Inc.",
+          "pct": 2.95
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-27T16:24:48.015Z",
+      "geo": {
+        "United States": 92.73,
+        "Other": 7.27
+      },
+      "sector": {
+        "Technology": 49.08,
+        "Telecommunication": 15.28,
+        "Consumer Discretionary": 12.45,
+        "Consumer Staples": 8.35,
+        "Health Care": 4.95,
+        "Industrials": 3.21,
+        "Utilities": 1.53,
+        "Energy": 0.6,
+        "Other": 4.55
+      },
+      "currency": {
+        "USD": 92.73,
+        "Other": 7.27
+      },
+      "breakdownsAsOf": "2026-04-27T16:24:48.015Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B53SZB19",
+      "_addedAt": "2026-04-27T16:24:48.015Z",
+      "_addedVia": "admin/lookthrough-pool"
+    },
+    "IE00BM67HT60": {
+      "name": "Xtrackers MSCI World Information Technology UCITS ETF 1C",
+      "topHoldings": [
+        {
+          "name": "NVIDIA Corp.",
+          "pct": 20.57
+        },
+        {
+          "name": "Apple",
+          "pct": 18.55
+        },
+        {
+          "name": "Microsoft",
+          "pct": 12.99
+        },
+        {
+          "name": "Broadcom Inc.",
+          "pct": 6.61
+        },
+        {
+          "name": "ASML Holding NV",
+          "pct": 2.58
+        },
+        {
+          "name": "Micron Technology",
+          "pct": 2.13
+        },
+        {
+          "name": "AMD",
+          "pct": 1.51
+        },
+        {
+          "name": "Palantir Technologies, Inc.",
+          "pct": 1.42
+        },
+        {
+          "name": "Cisco Systems, Inc.",
+          "pct": 1.41
+        },
+        {
+          "name": "Lam Research",
+          "pct": 1.38
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-27T18:13:31.321Z",
+      "geo": {
+        "United States": 85.79,
+        "Japan": 3.34,
+        "Netherlands": 3.21,
+        "Germany": 1.32,
+        "Other": 6.34
+      },
+      "sector": {
+        "Technology": 96.89,
+        "Telecommunication": 0.1,
+        "Other": 3.01
+      },
+      "currency": {
+        "USD": 85.79,
+        "JPY": 3.34,
+        "EUR": 4.53,
+        "Other": 6.34
+      },
+      "breakdownsAsOf": "2026-04-27T18:13:31.321Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BM67HT60",
+      "_addedAt": "2026-04-27T18:13:31.321Z",
+      "_addedVia": "admin/lookthrough-pool"
+    },
+    "IE00B3RBWM25": {
+      "topHoldings": [
+        {
+          "name": "NVIDIA Corp.",
+          "pct": 4.13
+        },
+        {
+          "name": "Apple",
+          "pct": 3.83
+        },
+        {
+          "name": "Microsoft",
+          "pct": 2.9
+        },
+        {
+          "name": "Amazon.com, Inc.",
+          "pct": 2.01
+        },
+        {
+          "name": "Alphabet, Inc. A",
+          "pct": 1.81
+        },
+        {
+          "name": "Taiwan Semiconductor Manufacturing Co., Ltd.",
+          "pct": 1.54
+        },
+        {
+          "name": "Broadcom Inc.",
+          "pct": 1.47
+        },
+        {
+          "name": "Alphabet, Inc. C",
+          "pct": 1.46
+        },
+        {
+          "name": "Meta Platforms",
+          "pct": 1.41
+        },
+        {
+          "name": "Tesla",
+          "pct": 1.13
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-27T18:49:41.832Z",
+      "geo": {
+        "United States": 55.36,
+        "Japan": 6.09,
+        "United Kingdom": 3,
+        "China": 2.87,
+        "Taiwan": 2.67,
+        "Canada": 2.63,
+        "Switzerland": 2.36,
+        "South Korea": 2.2,
+        "Germany": 2.03,
+        "France": 1.96,
+        "Australia": 1.65,
+        "India": 1.51,
+        "Netherlands": 1.33,
+        "Ireland": 1.02,
+        "Other": 13.32
+      },
+      "sector": {
+        "Technology": 25.87,
+        "Financials": 14.75,
+        "Industrials": 10.57,
+        "Consumer Discretionary": 9.51,
+        "Health Care": 8.23,
+        "Telecommunication": 8.06,
+        "Consumer Staples": 4.94,
+        "Energy": 3.83,
+        "Basic Materials": 3.68,
+        "Utilities": 2.67,
+        "Real Estate": 1.95,
+        "Other": 5.94
+      },
+      "currency": {
+        "USD": 55.36,
+        "JPY": 6.09,
+        "GBP": 3,
+        "CNY": 2.87,
+        "TWD": 2.67,
+        "CAD": 2.63,
+        "CHF": 2.36,
+        "KRW": 2.2,
+        "EUR": 6.34,
+        "AUD": 1.65,
+        "INR": 1.51,
+        "Other": 13.32
+      },
+      "breakdownsAsOf": "2026-04-27T18:49:41.832Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B3RBWM25",
+      "_addedAt": "2026-04-27T18:49:41.832Z",
+      "_addedVia": "admin/lookthrough-pool"
+    },
+    "FR0007054358": {
+      "name": "Amundi EURO STOXX 50 II UCITS ETF Acc",
+      "topHoldings": [
+        {
+          "name": "ASML Holding NV",
+          "pct": 10.95
+        },
+        {
+          "name": "Siemens AG",
+          "pct": 4.12
+        },
+        {
+          "name": "SAP SE",
+          "pct": 3.96
+        },
+        {
+          "name": "Banco Santander SA",
+          "pct": 3.59
+        },
+        {
+          "name": "Schneider Electric SE",
+          "pct": 3.41
+        },
+        {
+          "name": "TotalEnergies SE",
+          "pct": 3.34
+        },
+        {
+          "name": "Allianz SE",
+          "pct": 3.24
+        },
+        {
+          "name": "LVMH Moët Hennessy Louis Vuitton SE",
+          "pct": 3.03
+        },
+        {
+          "name": "Safran SA",
+          "pct": 2.92
+        },
+        {
+          "name": "Siemens Energy AG",
+          "pct": 2.89
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-28T10:49:43.117Z",
+      "geo": {
+        "Germany": 29.56,
+        "France": 27.96,
+        "Netherlands": 19.21,
+        "Spain": 10.38,
+        "Italy": 7.86,
+        "Belgium": 1.56,
+        "Finland": 1.23,
+        "Other": 2.24
+      },
+      "sector": {
+        "Financials": 24.64,
+        "Industrials": 21.9,
+        "Technology": 16.94,
+        "Consumer Discretionary": 12.51,
+        "Utilities": 4.31,
+        "Energy": 4.18,
+        "Health Care": 4.08,
+        "Consumer Staples": 3.66,
+        "Telecommunication": 2.62,
+        "Basic Materials": 1.17,
+        "Other": 3.99
+      },
+      "currency": {
+        "EUR": 97.76,
+        "Other": 2.24
+      },
+      "breakdownsAsOf": "2026-04-28T10:49:43.117Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=FR0007054358",
+      "_addedAt": "2026-04-28T10:49:43.117Z",
+      "_addedVia": "admin/bucket-alternatives (auto)"
+    },
+    "IE00BK5BQT80": {
+      "name": "Vanguard FTSE All-World UCITS ETF (USD) Accumulating",
+      "topHoldings": [
+        {
+          "name": "NVIDIA Corp.",
+          "pct": 4.13
+        },
+        {
+          "name": "Apple",
+          "pct": 3.83
+        },
+        {
+          "name": "Microsoft",
+          "pct": 2.9
+        },
+        {
+          "name": "Amazon.com, Inc.",
+          "pct": 2.01
+        },
+        {
+          "name": "Alphabet, Inc. A",
+          "pct": 1.81
+        },
+        {
+          "name": "Taiwan Semiconductor Manufacturing Co., Ltd.",
+          "pct": 1.54
+        },
+        {
+          "name": "Broadcom Inc.",
+          "pct": 1.47
+        },
+        {
+          "name": "Alphabet, Inc. C",
+          "pct": 1.46
+        },
+        {
+          "name": "Meta Platforms",
+          "pct": 1.41
+        },
+        {
+          "name": "Tesla",
+          "pct": 1.13
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-28T11:06:00.752Z",
+      "geo": {
+        "United States": 55.36,
+        "Japan": 6.09,
+        "United Kingdom": 3,
+        "China": 2.87,
+        "Taiwan": 2.67,
+        "Canada": 2.63,
+        "Switzerland": 2.36,
+        "South Korea": 2.2,
+        "Germany": 2.03,
+        "France": 1.96,
+        "Australia": 1.65,
+        "India": 1.51,
+        "Netherlands": 1.33,
+        "Ireland": 1.02,
+        "Other": 13.32
+      },
+      "sector": {
+        "Technology": 25.87,
+        "Financials": 14.75,
+        "Industrials": 10.57,
+        "Consumer Discretionary": 9.51,
+        "Health Care": 8.23,
+        "Telecommunication": 8.06,
+        "Consumer Staples": 4.94,
+        "Energy": 3.83,
+        "Basic Materials": 3.68,
+        "Utilities": 2.67,
+        "Real Estate": 1.95,
+        "Other": 5.94
+      },
+      "currency": {
+        "USD": 55.36,
+        "JPY": 6.09,
+        "GBP": 3,
+        "CNY": 2.87,
+        "TWD": 2.67,
+        "CAD": 2.63,
+        "CHF": 2.36,
+        "KRW": 2.2,
+        "EUR": 6.34,
+        "AUD": 1.65,
+        "INR": 1.51,
+        "Other": 13.32
+      },
+      "breakdownsAsOf": "2026-04-28T11:06:00.752Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BK5BQT80",
+      "_addedAt": "2026-04-28T11:06:00.752Z",
+      "_addedVia": "admin/lookthrough-pool/backfill"
+    },
+    "IE00B6R52259": {
+      "name": "iShares MSCI ACWI UCITS ETF USD (Acc)",
+      "topHoldings": [
+        {
+          "name": "NVIDIA Corp.",
+          "pct": 4.59
+        },
+        {
+          "name": "Apple",
+          "pct": 4.14
+        },
+        {
+          "name": "Microsoft",
+          "pct": 2.9
+        },
+        {
+          "name": "Amazon.com, Inc.",
+          "pct": 2.04
+        },
+        {
+          "name": "Alphabet, Inc. A",
+          "pct": 1.83
+        },
+        {
+          "name": "Taiwan Semiconductor Manufacturing Co., Ltd.",
+          "pct": 1.62
+        },
+        {
+          "name": "Alphabet, Inc. C",
+          "pct": 1.54
+        },
+        {
+          "name": "Broadcom Inc.",
+          "pct": 1.48
+        },
+        {
+          "name": "Meta Platforms",
+          "pct": 1.46
+        },
+        {
+          "name": "Tesla",
+          "pct": 1.18
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-28T11:06:02.138Z",
+      "geo": {
+        "United States": 58.36,
+        "Japan": 5.24,
+        "United Kingdom": 3,
+        "Canada": 2.8,
+        "Taiwan": 2.69,
+        "China": 2.62,
+        "Switzerland": 2.38,
+        "South Korea": 2.24,
+        "France": 2.18,
+        "Germany": 2.1,
+        "Australia": 1.47,
+        "Netherlands": 1.38,
+        "India": 1.34,
+        "Ireland": 1.08,
+        "Other": 11.12
+      },
+      "sector": {
+        "Technology": 27.18,
+        "Financials": 15.13,
+        "Industrials": 10.64,
+        "Consumer Discretionary": 9.53,
+        "Health Care": 8.29,
+        "Telecommunication": 8.18,
+        "Consumer Staples": 5,
+        "Energy": 3.89,
+        "Basic Materials": 3.59,
+        "Utilities": 2.66,
+        "Real Estate": 1.79,
+        "Other": 4.13
+      },
+      "currency": {
+        "USD": 58.36,
+        "JPY": 5.24,
+        "GBP": 3,
+        "CAD": 2.8,
+        "TWD": 2.69,
+        "CNY": 2.62,
+        "CHF": 2.38,
+        "KRW": 2.24,
+        "EUR": 6.74,
+        "AUD": 1.47,
+        "INR": 1.34,
+        "Other": 11.12
+      },
+      "breakdownsAsOf": "2026-04-28T11:06:02.138Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B6R52259",
+      "_addedAt": "2026-04-28T11:06:02.138Z",
+      "_addedVia": "admin/lookthrough-pool/backfill"
+    },
+    "IE00BFMXXD54": {
+      "name": "Vanguard S&P 500 UCITS ETF (USD) Accumulating",
+      "topHoldings": [
+        {
+          "name": "NVIDIA Corp.",
+          "pct": 7.3
+        },
+        {
+          "name": "Apple",
+          "pct": 6.62
+        },
+        {
+          "name": "Microsoft",
+          "pct": 4.95
+        },
+        {
+          "name": "Amazon.com, Inc.",
+          "pct": 3.47
+        },
+        {
+          "name": "Alphabet, Inc. A",
+          "pct": 3.08
+        },
+        {
+          "name": "Broadcom Inc.",
+          "pct": 2.56
+        },
+        {
+          "name": "Alphabet, Inc. C",
+          "pct": 2.46
+        },
+        {
+          "name": "Meta Platforms",
+          "pct": 2.39
+        },
+        {
+          "name": "Tesla",
+          "pct": 1.92
+        },
+        {
+          "name": "Berkshire Hathaway, Inc.",
+          "pct": 1.57
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-28T11:06:02.548Z",
+      "geo": {
+        "United States": 94.79,
+        "Ireland": 1.48,
+        "Other": 3.73
+      },
+      "sector": {
+        "Technology": 33.42,
+        "Telecommunication": 10.45,
+        "Consumer Discretionary": 10.08,
+        "Financials": 10.05,
+        "Health Care": 9.66,
+        "Industrials": 8.52,
+        "Consumer Staples": 5.14,
+        "Energy": 3.47,
+        "Utilities": 2.48,
+        "Real Estate": 1.94,
+        "Basic Materials": 1.65,
+        "Other": 3.14
+      },
+      "currency": {
+        "USD": 94.79,
+        "EUR": 1.48,
+        "Other": 3.73
+      },
+      "breakdownsAsOf": "2026-04-28T11:06:02.548Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BFMXXD54",
+      "_addedAt": "2026-04-28T11:06:02.548Z",
+      "_addedVia": "admin/lookthrough-pool/backfill"
+    },
+    "IE00B6YX5C33": {
+      "name": "State Street SPDR S&P 500 UCITS ETF USD Unhedged (Dist)",
+      "topHoldings": [
+        {
+          "name": "NVIDIA Corp.",
+          "pct": 7.32
+        },
+        {
+          "name": "Apple",
+          "pct": 6.64
+        },
+        {
+          "name": "Microsoft",
+          "pct": 4.96
+        },
+        {
+          "name": "Amazon.com, Inc.",
+          "pct": 3.47
+        },
+        {
+          "name": "Alphabet, Inc. A",
+          "pct": 3.08
+        },
+        {
+          "name": "Broadcom Inc.",
+          "pct": 2.57
+        },
+        {
+          "name": "Alphabet, Inc. C",
+          "pct": 2.46
+        },
+        {
+          "name": "Meta Platforms",
+          "pct": 2.4
+        },
+        {
+          "name": "Tesla",
+          "pct": 1.92
+        },
+        {
+          "name": "Berkshire Hathaway, Inc.",
+          "pct": 1.57
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-28T11:06:03.043Z",
+      "geo": {
+        "United States": 95.27,
+        "Ireland": 1.48,
+        "Other": 3.25
+      },
+      "sector": {
+        "Technology": 33.51,
+        "Telecommunication": 10.49,
+        "Financials": 10.29,
+        "Consumer Discretionary": 10.1,
+        "Health Care": 9.69,
+        "Industrials": 8.54,
+        "Consumer Staples": 5.17,
+        "Energy": 3.47,
+        "Utilities": 2.48,
+        "Real Estate": 1.95,
+        "Basic Materials": 1.67,
+        "Other": 2.64
+      },
+      "currency": {
+        "USD": 95.27,
+        "EUR": 1.48,
+        "Other": 3.25
+      },
+      "breakdownsAsOf": "2026-04-28T11:06:03.043Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B6YX5C33",
+      "_addedAt": "2026-04-28T11:06:03.043Z",
+      "_addedVia": "admin/lookthrough-pool/backfill"
+    },
+    "IE00B945VV12": {
+      "name": "Vanguard FTSE Developed Europe UCITS ETF Distributing",
+      "topHoldings": [
+        {
+          "name": "ASML Holding NV",
+          "pct": 3.68
+        },
+        {
+          "name": "AstraZeneca PLC",
+          "pct": 2.14
+        },
+        {
+          "name": "Novartis AG",
+          "pct": 2.12
+        },
+        {
+          "name": "HSBC Holdings Plc",
+          "pct": 2.04
+        },
+        {
+          "name": "Roche Holding AG",
+          "pct": 2.03
+        },
+        {
+          "name": "Shell Plc",
+          "pct": 1.98
+        },
+        {
+          "name": "Nestlé SA",
+          "pct": 1.85
+        },
+        {
+          "name": "Siemens AG",
+          "pct": 1.28
+        },
+        {
+          "name": "SAP SE",
+          "pct": 1.28
+        },
+        {
+          "name": "TotalEnergies SE",
+          "pct": 1.25
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-28T11:06:04.940Z",
+      "geo": {
+        "United Kingdom": 19.22,
+        "Switzerland": 14.35,
+        "Germany": 13.31,
+        "France": 13.21,
+        "Netherlands": 8.34,
+        "Spain": 5.25,
+        "Sweden": 4.92,
+        "Italy": 4.74,
+        "Finland": 1.51,
+        "Denmark": 1.41,
+        "Belgium": 1.3,
+        "Other": 12.44
+      },
+      "sector": {
+        "Financials": 22.19,
+        "Industrials": 17.88,
+        "Health Care": 10.98,
+        "Technology": 7.79,
+        "Consumer Staples": 7.43,
+        "Consumer Discretionary": 7.17,
+        "Utilities": 4.73,
+        "Basic Materials": 4.29,
+        "Energy": 4.18,
+        "Telecommunication": 3.12,
+        "Real Estate": 0.97,
+        "Other": 9.27
+      },
+      "currency": {
+        "GBP": 19.22,
+        "CHF": 14.35,
+        "EUR": 47.66,
+        "SEK": 4.92,
+        "DKK": 1.41,
+        "Other": 12.44
+      },
+      "breakdownsAsOf": "2026-04-28T11:06:04.940Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B945VV12",
+      "_addedAt": "2026-04-28T11:06:04.940Z",
+      "_addedVia": "admin/lookthrough-pool/backfill"
+    },
+    "IE00B53HP851": {
+      "name": "iShares Core FTSE 100 UCITS ETF GBP (Acc)",
+      "topHoldings": [
+        {
+          "name": "HSBC Holdings Plc",
+          "pct": 9.08
+        },
+        {
+          "name": "AstraZeneca PLC",
+          "pct": 8.56
+        },
+        {
+          "name": "Shell Plc",
+          "pct": 6.61
+        },
+        {
+          "name": "Unilever Plc",
+          "pct": 4.35
+        },
+        {
+          "name": "Rolls-Royce Holdings",
+          "pct": 4.34
+        },
+        {
+          "name": "British American Tobacco plc",
+          "pct": 3.72
+        },
+        {
+          "name": "GSK Plc",
+          "pct": 3.27
+        },
+        {
+          "name": "Rio Tinto Plc",
+          "pct": 2.85
+        },
+        {
+          "name": "BP Plc",
+          "pct": 2.81
+        },
+        {
+          "name": "National Grid",
+          "pct": 2.6
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-28T11:06:05.429Z",
+      "geo": {
+        "United Kingdom": 84.24,
+        "Switzerland": 2.45,
+        "Ireland": 1.13,
+        "Other": 12.18
+      },
+      "sector": {
+        "Financials": 22.79,
+        "Industrials": 14.02,
+        "Health Care": 12.52,
+        "Consumer Staples": 10.25,
+        "Energy": 9.43,
+        "Basic Materials": 6.3,
+        "Utilities": 4.85,
+        "Consumer Discretionary": 3.96,
+        "Telecommunication": 2.27,
+        "Real Estate": 0.94,
+        "Technology": 0.88,
+        "Other": 11.81
+      },
+      "currency": {
+        "GBP": 84.24,
+        "CHF": 2.45,
+        "EUR": 1.13,
+        "Other": 12.18
+      },
+      "breakdownsAsOf": "2026-04-28T11:06:05.429Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B53HP851",
+      "_addedAt": "2026-04-28T11:06:05.429Z",
+      "_addedVia": "admin/lookthrough-pool/backfill"
+    },
+    "IE00BK5BR733": {
+      "name": "Vanguard FTSE Emerging Markets UCITS ETF (USD) Accumulating",
+      "topHoldings": [
+        {
+          "name": "Taiwan Semiconductor Manufacturing Co., Ltd.",
+          "pct": 14
+        },
+        {
+          "name": "Tencent Holdings Ltd.",
+          "pct": 4
+        },
+        {
+          "name": "Alibaba Group Holding Ltd.",
+          "pct": 2.84
+        },
+        {
+          "name": "Reliance Industries Ltd.",
+          "pct": 1.01
+        },
+        {
+          "name": "China Construction Bank Corp.",
+          "pct": 0.97
+        },
+        {
+          "name": "HDFC Bank Ltd.",
+          "pct": 0.91
+        },
+        {
+          "name": "Delta Electronics, Inc.",
+          "pct": 0.87
+        },
+        {
+          "name": "PDD Holdings",
+          "pct": 0.81
+        },
+        {
+          "name": "Hon Hai Precision Industry Co., Ltd.",
+          "pct": 0.75
+        },
+        {
+          "name": "Xiaomi Corp.",
+          "pct": 0.73
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-28T11:06:06.914Z",
+      "geo": {
+        "China": 27.09,
+        "Taiwan": 25.4,
+        "India": 14.48,
+        "Brazil": 4.28,
+        "South Africa": 3.46,
+        "Saudi Arabia": 3.07,
+        "Mexico": 2.23,
+        "Malaysia": 1.6,
+        "United Arab Emirates": 1.59,
+        "Thailand": 1.23,
+        "Hong Kong": 1.2,
+        "Indonesia": 1.02,
+        "Other": 13.35
+      },
+      "sector": {
+        "Technology": 25.55,
+        "Financials": 20.07,
+        "Consumer Discretionary": 10.25,
+        "Basic Materials": 7.61,
+        "Telecommunication": 7.59,
+        "Industrials": 5.82,
+        "Energy": 4.26,
+        "Consumer Staples": 3.56,
+        "Health Care": 2.8,
+        "Utilities": 2.49,
+        "Real Estate": 1.58,
+        "Other": 8.42
+      },
+      "currency": {
+        "CNY": 27.09,
+        "TWD": 25.4,
+        "INR": 14.48,
+        "BRL": 4.28,
+        "ZAR": 3.46,
+        "SAR": 3.07,
+        "MXN": 2.23,
+        "MYR": 1.6,
+        "AED": 1.59,
+        "THB": 1.23,
+        "HKD": 1.2,
+        "IDR": 1.02,
+        "Other": 13.35
+      },
+      "breakdownsAsOf": "2026-04-28T11:06:06.914Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BK5BR733",
+      "_addedAt": "2026-04-28T11:06:06.914Z",
+      "_addedVia": "admin/lookthrough-pool/backfill"
+    },
+    "IE00B3ZW0K18": {
+      "name": "iShares S&P 500 EUR Hedged UCITS ETF (Acc)",
+      "topHoldings": [
+        {
+          "name": "NVIDIA Corp.",
+          "pct": 7.62
+        },
+        {
+          "name": "Apple",
+          "pct": 6.84
+        },
+        {
+          "name": "Microsoft",
+          "pct": 5.06
+        },
+        {
+          "name": "Amazon.com, Inc.",
+          "pct": 3.43
+        },
+        {
+          "name": "Alphabet, Inc. A",
+          "pct": 3.03
+        },
+        {
+          "name": "Broadcom Inc.",
+          "pct": 2.58
+        },
+        {
+          "name": "Meta Platforms",
+          "pct": 2.43
+        },
+        {
+          "name": "Alphabet, Inc. C",
+          "pct": 2.42
+        },
+        {
+          "name": "Tesla",
+          "pct": 1.95
+        },
+        {
+          "name": "Berkshire Hathaway, Inc.",
+          "pct": 1.56
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-28T11:06:07.550Z",
+      "geo": {
+        "United States": 95.43,
+        "Ireland": 1.48,
+        "Other": 3.09
+      },
+      "sector": {
+        "Technology": 34.11,
+        "Financials": 10.53,
+        "Telecommunication": 10.3,
+        "Consumer Discretionary": 10.08,
+        "Health Care": 9.49,
+        "Industrials": 8.5,
+        "Consumer Staples": 5.05,
+        "Energy": 3.41,
+        "Utilities": 2.45,
+        "Real Estate": 1.93,
+        "Basic Materials": 1.65,
+        "Other": 2.5
+      },
+      "currency": {
+        "USD": 95.43,
+        "EUR": 1.48,
+        "Other": 3.09
+      },
+      "breakdownsAsOf": "2026-04-28T11:06:07.550Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B3ZW0K18",
+      "_addedAt": "2026-04-28T11:06:07.550Z",
+      "_addedVia": "admin/lookthrough-pool/backfill"
     },
     "IE00BTJRMP35": {
       "topHoldings": [

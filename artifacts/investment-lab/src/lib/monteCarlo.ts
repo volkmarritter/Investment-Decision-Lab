@@ -1,11 +1,28 @@
-import { AssetAllocation } from "./types";
-import { CMA, AssetKey, corr } from "./metrics";
+import { AssetAllocation, BaseCurrency } from "./types";
+import { CMA, AssetKey, corr, BENCHMARK, whtDragForKey, RiskRegime } from "./metrics";
+
+/** Tail-distribution choice for the Monte-Carlo annual-return sampler.
+ *  - "gauss" (default, backward compatible): standard log-normal paths,
+ *    each year drawn from N(0, 1) → exp(μ - σ²/2 + σ z).
+ *  - "studentT": same drift / volatility scaling, but z is drawn from a
+ *    standardised Student-t with `df` degrees of freedom (variance
+ *    re-scaled to 1 so portfolioSigma keeps its meaning). Produces fatter
+ *    tails — strictly worse CVaR99 and 5th-percentile Path-MDD than Gauss
+ *    at the same σ. df=5 is the operator default (recovers ~Gauss for
+ *    df ≥ 30, gets pathologically heavy for df < 4). */
+export type TailModel = "gauss" | "studentT";
 
 // Map an (assetClass, region) pair to the CMA key. Mirrors the logic in
 // metrics.mapAllocationToAssets so Monte Carlo, Sharpe and the frontier all
 // draw from the same single source of truth (CMA — including any user
-// overrides applied via applyCMALayers).
-function bucketKey(assetClass: string, region: string): AssetKey {
+// overrides applied via applyCMALayers). "Home" / "Global" are the engine's
+// equity-sleeve compaction labels (see portfolio.ts:280-287); they must
+// resolve to real region keys instead of falling through to thematic, or
+// vol / Sharpe / TE / beta drift away from reality.
+const HOME_BUCKET: Record<string, AssetKey> = {
+  USD: "equity_us", EUR: "equity_eu", GBP: "equity_uk", CHF: "equity_ch",
+};
+function bucketKey(assetClass: string, region: string, baseCurrency: string = "USD"): AssetKey {
   const ac = assetClass.toLowerCase();
   const rg = region.toLowerCase();
   if (ac.includes("cash")) return "cash";
@@ -14,12 +31,16 @@ function bucketKey(assetClass: string, region: string): AssetKey {
   if (ac.includes("real estate")) return "reits";
   if (ac.includes("digital") || ac.includes("crypto")) return "crypto";
   if (ac.includes("equity")) {
+    if (rg === "home") return HOME_BUCKET[baseCurrency] ?? "equity_us";
     if (rg.includes("usa")) return "equity_us";
     if (rg.includes("switzer")) return "equity_ch";
     if (rg === "uk" || rg.includes("united kingdom")) return "equity_uk";
     if (rg.includes("europ")) return "equity_eu";
     if (rg.includes("japan")) return "equity_jp";
     if (rg.includes("em")) return "equity_em";
+    // "Global" intentionally falls through here — runMonteCarlo expands
+    // a single Global row across the BENCHMARK weights (see below) so
+    // we never collapse it into one bucket the way other regions do.
     return "equity_thematic";
   }
   return "equity_thematic";
@@ -53,17 +74,33 @@ export interface MonteCarloResult {
   cvar95Return: number;
   cvar99Final: number;
   cvar99Return: number;
+  // Path-based realized maximum drawdown. For each simulated path we track
+  // the running peak across all years and record the worst peak-to-trough
+  // drop; we then summarise the distribution across paths.
+  // - realizedMddP50: median realized MDD (the "typical" path's worst drop)
+  // - realizedMddP05: 5th-percentile realized MDD — a true tail measure that
+  //   answers "how bad does it get in the worst 5 % of histories?"
+  // Both are negative numbers (e.g. -0.32 = -32 %). Replaces the older
+  // analytical heuristic `MDD ≈ -(1.8 + 1.4·equityShare)·σ` for the MC view.
+  realizedMddP50: number;
+  realizedMddP05: number;
 }
 
 function bucketAssumption(
   assetClass: string,
   region: string,
   hedged: boolean = false,
-  baseCurrency: string = "USD"
+  baseCurrency: BaseCurrency = "USD",
+  syntheticUsEffective: boolean = false,
 ): BucketAssumption {
-  const key = bucketKey(assetClass, region);
+  const key = bucketKey(assetClass, region, baseCurrency);
   const cma = CMA[key];
-  let mu = cma.expReturn;
+  // Net of irrecoverable WHT on dividends — same drag definition used by
+  // computeMetrics, so MC paths and the analytical Risk & Performance
+  // metrics agree on the headline expected return. Synthetic-US carve-out
+  // is honoured here too, so MC and analytical views shift together when
+  // the toggle flips.
+  let mu = cma.expReturn - whtDragForKey(key, baseCurrency, syntheticUsEffective);
   let sigma = cma.vol;
 
   // FX-hedge sigma reduction for foreign equity. Applied after reading CMA so
@@ -99,6 +136,37 @@ function gaussian(rng: () => number): number {
   return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
 }
 
+// Standardised Student-t draw with `df` degrees of freedom, rescaled so
+// the realised variance is 1 (matches a standard Gaussian's second
+// moment). Construction:
+//   1. Sample z ~ N(0,1) and an independent χ²(df) via the standard
+//      gamma-from-uniforms identity. We approximate χ²(df) with the sum
+//      of df i.i.d. squared standard normals — it is exact and avoids
+//      pulling in a gamma sampler. df is small (default 5) so the cost
+//      is negligible.
+//   2. The raw t = z / sqrt(χ² / df) has variance df / (df - 2) for
+//      df > 2. Re-scale by sqrt((df - 2) / df) to bring variance back
+//      to 1 so the caller can keep using portfolioSigma as the second-
+//      moment knob without bias drift.
+// Why fatter tails matter: at df = 5 the kurtosis is 9 vs Gauss's 3, so
+// the probability of a 3-σ event is ~1.5 % vs Gauss's 0.27 % — about a
+// 5× heavier tail. CVaR99 / Path-MDD-P05 strictly worsen at the same σ.
+// Caller guards: df is clamped to [3, 100] in runMonteCarlo so the
+// variance scaler is well-defined (df > 2) and the heavy-tail effect
+// doesn't degenerate (df ≥ 100 is numerically Gauss).
+function studentT(rng: () => number, df: number): number {
+  const z = gaussian(rng);
+  let chi2 = 0;
+  for (let i = 0; i < df; i++) {
+    const g = gaussian(rng);
+    chi2 += g * g;
+  }
+  // Guard against the (effectively impossible) chi2 = 0 draw.
+  const tRaw = z / Math.sqrt(Math.max(chi2, 1e-12) / df);
+  // Variance of raw t(df) is df/(df-2) for df > 2 → rescale to 1.
+  return tRaw * Math.sqrt((df - 2) / df);
+}
+
 function quantile(sorted: number[], q: number): number {
   if (sorted.length === 0) return 0;
   const pos = (sorted.length - 1) * q;
@@ -118,13 +186,34 @@ export function runMonteCarlo(
     paths?: number;
     seed?: number;
     hedged?: boolean;
-    baseCurrency?: string;
+    baseCurrency?: BaseCurrency;
+    syntheticUsEffective?: boolean;
+    /** Correlation regime fed into portfolioSigma. Default "normal" (the
+     *  long-run C matrix). When set to "crisis", the CRISIS_C matrix is
+     *  used — equity-equity / equity-REITs / equity-bonds correlations
+     *  rise, gold mildly drops; portfolioSigma rises for any equity-heavy
+     *  allocation, and the CVaR / Path-MDD tails widen accordingly. */
+    riskRegime?: RiskRegime;
+    /** Annual-return shock distribution. Default "gauss" (backward
+     *  compatible: standard log-normal paths). "studentT" fattens the
+     *  tails at the same σ — strictly worse CVaR99 and Path-MDD-P05. */
+    tailModel?: TailModel;
+    /** Degrees of freedom for the Student-t sampler. Ignored when
+     *  tailModel === "gauss". Clamped to [3, 100]; default 5. */
+    studentTDf?: number;
   } = {}
 ): MonteCarloResult {
   const numPaths = options.paths ?? 2000;
   const seed = options.seed ?? 42;
   const hedged = options.hedged ?? false;
-  const baseCurrency = options.baseCurrency ?? "USD";
+  const baseCurrency: BaseCurrency = options.baseCurrency ?? "USD";
+  const syntheticUsEffective = options.syntheticUsEffective ?? false;
+  const riskRegime: RiskRegime = options.riskRegime ?? "normal";
+  const tailModel: TailModel = options.tailModel ?? "gauss";
+  // Clamp df so the variance rescaler is always well-defined (needs df > 2)
+  // and so a wildly large df just degenerates to ~Gauss instead of blowing
+  // up the χ²-construction loop.
+  const studentTDf = Math.max(3, Math.min(100, Math.round(options.studentTDf ?? 5)));
 
   let portfolioMu = 0;
 
@@ -135,11 +224,34 @@ export function runMonteCarlo(
   // "Expected Volatility" line up with the analytical Risk & Performance
   // Metrics view (modulo the FX-hedge sigma reduction below, which is
   // intentionally a Monte-Carlo-only feature).
-  const buckets: { weight: number; mu: number; sigma: number; key: AssetKey }[] = [];
+  // Equity-sleeve compaction: an "Equity-Global" (MSCI ACWI IMI) row
+  // expands across the BENCHMARK regional weights so MC vol / Sharpe stay
+  // consistent with metrics.mapAllocationToAssets. Without this, Global
+  // would collapse to one bucket and produce a different sigma than the
+  // analytical Risk & Performance Metrics view.
+  const expanded: { assetClass: string; region: string; weight: number }[] = [];
+  const benchSum = BENCHMARK.reduce((s, e) => s + e.weight, 0);
   for (const a of allocation) {
+    if (a.assetClass === "Equity" && a.region === "Global") {
+      for (const b of BENCHMARK) {
+        const regionLabel =
+          b.key === "equity_us" ? "USA" :
+          b.key === "equity_eu" ? "Europe" :
+          b.key === "equity_uk" ? "UK" :
+          b.key === "equity_ch" ? "Switzerland" :
+          b.key === "equity_jp" ? "Japan" : "EM";
+        expanded.push({ assetClass: "Equity", region: regionLabel, weight: a.weight * (b.weight / benchSum) });
+      }
+    } else {
+      expanded.push({ assetClass: a.assetClass, region: a.region, weight: a.weight });
+    }
+  }
+
+  const buckets: { weight: number; mu: number; sigma: number; key: AssetKey }[] = [];
+  for (const a of expanded) {
     const w = a.weight / 100;
-    const { mu, sigma } = bucketAssumption(a.assetClass, a.region, hedged, baseCurrency);
-    const key = bucketKey(a.assetClass, a.region);
+    const { mu, sigma } = bucketAssumption(a.assetClass, a.region, hedged, baseCurrency, syntheticUsEffective);
+    const key = bucketKey(a.assetClass, a.region, baseCurrency);
     buckets.push({ weight: w, mu, sigma, key });
     portfolioMu += w * mu;
   }
@@ -154,7 +266,11 @@ export function runMonteCarlo(
     for (let j = 0; j < buckets.length; j++) {
       const bi = buckets[i];
       const bj = buckets[j];
-      portfolioVar += bi.weight * bj.weight * bi.sigma * bj.sigma * corr(bi.key, bj.key);
+      // riskRegime: corr() switches between the long-run "normal" and the
+      // stress-aware "crisis" matrix. Folded analytically into σ_p so the
+      // 1-D log-normal sampler below picks up the regime change without
+      // any further machinery.
+      portfolioVar += bi.weight * bj.weight * bi.sigma * bj.sigma * corr(bi.key, bj.key, riskRegime);
     }
   }
   const portfolioSigma = Math.sqrt(Math.max(portfolioVar, 0));
@@ -164,11 +280,17 @@ export function runMonteCarlo(
 
   const rng = mulberry32(seed);
 
+  // Sampler dispatch: pick once per call, then call inside the inner loop.
+  // Both samplers return a draw with mean 0 and variance 1, so the
+  // log-normal drift correction (-σ²/2) and the σ-scaling are unchanged.
+  const drawShock: () => number =
+    tailModel === "studentT" ? () => studentT(rng, studentTDf) : () => gaussian(rng);
+
   for (let p = 0; p < numPaths; p++) {
     let value = initial;
     finalsPerYear[0].push(value);
     for (let y = 1; y <= years; y++) {
-      const z = gaussian(rng);
+      const z = drawShock();
       const r = portfolioMu - 0.5 * portfolioSigma * portfolioSigma + portfolioSigma * z;
       value = value * Math.exp(r);
       finalsPerYear[y].push(value);
@@ -210,6 +332,28 @@ export function runMonteCarlo(
   const cvar95Return = initial > 0 ? cvar95Final / initial - 1 : 0;
   const cvar99Return = initial > 0 ? cvar99Final / initial - 1 : 0;
 
+  // Path-based realized maximum drawdown. For each path, walk the full
+  // value series, track the running peak, and record the worst (current/
+  // peak − 1). This replaces the analytical heuristic from metrics.ts for
+  // the MC view — it is simulation-honest, properly tail-aware, and
+  // independent of the equity-share scaler. Note finalsPerYear[y][p] is
+  // the value of path p at year y; `years + 1` rows including y = 0.
+  const pathMdds: number[] = new Array(numPaths);
+  for (let p = 0; p < numPaths; p++) {
+    let peak = -Infinity;
+    let worstDd = 0;
+    for (let y = 0; y <= years; y++) {
+      const v = finalsPerYear[y][p];
+      if (v > peak) peak = v;
+      const dd = peak > 0 ? v / peak - 1 : 0;
+      if (dd < worstDd) worstDd = dd;
+    }
+    pathMdds[p] = worstDd;
+  }
+  const sortedMdds = [...pathMdds].sort((a, b) => a - b); // most-negative first
+  const realizedMddP05 = quantile(sortedMdds, 0.05);
+  const realizedMddP50 = quantile(sortedMdds, 0.5);
+
   return {
     expectedReturn: portfolioMu,
     expectedVol: portfolioSigma,
@@ -224,5 +368,7 @@ export function runMonteCarlo(
     cvar95Return,
     cvar99Final,
     cvar99Return,
+    realizedMddP50,
+    realizedMddP05,
   };
 }

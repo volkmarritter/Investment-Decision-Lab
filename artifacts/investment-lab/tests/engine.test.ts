@@ -10,14 +10,18 @@ import { estimateFees, getETFTer } from "../src/lib/fees";
 import { buildAiPrompt } from "../src/lib/aiPrompt";
 import {
   mapAllocationToAssets,
+  mapAllocationToAssetsLookthrough,
   computeMetrics,
   computeFrontier,
   buildCorrelationMatrix,
+  decomposeTrackingError,
   BENCHMARK,
   portfolioReturn,
   portfolioVol,
+  portfolioWhtDrag,
+  WHT_DRAG,
 } from "../src/lib/metrics";
-import type { AssetAllocation } from "../src/lib/types";
+import type { AssetAllocation, ETFImplementation } from "../src/lib/types";
 import { diffPortfolios } from "../src/lib/compare";
 import { analyzePortfolio } from "../src/lib/explain";
 
@@ -836,6 +840,317 @@ describe("metrics", () => {
     expect(get("cash")).toBeCloseTo(0.05);
   });
 
+  it("mapAllocationToAssets resolves Equity-Home + Equity-Global from sleeve compaction", () => {
+    // When the ETF budget is too small, the engine collapses the equity
+    // sleeve into "Home" + "Global" rows (portfolio.ts:280-287). The
+    // metrics layer must resolve these to real CMA buckets — otherwise
+    // they fall through to equity_thematic and balloon vol / TE / beta.
+    // Home → equity_us for USD, equity_ch for CHF.
+    const usd = mapAllocationToAssets(
+      [{ assetClass: "Equity", region: "Home", weight: 40 }],
+      "USD",
+    );
+    expect(usd.find((e) => e.key === "equity_us")?.weight).toBeCloseTo(0.4);
+    expect(usd.find((e) => e.key === "equity_thematic")).toBeUndefined();
+
+    const chf = mapAllocationToAssets(
+      [{ assetClass: "Equity", region: "Home", weight: 40 }],
+      "CHF",
+    );
+    expect(chf.find((e) => e.key === "equity_ch")?.weight).toBeCloseTo(0.4);
+
+    // Global → distributed across BENCHMARK weights (60/14/4/4/4/14).
+    const glob = mapAllocationToAssets(
+      [{ assetClass: "Equity", region: "Global", weight: 100 }],
+      "USD",
+    );
+    const get = (k: string) => glob.find((e) => e.key === k)?.weight ?? 0;
+    const benchSum = BENCHMARK.reduce((s, e) => s + e.weight, 0);
+    for (const b of BENCHMARK) {
+      expect(get(b.key)).toBeCloseTo(b.weight / benchSum);
+    }
+    expect(get("equity_thematic")).toBe(0);
+
+    // A 100% Global portfolio must have ~zero tracking error vs the ACWI
+    // benchmark — this is the regression that motivated the fix.
+    const m = computeMetrics(
+      [{ assetClass: "Equity", region: "Global", weight: 100 }],
+      "USD",
+    );
+    expect(m.trackingError).toBeLessThan(0.005);
+    expect(m.beta).toBeCloseTo(1.0, 1);
+    expect(m.vol).toBeLessThan(0.18);
+  });
+
+  it("decomposeTrackingError contributions sum to total TE and surface gold + home-bias as drivers", () => {
+    // Recreates the operator's allocation: CHF base, 89.5% equities with a
+    // strong Swiss home tilt, 7.5% gold, 3% cash. The user perceived a 2.5%
+    // TE as suspiciously high — this test pins the decomposition that
+    // explains it: gold + Swiss overweight should be the top contributors.
+    const alloc: AssetAllocation[] = [
+      { assetClass: "Cash", region: "CHF", weight: 3.0 },
+      { assetClass: "Equity", region: "USA", weight: 51.3 },
+      { assetClass: "Equity", region: "Switzerland", weight: 13.9 },
+      { assetClass: "Equity", region: "EM", weight: 11.6 },
+      { assetClass: "Equity", region: "Europe", weight: 8.7 },
+      { assetClass: "Equity", region: "Japan", weight: 4.0 },
+      { assetClass: "Commodities", region: "Gold", weight: 7.5 },
+    ];
+    const m = computeMetrics(alloc, "CHF");
+    const d = decomposeTrackingError(alloc, "CHF");
+
+    // Total of decomposition equals computeMetrics' tracking error.
+    expect(d.total).toBeCloseTo(m.trackingError, 6);
+
+    // Per-asset signed contributions sum to the total (definition: the
+    // marginal-contribution decomposition closes mathematically).
+    const sum = d.rows.reduce((s, r) => s + r.contribution, 0);
+    expect(sum).toBeCloseTo(d.total, 6);
+
+    // Sanity-check the actual drivers (counter-intuitive result worth
+    // pinning): the largest positive TE contributors are the *underweights*
+    // vs. the ACWI benchmark (US -8.7pp, EU -5.3pp, UK -4pp, EM -2.4pp)
+    // plus the +7.5pp gold position. The Swiss home-bias overweight is
+    // actually a *diversifier* against the equity underweights, so its
+    // contribution is negative — confirming the engine's tilt logic does
+    // partly absorb, not amplify, TE in this kind of portfolio.
+    const us = d.rows.find((r) => r.key === "equity_us");
+    const gold = d.rows.find((r) => r.key === "gold");
+    const ch = d.rows.find((r) => r.key === "equity_ch");
+    expect(us).toBeDefined();
+    expect(gold).toBeDefined();
+    expect(ch).toBeDefined();
+    // US underweight is the single largest positive contributor.
+    expect(us!.contribution).toBeGreaterThan(0);
+    expect(us!.contribution / d.total).toBeGreaterThan(0.3);
+    // Gold contributes meaningfully (no benchmark counterpart, ~zero corr
+    // with equities).
+    expect(gold!.contribution).toBeGreaterThan(0);
+    expect(gold!.contribution / d.total).toBeGreaterThan(0.1);
+    // Swiss overweight is a *diversifier* here, not a driver.
+    expect(ch!.contribution).toBeLessThan(0);
+
+    // UK appears even though the portfolio holds none — pure benchmark
+    // underweight (active = -4pp).
+    const uk = d.rows.find((r) => r.key === "equity_uk");
+    expect(uk).toBeDefined();
+    expect(uk!.portfolioWeight).toBe(0);
+    expect(uk!.benchmarkWeight).toBeCloseTo(0.04, 6);
+    expect(uk!.activeWeight).toBeCloseTo(-0.04, 6);
+
+    // And cash appears even though the benchmark holds none — pure
+    // portfolio-only position (active = +3pp). Locks the symmetric case
+    // of the union-of-keys logic (benchmark-only AND portfolio-only both
+    // surface as rows).
+    const cash = d.rows.find((r) => r.key === "cash");
+    expect(cash).toBeDefined();
+    expect(cash!.portfolioWeight).toBeCloseTo(0.03, 6);
+    expect(cash!.benchmarkWeight).toBe(0);
+    expect(cash!.activeWeight).toBeCloseTo(0.03, 6);
+
+    // Pure benchmark portfolio has TE ≈ 0 → decomposition is empty/zero.
+    const benchAlloc: AssetAllocation[] = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Equity", region: "Europe", weight: 14 },
+      { assetClass: "Equity", region: "UK", weight: 4 },
+      { assetClass: "Equity", region: "Switzerland", weight: 4 },
+      { assetClass: "Equity", region: "Japan", weight: 4 },
+      { assetClass: "Equity", region: "EM", weight: 14 },
+    ];
+    const dBench = decomposeTrackingError(benchAlloc, "USD");
+    expect(dBench.total).toBeLessThan(0.001);
+  });
+
+  it("mapAllocationToAssetsLookthrough decomposes Europe ETF into UK + CH + continental EU", () => {
+    // Operator-spotted inconsistency: the iShares Core MSCI Europe ETF
+    // (IE00B4K48X80) holds ~20% UK + ~15% Switzerland (the curated
+    // PROFILES values are continually refreshed by
+    // scripts/refresh-lookthrough.mjs into lookthrough.overrides.json,
+    // so we read live values from profileFor() rather than hardcoding).
+    // The region-based router treats a 14% Equity-Europe row as 14%
+    // equity_eu, which understates UK/CH exposure and makes them look
+    // perpetually underweight in the TE-contribution table even when
+    // held implicitly through a multi-country ETF.
+    const ISIN = "IE00B4K48X80";
+    const profile = profileFor(ISIN)!;
+    expect(profile).toBeTruthy();
+    const totalGeo = Object.values(profile.geo).reduce((s, v) => s + v, 0);
+    const ukPct = (profile.geo["United Kingdom"] ?? 0) / totalGeo;
+    const chPct = (profile.geo["Switzerland"] ?? 0) / totalGeo;
+    // Sanity: this ETF is *the* multi-country test case — UK + CH must
+    // each be material (>5% of the ETF) for the look-through math to
+    // matter at all. If the underlying index ever changes shape this
+    // dramatically we want to know.
+    expect(ukPct).toBeGreaterThan(0.05);
+    expect(chPct).toBeGreaterThan(0.05);
+
+    const allocation: AssetAllocation[] = [
+      { assetClass: "Equity", region: "Europe", weight: 14 },
+    ];
+    const etfImpl: ETFImplementation[] = [{
+      bucket: "Equity - Europe",
+      assetClass: "Equity",
+      weight: 14,
+      intent: "",
+      exampleETF: "iShares Core MSCI Europe UCITS",
+      rationale: "",
+      isin: ISIN,
+      ticker: "",
+      exchange: "",
+      terBps: 12,
+      domicile: "IE",
+      replication: "Physical",
+      distribution: "Accumulating",
+      currency: "EUR",
+      comment: "",
+    }];
+
+    const region = mapAllocationToAssets(allocation);
+    const lookthrough = mapAllocationToAssetsLookthrough(allocation, etfImpl);
+
+    // Region-based: all 14% routed to equity_eu — this is the broken
+    // baseline the look-through fix replaces.
+    expect(region.find((e) => e.key === "equity_eu")?.weight).toBeCloseTo(0.14, 6);
+    expect(region.find((e) => e.key === "equity_uk")).toBeUndefined();
+    expect(region.find((e) => e.key === "equity_ch")).toBeUndefined();
+
+    // Look-through: 14% × ukPct goes to equity_uk, 14% × chPct to equity_ch,
+    // and the remainder (continental-Europe country labels: France,
+    // Germany, Netherlands, Sweden, Italy, Spain, Denmark, "Other Europe")
+    // to equity_eu.
+    const uk = lookthrough.find((e) => e.key === "equity_uk")!;
+    const ch = lookthrough.find((e) => e.key === "equity_ch")!;
+    const eu = lookthrough.find((e) => e.key === "equity_eu")!;
+    expect(uk).toBeDefined();
+    expect(ch).toBeDefined();
+    expect(eu).toBeDefined();
+    expect(uk.weight).toBeCloseTo(0.14 * ukPct, 6);
+    expect(ch.weight).toBeCloseTo(0.14 * chPct, 6);
+    // Continental-EU bucket is what's left after UK + CH are carved out.
+    expect(eu.weight).toBeCloseTo(0.14 * (1 - ukPct - chPct), 4);
+
+    // Closure: total exposure preserved (no weight silently dropped to
+    // unmapped country labels).
+    const total = lookthrough.reduce((s, e) => s + e.weight, 0);
+    expect(total).toBeCloseTo(0.14, 6);
+  });
+
+  it("mapAllocationToAssetsLookthrough preserves total weight, falls back for non-equity, and is backwards-compatible when etfImplementation is missing", () => {
+    // Three invariants this test pins:
+    //  (1) Total exposure weight is identical between region-based and
+    //      look-through routing — look-through redistributes shares
+    //      across CMA buckets but never creates or destroys weight.
+    //  (2) Non-equity rows (bonds, gold, cash) route identically in
+    //      both modes — look-through only affects equity geography.
+    //  (3) computeMetrics(..., baseCcy) and computeMetrics(..., baseCcy, [])
+    //      produce identical numbers — passing an empty/missing
+    //      etfImplementation must preserve legacy behavior.
+    const allocation: AssetAllocation[] = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Equity", region: "Switzerland", weight: 10 },
+      { assetClass: "Equity", region: "UK", weight: 5 },
+      { assetClass: "Fixed Income", region: "Global", weight: 25 },
+    ];
+    const etfImpl: ETFImplementation[] = [
+      { bucket: "Equity - USA", assetClass: "Equity", weight: 60, intent: "", exampleETF: "iShares Core S&P 500", rationale: "", isin: "IE00B5BMR087", ticker: "", exchange: "", terBps: 7, domicile: "IE", replication: "Physical", distribution: "Accumulating", currency: "USD", comment: "" },
+      { bucket: "Equity - Switzerland", assetClass: "Equity", weight: 10, intent: "", exampleETF: "iShares SLI", rationale: "", isin: "DE0005933964", ticker: "", exchange: "", terBps: 51, domicile: "DE", replication: "Physical", distribution: "Distributing", currency: "EUR", comment: "" },
+      { bucket: "Equity - UK", assetClass: "Equity", weight: 5, intent: "", exampleETF: "iShares Core FTSE 100", rationale: "", isin: "IE00B53HP851", ticker: "", exchange: "", terBps: 7, domicile: "IE", replication: "Physical", distribution: "Distributing", currency: "GBP", comment: "" },
+      { bucket: "Fixed Income - Global", assetClass: "Fixed Income", weight: 25, intent: "", exampleETF: "iShares Core Global Aggregate Bond", rationale: "", isin: "IE00BDBRDM35", ticker: "", exchange: "", terBps: 10, domicile: "IE", replication: "Physical", distribution: "Accumulating", currency: "USD", comment: "" },
+    ];
+
+    const region = mapAllocationToAssets(allocation);
+    const lookthrough = mapAllocationToAssetsLookthrough(allocation, etfImpl);
+
+    // (1) Total weight conservation across both routers.
+    const sumRegion = region.reduce((s, e) => s + e.weight, 0);
+    const sumLookthrough = lookthrough.reduce((s, e) => s + e.weight, 0);
+    expect(sumRegion).toBeCloseTo(1.0, 6);
+    expect(sumLookthrough).toBeCloseTo(1.0, 6);
+
+    // (2) Non-equity buckets (bonds) route identically — Global bonds
+    //     get routed by the existing fallback regardless of whether
+    //     look-through is on.
+    const bondsRegion = region.find((e) => e.key === "bonds")?.weight ?? 0;
+    const bondsLook = lookthrough.find((e) => e.key === "bonds")?.weight ?? 0;
+    expect(bondsLook).toBeCloseTo(bondsRegion, 6);
+    expect(bondsLook).toBeCloseTo(0.25, 6);
+
+    // (3) Backwards compatibility: missing/empty etfImplementation arg
+    //     must not change a single number coming out of computeMetrics.
+    const m1 = computeMetrics(allocation, "USD");
+    const m2 = computeMetrics(allocation, "USD", []);
+    expect(m2.vol).toBeCloseTo(m1.vol, 6);
+    expect(m2.trackingError).toBeCloseTo(m1.trackingError, 6);
+    expect(m2.beta).toBeCloseTo(m1.beta, 6);
+    expect(m2.alpha).toBeCloseTo(m1.alpha, 6);
+  });
+
+  it("decomposeTrackingError with look-through shrinks UK underweight when held via Europe ETF", () => {
+    // Operator's portfolio: 8.7% Equity-Europe + no explicit UK or CH.
+    // Without look-through the TE-contribution table reports UK as a
+    // -4pp pure-benchmark underweight. With look-through the implicit UK
+    // content from the Europe ETF (~2pp) shrinks the active UK bet to
+    // ~-2pp and the CH active bet from -4pp to ~-2.7pp.
+    const allocation: AssetAllocation[] = [
+      { assetClass: "Cash", region: "CHF", weight: 3.0 },
+      { assetClass: "Equity", region: "USA", weight: 51.3 },
+      { assetClass: "Equity", region: "EM", weight: 11.6 },
+      { assetClass: "Equity", region: "Europe", weight: 8.7 },
+      { assetClass: "Equity", region: "Japan", weight: 4.0 },
+      { assetClass: "Commodities", region: "Gold", weight: 7.5 },
+      { assetClass: "Equity", region: "Switzerland", weight: 13.9 },
+    ];
+    const etfImpl: ETFImplementation[] = [
+      { bucket: "Equity - USA", assetClass: "Equity", weight: 51.3, intent: "", exampleETF: "iShares Core S&P 500", rationale: "", isin: "IE00B5BMR087", ticker: "", exchange: "", terBps: 7, domicile: "IE", replication: "Physical", distribution: "Accumulating", currency: "USD", comment: "" },
+      { bucket: "Equity - EM", assetClass: "Equity", weight: 11.6, intent: "", exampleETF: "iShares Core MSCI EM IMI", rationale: "", isin: "IE00BKM4GZ66", ticker: "", exchange: "", terBps: 18, domicile: "IE", replication: "Physical", distribution: "Accumulating", currency: "USD", comment: "" },
+      { bucket: "Equity - Europe", assetClass: "Equity", weight: 8.7, intent: "", exampleETF: "iShares Core MSCI Europe", rationale: "", isin: "IE00B4K48X80", ticker: "", exchange: "", terBps: 12, domicile: "IE", replication: "Physical", distribution: "Accumulating", currency: "EUR", comment: "" },
+      { bucket: "Equity - Japan", assetClass: "Equity", weight: 4.0, intent: "", exampleETF: "iShares Core MSCI Japan IMI", rationale: "", isin: "IE00B4L5YX21", ticker: "", exchange: "", terBps: 12, domicile: "IE", replication: "Physical", distribution: "Accumulating", currency: "USD", comment: "" },
+      { bucket: "Commodities - Gold", assetClass: "Commodities", weight: 7.5, intent: "", exampleETF: "Invesco Physical Gold A", rationale: "", isin: "IE00B579F325", ticker: "", exchange: "", terBps: 12, domicile: "IE", replication: "Physical", distribution: "Accumulating", currency: "USD", comment: "" },
+      { bucket: "Equity - Switzerland", assetClass: "Equity", weight: 13.9, intent: "", exampleETF: "iShares SLI", rationale: "", isin: "DE0005933964", ticker: "", exchange: "", terBps: 51, domicile: "DE", replication: "Physical", distribution: "Distributing", currency: "EUR", comment: "" },
+    ];
+
+    const dBefore = decomposeTrackingError(allocation, "CHF");
+    const dAfter = decomposeTrackingError(allocation, "CHF", etfImpl);
+
+    // Closure: contributions still sum to total TE in both modes.
+    const sumBefore = dBefore.rows.reduce((s, r) => s + r.contribution, 0);
+    const sumAfter = dAfter.rows.reduce((s, r) => s + r.contribution, 0);
+    expect(sumBefore).toBeCloseTo(dBefore.total, 6);
+    expect(sumAfter).toBeCloseTo(dAfter.total, 6);
+
+    // Region-only: UK is fully underweight at -4pp because the
+    // 8.7% Europe row is treated as pure equity_eu.
+    const ukBefore = dBefore.rows.find((r) => r.key === "equity_uk")!;
+    expect(ukBefore.portfolioWeight).toBe(0);
+    expect(ukBefore.activeWeight).toBeCloseTo(-0.04, 6);
+
+    // Look-through: the 8.7% Europe ETF contributes 8.7% × ukPct UK
+    // exposure (live values from profileFor), so the UK active bet
+    // shrinks meaningfully toward zero instead of staying at -4pp.
+    const europeProfile = profileFor("IE00B4K48X80")!;
+    const europeTotalGeo = Object.values(europeProfile.geo).reduce((s, v) => s + v, 0);
+    const ukPctInEurope = (europeProfile.geo["United Kingdom"] ?? 0) / europeTotalGeo;
+    const chPctInEurope = (europeProfile.geo["Switzerland"] ?? 0) / europeTotalGeo;
+    const ukAfter = dAfter.rows.find((r) => r.key === "equity_uk")!;
+    expect(ukAfter.portfolioWeight).toBeCloseTo(0.087 * ukPctInEurope, 6);
+    expect(ukAfter.activeWeight).toBeGreaterThan(ukBefore.activeWeight);
+    expect(Math.abs(ukAfter.activeWeight)).toBeLessThan(Math.abs(ukBefore.activeWeight));
+
+    // Same effect on Switzerland: explicit 13.9% plus implicit
+    // 8.7% × chPct from the Europe ETF brings total CH portfolio weight up.
+    const chBefore = dBefore.rows.find((r) => r.key === "equity_ch")!;
+    const chAfter = dAfter.rows.find((r) => r.key === "equity_ch")!;
+    expect(chAfter.portfolioWeight).toBeGreaterThan(chBefore.portfolioWeight);
+    expect(chAfter.portfolioWeight).toBeCloseTo(0.139 + 0.087 * chPctInEurope, 6);
+
+    // Continental EU exposure is correspondingly smaller: only the
+    // (1 - ukPct - chPct) non-UK / non-CH content of the Europe ETF.
+    const euBefore = dBefore.rows.find((r) => r.key === "equity_eu")!;
+    const euAfter = dAfter.rows.find((r) => r.key === "equity_eu")!;
+    expect(euAfter.portfolioWeight).toBeLessThan(euBefore.portfolioWeight);
+    expect(euAfter.portfolioWeight).toBeCloseTo(0.087 * (1 - ukPctInEurope - chPctInEurope), 4);
+  });
+
   it("computeMetrics returns sane numbers for a default portfolio", () => {
     const input = baseInput();
     const out = buildPortfolio(input);
@@ -860,7 +1175,10 @@ describe("metrics", () => {
     const m = computeMetrics(benchAlloc, "USD");
     expect(m.beta).toBeCloseTo(1, 2);
     expect(m.trackingError).toBeLessThan(0.001);
-    expect(m.expReturn).toBeCloseTo(portfolioReturn(BENCHMARK), 4);
+    // expReturn is reported NET of withholding-tax drag (see metrics.ts:WHT_DRAG).
+    // Apply the same drag to the benchmark side so the assertion is symmetric.
+    const expectedNet = portfolioReturn(BENCHMARK) - portfolioWhtDrag(BENCHMARK, "USD");
+    expect(m.expReturn).toBeCloseTo(expectedNet, 4);
     expect(m.vol).toBeCloseTo(portfolioVol(BENCHMARK), 4);
   });
 
@@ -1258,7 +1576,12 @@ describe("CMA layered overrides", () => {
     const { CMA } = await import("../src/lib/metrics");
     const alloc = [{ assetClass: "Equity", region: "USA", weight: 100 }];
     const baseline = runMonteCarlo(alloc, 5, 100_000, { paths: 200, seed: 1 });
-    expect(baseline.expectedReturn).toBeCloseTo(CMA.equity_us.expReturn, 6);
+    // MC reports NET of WHT drag — single-asset US-equity baseline must
+    // therefore equal CMA.equity_us.expReturn − WHT_DRAG.equity_us.
+    expect(baseline.expectedReturn).toBeCloseTo(
+      CMA.equity_us.expReturn - WHT_DRAG.equity_us,
+      6,
+    );
   });
 
   it("manually mutating CMA leaves immediately changes Monte Carlo expected return", async () => {
@@ -1270,8 +1593,196 @@ describe("CMA layered overrides", () => {
     CMA.equity_us.expReturn = 0.123;
     const after = runMonteCarlo(alloc, 5, 100_000, { paths: 200, seed: 1 }).expectedReturn;
     CMA.equity_us.expReturn = original; // restore for downstream tests
-    expect(after).toBeCloseTo(0.123, 6);
+    // After mutating CMA, MC should reflect 0.123 NET of WHT drag.
+    expect(after).toBeCloseTo(0.123 - WHT_DRAG.equity_us, 6);
     expect(after).not.toBeCloseTo(before, 4);
+  });
+
+  it("path-based realized MDD obeys ordering invariants and is non-positive", async () => {
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    // Mixed allocation so we have meaningful drawdown distribution
+    const alloc = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Fixed Income", region: "Global", weight: 30 },
+      { assetClass: "Cash", region: "Global", weight: 10 },
+    ];
+    const r = runMonteCarlo(alloc, 10, 100_000, { paths: 1000, seed: 42 });
+    // Both quantiles must be in (-1, 0] (drawdown is a loss, capped at -100 %).
+    expect(r.realizedMddP05).toBeLessThanOrEqual(0);
+    expect(r.realizedMddP50).toBeLessThanOrEqual(0);
+    expect(r.realizedMddP05).toBeGreaterThan(-1);
+    expect(r.realizedMddP50).toBeGreaterThan(-1);
+    // Bad-tail (P05) must be at least as deep as the typical path (P50).
+    expect(r.realizedMddP05).toBeLessThanOrEqual(r.realizedMddP50);
+    // For a 60/30/10 portfolio over 10y the median drawdown should be
+    // materially negative — sanity bound that catches accidental zeroing.
+    expect(r.realizedMddP50).toBeLessThan(-0.02);
+  });
+
+  it("synthetic-US carve-out lifts expReturn by exactly WHT_DRAG.equity_us × US weight (USD base, 100 % US equity)", async () => {
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    // 100 % US equity, USD base, no hedge → synthetic effective.
+    // Drag should drop from WHT_DRAG.equity_us (=30 bps) to 0,
+    // so MC expectedReturn rises by exactly that amount.
+    const alloc = [{ assetClass: "Equity", region: "USA", weight: 100 }];
+    const physical = runMonteCarlo(alloc, 5, 100_000, { paths: 200, seed: 1, baseCurrency: "USD" });
+    const synthetic = runMonteCarlo(alloc, 5, 100_000, {
+      paths: 200, seed: 1, baseCurrency: "USD", syntheticUsEffective: true,
+    });
+    expect(synthetic.expectedReturn - physical.expectedReturn).toBeCloseTo(WHT_DRAG.equity_us, 8);
+    // Sigma is untouched by the drag — same paths, same vol.
+    expect(synthetic.expectedVol).toBeCloseTo(physical.expectedVol, 10);
+  });
+
+  it("synthetic-US carve-out lifts portfolio expReturn AND alpha (benchmark drag stays full)", () => {
+    // 60 / 25 / 15 portfolio, USD base. Synthetic effective for the user's
+    // US sleeve only — the benchmark is a physical-ACWI proxy and keeps its
+    // full WHT, so alpha and outperformance both rise by 0.60 × 30 bps = 18 bps.
+    const allocation: AssetAllocation[] = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Equity", region: "Europe", weight: 25 },
+      { assetClass: "Fixed Income", region: "Global", weight: 15 },
+    ];
+    const physical = computeMetrics(allocation, "USD", undefined, false);
+    const synthetic = computeMetrics(allocation, "USD", undefined, true);
+    const expectedLift = 0.60 * WHT_DRAG.equity_us;
+    expect(synthetic.expReturn - physical.expReturn).toBeCloseTo(expectedLift, 8);
+    expect(synthetic.alpha - physical.alpha).toBeCloseTo(expectedLift, 8);
+    expect(synthetic.outperformance - physical.outperformance).toBeCloseTo(expectedLift, 8);
+    // Benchmark return is untouched — synthetic only changes the portfolio side.
+    expect(synthetic.benchmarkReturn).toBeCloseTo(physical.benchmarkReturn, 10);
+    // Vol / beta / TE unchanged — drag is a return-only adjustment.
+    expect(synthetic.vol).toBeCloseTo(physical.vol, 10);
+    expect(synthetic.beta).toBeCloseTo(physical.beta, 10);
+    expect(synthetic.trackingError).toBeCloseTo(physical.trackingError, 10);
+  });
+
+  it("isSyntheticUsEffective gate matches the rationale-text condition (synthetic && !(hedged && base!==USD))", async () => {
+    const { isSyntheticUsEffective } = await import("../src/lib/metrics");
+    // Toggle off → never effective.
+    expect(isSyntheticUsEffective(false, "USD", false)).toBe(false);
+    expect(isSyntheticUsEffective(false, "CHF", true)).toBe(false);
+    // Toggle on, USD base → effective regardless of hedge (hedge is a no-op for USD residents).
+    expect(isSyntheticUsEffective(true, "USD", false)).toBe(true);
+    expect(isSyntheticUsEffective(true, "USD", true)).toBe(true);
+    // Toggle on, non-USD base, unhedged → effective (synthetic share class wins).
+    expect(isSyntheticUsEffective(true, "CHF", false)).toBe(true);
+    expect(isSyntheticUsEffective(true, "EUR", false)).toBe(true);
+    // Toggle on, non-USD base, hedged → NOT effective (ETF picker keeps physical pick).
+    expect(isSyntheticUsEffective(true, "CHF", true)).toBe(false);
+    expect(isSyntheticUsEffective(true, "EUR", true)).toBe(false);
+  });
+
+  it("WHT drag affects expReturn / alpha / outperformance but leaves vol / beta / TE unchanged", async () => {
+    // Snapshot WHT_DRAG, zero it out, recompute, then restore. Vol/beta/TE
+    // depend only on σ and correlations — they MUST be invariant to the drag.
+    const allocation = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Equity", region: "Europe", weight: 25 },
+      { assetClass: "Fixed Income", region: "Global", weight: 15 },
+    ];
+    const before = computeMetrics(allocation, "USD");
+    const snapshot: Record<string, number> = {};
+    for (const k of Object.keys(WHT_DRAG)) {
+      snapshot[k] = WHT_DRAG[k as keyof typeof WHT_DRAG];
+      (WHT_DRAG as Record<string, number>)[k] = 0;
+    }
+    try {
+      const after = computeMetrics(allocation, "USD");
+      // Drag-sensitive metrics should differ.
+      expect(after.expReturn).toBeGreaterThan(before.expReturn);
+      expect(after.alpha).not.toBeCloseTo(before.alpha, 6);
+      expect(after.outperformance).not.toBeCloseTo(before.outperformance, 6);
+      // Drag-INSENSITIVE metrics must be bit-identical (no σ, no covariance,
+      // no benchmark-vol changes flow through WHT).
+      expect(after.vol).toBeCloseTo(before.vol, 10);
+      expect(after.beta).toBeCloseTo(before.beta, 10);
+      expect(after.trackingError).toBeCloseTo(before.trackingError, 10);
+    } finally {
+      for (const k of Object.keys(snapshot)) {
+        (WHT_DRAG as Record<string, number>)[k as keyof typeof WHT_DRAG] = snapshot[k];
+      }
+    }
+  });
+
+  // -- Compare A=physical vs B=synthetic regression (architect-review follow-up) ----
+  // The `includeSyntheticETFs` flag is plumbed through 4 call sites in
+  // ComparePortfolios.tsx (Mobile A+B, Desktop A+B). These engine-level tests
+  // pin the contract those call sites depend on, so a future refactor of the
+  // compare layout cannot silently drop the prop without one of these failing.
+
+  it("synthetic lift scales linearly with US-equity weight (Compare A=30 % vs B=60 % scenario)", () => {
+    // Same engine call ComparePortfolios makes per portfolio, just with two
+    // different US weights. If the prop ever stops reaching computeMetrics,
+    // both sides degenerate to the physical case and this test breaks.
+    const lo: AssetAllocation[] = [
+      { assetClass: "Equity", region: "USA", weight: 30 },
+      { assetClass: "Equity", region: "Europe", weight: 55 },
+      { assetClass: "Fixed Income", region: "Global", weight: 15 },
+    ];
+    const hi: AssetAllocation[] = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Equity", region: "Europe", weight: 25 },
+      { assetClass: "Fixed Income", region: "Global", weight: 15 },
+    ];
+    const liftLo = computeMetrics(lo, "USD", undefined, true).expReturn
+                 - computeMetrics(lo, "USD", undefined, false).expReturn;
+    const liftHi = computeMetrics(hi, "USD", undefined, true).expReturn
+                 - computeMetrics(hi, "USD", undefined, false).expReturn;
+    // Lift is exactly w_us × WHT_DRAG.equity_us — linear in US weight.
+    expect(liftLo).toBeCloseTo(0.30 * WHT_DRAG.equity_us, 8);
+    expect(liftHi).toBeCloseTo(0.60 * WHT_DRAG.equity_us, 8);
+    // And the 60 % side is exactly twice the 30 % side.
+    expect(liftHi).toBeCloseTo(2 * liftLo, 8);
+  });
+
+  it("synthetic toggle is a no-op when the portfolio holds zero US equity (edge case)", () => {
+    // No equity_us bucket → carve-out has nothing to bite on. Guards against a
+    // future refactor that accidentally widens the carve-out from equity_us
+    // to all equity buckets (which would silently inflate non-US returns).
+    const alloc: AssetAllocation[] = [
+      { assetClass: "Equity", region: "Europe", weight: 70 },
+      { assetClass: "Fixed Income", region: "Global", weight: 30 },
+    ];
+    const physical = computeMetrics(alloc, "USD", undefined, false);
+    const synthetic = computeMetrics(alloc, "USD", undefined, true);
+    expect(synthetic.expReturn).toBeCloseTo(physical.expReturn, 12);
+    expect(synthetic.alpha).toBeCloseTo(physical.alpha, 12);
+    expect(synthetic.outperformance).toBeCloseTo(physical.outperformance, 12);
+    expect(synthetic.benchmarkReturn).toBeCloseTo(physical.benchmarkReturn, 12);
+  });
+
+  it("CMA override × synthetic ON: carve-out is additive on the overridden μ (no double-count)", async () => {
+    // User overrides US-equity expReturn to 0.10 (e.g. their own house view).
+    // With synthetic ON, the carve-out must remove the 30 bps drag from the
+    // US sleeve regardless of the override magnitude — i.e. the lift is still
+    // exactly w_us × WHT_DRAG.equity_us, NOT scaled by the override level.
+    // Pins the additive composition of CMA-layer × WHT-layer.
+    const { CMA } = await import("../src/lib/metrics");
+    const allocation: AssetAllocation[] = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Equity", region: "Europe", weight: 25 },
+      { assetClass: "Fixed Income", region: "Global", weight: 15 },
+    ];
+    const originalUs = CMA.equity_us.expReturn;
+    CMA.equity_us.expReturn = 0.10;
+    try {
+      const physical = computeMetrics(allocation, "USD", undefined, false);
+      const synthetic = computeMetrics(allocation, "USD", undefined, true);
+      // Lift is invariant to the override level — only the US weight matters.
+      const expectedLift = 0.60 * WHT_DRAG.equity_us;
+      expect(synthetic.expReturn - physical.expReturn).toBeCloseTo(expectedLift, 8);
+      // And the absolute physical leg uses the OVERRIDDEN μ (0.10) minus
+      // the full drag — proves the override flowed through and the drag is
+      // still applied on the physical side.
+      const expectedPhysExpReturn =
+        0.60 * (0.10 - WHT_DRAG.equity_us) +
+        0.25 * (CMA.equity_eu.expReturn - WHT_DRAG.equity_eu) +
+        0.15 * (CMA.bonds.expReturn - WHT_DRAG.bonds);
+      expect(physical.expReturn).toBeCloseTo(expectedPhysExpReturn, 8);
+    } finally {
+      CMA.equity_us.expReturn = originalUs;
+    }
   });
 
   it("FX-hedge sigma reduction stays composable on top of CMA σ for foreign equity", async () => {
@@ -1522,11 +2033,22 @@ describe("CMA layered overrides", () => {
     delete (globalThis as { window?: unknown }).window;
     try {
       // No window → defaults must be returned by getRiskFreeRate(ccy).
-      expect(settings.getRiskFreeRate("USD")).toBeCloseTo(0.0425, 6);
-      expect(settings.getRiskFreeRate("EUR")).toBeCloseTo(0.0250, 6);
-      expect(settings.getRiskFreeRate("GBP")).toBeCloseTo(0.0400, 6);
-      expect(settings.getRiskFreeRate("CHF")).toBeCloseTo(0.0050, 6);
-      expect(settings.RF_DEFAULTS).toEqual({ USD: 0.0425, EUR: 0.0250, GBP: 0.0400, CHF: 0.0050 });
+      // The exact values depend on whatever overlay app-defaults.json
+      // currently ships, so we reference RF_DEFAULTS as the source of truth
+      // rather than hardcoding numbers that bit-rot every time an admin PR
+      // tweaks the global defaults (this test broke 3 times in 2026-04-27
+      // for exactly that reason).
+      expect(settings.getRiskFreeRate("USD")).toBeCloseTo(settings.RF_DEFAULTS.USD, 6);
+      expect(settings.getRiskFreeRate("EUR")).toBeCloseTo(settings.RF_DEFAULTS.EUR, 6);
+      expect(settings.getRiskFreeRate("GBP")).toBeCloseTo(settings.RF_DEFAULTS.GBP, 6);
+      expect(settings.getRiskFreeRate("CHF")).toBeCloseTo(settings.RF_DEFAULTS.CHF, 6);
+      // Sanity-check the structural contract: all four currencies present,
+      // all in the [0, 0.2] band that clampRf enforces.
+      expect(Object.keys(settings.RF_DEFAULTS).sort()).toEqual(["CHF", "EUR", "GBP", "USD"]);
+      for (const v of Object.values(settings.RF_DEFAULTS)) {
+        expect(v).toBeGreaterThanOrEqual(0);
+        expect(v).toBeLessThanOrEqual(0.2);
+      }
     } finally {
       if (orig) (globalThis as unknown as { window: typeof orig }).window = orig;
     }
@@ -1627,15 +2149,18 @@ describe("CMA layered overrides", () => {
     };
     try {
       // Override CHF only; USD / EUR / GBP must stay on their defaults.
+      // (Defaults are sourced from RF_DEFAULTS so this stays valid when an
+      // admin PR changes app-defaults.json — see the "per-currency RF
+      // defaults" test above for the same reasoning.)
       settings.setRiskFreeRate("CHF", 0.012);
       expect(settings.getRiskFreeRate("CHF")).toBeCloseTo(0.012, 6);
-      expect(settings.getRiskFreeRate("USD")).toBeCloseTo(0.0425, 6);
-      expect(settings.getRiskFreeRate("EUR")).toBeCloseTo(0.0250, 6);
-      expect(settings.getRiskFreeRate("GBP")).toBeCloseTo(0.0400, 6);
+      expect(settings.getRiskFreeRate("USD")).toBeCloseTo(settings.RF_DEFAULTS.USD, 6);
+      expect(settings.getRiskFreeRate("EUR")).toBeCloseTo(settings.RF_DEFAULTS.EUR, 6);
+      expect(settings.getRiskFreeRate("GBP")).toBeCloseTo(settings.RF_DEFAULTS.GBP, 6);
       // Reset CHF brings it back to its default; others still untouched.
       settings.resetRiskFreeRate("CHF");
-      expect(settings.getRiskFreeRate("CHF")).toBeCloseTo(0.0050, 6);
-      expect(settings.getRiskFreeRate("USD")).toBeCloseTo(0.0425, 6);
+      expect(settings.getRiskFreeRate("CHF")).toBeCloseTo(settings.RF_DEFAULTS.CHF, 6);
+      expect(settings.getRiskFreeRate("USD")).toBeCloseTo(settings.RF_DEFAULTS.USD, 6);
       // After the only override is reset, the storage key is removed so
       // getRiskFreeRateOverrides() returns {}.
       expect(settings.getRiskFreeRateOverrides()).toEqual({});
@@ -1646,7 +2171,7 @@ describe("CMA layered overrides", () => {
   });
 
   it("per-currency RF: getRiskFreeRates sanitization drops unknown currencies and clamps out-of-bounds values", async () => {
-    const { getRiskFreeRates, getRiskFreeRateOverrides } = await import("../src/lib/settings");
+    const { getRiskFreeRates, getRiskFreeRateOverrides, RF_DEFAULTS } = await import("../src/lib/settings");
     const fakeStore: Record<string, string> = {
       "idl.riskFreeRates": JSON.stringify({
         USD: 0.05,
@@ -1665,7 +2190,7 @@ describe("CMA layered overrides", () => {
       expect(rates.USD).toBeCloseTo(0.05, 6);
       expect(rates.EUR).toBeCloseTo(0.20, 6);   // clamped to upper bound
       expect(rates.GBP).toBeCloseTo(0, 6);      // clamped to lower bound
-      expect(rates.CHF).toBeCloseTo(0.0050, 6); // wrong type → falls through to default
+      expect(rates.CHF).toBeCloseTo(RF_DEFAULTS.CHF, 6); // wrong type → falls through to default
       const ov = getRiskFreeRateOverrides();
       // overrides view should NOT include unknown currencies or wrong-type ones
       expect(Object.keys(ov).sort()).toEqual(["EUR", "GBP", "USD"]);
@@ -2465,6 +2990,187 @@ describe("runReverseStressTest", () => {
     expect(gfc).toBeDefined();
     if (gfc!.multiplier !== null) {
       expect(gfc!.alreadyExceeds).toBe(gfc!.multiplier < 1);
+    }
+  });
+});
+
+// =============================================================================
+// Lieferung 2 — Tail-Realismus: Crisis-Σ + Student-t toggles
+// =============================================================================
+//
+// Three contracts must hold for these toggles to be safe to ship as
+// opt-in features:
+//   1. DEFAULTS-OFF: every existing call site keeps the old behaviour
+//      (no Crisis-Σ, no heavy tails) without passing the new options.
+//   2. CRISIS-Σ STRICTLY WIDENS: any portfolio with at least two
+//      imperfectly correlated risky sleeves must have crisis-σ ≥ normal-σ
+//      and crisis-CVaR99 ≤ normal-CVaR99 at the same RNG seed.
+//   3. STUDENT-T STRICTLY FATTENS TAILS: at the same seed and σ, switching
+//      from Gauss to Student-t must worsen CVaR99 measurably while leaving
+//      the median essentially unchanged.
+
+describe("Lieferung 2 — Crisis-Σ correlation regime", () => {
+  it("crisis regime increases portfolio σ for any imperfectly-correlated mix", async () => {
+    const { computeMetrics } = await import("../src/lib/metrics");
+    const allocation = [
+      { assetClass: "Equity", region: "USA", weight: 40 },
+      { assetClass: "Equity", region: "Europe", weight: 20 },
+      { assetClass: "Equity", region: "EM", weight: 10 },
+      { assetClass: "Bonds", region: "Global", weight: 20 },
+      { assetClass: "Real Estate (REITs)", region: "Global", weight: 10 },
+    ];
+    const normal = computeMetrics(allocation, "CHF", undefined, false, "normal");
+    const crisis = computeMetrics(allocation, "CHF", undefined, false, "crisis");
+    // Portfolio σ strictly rises (the clean invariant — diversification
+    // benefits shrink when correlations rise).
+    expect(crisis.vol).toBeGreaterThan(normal.vol);
+    // Tracking error vs ACWI also strictly rises: in crisis the bonds-
+    // equity correlation flips positive while ACWI is pure equity, so the
+    // active sleeve is more correlated with the benchmark and the active
+    // weight on bonds carries a larger σ-contribution.
+    expect(crisis.trackingError).toBeGreaterThanOrEqual(normal.trackingError);
+    // (Note: β is intentionally NOT asserted to rise — Var(ACWI) itself
+    //  expands in crisis as intra-equity correlations climb, and for some
+    //  mixes the denominator outpaces the Cov(p, ACWI) numerator, so β
+    //  can compress slightly. The vol/TE invariants above are the right
+    //  signature of "diversification benefit shrinks under stress".)
+  });
+
+  it("crisis regime worsens MC tail risk (CVaR99 strictly lower) at same seed", async () => {
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    const allocation = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Bonds", region: "Global", weight: 30 },
+      { assetClass: "Real Estate (REITs)", region: "Global", weight: 10 },
+    ];
+    const opts = { paths: 4_000, seed: 42, baseCurrency: "CHF" as const };
+    const normal = runMonteCarlo(allocation, 10, 100_000, { ...opts, riskRegime: "normal" });
+    const crisis = runMonteCarlo(allocation, 10, 100_000, { ...opts, riskRegime: "crisis" });
+    // Crisis fan widens ⇒ CVaR99 (mean of bottom 1 % final wealth) drops.
+    expect(crisis.cvar99Final).toBeLessThan(normal.cvar99Final);
+    // Median is approximately unchanged (drift dominates correlation).
+    const medRel = Math.abs(crisis.finalP50 - normal.finalP50) / normal.finalP50;
+    expect(medRel).toBeLessThan(0.05);
+  });
+
+  it("default riskRegime is 'normal' — backward compatible", async () => {
+    const { computeMetrics } = await import("../src/lib/metrics");
+    const allocation = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Bonds", region: "Global", weight: 40 },
+    ];
+    const implicit = computeMetrics(allocation, "CHF");
+    const explicit = computeMetrics(allocation, "CHF", undefined, false, "normal");
+    expect(implicit.vol).toBeCloseTo(explicit.vol, 12);
+    expect(implicit.beta).toBeCloseTo(explicit.beta, 12);
+    expect(implicit.trackingError).toBeCloseTo(explicit.trackingError, 12);
+  });
+});
+
+describe("Lieferung 2 — Student-t tail model", () => {
+  it("Student-t (df=5) inflates CVaR99 vs Gauss at same seed and σ", async () => {
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    const allocation = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Bonds", region: "Global", weight: 40 },
+    ];
+    const opts = { paths: 6_000, seed: 7, baseCurrency: "CHF" as const };
+    const gauss = runMonteCarlo(allocation, 15, 100_000, { ...opts, tailModel: "gauss" });
+    const studentT = runMonteCarlo(allocation, 15, 100_000, { ...opts, tailModel: "studentT", studentTDf: 5 });
+    // Heavy tails ⇒ deeper extreme losses.
+    expect(studentT.cvar99Final).toBeLessThan(gauss.cvar99Final);
+    // Median essentially unchanged — variance correction keeps σ matched.
+    const medRel = Math.abs(studentT.finalP50 - gauss.finalP50) / gauss.finalP50;
+    expect(medRel).toBeLessThan(0.06);
+  });
+
+  it("default tailModel is 'gauss' — backward compatible", async () => {
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    const allocation = [{ assetClass: "Equity", region: "USA", weight: 100 }];
+    const opts = { paths: 2_000, seed: 999, baseCurrency: "CHF" as const };
+    const implicit = runMonteCarlo(allocation, 10, 100_000, opts);
+    const explicit = runMonteCarlo(allocation, 10, 100_000, { ...opts, tailModel: "gauss", riskRegime: "normal" });
+    expect(implicit.finalP50).toBeCloseTo(explicit.finalP50, 6);
+    expect(implicit.cvar99Final).toBeCloseTo(explicit.cvar99Final, 6);
+    expect(implicit.cvar95Final).toBeCloseTo(explicit.cvar95Final, 6);
+  });
+
+  it("studentTDf is clamped into [3, 100]", async () => {
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    const allocation = [{ assetClass: "Equity", region: "USA", weight: 100 }];
+    const opts = { paths: 1_500, seed: 11, baseCurrency: "CHF" as const, tailModel: "studentT" as const };
+    // df=2 → clamped to 3 (variance of t-distribution undefined for df ≤ 2).
+    // df=500 → clamped to 100 (effectively Gauss).
+    const tooLow = runMonteCarlo(allocation, 5, 100_000, { ...opts, studentTDf: 2 });
+    const atFloor = runMonteCarlo(allocation, 5, 100_000, { ...opts, studentTDf: 3 });
+    const tooHigh = runMonteCarlo(allocation, 5, 100_000, { ...opts, studentTDf: 500 });
+    const atCeil = runMonteCarlo(allocation, 5, 100_000, { ...opts, studentTDf: 100 });
+    expect(tooLow.cvar99Final).toBeCloseTo(atFloor.cvar99Final, 6);
+    expect(tooHigh.cvar99Final).toBeCloseTo(atCeil.cvar99Final, 6);
+  });
+});
+
+describe("Lieferung 2 — Crisis-Σ × Student-t orthogonality", () => {
+  it("stacking both worsens CVaR99 strictly more than either alone", async () => {
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    const allocation = [
+      { assetClass: "Equity", region: "USA", weight: 50 },
+      { assetClass: "Equity", region: "Europe", weight: 20 },
+      { assetClass: "Bonds", region: "Global", weight: 30 },
+    ];
+    const opts = { paths: 5_000, seed: 314, baseCurrency: "CHF" as const };
+    const baseline = runMonteCarlo(allocation, 12, 100_000, opts);
+    const crisisOnly = runMonteCarlo(allocation, 12, 100_000, { ...opts, riskRegime: "crisis" });
+    const tOnly = runMonteCarlo(allocation, 12, 100_000, { ...opts, tailModel: "studentT", studentTDf: 5 });
+    const both = runMonteCarlo(allocation, 12, 100_000, { ...opts, riskRegime: "crisis", tailModel: "studentT", studentTDf: 5 });
+    // Each toggle alone is worse than baseline.
+    expect(crisisOnly.cvar99Final).toBeLessThan(baseline.cvar99Final);
+    expect(tOnly.cvar99Final).toBeLessThan(baseline.cvar99Final);
+    // Both stacked is at least as bad as either alone.
+    expect(both.cvar99Final).toBeLessThanOrEqual(crisisOnly.cvar99Final);
+    expect(both.cvar99Final).toBeLessThanOrEqual(tOnly.cvar99Final);
+  });
+});
+
+describe("Lieferung 2 — Student-t sampler statistical properties", () => {
+  // Sampler-level guard: any future edit to the studentT() chi²
+  // construction or variance correction should keep these invariants.
+  // We can't import studentT directly (it's not exported), so we read
+  // the empirical distribution of MC log-returns at H=1Y for a single
+  // pure-equity sleeve, where the per-year shock IS the sampler output
+  // (modulo a deterministic drift).
+  it("Student-t empirical variance ≈ Gauss empirical variance across df ∈ {3,5,10,30}", async () => {
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    const allocation = [{ assetClass: "Equity", region: "USA", weight: 100 }];
+    const opts = { paths: 20_000, seed: 2026, baseCurrency: "CHF" as const };
+    // 1Y horizon ⇒ each path's final wealth = exp(μ - σ²/2 + σ·shock)·V0.
+    // log(final/V0) = (μ - σ²/2) + σ·shock, so variance of log-return ≈ σ²
+    // independent of tail model when the variance correction is right.
+    const gauss = runMonteCarlo(allocation, 1, 100_000, { ...opts, tailModel: "gauss" });
+    const dfs = [3, 5, 10, 30] as const;
+    // Use the spread between P10 and P90 of final wealth as a proxy for σ —
+    // in 1Y, this should be within ~10 % across df values. For Gauss the
+    // P10/P90 ratio is exp(σ·1.282 - σ·(-1.282)) = exp(2.564·σ); for t-df
+    // the ratio is slightly tighter at the inner percentiles (fatter tails
+    // pull mass to the extremes, not the middle), so we allow ±15 %.
+    const gaussRatio = gauss.finalP90 / gauss.finalP10;
+    for (const df of dfs) {
+      const t = runMonteCarlo(allocation, 1, 100_000, { ...opts, tailModel: "studentT", studentTDf: df });
+      const tRatio = t.finalP90 / t.finalP10;
+      const rel = Math.abs(tRatio - gaussRatio) / gaussRatio;
+      expect(rel).toBeLessThan(0.15);
+    }
+  });
+
+  it("Student-t produces strictly worse CVaR99 than Gauss for every df ∈ {3,5,10}", async () => {
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    const allocation = [{ assetClass: "Equity", region: "USA", weight: 100 }];
+    const opts = { paths: 8_000, seed: 99, baseCurrency: "CHF" as const };
+    const gauss = runMonteCarlo(allocation, 10, 100_000, { ...opts, tailModel: "gauss" });
+    for (const df of [3, 5, 10] as const) {
+      const t = runMonteCarlo(allocation, 10, 100_000, { ...opts, tailModel: "studentT", studentTDf: df });
+      // Heavier-than-Gauss tails ⇒ deeper CVaR99. Gap shrinks as df↑30.
+      expect(t.cvar99Final).toBeLessThan(gauss.cvar99Final);
     }
   });
 });

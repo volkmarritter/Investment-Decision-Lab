@@ -163,6 +163,28 @@ function decodeHtmlEntities(s) {
     .replace(/&nbsp;/g, " ");
 }
 
+// Offizieller ETF-Name vom justETF-Profilkopf. Stabiles Selektor-Pattern:
+// <h1 data-testid="etf-profile-header_etf-name">…</h1>. Fallback auf
+// <title> ("<Name> | <WKN> | <ISIN>"). Wird in jedem Lauf neu geschrieben,
+// auch für bereits vorhandene Pool-Einträge — backfillt damit Einträge
+// die vor Einführung des Name-Felds (2026-04-27) gescraped wurden.
+function extractEtfName(html) {
+  const h1 = html.match(
+    /<h1[^>]*data-testid="etf-profile-header_etf-name"[^>]*>([\s\S]*?)<\/h1>/i
+  );
+  if (h1) {
+    const text = decodeHtmlEntities(h1[1].replace(/<[^>]+>/g, "")).trim();
+    if (text) return text;
+  }
+  const title = html.match(/<title>([^<]+)<\/title>/i);
+  if (title) {
+    const text = decodeHtmlEntities(title[1]).trim();
+    const name = text.split(" | ")[0]?.trim();
+    if (name && name.length > 3 && !/justetf/i.test(name)) return name;
+  }
+  return undefined;
+}
+
 function extractTopHoldings(html) {
   const tableMatch = html.match(
     /<table[^>]*data-testid="etf-holdings_top-holdings_table"[\s\S]*?<\/table>/i
@@ -514,12 +536,19 @@ async function main() {
       cookie = profile.cookie;
       html = profile.html;
       const topHoldings = extractTopHoldings(html);
+      // Offiziellen ETF-Namen vom Profilkopf mitnehmen. Nur für Pool-
+      // Einträge persistieren — overrides-only-Einträge sind Katalog-ETFs
+      // (etfs.ts), dort liefert das Frontend den Namen direkt aus dem
+      // Katalog. Bei Pool-Einträgen ist der gescrapete Name die einzige
+      // Identifikation in der Admin-Tabelle.
+      const scrapedName = isPoolIsin(isin) ? extractEtfName(html) : undefined;
       if (!topHoldings) {
         console.warn(`  ! ${isin}: no top-holdings extracted (leaving previous value)`);
         topFail++;
       } else {
         targetMap[isin] = {
           ...(targetMap[isin] ?? {}),
+          ...(scrapedName ? { name: scrapedName } : {}),
           topHoldings,
           topHoldingsAsOf: stamp,
         };

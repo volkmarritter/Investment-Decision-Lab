@@ -106,20 +106,20 @@ export function BucketTree({
             {isOpen && (
               <ul
                 role="group"
-                className="ml-3 mt-1 mb-2 border-l border-border pl-4 space-y-0.5"
+                className="ml-3 mt-0.5 mb-1 border-l border-border pl-4"
               >
                 {g.entries.map((e) => (
                   <li
                     key={e.key}
                     role="treeitem"
-                    className="flex items-center justify-between gap-2 text-sm leading-snug"
+                    className="flex items-center justify-between gap-2 text-sm leading-tight"
                     data-testid={`bucket-row-${e.key}`}
                   >
                     {onLeafClick ? (
                       <button
                         type="button"
                         onClick={() => onLeafClick(e)}
-                        className="text-left rounded px-1.5 py-0.5 hover:bg-muted/60 focus:outline-none focus:ring-2 focus:ring-primary/40"
+                        className="text-left rounded px-1.5 py-0 hover:bg-muted/60 focus:outline-none focus:ring-2 focus:ring-primary/40"
                         title={leafTitle ?? "Click to copy this catalog key"}
                       >
                         <span className="font-mono text-xs text-primary">
@@ -130,7 +130,7 @@ export function BucketTree({
                         {renderLeafBadge?.(e)}
                       </button>
                     ) : (
-                      <span className="px-1.5 py-0.5">
+                      <span className="px-1.5 py-0">
                         <span className="font-mono text-xs text-primary">
                           {e.key}
                         </span>

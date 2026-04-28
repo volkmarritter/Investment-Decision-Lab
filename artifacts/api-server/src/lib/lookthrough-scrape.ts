@@ -36,6 +36,12 @@ export interface TopHolding {
 
 export interface ScrapedLookthrough {
   isin: string;
+  // Offizieller ETF-Name vom justETF-Profilkopf (z.B. "iShares Nasdaq 100
+  // UCITS ETF (Acc)"). Optional, weil das Layout sich ändern kann — die
+  // Look-through-Daten selbst hängen nicht davon ab. Wird in der Admin-
+  // Pool-Tabelle neben der ISIN angezeigt, damit Auto-Refresh-Einträge
+  // (die nicht im Katalog stehen) für den Operator identifizierbar sind.
+  name?: string;
   topHoldings?: TopHolding[];
   geo?: ExposureMap;
   sector?: ExposureMap;
@@ -54,6 +60,30 @@ function decodeHtmlEntities(s: string): string {
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
     .replace(/&nbsp;/g, " ");
+}
+
+// Offizieller ETF-Name aus dem Profilkopf. justETF rendert ihn in einem
+// stabilen <h1 data-testid="etf-profile-header_etf-name">…</h1>. Fallback
+// auf den HTML-<title> (Format "<Name> | <WKN> | <ISIN>") falls der
+// Header sich ändert — beide Pfade haben sich seit Monaten nicht bewegt.
+export function extractEtfName(html: string): string | undefined {
+  const h1 = html.match(
+    /<h1[^>]*data-testid="etf-profile-header_etf-name"[^>]*>([\s\S]*?)<\/h1>/i,
+  );
+  if (h1) {
+    const text = decodeHtmlEntities(h1[1].replace(/<[^>]+>/g, "")).trim();
+    if (text) return text;
+  }
+  const title = html.match(/<title>([^<]+)<\/title>/i);
+  if (title) {
+    const text = decodeHtmlEntities(title[1]).trim();
+    // "iShares Nasdaq 100 UCITS ETF (Acc) | A0YEDL | IE00B53SZB19" → name ist
+    // alles vor dem ersten " | ". Wenn kein " | " da ist, ist es vermutlich
+    // die Suchergebnisseite oder eine Fehlerseite — dann lieber undefined.
+    const name = text.split(" | ")[0]?.trim();
+    if (name && name.length > 3 && !/justetf/i.test(name)) return name;
+  }
+  return undefined;
 }
 
 export function extractTopHoldings(html: string): TopHolding[] | undefined {
@@ -258,6 +288,7 @@ export async function scrapeLookthrough(
   const sourceUrl = `https://www.justetf.com/en/etf-profile.html?isin=${isin}`;
   const { html, cookie } = await fetchProfile(isin);
 
+  const name = extractEtfName(html);
   const topHoldings = extractTopHoldings(html);
 
   // Geo + sector: try the static profile HTML first; if a "Show more" link
@@ -289,6 +320,7 @@ export async function scrapeLookthrough(
 
   return {
     isin,
+    name,
     topHoldings,
     geo,
     sector,
