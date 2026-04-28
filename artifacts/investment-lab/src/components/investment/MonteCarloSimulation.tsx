@@ -18,8 +18,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AssetAllocation, BaseCurrency } from "@/lib/types";
-import { runMonteCarlo } from "@/lib/monteCarlo";
-import { isSyntheticUsEffective } from "@/lib/metrics";
+import { runMonteCarlo, TailModel } from "@/lib/monteCarlo";
+import { isSyntheticUsEffective, RiskRegime } from "@/lib/metrics";
 import { parseDecimalInput } from "@/lib/manualWeights";
 import { useT } from "@/lib/i18n";
 
@@ -59,14 +59,33 @@ export function MonteCarloSimulation({
   // through the same shared helper that PortfolioMetrics uses, so MC and
   // analytical views shift together when the toggle flips.
   const syntheticUsEffective = isSyntheticUsEffective(includeSyntheticETFs, baseCurrency, hedged);
+
+  // Tail-realism toggles. Both default to the backward-compatible Gauss /
+  // normal-correlation regime so the existing baselines (probLoss,
+  // CVaR, MDD) are byte-identical until the operator opts in.
+  // - riskRegime: feeds the corr() call inside portfolioSigma. Crisis
+  //   inflates equity-equity / equity-REITs / equity-bonds correlations,
+  //   so the MC fan widens and CVaR / Path-MDD-P05 strictly worsen.
+  // - tailModel: switches the per-year shock distribution. studentT
+  //   keeps σ unchanged but adds heavy tails — same width median-band,
+  //   noticeably worse 99 %-CVaR.
+  // Both toggles are independent: the operator can study Crisis-Σ alone,
+  // Student-t alone, or both stacked (the "everything goes wrong" view).
+  const [riskRegime, setRiskRegime] = useState<RiskRegime>("normal");
+  const [tailModel, setTailModel] = useState<TailModel>("gauss");
+  const studentTDf = 5; // operator default; df-slider can be added later
+
   const result = useMemo(
     () =>
       runMonteCarlo(allocation, horizonYears, investmentAmount, {
         hedged: !!hedged,
         baseCurrency,
         syntheticUsEffective,
+        riskRegime,
+        tailModel,
+        studentTDf,
       }),
-    [allocation, horizonYears, investmentAmount, hedged, baseCurrency, syntheticUsEffective, cmaVersion]
+    [allocation, horizonYears, investmentAmount, hedged, baseCurrency, syntheticUsEffective, riskRegime, tailModel, cmaVersion]
   );
 
   const formatCurrency = (value: number) => {
@@ -140,6 +159,92 @@ export function MonteCarloSimulation({
             onChange={(e) => setAmountDraft(e.target.value)}
             className="mt-1"
           />
+        </div>
+
+        {/* Tail-realism toggles. Two independent dimensions:
+         *   1. Correlation regime (normal vs crisis) — feeds portfolioSigma.
+         *   2. Tail distribution (Gauss vs Student-t df=5) — feeds the per-
+         *      year shock draw inside the path loop.
+         *  Both default off so the existing baselines are unchanged.
+         *  See Methodology → "Tail-Realismus" for the calibration anchors. */}
+        <div className="rounded-md border border-border bg-muted/10 p-3 space-y-2" data-testid="mc-tail-controls">
+          <p className="text-[10px] uppercase tracking-wide text-muted-foreground font-semibold">
+            {lang === "de" ? "Tail-Realismus (optional)" : "Tail realism (optional)"}
+          </p>
+          <div className="flex flex-wrap gap-x-6 gap-y-2 text-xs">
+            {/* Correlation regime */}
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">
+                {lang === "de" ? "Korrelations-Regime:" : "Correlation regime:"}
+              </span>
+              <div className="inline-flex rounded-md border border-border overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setRiskRegime("normal")}
+                  data-testid="mc-regime-normal"
+                  className={`px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                    riskRegime === "normal"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  {lang === "de" ? "Normal" : "Normal"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRiskRegime("crisis")}
+                  data-testid="mc-regime-crisis"
+                  className={`px-2.5 py-0.5 text-[11px] font-medium transition-colors border-l border-border ${
+                    riskRegime === "crisis"
+                      ? "bg-destructive text-destructive-foreground"
+                      : "bg-background text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  {lang === "de" ? "Krise" : "Crisis"}
+                </button>
+              </div>
+            </div>
+
+            {/* Tail model */}
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">
+                {lang === "de" ? "Verteilung:" : "Distribution:"}
+              </span>
+              <div className="inline-flex rounded-md border border-border overflow-hidden">
+                <button
+                  type="button"
+                  onClick={() => setTailModel("gauss")}
+                  data-testid="mc-tail-gauss"
+                  className={`px-2.5 py-0.5 text-[11px] font-medium transition-colors ${
+                    tailModel === "gauss"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  {lang === "de" ? "Gauss" : "Gauss"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTailModel("studentT")}
+                  data-testid="mc-tail-student"
+                  className={`px-2.5 py-0.5 text-[11px] font-medium transition-colors border-l border-border ${
+                    tailModel === "studentT"
+                      ? "bg-destructive text-destructive-foreground"
+                      : "bg-background text-muted-foreground hover:bg-muted"
+                  }`}
+                >
+                  {lang === "de" ? `Student-t (df=${studentTDf})` : `Student-t (df=${studentTDf})`}
+                </button>
+              </div>
+            </div>
+          </div>
+          {(riskRegime === "crisis" || tailModel === "studentT") && (
+            <p className="text-[10px] text-destructive italic leading-snug">
+              {lang === "de"
+                ? "Pessimistische Sicht aktiv: Tails sind fetter als unter den Standard-Annahmen — CVaR99 und Pfad-MDD-P05 verschlechtern sich, der Median bleibt nahezu unverändert."
+                : "Pessimistic lens active: tails are heavier than the default assumptions — CVaR99 and Path-MDD-P05 worsen, the median is largely unchanged."}
+            </p>
+          )}
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">

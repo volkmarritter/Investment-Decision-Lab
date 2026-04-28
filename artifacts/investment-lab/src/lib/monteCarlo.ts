@@ -1,5 +1,16 @@
 import { AssetAllocation, BaseCurrency } from "./types";
-import { CMA, AssetKey, corr, BENCHMARK, whtDragForKey } from "./metrics";
+import { CMA, AssetKey, corr, BENCHMARK, whtDragForKey, RiskRegime } from "./metrics";
+
+/** Tail-distribution choice for the Monte-Carlo annual-return sampler.
+ *  - "gauss" (default, backward compatible): standard log-normal paths,
+ *    each year drawn from N(0, 1) → exp(μ - σ²/2 + σ z).
+ *  - "studentT": same drift / volatility scaling, but z is drawn from a
+ *    standardised Student-t with `df` degrees of freedom (variance
+ *    re-scaled to 1 so portfolioSigma keeps its meaning). Produces fatter
+ *    tails — strictly worse CVaR99 and 5th-percentile Path-MDD than Gauss
+ *    at the same σ. df=5 is the operator default (recovers ~Gauss for
+ *    df ≥ 30, gets pathologically heavy for df < 4). */
+export type TailModel = "gauss" | "studentT";
 
 // Map an (assetClass, region) pair to the CMA key. Mirrors the logic in
 // metrics.mapAllocationToAssets so Monte Carlo, Sharpe and the frontier all
@@ -125,6 +136,37 @@ function gaussian(rng: () => number): number {
   return Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
 }
 
+// Standardised Student-t draw with `df` degrees of freedom, rescaled so
+// the realised variance is 1 (matches a standard Gaussian's second
+// moment). Construction:
+//   1. Sample z ~ N(0,1) and an independent χ²(df) via the standard
+//      gamma-from-uniforms identity. We approximate χ²(df) with the sum
+//      of df i.i.d. squared standard normals — it is exact and avoids
+//      pulling in a gamma sampler. df is small (default 5) so the cost
+//      is negligible.
+//   2. The raw t = z / sqrt(χ² / df) has variance df / (df - 2) for
+//      df > 2. Re-scale by sqrt((df - 2) / df) to bring variance back
+//      to 1 so the caller can keep using portfolioSigma as the second-
+//      moment knob without bias drift.
+// Why fatter tails matter: at df = 5 the kurtosis is 9 vs Gauss's 3, so
+// the probability of a 3-σ event is ~1.5 % vs Gauss's 0.27 % — about a
+// 5× heavier tail. CVaR99 / Path-MDD-P05 strictly worsen at the same σ.
+// Caller guards: df is clamped to [3, 100] in runMonteCarlo so the
+// variance scaler is well-defined (df > 2) and the heavy-tail effect
+// doesn't degenerate (df ≥ 100 is numerically Gauss).
+function studentT(rng: () => number, df: number): number {
+  const z = gaussian(rng);
+  let chi2 = 0;
+  for (let i = 0; i < df; i++) {
+    const g = gaussian(rng);
+    chi2 += g * g;
+  }
+  // Guard against the (effectively impossible) chi2 = 0 draw.
+  const tRaw = z / Math.sqrt(Math.max(chi2, 1e-12) / df);
+  // Variance of raw t(df) is df/(df-2) for df > 2 → rescale to 1.
+  return tRaw * Math.sqrt((df - 2) / df);
+}
+
 function quantile(sorted: number[], q: number): number {
   if (sorted.length === 0) return 0;
   const pos = (sorted.length - 1) * q;
@@ -146,6 +188,19 @@ export function runMonteCarlo(
     hedged?: boolean;
     baseCurrency?: BaseCurrency;
     syntheticUsEffective?: boolean;
+    /** Correlation regime fed into portfolioSigma. Default "normal" (the
+     *  long-run C matrix). When set to "crisis", the CRISIS_C matrix is
+     *  used — equity-equity / equity-REITs / equity-bonds correlations
+     *  rise, gold mildly drops; portfolioSigma rises for any equity-heavy
+     *  allocation, and the CVaR / Path-MDD tails widen accordingly. */
+    riskRegime?: RiskRegime;
+    /** Annual-return shock distribution. Default "gauss" (backward
+     *  compatible: standard log-normal paths). "studentT" fattens the
+     *  tails at the same σ — strictly worse CVaR99 and Path-MDD-P05. */
+    tailModel?: TailModel;
+    /** Degrees of freedom for the Student-t sampler. Ignored when
+     *  tailModel === "gauss". Clamped to [3, 100]; default 5. */
+    studentTDf?: number;
   } = {}
 ): MonteCarloResult {
   const numPaths = options.paths ?? 2000;
@@ -153,6 +208,12 @@ export function runMonteCarlo(
   const hedged = options.hedged ?? false;
   const baseCurrency: BaseCurrency = options.baseCurrency ?? "USD";
   const syntheticUsEffective = options.syntheticUsEffective ?? false;
+  const riskRegime: RiskRegime = options.riskRegime ?? "normal";
+  const tailModel: TailModel = options.tailModel ?? "gauss";
+  // Clamp df so the variance rescaler is always well-defined (needs df > 2)
+  // and so a wildly large df just degenerates to ~Gauss instead of blowing
+  // up the χ²-construction loop.
+  const studentTDf = Math.max(3, Math.min(100, Math.round(options.studentTDf ?? 5)));
 
   let portfolioMu = 0;
 
@@ -205,7 +266,11 @@ export function runMonteCarlo(
     for (let j = 0; j < buckets.length; j++) {
       const bi = buckets[i];
       const bj = buckets[j];
-      portfolioVar += bi.weight * bj.weight * bi.sigma * bj.sigma * corr(bi.key, bj.key);
+      // riskRegime: corr() switches between the long-run "normal" and the
+      // stress-aware "crisis" matrix. Folded analytically into σ_p so the
+      // 1-D log-normal sampler below picks up the regime change without
+      // any further machinery.
+      portfolioVar += bi.weight * bj.weight * bi.sigma * bj.sigma * corr(bi.key, bj.key, riskRegime);
     }
   }
   const portfolioSigma = Math.sqrt(Math.max(portfolioVar, 0));
@@ -215,11 +280,17 @@ export function runMonteCarlo(
 
   const rng = mulberry32(seed);
 
+  // Sampler dispatch: pick once per call, then call inside the inner loop.
+  // Both samplers return a draw with mean 0 and variance 1, so the
+  // log-normal drift correction (-σ²/2) and the σ-scaling are unchanged.
+  const drawShock: () => number =
+    tailModel === "studentT" ? () => studentT(rng, studentTDf) : () => gaussian(rng);
+
   for (let p = 0; p < numPaths; p++) {
     let value = initial;
     finalsPerYear[0].push(value);
     for (let y = 1; y <= years; y++) {
-      const z = gaussian(rng);
+      const z = drawShock();
       const r = portfolioMu - 0.5 * portfolioSigma * portfolioSigma + portfolioSigma * z;
       value = value * Math.exp(r);
       finalsPerYear[y].push(value);

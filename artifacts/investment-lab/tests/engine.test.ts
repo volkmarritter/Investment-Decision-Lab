@@ -2993,3 +2993,184 @@ describe("runReverseStressTest", () => {
     }
   });
 });
+
+// =============================================================================
+// Lieferung 2 — Tail-Realismus: Crisis-Σ + Student-t toggles
+// =============================================================================
+//
+// Three contracts must hold for these toggles to be safe to ship as
+// opt-in features:
+//   1. DEFAULTS-OFF: every existing call site keeps the old behaviour
+//      (no Crisis-Σ, no heavy tails) without passing the new options.
+//   2. CRISIS-Σ STRICTLY WIDENS: any portfolio with at least two
+//      imperfectly correlated risky sleeves must have crisis-σ ≥ normal-σ
+//      and crisis-CVaR99 ≤ normal-CVaR99 at the same RNG seed.
+//   3. STUDENT-T STRICTLY FATTENS TAILS: at the same seed and σ, switching
+//      from Gauss to Student-t must worsen CVaR99 measurably while leaving
+//      the median essentially unchanged.
+
+describe("Lieferung 2 — Crisis-Σ correlation regime", () => {
+  it("crisis regime increases portfolio σ for any imperfectly-correlated mix", async () => {
+    const { computeMetrics } = await import("../src/lib/metrics");
+    const allocation = [
+      { assetClass: "Equity", region: "USA", weight: 40 },
+      { assetClass: "Equity", region: "Europe", weight: 20 },
+      { assetClass: "Equity", region: "EM", weight: 10 },
+      { assetClass: "Bonds", region: "Global", weight: 20 },
+      { assetClass: "Real Estate (REITs)", region: "Global", weight: 10 },
+    ];
+    const normal = computeMetrics(allocation, "CHF", undefined, false, "normal");
+    const crisis = computeMetrics(allocation, "CHF", undefined, false, "crisis");
+    // Portfolio σ strictly rises (the clean invariant — diversification
+    // benefits shrink when correlations rise).
+    expect(crisis.vol).toBeGreaterThan(normal.vol);
+    // Tracking error vs ACWI also strictly rises: in crisis the bonds-
+    // equity correlation flips positive while ACWI is pure equity, so the
+    // active sleeve is more correlated with the benchmark and the active
+    // weight on bonds carries a larger σ-contribution.
+    expect(crisis.trackingError).toBeGreaterThanOrEqual(normal.trackingError);
+    // (Note: β is intentionally NOT asserted to rise — Var(ACWI) itself
+    //  expands in crisis as intra-equity correlations climb, and for some
+    //  mixes the denominator outpaces the Cov(p, ACWI) numerator, so β
+    //  can compress slightly. The vol/TE invariants above are the right
+    //  signature of "diversification benefit shrinks under stress".)
+  });
+
+  it("crisis regime worsens MC tail risk (CVaR99 strictly lower) at same seed", async () => {
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    const allocation = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Bonds", region: "Global", weight: 30 },
+      { assetClass: "Real Estate (REITs)", region: "Global", weight: 10 },
+    ];
+    const opts = { paths: 4_000, seed: 42, baseCurrency: "CHF" as const };
+    const normal = runMonteCarlo(allocation, 10, 100_000, { ...opts, riskRegime: "normal" });
+    const crisis = runMonteCarlo(allocation, 10, 100_000, { ...opts, riskRegime: "crisis" });
+    // Crisis fan widens ⇒ CVaR99 (mean of bottom 1 % final wealth) drops.
+    expect(crisis.cvar99Final).toBeLessThan(normal.cvar99Final);
+    // Median is approximately unchanged (drift dominates correlation).
+    const medRel = Math.abs(crisis.finalP50 - normal.finalP50) / normal.finalP50;
+    expect(medRel).toBeLessThan(0.05);
+  });
+
+  it("default riskRegime is 'normal' — backward compatible", async () => {
+    const { computeMetrics } = await import("../src/lib/metrics");
+    const allocation = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Bonds", region: "Global", weight: 40 },
+    ];
+    const implicit = computeMetrics(allocation, "CHF");
+    const explicit = computeMetrics(allocation, "CHF", undefined, false, "normal");
+    expect(implicit.vol).toBeCloseTo(explicit.vol, 12);
+    expect(implicit.beta).toBeCloseTo(explicit.beta, 12);
+    expect(implicit.trackingError).toBeCloseTo(explicit.trackingError, 12);
+  });
+});
+
+describe("Lieferung 2 — Student-t tail model", () => {
+  it("Student-t (df=5) inflates CVaR99 vs Gauss at same seed and σ", async () => {
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    const allocation = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Bonds", region: "Global", weight: 40 },
+    ];
+    const opts = { paths: 6_000, seed: 7, baseCurrency: "CHF" as const };
+    const gauss = runMonteCarlo(allocation, 15, 100_000, { ...opts, tailModel: "gauss" });
+    const studentT = runMonteCarlo(allocation, 15, 100_000, { ...opts, tailModel: "studentT", studentTDf: 5 });
+    // Heavy tails ⇒ deeper extreme losses.
+    expect(studentT.cvar99Final).toBeLessThan(gauss.cvar99Final);
+    // Median essentially unchanged — variance correction keeps σ matched.
+    const medRel = Math.abs(studentT.finalP50 - gauss.finalP50) / gauss.finalP50;
+    expect(medRel).toBeLessThan(0.06);
+  });
+
+  it("default tailModel is 'gauss' — backward compatible", async () => {
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    const allocation = [{ assetClass: "Equity", region: "USA", weight: 100 }];
+    const opts = { paths: 2_000, seed: 999, baseCurrency: "CHF" as const };
+    const implicit = runMonteCarlo(allocation, 10, 100_000, opts);
+    const explicit = runMonteCarlo(allocation, 10, 100_000, { ...opts, tailModel: "gauss", riskRegime: "normal" });
+    expect(implicit.finalP50).toBeCloseTo(explicit.finalP50, 6);
+    expect(implicit.cvar99Final).toBeCloseTo(explicit.cvar99Final, 6);
+    expect(implicit.cvar95Final).toBeCloseTo(explicit.cvar95Final, 6);
+  });
+
+  it("studentTDf is clamped into [3, 100]", async () => {
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    const allocation = [{ assetClass: "Equity", region: "USA", weight: 100 }];
+    const opts = { paths: 1_500, seed: 11, baseCurrency: "CHF" as const, tailModel: "studentT" as const };
+    // df=2 → clamped to 3 (variance of t-distribution undefined for df ≤ 2).
+    // df=500 → clamped to 100 (effectively Gauss).
+    const tooLow = runMonteCarlo(allocation, 5, 100_000, { ...opts, studentTDf: 2 });
+    const atFloor = runMonteCarlo(allocation, 5, 100_000, { ...opts, studentTDf: 3 });
+    const tooHigh = runMonteCarlo(allocation, 5, 100_000, { ...opts, studentTDf: 500 });
+    const atCeil = runMonteCarlo(allocation, 5, 100_000, { ...opts, studentTDf: 100 });
+    expect(tooLow.cvar99Final).toBeCloseTo(atFloor.cvar99Final, 6);
+    expect(tooHigh.cvar99Final).toBeCloseTo(atCeil.cvar99Final, 6);
+  });
+});
+
+describe("Lieferung 2 — Crisis-Σ × Student-t orthogonality", () => {
+  it("stacking both worsens CVaR99 strictly more than either alone", async () => {
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    const allocation = [
+      { assetClass: "Equity", region: "USA", weight: 50 },
+      { assetClass: "Equity", region: "Europe", weight: 20 },
+      { assetClass: "Bonds", region: "Global", weight: 30 },
+    ];
+    const opts = { paths: 5_000, seed: 314, baseCurrency: "CHF" as const };
+    const baseline = runMonteCarlo(allocation, 12, 100_000, opts);
+    const crisisOnly = runMonteCarlo(allocation, 12, 100_000, { ...opts, riskRegime: "crisis" });
+    const tOnly = runMonteCarlo(allocation, 12, 100_000, { ...opts, tailModel: "studentT", studentTDf: 5 });
+    const both = runMonteCarlo(allocation, 12, 100_000, { ...opts, riskRegime: "crisis", tailModel: "studentT", studentTDf: 5 });
+    // Each toggle alone is worse than baseline.
+    expect(crisisOnly.cvar99Final).toBeLessThan(baseline.cvar99Final);
+    expect(tOnly.cvar99Final).toBeLessThan(baseline.cvar99Final);
+    // Both stacked is at least as bad as either alone.
+    expect(both.cvar99Final).toBeLessThanOrEqual(crisisOnly.cvar99Final);
+    expect(both.cvar99Final).toBeLessThanOrEqual(tOnly.cvar99Final);
+  });
+});
+
+describe("Lieferung 2 — Student-t sampler statistical properties", () => {
+  // Sampler-level guard: any future edit to the studentT() chi²
+  // construction or variance correction should keep these invariants.
+  // We can't import studentT directly (it's not exported), so we read
+  // the empirical distribution of MC log-returns at H=1Y for a single
+  // pure-equity sleeve, where the per-year shock IS the sampler output
+  // (modulo a deterministic drift).
+  it("Student-t empirical variance ≈ Gauss empirical variance across df ∈ {3,5,10,30}", async () => {
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    const allocation = [{ assetClass: "Equity", region: "USA", weight: 100 }];
+    const opts = { paths: 20_000, seed: 2026, baseCurrency: "CHF" as const };
+    // 1Y horizon ⇒ each path's final wealth = exp(μ - σ²/2 + σ·shock)·V0.
+    // log(final/V0) = (μ - σ²/2) + σ·shock, so variance of log-return ≈ σ²
+    // independent of tail model when the variance correction is right.
+    const gauss = runMonteCarlo(allocation, 1, 100_000, { ...opts, tailModel: "gauss" });
+    const dfs = [3, 5, 10, 30] as const;
+    // Use the spread between P10 and P90 of final wealth as a proxy for σ —
+    // in 1Y, this should be within ~10 % across df values. For Gauss the
+    // P10/P90 ratio is exp(σ·1.282 - σ·(-1.282)) = exp(2.564·σ); for t-df
+    // the ratio is slightly tighter at the inner percentiles (fatter tails
+    // pull mass to the extremes, not the middle), so we allow ±15 %.
+    const gaussRatio = gauss.finalP90 / gauss.finalP10;
+    for (const df of dfs) {
+      const t = runMonteCarlo(allocation, 1, 100_000, { ...opts, tailModel: "studentT", studentTDf: df });
+      const tRatio = t.finalP90 / t.finalP10;
+      const rel = Math.abs(tRatio - gaussRatio) / gaussRatio;
+      expect(rel).toBeLessThan(0.15);
+    }
+  });
+
+  it("Student-t produces strictly worse CVaR99 than Gauss for every df ∈ {3,5,10}", async () => {
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    const allocation = [{ assetClass: "Equity", region: "USA", weight: 100 }];
+    const opts = { paths: 8_000, seed: 99, baseCurrency: "CHF" as const };
+    const gauss = runMonteCarlo(allocation, 10, 100_000, { ...opts, tailModel: "gauss" });
+    for (const df of [3, 5, 10] as const) {
+      const t = runMonteCarlo(allocation, 10, 100_000, { ...opts, tailModel: "studentT", studentTDf: df });
+      // Heavier-than-Gauss tails ⇒ deeper CVaR99. Gap shrinks as df↑30.
+      expect(t.cvar99Final).toBeLessThan(gauss.cvar99Final);
+    }
+  });
+});

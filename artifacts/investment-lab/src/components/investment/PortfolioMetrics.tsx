@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { InfoHint } from "@/components/ui/info-hint";
 import { AssetAllocation, BaseCurrency, ETFImplementation } from "@/lib/types";
-import { computeMetrics, computeFrontier, buildCorrelationMatrix, mapAllocationToAssetsLookthrough, mapAllocationToAssets, decomposeTrackingError, CMA, isSyntheticUsEffective } from "@/lib/metrics";
+import { computeMetrics, computeFrontier, buildCorrelationMatrix, mapAllocationToAssetsLookthrough, mapAllocationToAssets, decomposeTrackingError, CMA, isSyntheticUsEffective, RiskRegime } from "@/lib/metrics";
 import { getRiskFreeRate, subscribeRiskFreeRate, subscribeCMAOverrides } from "@/lib/settings";
 import { applyCMALayers } from "@/lib/metrics";
 import { useT } from "@/lib/i18n";
@@ -15,6 +15,13 @@ export function PortfolioMetrics({ allocation, baseCurrency, etfImplementation, 
   const { t, lang } = useT();
   const de = lang === "de";
   const [showDetails, setShowDetails] = useState(false);
+  // Risk-regime toggle: default "normal" so the tile renders identically
+  // to before this feature shipped (backward compatible). Flipping to
+  // "crisis" swaps the correlation matrix into CRISIS_C — vol / β / TE /
+  // Sharpe / α / max-DD / frontier / correlation matrix all re-compute
+  // against the stress regime without touching expected returns. See
+  // metrics.ts:CRISIS_C for the calibration anchors.
+  const [riskRegime, setRiskRegime] = useState<RiskRegime>("normal");
   const [rf, setRf] = useState<number>(() => getRiskFreeRate(baseCurrency));
   useEffect(() => subscribeRiskFreeRate((all) => setRf(all[baseCurrency])), [baseCurrency]);
   // Re-read RF whenever the active base currency changes (Sharpe / Alpha must
@@ -33,13 +40,13 @@ export function PortfolioMetrics({ allocation, baseCurrency, etfImplementation, 
   // actually selects a swap-based US share class (not gated off by hedged
   // non-USD), the equity_us WHT drag is zero — see metrics.ts.
   const syntheticUsEffective = isSyntheticUsEffective(includeSyntheticETFs, baseCurrency, hedged);
-  const m = useMemo(() => computeMetrics(allocation, baseCurrency, etfImplementation, syntheticUsEffective), [allocation, baseCurrency, etfImplementation, syntheticUsEffective, rf, cmaVersion]);
-  const frontier = useMemo(() => computeFrontier(allocation, baseCurrency, etfImplementation, syntheticUsEffective), [allocation, baseCurrency, etfImplementation, syntheticUsEffective, rf, cmaVersion]);
-  const correlation = useMemo(() => buildCorrelationMatrix(allocation, baseCurrency, etfImplementation), [allocation, baseCurrency, etfImplementation]);
+  const m = useMemo(() => computeMetrics(allocation, baseCurrency, etfImplementation, syntheticUsEffective, riskRegime), [allocation, baseCurrency, etfImplementation, syntheticUsEffective, riskRegime, rf, cmaVersion]);
+  const frontier = useMemo(() => computeFrontier(allocation, baseCurrency, etfImplementation, syntheticUsEffective, riskRegime), [allocation, baseCurrency, etfImplementation, syntheticUsEffective, riskRegime, rf, cmaVersion]);
+  const correlation = useMemo(() => buildCorrelationMatrix(allocation, baseCurrency, etfImplementation, riskRegime), [allocation, baseCurrency, etfImplementation, riskRegime]);
   const exposures = useMemo(() => etfImplementation
     ? mapAllocationToAssetsLookthrough(allocation, etfImplementation, baseCurrency)
     : mapAllocationToAssets(allocation, baseCurrency), [allocation, baseCurrency, etfImplementation]);
-  const teDecomp = useMemo(() => decomposeTrackingError(allocation, baseCurrency, etfImplementation), [allocation, baseCurrency, etfImplementation, cmaVersion]);
+  const teDecomp = useMemo(() => decomposeTrackingError(allocation, baseCurrency, etfImplementation, riskRegime), [allocation, baseCurrency, etfImplementation, riskRegime, cmaVersion]);
 
   const explain = {
     expReturn: {
@@ -130,6 +137,49 @@ export function PortfolioMetrics({ allocation, baseCurrency, etfImplementation, 
           <MetricTile label={t("metrics.alpha")} value={pct(m.alpha)} sub={de ? "p.a. vs. ACWI" : "p.a. vs ACWI"} accent={m.alpha >= 0 ? "good" : "warn"} info={explain.alpha} />
           <MetricTile label={t("metrics.te")} value={pct(m.trackingError, 1)} sub={de ? "p.a." : "p.a."} info={explain.te} />
           <MetricTile label={t("metrics.outperf")} value={`${m.outperformance >= 0 ? "+" : ""}${pct(m.outperformance)}`} sub={de ? "vs. ACWI p.a." : "vs ACWI p.a."} accent={m.outperformance >= 0 ? "good" : "warn"} info={explain.outperf} />
+        </div>
+
+        {/* Risk-regime pill: switches the correlation matrix used by every
+         *  σ-driven metric on this tile (vol / β / TE / Sharpe / α / max-DD,
+         *  efficient frontier, correlation matrix) between the long-run
+         *  "normal" matrix and the stress-aware "crisis" matrix. Default
+         *  off so the tile is byte-identical to the pre-feature baseline.
+         *  See Methodology → "Tail-Realismus" section for the calibration. */}
+        <div className="flex flex-wrap items-center justify-center gap-2 pt-1" data-testid="risk-regime-toggle">
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground">
+            {de ? "Korrelations-Regime" : "Correlation regime"}:
+          </span>
+          <div className="inline-flex rounded-md border border-border overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setRiskRegime("normal")}
+              data-testid="risk-regime-normal"
+              className={`px-3 py-1 text-xs font-medium transition-colors ${
+                riskRegime === "normal"
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-background text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              {de ? "Normal" : "Normal"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setRiskRegime("crisis")}
+              data-testid="risk-regime-crisis"
+              className={`px-3 py-1 text-xs font-medium transition-colors border-l border-border ${
+                riskRegime === "crisis"
+                  ? "bg-destructive text-destructive-foreground"
+                  : "bg-background text-muted-foreground hover:bg-muted"
+              }`}
+            >
+              {de ? "Krise" : "Crisis"}
+            </button>
+          </div>
+          {riskRegime === "crisis" && (
+            <span className="text-[10px] text-destructive italic">
+              {de ? "höhere Korrelationen — σ, β, TE pessimistischer" : "higher correlations — σ, β, TE more pessimistic"}
+            </span>
+          )}
         </div>
 
         {/* Show Details toggle — reveals asset table, efficient frontier, correlation matrix */}

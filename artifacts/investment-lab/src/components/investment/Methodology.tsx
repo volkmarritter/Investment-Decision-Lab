@@ -1185,8 +1185,65 @@ export function Methodology() {
           </div>
           <p className="text-xs text-muted-foreground">
             {de
-              ? "Limitierung: ohne Tail-Korrelationen, ohne Inflations-/Steuermodell (außer der WHT-Drag — siehe Abschnitt „Quellensteuer-Drag“), ohne Sequence-of-Returns-Pfade über Cash-Flows."
-              : "Limitations: no tail correlations, no inflation/tax model (apart from the WHT drag — see \"Withholding-Tax Drag\" section), no cash-flow sequence-of-returns modelling."}
+              ? "Standard-Annahmen sind bewusst konservativ-mainstream: Gauss-Verteilung pro Jahr und Long-Run-Korrelationsmatrix. Für eine pessimistischere Sicht stehen die optionalen Schalter „Crisis-Σ\" und „Student-t\" zur Verfügung — dokumentiert im Abschnitt „Tail-Realismus\" direkt unten. Weitere bewusst nicht modellierte Effekte: Inflations-/Steuermodell (außer dem WHT-Drag — siehe Abschnitt „Quellensteuer-Drag\"), Sequence-of-Returns-Pfade über Cash-Flows."
+              : "Default assumptions are deliberately conservative-mainstream: Gauss distribution per year and the long-run correlation matrix. For a more pessimistic lens, the optional \"Crisis-Σ\" and \"Student-t\" toggles are available — documented in the \"Tail Realism\" section directly below. Other deliberately unmodelled effects: inflation/tax (apart from the WHT drag — see \"Withholding-Tax Drag\" section), cash-flow sequence-of-returns paths."}
+          </p>
+        </Section>
+
+        <Section value="tail-realism" icon={<Calculator className="h-4 w-4" />} title={de ? "Tail-Realismus (v1.6, Apr 2026)" : "Tail Realism (v1.6, Apr 2026)"}>
+          <p className="text-sm text-muted-foreground">
+            {de
+              ? "Zwei optionale Schalter erlauben dem Operator, die Standard-Annahmen pessimistischer zu kalibrieren — ohne den ausgewiesenen Median oder die erwartete Rendite zu verändern. Beide Schalter sind in der Default-Stellung „aus\" — alle bisherigen Auswertungen bleiben unverändert reproduzierbar. Sie greifen unabhängig voneinander und können einzeln oder gemeinsam aktiviert werden."
+              : "Two optional toggles let the operator calibrate the default assumptions more pessimistically — without changing the reported median or expected return. Both toggles default to \"off\" — every prior reading remains exactly reproducible. They are independent and can be flipped individually or stacked."}
+          </p>
+
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 my-3 space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+              {de ? "1. Crisis-Σ (Korrelations-Regime)" : "1. Crisis-Σ (correlation regime)"}
+            </p>
+            <p className="text-xs text-muted-foreground leading-snug">
+              {de
+                ? "In normalen Marktphasen sind Equity-Equity-Korrelationen typischerweise 0.55–0.85, Equity↔Bonds nahe null bzw. leicht positiv (~+0.10 im Post-2022-Regime), Equity↔Gold leicht positiv (~+0.05), Equity↔Cash genau 0. In Krisen (2008, März 2020) konvergieren alle riskanten Assets nach oben: Equity-Equity-Pärchen rücken auf 0.85–0.95, Equity↔Bonds steigt auf +0.30 (Flight-to-Quality bricht zusammen), Equity↔REITs auf 0.80–0.88 (REITs handeln wie gehebelte Aktien), Equity↔Crypto auf 0.55–0.75. Gold und Cash bleiben die einzigen verlässlichen Diversifier (Equity↔Gold dreht auf 0 bis −0.05, Equity↔Cash bewusst auf 0 belassen). Die Krisen-Matrix ist konservativ-konsensuell aus AQR-/Bridgewater-Stress-Studien kalibriert."
+                : "In normal markets, equity-equity correlations are typically 0.55–0.85, equity↔bonds near zero or slightly positive (~+0.10 in the post-2022 regime), equity↔gold slightly positive (~+0.05), equity↔cash exactly 0. In crises (2008, March 2020) all risky assets converge upward: equity-equity pairs jump to 0.85–0.95, equity↔bonds rises to +0.30 (flight-to-quality breaks down), equity↔REITs to 0.80–0.88 (REITs trade as levered equity), equity↔crypto to 0.55–0.75. Gold and cash remain the only reliable diversifiers (equity↔gold flips to 0 / −0.05, equity↔cash deliberately kept at 0). The crisis matrix is calibrated conservatively from AQR/Bridgewater stress studies."}
+            </p>
+            <p className="text-xs text-muted-foreground leading-snug">
+              {de
+                ? "Wirkung: σ, β, Tracking Error, Sharpe, Alpha, Heuristik-MDD und die effiziente Frontier rechnen mit der Crisis-Matrix neu — die ausgewiesene Vol steigt strikt für jeden imperfekt korrelierten Mix; Diversifikations-Vorteile schrumpfen. In der Monte-Carlo-Simulation verbreitert sich der Fan, CVaR99 und Path-MDD-P05 verschlechtern sich, der Median bleibt nahezu unverändert (er wird vom Drift, nicht von der Korrelation getrieben)."
+                : "Effect: σ, β, tracking error, Sharpe, alpha, heuristic MDD and the efficient frontier all recompute against the crisis matrix — reported vol strictly rises for any imperfectly-correlated mix; diversification benefits shrink. In the Monte Carlo simulation the fan widens, CVaR99 and Path-MDD-P05 worsen, the median is largely unchanged (it is driven by drift, not by correlation)."}
+            </p>
+          </div>
+
+          <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 my-3 space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+              {de ? "2. Student-t Tail-Modell (df=5)" : "2. Student-t tail model (df=5)"}
+            </p>
+            <p className="text-xs text-muted-foreground leading-snug">
+              {de
+                ? "Die Default-Annahme einer Gauss-Verteilung unterschätzt die Häufigkeit extremer Ereignisse — empirisch zeigen Aktien-Tagesrenditen (und auch Jahresrenditen) Kurtosis-Werte von 4–7 statt der Gauss-3. Der Student-t-Schalter ersetzt den jährlichen Schock durch eine Student-t-Verteilung mit 5 Freiheitsgraden (Standard-Wahl in der akademischen Literatur, z. B. Cont 2001) — die σ wird über √((df−2)/df) korrigiert, sodass sie identisch zur Gauss-σ bleibt."
+                : "The default Gauss assumption understates the frequency of extreme events — equity daily returns (and annual returns) empirically show kurtosis of 4–7 vs Gauss's 3. The Student-t toggle replaces the annual shock with a Student-t distribution at 5 degrees of freedom (standard choice in the academic literature, e.g. Cont 2001) — σ is corrected via √((df−2)/df) so it stays identical to the Gauss σ."}
+            </p>
+            <p className="text-xs text-muted-foreground leading-snug">
+              {de
+                ? "Wirkung: Median, P10/P90 und P/(L) ändern sich nur marginal (gleiche σ, gleicher Drift). CVaR99 verschlechtert sich messbar (typischerweise 5–15 % schlechter), Path-MDD-P05 ebenso — die fetteren Tails treffen genau die extremen Pfade, die diese Kennzahlen messen."
+                : "Effect: median, P10/P90 and P/L barely change (same σ, same drift). CVaR99 worsens measurably (typically 5–15 % worse), Path-MDD-P05 likewise — the heavier tails hit exactly the extreme paths these metrics measure."}
+            </p>
+          </div>
+
+          <div className="rounded-md border border-border bg-muted/30 p-3 my-3 space-y-2">
+            <p className="text-xs font-semibold">
+              {de ? "Wo bedienen?" : "Where to operate?"}
+            </p>
+            <ul className="text-xs text-muted-foreground space-y-1 list-disc pl-5">
+              <li>{de ? "Crisis-Σ: Risk-&-Performance-Kachel (oben Mitte) — wirkt auf alle σ-getriebenen Kennzahlen, Frontier und Korrelationsmatrix." : "Crisis-Σ: Risk & Performance tile (top center) — affects every σ-driven metric, the frontier, and the correlation matrix."}</li>
+              <li>{de ? "Crisis-Σ + Student-t: Monte-Carlo-Kachel (Tail-Realismus-Box) — beide Schalter unabhängig, Pfad-Aggregate (CVaR, Path-MDD) reagieren entsprechend." : "Crisis-Σ + Student-t: Monte Carlo tile (Tail-Realism box) — both toggles independent, path aggregates (CVaR, Path-MDD) respond accordingly."}</li>
+              <li>{de ? "Stress-Test (Szenarien-Tab) ist deterministisch konstruiert — er nutzt fixe historische Drawdowns je Asset und ist damit Σ-unabhängig (keine Doppel-Pessimismus-Falle)." : "Stress-Test (Scenarios tab) is deterministic by construction — it uses fixed historical drawdowns per asset and is Σ-independent (no double-pessimism trap)."}</li>
+            </ul>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            {de
+              ? "Empfohlener Use: Standard-Aussage mit Default-Annahmen (Gauss + Normal-Σ) + Robustheits-Check mit beiden Schaltern aktiv („Worst-realistic\"-Linse). Wenn die Investment-These auch unter Crisis-Σ + Student-t trägt, ist sie deutlich robuster validiert als unter den Defaults allein."
+              : "Recommended use: produce the standard reading with the default assumptions (Gauss + normal Σ), then a robustness check with both toggles active (the \"worst-realistic\" lens). If the investment thesis still holds under Crisis-Σ + Student-t, it is materially better validated than under the defaults alone."}
           </p>
         </Section>
 
