@@ -28,15 +28,30 @@ interface FeeEstimatorProps {
 // Format an integer with US-style thousand separators ("100,000"). We use
 // en-US to match the existing currency display below (`Intl.NumberFormat
 // "en-US"` for $100,000 / CHF 100,000 etc.) so the input and the result
-// cards read the same way. The decimal portion (and any partial
-// mid-typing state like "100,000." or "100,000.5") is preserved untouched.
-function formatThousandsLive(raw: string): string {
-  // Strip whitespace plus US/EU/CH thousand separators that the user might
-  // have pasted in. Keep dot/comma at most as the decimal separator.
-  const stripped = raw.replace(/[\s'’]/g, "").replace(/,(?=\d{3}(?:\D|$))/g, "");
+// cards read the same way.
+//
+// In this scheme `,` is ALWAYS the thousand separator and `.` is ALWAYS the
+// decimal separator — same convention as the en-US currency formatter.
+// We strip apostrophes/spaces/commas as group separators, then re-group
+// the integer part. The decimal portion (and partial mid-typing states
+// like "100,000." or "100,000.5") is preserved as-is.
+//
+// Trade-off: a user typing the European decimal "100000,50" would have
+// the comma swallowed by the de-grouping pass and end up with 10000050.
+// For an "Investment Amount" field this is acceptable — operators type
+// large integers, not centimes; the manualWeights audit comment already
+// notes parseDecimalInput is the comma-decimal-friendly path for the
+// fields where mid-edit cents matter (per-bucket weight, μ/σ overrides,
+// risk-free rate). The cost of supporting comma-decimal here would be a
+// formatter that can't tell "5,5" (decimal) from "5,500" (thousand) until
+// 4+ digits arrive, which produces visible jumps mid-typing.
+export function formatThousandsLive(raw: string): string {
+  // Drop every grouping character: spaces, ASCII/curly apostrophes, and
+  // commas. After this, the only separator left is `.` (decimal).
+  const stripped = raw.replace(/[\s',’]/g, "");
   if (stripped === "" || stripped === "-" || stripped === "+") return stripped;
-  // Allowed shape: optional sign, digits, optional separator, optional digits.
-  const match = stripped.match(/^([+-]?)(\d*)([.,]?)(\d*)$/);
+  // Allowed shape: optional sign, digits, optional decimal dot, optional digits.
+  const match = stripped.match(/^([+-]?)(\d*)(\.?)(\d*)$/);
   if (!match) return raw;
   const [, sign, intPart, sep, decPart] = match;
   const intFormatted = intPart === ""
@@ -69,11 +84,9 @@ export function FeeEstimator({
     // Strip thousand separators (commas, spaces, Swiss apostrophes) before
     // parsing — parseDecimalInput's whitelist regex only knows digits +
     // optional dot/comma decimal separator and would otherwise reject the
-    // grouped value "100,000".
-    const cleaned = amountDraft.replace(/[\s'’]/g, "").replace(
-      /,(?=\d{3}(?:\D|$))/g,
-      "",
-    );
+    // grouped value "100,000". Same convention as `formatThousandsLive`:
+    // `,` is a thousand separator, `.` is the decimal separator.
+    const cleaned = amountDraft.replace(/[\s',’]/g, "");
     return parseDecimalInput(cleaned, { min: 0 }) ?? 0;
   }, [amountDraft]);
 
