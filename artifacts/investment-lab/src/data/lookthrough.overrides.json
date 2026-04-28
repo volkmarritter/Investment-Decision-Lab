@@ -2381,6 +2381,74 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B5L01S80",
       "_addedAt": "2026-04-28T14:16:04.365Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
+    },
+    "IE00BLPK3577": {
+      "name": "WisdomTree Cybersecurity UCITS ETF USD Acc",
+      "topHoldings": [
+        {
+          "name": "SentinelOne",
+          "pct": 6.16
+        },
+        {
+          "name": "Zscaler",
+          "pct": 6.09
+        },
+        {
+          "name": "CrowdStrike Holdings",
+          "pct": 5.8
+        },
+        {
+          "name": "Trend Micro, Inc.",
+          "pct": 4.88
+        },
+        {
+          "name": "Okta",
+          "pct": 4.84
+        },
+        {
+          "name": "Fortinet Inc",
+          "pct": 4.74
+        },
+        {
+          "name": "Cloudflare Inc",
+          "pct": 4.64
+        },
+        {
+          "name": "Palo Alto Networks",
+          "pct": 4.6
+        },
+        {
+          "name": "Check Point Software Tech",
+          "pct": 4.58
+        },
+        {
+          "name": "Datadog",
+          "pct": 4.56
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-28T14:32:12.382Z",
+      "geo": {
+        "United States": 71.05,
+        "Japan": 7.45,
+        "Israel": 4.58,
+        "Netherlands": 3.62,
+        "Other": 13.3
+      },
+      "sector": {
+        "Technology": 87.27,
+        "Other": 12.73
+      },
+      "currency": {
+        "USD": 71.05,
+        "JPY": 7.45,
+        "ILS": 4.58,
+        "EUR": 3.62,
+        "Other": 13.3
+      },
+      "breakdownsAsOf": "2026-04-28T14:32:12.382Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BLPK3577",
+      "_addedAt": "2026-04-28T14:32:12.382Z",
+      "_addedVia": "admin/bucket-alternatives (auto)"
     }
   }
 }
