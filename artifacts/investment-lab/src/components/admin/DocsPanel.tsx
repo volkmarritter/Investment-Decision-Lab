@@ -146,8 +146,8 @@ export function DocsPanel({ github }: DocsPanelProps) {
         <CardContent className="pt-0 space-y-5 text-sm">
           <p className="text-muted-foreground">
             {t({
-              de: 'Diese Seite kennt fünf verschiedene Wege, Daten zu ändern. Jeder hat ein anderes Ziel, einen anderen Sichtbarkeitsbereich und eine andere Latenz, bis Endnutzer die Änderung sehen. Vor dem Klick auf „PR öffnen" lohnt sich ein Blick darauf, welcher Flow gerade läuft.',
-              en: "This page exposes five distinct ways to change data. Each one has a different target, scope of visibility, and latency before end users see the change. Worth a glance before clicking 'Open PR' to confirm which flow is running.",
+              de: 'Diese Seite kennt sieben verschiedene Wege, Daten zu ändern. Jeder hat ein anderes Ziel, einen anderen Sichtbarkeitsbereich und eine andere Latenz, bis Endnutzer die Änderung sehen. Vor dem Klick auf „PR öffnen" lohnt sich ein Blick darauf, welcher Flow gerade läuft.',
+              en: "This page exposes seven distinct ways to change data. Each one has a different target, scope of visibility, and latency before end users see the change. Worth a glance before clicking 'Open PR' to confirm which flow is running.",
             })}
           </p>
 
@@ -257,10 +257,18 @@ export function DocsPanel({ github }: DocsPanelProps) {
                   </p>
                   <p>
                     Format pro Zeile: <code>BucketKey ISIN [Kommentar]</code>.
-                    Komma, Tab oder Whitespace sind als Trenner OK.{" "}
-                    <strong>Vorab prüfen</strong> zeigt für jede Zeile, ob sie
-                    landen würde (OK / Duplikat / Limit erreicht / Bucket
-                    fehlt / Scrape-Problem). Erst bei{" "}
+                    Komma, Tab oder Whitespace sind als Trenner OK. Schon{" "}
+                    <strong>beim Tippen</strong> erscheinen Warnungen pro
+                    Zeile (Duplikat, Limit erreicht, Bucket fehlt) — Submit
+                    bleibt so lange gesperrt, bis alle Zeilen sauber sind.
+                  </p>
+                  <p>
+                    <strong>Vorab prüfen</strong> macht zusätzlich den
+                    Scrape-Lauf und zeigt eine echte{" "}
+                    <strong>grün/rot eingefärbte Diff</strong> sowohl für{" "}
+                    <code>etfs.ts</code> als auch für{" "}
+                    <code>lookthrough.overrides.json</code> — du siehst also
+                    den exakten Änderungsumfang vor dem PR. Erst bei{" "}
                     <strong>Alle als ein PR öffnen</strong> wird tatsächlich
                     ein PR erzeugt — zusätzlich öffnet der Server
                     best-effort einen einzelnen Look-through-PR für die
@@ -280,10 +288,18 @@ export function DocsPanel({ github }: DocsPanelProps) {
                   </p>
                   <p>
                     One row per line: <code>BucketKey ISIN [comment]</code>.
-                    Comma, tab or whitespace are all OK as separators.{" "}
-                    <strong>Preview</strong> shows for each row whether it
-                    would land (OK / duplicate / cap reached / bucket
-                    missing / scrape failure). Only{" "}
+                    Comma, tab or whitespace are all OK as separators.
+                    Per-row warnings (duplicate, cap reached, bucket missing)
+                    appear <strong>as you type</strong> — Submit stays
+                    disabled until every row is clean.
+                  </p>
+                  <p>
+                    <strong>Preview</strong> additionally runs the scrape
+                    pass and renders a real{" "}
+                    <strong>green/red unified diff</strong> for both{" "}
+                    <code>etfs.ts</code> and{" "}
+                    <code>lookthrough.overrides.json</code> — you see the
+                    exact change set before opening the PR. Only{" "}
                     <strong>Submit all as one PR</strong> actually opens
                     a PR — and the server best-effort opens one
                     accompanying look-through PR for the ISINs that don't
@@ -571,8 +587,8 @@ export function DocsPanel({ github }: DocsPanelProps) {
               en: "Admin pane only; affects the server's local copy of the data files between merge and redeploy",
             })}
             trigger={t({
-              de: '„Workspace-Synchronisation" → wenn „Hinter Origin" > 0 → „Commits ziehen"',
-              en: "'Workspace sync' → if 'Behind origin' > 0 → 'Pull commits'",
+              de: '„Workspace-Synchronisation" → „Aus Origin aktualisieren" (holt frischen Stand) → wenn „Hinter Origin" > 0 → „Commits ziehen"',
+              en: "'Workspace sync' → 'Refresh from origin' (fetches latest) → if 'Behind origin' > 0 → 'Pull commits'",
             })}
             file="(git fetch origin main && git merge --ff-only)"
             fileLink={null}
@@ -590,12 +606,19 @@ export function DocsPanel({ github }: DocsPanelProps) {
                   </p>
                   <p>
                     Die Karte oben zeigt, wie viele Commits du{" "}
-                    <strong>hinter Origin</strong> liegst. Ein Klick auf{" "}
-                    <strong>Commits ziehen</strong> macht ein
+                    <strong>hinter Origin</strong> liegst — diese Zahl wird
+                    aus dem letzten gespeicherten Origin-Stand berechnet
+                    und beim Öffnen der Seite <em>nicht</em> automatisch
+                    aktualisiert (das spart einen Netz-Call pro Seitenaufruf).
+                    Ein Klick auf <strong>Aus Origin aktualisieren</strong>{" "}
+                    holt den frischen Stand; <strong>Status neu laden</strong>
+                    {" "}liest nur den lokalen Stand neu. Ein Klick auf{" "}
+                    <strong>Commits ziehen</strong> macht dann ein
                     fast-forward-Merge — keine Konflikte, keine eigenen
                     Änderungen werden angefasst. Falls die Arbeitskopie
-                    schmutzig oder gelockt ist, wird der Sync abgelehnt
-                    und der Grund klar erklärt.
+                    schmutzig oder gelockt ist oder du auf einem anderen
+                    Branch sitzt, wird der Sync abgelehnt und der Grund
+                    klar erklärt.
                   </p>
                 </>
               ) : (
@@ -610,11 +633,17 @@ export function DocsPanel({ github }: DocsPanelProps) {
                   </p>
                   <p>
                     The card above shows how many commits you are{" "}
-                    <strong>behind origin</strong>. Clicking{" "}
-                    <strong>Pull commits</strong> performs a fast-forward
-                    merge — no conflicts, no local changes touched. If the
-                    working copy is dirty or locked, the sync is refused
-                    with a clear reason.
+                    <strong>behind origin</strong> — this counter is
+                    computed from the last cached origin ref and is{" "}
+                    <em>not</em> auto-refreshed on page load (saves one
+                    network call per visit). Click{" "}
+                    <strong>Refresh from origin</strong> to fetch the latest;{" "}
+                    <strong>Reload status</strong> only re-reads the local
+                    state. Then <strong>Pull commits</strong> performs a
+                    fast-forward merge — no conflicts, no local changes
+                    touched. If the working copy is dirty, locked, or you
+                    are on a different branch, the sync is refused with a
+                    clear reason.
                   </p>
                 </>
               )
