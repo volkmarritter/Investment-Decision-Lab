@@ -471,6 +471,20 @@ const CATALOG: Record<string, ETFRecord> = {
       "Concentrated US tech-sector tilt; high stock-level concentration in mega-cap names.",
     listings: { LSE: { ticker: "IUIT" }, XETRA: { ticker: "QDVE" }, SIX: { ticker: "IUIT" }, Euronext: { ticker: "IUIT" } },
     defaultExchange: "LSE",
+    alternatives: [
+      {
+        name: "Xtrackers MSCI World Information Technology UCITS ETF 1C",
+        isin: "IE00BM67HT60",
+        terBps: 25,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment: "",
+        listings: { "LSE": { ticker: "XDWT" }, "XETRA": { ticker: "XDWT" }, "SIX": { ticker: "XDWT" } },
+        defaultExchange: "LSE",
+      },
+    ],
   }),
   "Equity-Healthcare": E({
     name: "iShares Healthcare Innovation UCITS",
