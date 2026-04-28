@@ -2591,6 +2591,78 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B43HR379",
       "_addedAt": "2026-04-28T14:35:10.414Z",
       "_addedVia": "admin/lookthrough-pool"
+    },
+    "LU0839027447": {
+      "name": "Xtrackers Nikkei 225 UCITS ETF 1D",
+      "topHoldings": [
+        {
+          "name": "Advantest Corp.",
+          "pct": 10.78
+        },
+        {
+          "name": "Fast Retailing Co., Ltd.",
+          "pct": 9.53
+        },
+        {
+          "name": "Tokyo Electron Ltd.",
+          "pct": 7.51
+        },
+        {
+          "name": "SoftBank Group Corp.",
+          "pct": 5.71
+        },
+        {
+          "name": "KDDI Corp.",
+          "pct": 2.09
+        },
+        {
+          "name": "Shin-Etsu Chemical Co., Ltd.",
+          "pct": 2
+        },
+        {
+          "name": "TDK Corp.",
+          "pct": 1.93
+        },
+        {
+          "name": "FANUC Corp.",
+          "pct": 1.77
+        },
+        {
+          "name": "Fujikura Ltd.",
+          "pct": 1.74
+        },
+        {
+          "name": "Chugai Pharmaceutical Co., Ltd.",
+          "pct": 1.67
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-28T14:36:22.899Z",
+      "geo": {
+        "Japan": 99.68,
+        "Other": 0.32
+      },
+      "sector": {
+        "Technology": 29.34,
+        "Industrials": 18.98,
+        "Consumer Discretionary": 18.36,
+        "Telecommunication": 10.57,
+        "Health Care": 8.01,
+        "Basic Materials": 4.84,
+        "Consumer Staples": 4.05,
+        "Financials": 3.22,
+        "Real Estate": 1.68,
+        "Energy": 0.42,
+        "Utilities": 0.22,
+        "Other": 0.32
+      },
+      "currency": {
+        "JPY": 99.68,
+        "Other": 0.32
+      },
+      "breakdownsAsOf": "2026-04-28T14:36:22.899Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=LU0839027447",
+      "_addedAt": "2026-04-28T14:36:22.899Z",
+      "_addedVia": "admin/lookthrough-pool"
     }
   }
 }
