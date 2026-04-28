@@ -308,6 +308,21 @@ const CATALOG: Record<string, ETFRecord> = {
         listings: { LSE: { ticker: "VFEA" }, XETRA: { ticker: "VFEA" }, Euronext: { ticker: "VFEA" } },
         defaultExchange: "LSE",
       },
+
+      {
+        name: "Xtrackers MSCI Emerging Markets UCITS ETF 1C",
+        isin: "IE00BTJRMP35",
+        terBps: 18,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment: "Xtrackers MSCI EM — synthetic, low TER.",
+        listings: { "LSE": { ticker: "XMME" }, "XETRA": { ticker: "XMME" } },
+        defaultExchange: "XETRA",
+        aumMillionsEUR: 10406,
+        inceptionDate: "2017-06-21",
+      },
     ],
   }),
   // ---------- Equity (hedged variants) ----------
