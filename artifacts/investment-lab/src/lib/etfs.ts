@@ -323,6 +323,22 @@ const CATALOG: Record<string, ETFRecord> = {
       "EUR-hedged share class strips out USD/EUR FX volatility; small drag from rolling forwards.",
     listings: { LSE: { ticker: "IUSE" }, XETRA: { ticker: "IUSE" }, Euronext: { ticker: "IUSE" } },
     defaultExchange: "XETRA",
+    alternatives: [
+      {
+        name: "Xtrackers S&P 500 UCITS ETF 1C - EUR Hedged",
+        isin: "IE00BM67HW99",
+        terBps: 5,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "EUR",
+        comment: "Xtrackers S&P 500 EUR Hedged — alternative provider.",
+        listings: { "XETRA": { ticker: "XDPE" } },
+        defaultExchange: "XETRA",
+        aumMillionsEUR: 471,
+        inceptionDate: "2015-02-27",
+      },
+    ],
   }),
   "Equity-USA-CHF": E({
     name: "UBS S&P 500 CHF Hedged UCITS",
