@@ -468,6 +468,22 @@ const CATALOG: Record<string, ETFRecord> = {
       "Global developed-market REITs with above-average dividend yield; meaningful US weight (~60%).",
     listings: { LSE: { ticker: "IWDP" }, XETRA: { ticker: "IQQ6" }, SIX: { ticker: "IWDP" }, Euronext: { ticker: "IWDP" } },
     defaultExchange: "LSE",
+    alternatives: [
+      {
+        name: "HSBC FTSE EPRA NAREIT Developed UCITS ETF USD",
+        isin: "IE00B5L01S80",
+        terBps: 24,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Distributing",
+        currency: "USD",
+        comment: "HSBC FTSE EPRA NAREIT Developed — alternative provider.",
+        listings: { "LSE": { ticker: "HPRD" }, "XETRA": { ticker: "H4ZL" } },
+        defaultExchange: "LSE",
+        aumMillionsEUR: 1853,
+        inceptionDate: "2011-06-20",
+      },
+    ],
   }),
   // ---------- Digital Assets ----------
   "DigitalAssets-BroadCrypto": E({
