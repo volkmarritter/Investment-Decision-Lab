@@ -281,6 +281,22 @@ const CATALOG: Record<string, ETFRecord> = {
       "Wide-coverage Japan exposure including small caps; useful for a diversified developed-markets sleeve.",
     listings: { LSE: { ticker: "SJPA" }, XETRA: { ticker: "SXR4" }, SIX: { ticker: "CSJP" }, Euronext: { ticker: "IJPA" } },
     defaultExchange: "LSE",
+    alternatives: [
+      {
+        name: "iShares Fallen Angels High Yield Corporate Bond UCITS ETF",
+        isin: "IE00BYM31M36",
+        terBps: 50,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Distributing",
+        currency: "USD",
+        comment: "iShares Core Nikkei 225 — Nikkei index alternative.",
+        listings: { "LSE": { ticker: "WING" }, "XETRA": { ticker: "QDVQ" } },
+        defaultExchange: "XETRA",
+        aumMillionsEUR: 325,
+        inceptionDate: "2016-06-21",
+      },
+    ],
   }),
   "Equity-EM": E({
     name: "iShares Core MSCI EM IMI UCITS",
