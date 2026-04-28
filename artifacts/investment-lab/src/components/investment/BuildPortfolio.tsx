@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
-import { AlertCircle, CheckCircle2, Info, Target, ShieldAlert, BookOpen, ArrowRight, Download, Loader2, RotateCcw, ClipboardCopy, X, Minus, Plus } from "lucide-react";
+import { AlertCircle, CheckCircle2, Info, Target, ShieldAlert, BookOpen, ArrowRight, Download, Loader2, RotateCcw, ClipboardCopy, X, Minus, Plus, Search } from "lucide-react";
 import {
   loadManualWeights,
   setManualWeight,
@@ -48,6 +48,7 @@ import { GeoExposureMap } from "./GeoExposureMap";
 import { HomeBiasAnalysis } from "./HomeBiasAnalysis";
 import { CurrencyOverview } from "./CurrencyOverview";
 import { TopHoldings } from "./TopHoldings";
+import { ETFDetailsDialog } from "./ETFDetailsDialog";
 import { ETFSnapshotFreshness } from "./SnapshotFreshness";
 import { SavedScenariosUI } from "./SavedScenariosUI";
 import { DisclaimerPdfBlock } from "./Disclaimer";
@@ -81,6 +82,7 @@ export function BuildPortfolio() {
   const [hasGenerated, setHasGenerated] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [numETFsMode, setNumETFsMode] = useState<"auto" | "manual">("auto");
+  const [detailsEtf, setDetailsEtf] = useState<import("@/lib/types").ETFImplementation | null>(null);
   const resultsRef = useRef<HTMLDivElement>(null);
   const pdfRef = useRef<HTMLDivElement>(null);
 
@@ -1078,7 +1080,19 @@ export function BuildPortfolio() {
                                 />
                               </TableCell>
                               <TableCell className="font-medium">{etf.exampleETF}</TableCell>
-                              <TableCell className="font-mono whitespace-nowrap">{etf.isin}</TableCell>
+                              <TableCell className="font-mono whitespace-nowrap p-0">
+                                <button
+                                  type="button"
+                                  onClick={() => setDetailsEtf(etf)}
+                                  className="inline-flex items-center gap-1 px-2 py-1.5 -mx-2 -my-1.5 rounded hover:bg-muted/60 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors text-left"
+                                  data-testid={`etf-isin-button-${etf.bucket}`}
+                                  title={t("build.impl.isin.openDetails")}
+                                  aria-label={`${t("build.impl.isin.openDetails")} — ${etf.isin}`}
+                                >
+                                  <span>{etf.isin}</span>
+                                  <Search className="h-3 w-3 opacity-60 shrink-0" />
+                                </button>
+                              </TableCell>
                               <TableCell className="font-mono whitespace-nowrap">
                                 {etf.ticker}
                                 {etf.exchange && etf.exchange !== "—" && (
@@ -1106,6 +1120,14 @@ export function BuildPortfolio() {
                     <ETFSnapshotFreshness />
                   </CardContent>
                 </Card>
+
+                <ETFDetailsDialog
+                  etf={detailsEtf}
+                  open={!!detailsEtf}
+                  onOpenChange={(o) => {
+                    if (!o) setDetailsEtf(null);
+                  }}
+                />
 
                 {/* Always-visible: Consolidated Currency Overview (post-hedge) */}
                 <CurrencyOverview

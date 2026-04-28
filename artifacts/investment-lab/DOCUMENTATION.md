@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-04-27 (te-contribution-table)
+Last updated: 2026-04-28 (etf-details-dialog)
 
 ---
 
@@ -619,6 +619,10 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-04-28 (etf-details-dialog) — ETF-Listen-Klick auf ISIN → Detail-Modal mit Look-through & justETF-Link
+- **ISIN in der ETF-Implementation-Tabelle ist jetzt klickbar.** Operator-Anfrage: in der ETF-Liste pro ETF die Details inkl. Look-through-Körbe per Klick auf die ISIN anzeigen, plus jeweils einen Link zu justETF. Umsetzung: ISIN-Zelle in `BuildPortfolio.tsx` ist nun ein echter `<button>` (statt nur Text) mit Hover-Effekt, Focus-Ring, kleinem Lupen-Icon, `aria-label` inkl. ISIN für Screen-Reader und `data-testid="etf-isin-button-{bucket}"`.
+- **Neues Detail-Modal `ETFDetailsDialog.tsx`** zeigt zur angeklickten ISIN: (1) Header mit ETF-Name, ISIN (mono), Ticker(Börse), Asset-Class-Badge; (2) Quick-Facts-Grid (TER, Domizil, Replikation, Aussch/Thes, Währung, Gewicht im Portfolio); (3) Kommentar/Rationale aus dem Catalog; (4) Look-through-Körbe aus `profileFor(isin)` in `src/lib/lookthrough.ts` — Geo (Top 12), Sektor (Top 12), Währung (Top 8), Top-10-Holdings — alle als sortierte Liste mit kleinen Bar-Indikatoren; (5) Freshness-Stamps via `breakdownsStampFor` / `topHoldingsStampFor` mit Fallback auf `LOOKTHROUGH_REFERENCE_DATE`; (6) Footer-Button „Auf justETF öffnen" → `https://www.justetf.com/{de|en}/etf-profile.html?isin={ISIN}` mit `target="_blank"`, `rel="noopener noreferrer"`, ISIN URL-encoded; Locale-Auswahl folgt der App-Sprache. Empty-State wenn kein Profil hinterlegt ist (kein Mapping in `PROFILES`). `ScrollArea` im Body, Header/Footer fixed. `data-testid="etf-details-dialog"` und `data-testid="etf-details-justetf-link"` für e2e. Voll i18n DE/EN (neue Keys unter `etf.details.*` und `build.impl.isin.openDetails`). Keine Engine-Logik, keine Look-through-Daten, keine Metrics berührt — reines UI-Add-on. 352/352 Tests grün, Typecheck clean, Architect PASS, e2e bestätigt: Klick auf ISIN öffnet Modal mit allen Sektionen, justETF-Link enthält die ISIN, Wechsel zwischen ETFs aktualisiert den Inhalt.
 
 ### 2026-04-28 (wht-derivation-block) — Methodology-Erklär-Erweiterung
 - **Neuer „Wie der Drag berechnet wird"-Block in der WHT-Section.** Wiederkehrende Operator-Frage: WHT trifft ja nur Dividenden — wie kommen die bp-Werte konkret zustande? Antwort als strukturierter Sub-Block direkt nach dem Intro-Absatz der bestehenden `wht`-Section: explizite Formel `drag = WHT-rate (after treaty) × dividend yield` (über die wiederverwendete `Formula`-Komponente) plus Herleitungstabelle mit 8 Zeilen (US, EM, EU/UK/JP/Thematic, CH non-CHF, CH CHF resident, US synthetic, Bonds/Cash, Gold/REITs/Crypto). Tabelle zeigt für jede Anlageklasse die angenommene Div-Yield, den Residual-WHT-Satz nach Treaty und das resultierende Drag in bps — Operator kann jede Zeile selbst nachrechnen. CHF-Resident-Override und Synthetic-Carve-Out optisch hervorgehoben (`bg-muted/40` bzw. `bg-emerald-50`). Dazu zwei Footer-Notes: (a) „Static-by-design" — Drag-Werte sind Konstanten in `WHT_DRAG`, nicht live aus tagesaktuellen Yields, mit Begründung (Quartals-Drift < LTCMA-Provider-Streuung); (b) „Bewusste Vereinfachungen" — REITs (~50 bps in der Realität, im Modell 0) und HY-Corporate-Bonds. **EU-Zeile-Korrektur nach Architect-Hinweis:** ursprünglich „15%" angezeigt (matched `metrics.ts`-Source-Comment, multipliziert sich aber zu 30 bps statt 20) — auf „~10% (blended treaty)" geändert, sodass die angezeigte Arithmetik aufgeht. Voll i18n DE/EN, `data-testid="wht-derivation-block"`. Keine Engine-Änderung, kein Test-Touch, 352/352 grün, Architect PASS.
