@@ -216,6 +216,20 @@ const CATALOG: Record<string, ETFRecord> = {
       "Comprehensive Swiss equity benchmark covering large, mid and small caps; very deep liquidity on SIX.",
     listings: { SIX: { ticker: "CHSPI" } },
     defaultExchange: "SIX",
+    alternatives: [
+      {
+        name: "Amundi MSCI Switzerland UCITS ETF CHF",
+        isin: "LU1681044993",
+        terBps: 25,
+        domicile: "Luxembourg",
+        replication: "Synthetic",
+        distribution: "Accumulating",
+        currency: "CHF",
+        comment: "",
+        listings: { "LSE": { ticker: "CSWG" }, "XETRA": { ticker: "18MN" }, "SIX": { ticker: "CSWCHF" } },
+        defaultExchange: "SIX",
+      },
+    ],
   }),
   "Equity-UK": E({
     name: "iShares Core FTSE 100 UCITS",
