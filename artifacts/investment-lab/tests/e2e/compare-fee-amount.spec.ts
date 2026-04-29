@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { dismissWelcomeIfPresent } from "./utils";
 
 // Mobile-viewport regression net for Task #21: the Fee Estimator's
 // Investment Amount input on the Compare tab must accept a fresh number
@@ -14,6 +15,7 @@ test.describe("ComparePortfolios · Fee Estimator amount (mobile)", () => {
     page,
   }) => {
     await page.goto("/?tab=compare");
+    await dismissWelcomeIfPresent(page);
 
     // The FeeEstimator only mounts inside the Compare results card, so
     // submit the form first to render it. The submit control is the

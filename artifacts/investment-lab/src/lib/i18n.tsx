@@ -19,7 +19,15 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "tab.compare": "Compare Portfolios",
     "tab.explain": "Explain My Portfolio",
     "tab.methodology": "Methodology",
-    
+
+    // Welcome dialog (Task #96) — shown shortly after the app shell mounts
+    // to explain that an example portfolio has been auto-generated and the
+    // user is free to change inputs and build their own.
+    "welcome.title": "Welcome to the Investment Decision Lab",
+    "welcome.body": "We've loaded an example portfolio for you so you can see the lab in action. Feel free to build, analyse and compare your own personal portfolios.",
+    "welcome.dismiss": "Got it",
+    "welcome.close": "Close",
+
     // BuildPortfolio
     "build.params.title": "Portfolio Parameters",
     "build.params.desc": "Define your constraints and preferences.",
@@ -525,7 +533,15 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "tab.compare": "Portfolios Vergleichen",
     "tab.explain": "Portfolio Erklären",
     "tab.methodology": "Methodik",
-    
+
+    // Welcome dialog (Task #96) — shown shortly after the app shell mounts
+    // to explain that an example portfolio has been auto-generated and the
+    // user is free to change inputs and build their own.
+    "welcome.title": "Willkommen im Investment Decision Lab",
+    "welcome.body": "Wir haben ein Beispielportfolio für Sie geladen, damit Sie das Lab direkt in Aktion sehen. Sie können jederzeit Ihre eigenen Portfolios erstellen, analysieren und vergleichen.",
+    "welcome.dismiss": "Verstanden",
+    "welcome.close": "Schließen",
+
     // BuildPortfolio
     "build.params.title": "Parameter",
     "build.params.desc": "Definieren Sie Ihre Einschränkungen und Präferenzen.",

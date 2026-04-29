@@ -2,6 +2,14 @@ import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { BuildPortfolio } from "@/components/investment/BuildPortfolio";
 import { ExplainPortfolio } from "@/components/investment/ExplainPortfolio";
 import { ComparePortfolios } from "@/components/investment/ComparePortfolios";
@@ -52,6 +60,18 @@ export default function InvestmentLab() {
     const onPop = () => setTab(readTabFromUrl());
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  // Welcome dialog (Task #96). Opens shortly after the app shell mounts so
+  // first-time visitors understand the auto-generated example portfolio in
+  // the Build tab is a demo and they're free to change inputs and build
+  // their own. Pops on every fresh load for now — "show only once"
+  // persistence is intentionally out of scope. Slight delay lets the page
+  // paint and the auto-generate effect run before the modal takes focus.
+  const [welcomeOpen, setWelcomeOpen] = useState(false);
+  useEffect(() => {
+    const id = window.setTimeout(() => setWelcomeOpen(true), 400);
+    return () => window.clearTimeout(id);
   }, []);
 
   const handleTabChange = (next: string) => {
@@ -184,6 +204,31 @@ export default function InvestmentLab() {
       </main>
 
       <DisclaimerFooter />
+
+      {/* Welcome dialog (Task #96) — explains the auto-generated example
+       *  portfolio and reassures the user they're free to change inputs.
+       *  Fully dismissible: close button, Esc, click-outside (handled by
+       *  the underlying Radix Dialog primitive). */}
+      <Dialog open={welcomeOpen} onOpenChange={setWelcomeOpen}>
+        <DialogContent
+          closeLabel={t("welcome.close")}
+          data-testid="welcome-dialog"
+        >
+          <DialogHeader>
+            <DialogTitle>{t("welcome.title")}</DialogTitle>
+            <DialogDescription>{t("welcome.body")}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              onClick={() => setWelcomeOpen(false)}
+              data-testid="welcome-dialog-dismiss"
+            >
+              {t("welcome.dismiss")}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { dismissWelcomeIfPresent } from "./utils";
 
 // Mobile-viewport regression net for Task #21: typing a European-decimal
 // home-bias multiplier ("1,2") on a phone-sized viewport must commit
@@ -16,6 +17,7 @@ test.describe("Methodology · home-bias multiplier (mobile)", () => {
     // /?tab=methodology lands on the Methodology tab on first paint, and
     // the #home-bias fragment expands the editor without any extra clicks.
     await page.goto("/?tab=methodology#home-bias");
+    await dismissWelcomeIfPresent(page);
 
     const usdInput = page.getByTestId("input-home-bias-USD");
     await expect(usdInput).toBeVisible();

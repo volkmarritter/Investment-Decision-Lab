@@ -310,7 +310,16 @@ export function BuildPortfolio() {
     }
   };
 
-  const onSubmit = (data: PortfolioInput) => {
+  // Core generate routine. `scrollToResults` controls whether the page
+  // jumps down to the results column after the build — true for explicit
+  // user actions (Generate button, scenario load), false for the silent
+  // first-mount auto-generate (Task #96) so the user lands at the top of
+  // the page on the form, not pre-scrolled into the output.
+  const generatePortfolio = (
+    data: PortfolioInput,
+    opts: { scrollToResults?: boolean } = {},
+  ) => {
+    const scrollToResults = opts.scrollToResults ?? true;
     // Coerce numeric types that might come back as strings from the form inputs
     const parsedData: PortfolioInput = {
       ...data,
@@ -319,7 +328,7 @@ export function BuildPortfolio() {
       numETFs: Number(data.numETFs),
       numETFsMin: Number(data.numETFsMin ?? data.numETFs),
     };
-    
+
     const valResult = runValidation(parsedData, lang);
     setValidation(valResult);
 
@@ -329,13 +338,37 @@ export function BuildPortfolio() {
     } else {
       setOutput(null);
     }
-    
+
     setHasGenerated(true);
-    
-    setTimeout(() => {
-      resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 100);
+
+    if (scrollToResults) {
+      setTimeout(() => {
+        resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+    }
   };
+
+  // react-hook-form passes `(data, event)` to the submit callback, so we
+  // wrap generatePortfolio in a single-arg adapter to keep the default
+  // (scroll-to-results) behaviour for explicit user submissions.
+  const onSubmit = (data: PortfolioInput) => {
+    generatePortfolio(data, { scrollToResults: true });
+  };
+
+  // Auto-generate an example portfolio on first mount (Task #96) so first-
+  // time visitors see the full output instead of the empty "Ready to Build"
+  // state. Reuses the same generate path as a real button click — including
+  // validation, output state, manual-weights snapshotting and the cross-tab
+  // broadcast — but with scroll suppressed so the user stays at the top of
+  // the page. Guarded by a ref so the effect runs exactly once even under
+  // React StrictMode's double-invoke in development.
+  const didAutoGenerateRef = useRef(false);
+  useEffect(() => {
+    if (didAutoGenerateRef.current) return;
+    didAutoGenerateRef.current = true;
+    generatePortfolio(form.getValues(), { scrollToResults: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const baseChartData = (output?.allocation.map(a => ({
     name: `${a.assetClass} - ${a.region}`,

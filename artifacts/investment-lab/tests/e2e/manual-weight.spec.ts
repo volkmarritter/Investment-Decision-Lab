@@ -1,4 +1,5 @@
 import { test, expect } from "@playwright/test";
+import { dismissWelcomeIfPresent } from "./utils";
 
 // Mobile-viewport regression net for Task #12: typing a European-decimal
 // weight ("12,5") into a manual-weight cell on a phone-sized viewport must
@@ -10,6 +11,7 @@ test.describe("BuildPortfolio · manual weight cell (mobile)", () => {
     page,
   }) => {
     await page.goto("/");
+    await dismissWelcomeIfPresent(page);
 
     // The Build tab is the default. Trigger a portfolio build so the
     // ETF Implementation table renders.
@@ -62,6 +64,7 @@ test.describe("BuildPortfolio · manual weight cell (mobile)", () => {
     page,
   }) => {
     await page.goto("/");
+    await dismissWelcomeIfPresent(page);
 
     // Smoke check that the build tab is visible by default and can render
     // the ETF Implementation table on a mobile viewport — the precondition
