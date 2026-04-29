@@ -96,6 +96,119 @@ export function ComparePortfolios() {
     defaultValues,
   });
 
+  // Link state: when true, Slot A mirrors whatever the user has currently
+  // configured on the Build tab (form values + manual weights snapshot).
+  // Default-on if Build has already published anything by mount time, so the
+  // first arrival on Compare from a populated Build state is "already linked".
+  // Auto-detaches (sets to false) when the user makes any edit to a portA
+  // field or loads a saved scenario into Slot A — those are explicit signals
+  // that Slot A should diverge from Build.
+  // Declared here (before effects below depend on it) so the effects can
+  // close over the latest value via the dep array.
+  const [linked, setLinked] = useState<boolean>(() => getLastBuildInput() !== null);
+  // Tracks whether Build has ever published. Drives whether we render the
+  // "Linked / Re-link" badge at all (no point showing it on a fresh page
+  // load where Build has never been visited).
+  const [hasBuildPublished, setHasBuildPublished] = useState<boolean>(
+    () => getLastBuildInput() !== null,
+  );
+  // Ref flag set to true during programmatic setValue calls driven by the
+  // linked-sync effect, so the auto-pin watcher can distinguish user-driven
+  // edits from our own mirror updates. Synchronous toggle is sufficient
+  // because react-hook-form's watch fires synchronously inside setValue.
+  const syncingRef = useRef(false);
+
+  // Tracks whether we've made the initial link decision yet. Both
+  // BuildPortfolio and ComparePortfolios are forceMount'ed by their parent
+  // <Tabs>, so on the very first render Compare's useState(() => …) above
+  // runs BEFORE Build's publish-on-mount useEffect — meaning the initial
+  // `linked` and `hasBuildPublished` reads return false even though Build
+  // is about to publish a moment later. This ref lets the subscribe-effect
+  // below flip both flags on first observed publication exactly once,
+  // preserving "default-on" semantics. User interaction with the
+  // pin / re-link buttons clears this so Build publications never
+  // surprise-re-link Slot A after the user has explicitly chosen.
+  const initialLinkPendingRef = useRef(true);
+
+  // ---- Linked-to-Build sync (Slot A only) ----
+  // On mount and on every Build publication, mirror Build's PortfolioInput
+  // into form.portA and Build's manual weights snapshot into manualWeightsA
+  // — but only while linked is true. The syncingRef guard tells the
+  // auto-pin watcher (further below) that the resulting setValue/state
+  // changes were ours, not the user's, so we don't immediately self-detach.
+  useEffect(() => {
+    // Catch the case where Build's mount-time publish landed AFTER our
+    // useState() initializers ran (forceMount sibling timing — see the
+    // initialLinkPendingRef comment above). On the first render where Build
+    // has any value, flip both flags to true and apply the initial mirror.
+    // This block intentionally runs every time the effect re-fires; the
+    // initialLinkPendingRef guard keeps it idempotent and ensures we only
+    // auto-link once.
+    const bootstrap = getLastBuildInput();
+    if (bootstrap && initialLinkPendingRef.current) {
+      initialLinkPendingRef.current = false;
+      if (!hasBuildPublished) setHasBuildPublished(true);
+      if (!linked) setLinked(true);
+    }
+
+    // Initial pull on mount (or whenever `linked` flips back to true via
+    // the Re-link button).
+    if (linked) {
+      const initial = getLastBuildInput() as PortfolioInput | null;
+      if (initial) {
+        syncingRef.current = true;
+        form.setValue("portA", initial, { shouldDirty: false, shouldValidate: false });
+        syncingRef.current = false;
+      }
+      const initialMW = getLastBuildManualWeights();
+      setManualWeightsA(initialMW && Object.keys(initialMW).length > 0 ? { ...initialMW } : undefined);
+      // Re-link drops any per-slot picker snapshot so Slot A falls back to
+      // the global store the Build tab is reading from — same picks as Build.
+      setEtfSelectionsA(undefined);
+    }
+    const unsubInput = subscribeLastBuildInput((input) => {
+      // Track first publication so the badge can render.
+      if (input) {
+        setHasBuildPublished(true);
+        // Honour "default-on" if Build publishes for the first time AFTER
+        // we mounted (rather than before): auto-link Slot A exactly once,
+        // unless the user has already touched the pin / re-link controls.
+        if (initialLinkPendingRef.current) {
+          initialLinkPendingRef.current = false;
+          setLinked(true);
+        }
+      }
+      if (!linked || !input) return;
+      syncingRef.current = true;
+      form.setValue("portA", input as unknown as PortfolioInput, { shouldDirty: false, shouldValidate: false });
+      syncingRef.current = false;
+    });
+    const unsubMW = subscribeLastBuildManualWeights((w) => {
+      if (!linked) return;
+      setManualWeightsA(w && Object.keys(w).length > 0 ? { ...w } : undefined);
+    });
+    return () => {
+      unsubInput();
+      unsubMW();
+    };
+  }, [linked, form]);
+
+  // Auto-pin / auto-detach on first user edit to portA. Loading a saved
+  // scenario into Slot A also detaches, but does so explicitly in the
+  // load handler — this watcher only catches in-form edits.
+  useEffect(() => {
+    const sub = form.watch((_value, info) => {
+      if (!linked) return;
+      if (syncingRef.current) return;
+      const name = info?.name;
+      if (!name || !name.startsWith("portA.")) return;
+      initialLinkPendingRef.current = false;
+      setLinked(false);
+      toast.info(t("compare.slotA.unlinkToast"));
+    });
+    return () => sub.unsubscribe();
+  }, [linked, form, t]);
+
   // Auto-sync preferred exchange to base currency for both portfolios.
   const watchedA = form.watch("portA.baseCurrency");
   const watchedB = form.watch("portB.baseCurrency");
@@ -135,27 +248,6 @@ export function ComparePortfolios() {
   // one slot.
   const [etfSelectionsA, setEtfSelectionsA] = useState<Record<string, ETFSlot> | undefined>(undefined);
   const [etfSelectionsB, setEtfSelectionsB] = useState<Record<string, ETFSlot> | undefined>(undefined);
-
-  // Link state: when true, Slot A mirrors whatever the user has currently
-  // configured on the Build tab (form values + manual weights snapshot).
-  // Default-on if Build has already published anything by mount time, so the
-  // first arrival on Compare from a populated Build state is "already linked".
-  // Auto-detaches (sets to false) when the user makes any edit to a portA
-  // field or loads a saved scenario into Slot A — those are explicit signals
-  // that Slot A should diverge from Build.
-  const [linked, setLinked] = useState<boolean>(() => getLastBuildInput() !== null);
-  // Tracks whether Build has ever published. Drives whether we render the
-  // "Linked / Re-link" badge at all (no point showing it on a fresh page
-  // load where Build has never been visited).
-  const [hasBuildPublished, setHasBuildPublished] = useState<boolean>(
-    () => getLastBuildInput() !== null,
-  );
-  // Ref flag set to true during programmatic setValue calls driven by the
-  // linked-sync effect, so the auto-pin watcher below can distinguish
-  // user-driven edits from our own mirror updates. Synchronous toggle is
-  // sufficient because react-hook-form's watch fires synchronously inside
-  // setValue.
-  const syncingRef = useRef(false);
 
   const [hasGenerated, setHasGenerated] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
@@ -255,7 +347,56 @@ export function ComparePortfolios() {
   const renderFormColumn = (prefix: "portA" | "portB", title: string) => (
     <Card>
       <CardHeader>
-        <CardTitle className="text-xl">{title}</CardTitle>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <CardTitle className="text-xl">{title}</CardTitle>
+          {prefix === "portA" && hasBuildPublished && (
+            <div className="flex items-center gap-1.5" data-testid="compare-slot-a-link-controls">
+              {linked ? (
+                <>
+                  <Badge variant="secondary" className="gap-1 h-6 font-normal" data-testid="compare-slot-a-linked-badge">
+                    <Link2 className="h-3 w-3" />
+                    {t("compare.slotA.linked")}
+                  </Badge>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6"
+                        onClick={() => {
+                          initialLinkPendingRef.current = false;
+                          setLinked(false);
+                          toast.info(t("compare.slotA.unlinkToast"));
+                        }}
+                        aria-label={t("compare.slotA.linkedHint")}
+                        data-testid="compare-slot-a-unpin-button"
+                      >
+                        <PinOff className="h-3.5 w-3.5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">{t("compare.slotA.linkedHint")}</TooltipContent>
+                  </Tooltip>
+                </>
+              ) : (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="h-7 gap-1 text-xs"
+                  onClick={() => {
+                    initialLinkPendingRef.current = false;
+                    setLinked(true);
+                  }}
+                  data-testid="compare-slot-a-relink-button"
+                >
+                  <Link2 className="h-3 w-3" />
+                  {t("compare.slotA.relink")}
+                </Button>
+              )}
+            </div>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid grid-cols-2 gap-4">
@@ -494,8 +635,30 @@ export function ComparePortfolios() {
                 },
                 getSnapshotA: () => manualWeightsA,
                 getSnapshotB: () => manualWeightsB,
+                // Per-slot picker snapshot resolution mirrors the engine's
+                // own resolution chain inside getETFDetails: per-slot map if
+                // defined, else fall back to the global store. So saving a
+                // linked / un-loaded slot captures Build's current picks.
+                getEtfSelectionsA: () => etfSelectionsA ?? getAllETFSelections(),
+                getEtfSelectionsB: () => etfSelectionsB ?? getAllETFSelections(),
                 onLoadA: (scenario) => {
+                  // Loading a saved scenario into Slot A is an explicit
+                  // "this slot should diverge from Build" signal — detach
+                  // before applying the load so the link sync doesn't
+                  // immediately overwrite the loaded values on the next
+                  // Build publication. Also clear initialLinkPendingRef so
+                  // a future Build publish doesn't surprise-re-link.
+                  initialLinkPendingRef.current = false;
+                  if (linked) {
+                    setLinked(false);
+                  }
+                  // Use syncingRef so the auto-pin watcher doesn't fire a
+                  // second toast on top of the load toast (defensive — we
+                  // already set linked=false above, but a stale watcher
+                  // could still see linked=true in this same tick).
+                  syncingRef.current = true;
                   form.setValue("portA", { ...scenario.input }, { shouldDirty: true, shouldValidate: false });
+                  syncingRef.current = false;
                   // Replace slot A's snapshot with the saved entry's (or
                   // clear it when the saved entry has none) so the next
                   // Generate call honours the saved custom weights for A
@@ -505,6 +668,16 @@ export function ComparePortfolios() {
                       ? { ...scenario.manualWeights }
                       : undefined,
                   );
+                  // Per-slot ETF picker snapshot: install the saved map so
+                  // Slot A reflects the saved picks even when Build's
+                  // global store has different selections. Empty / missing
+                  // snapshot installs an empty map (which means "use the
+                  // default for every bucket") rather than undefined, so
+                  // older saves are restored as a clean default state and
+                  // don't leak Build's current picks into Slot A.
+                  setEtfSelectionsA(
+                    scenario.etfSelections ? { ...scenario.etfSelections } : {},
+                  );
                   toast.success(lang === "de" ? "In Portfolio A geladen" : "Loaded into Portfolio A");
                 },
                 onLoadB: (scenario) => {
@@ -513,6 +686,9 @@ export function ComparePortfolios() {
                     scenario.manualWeights && Object.keys(scenario.manualWeights).length > 0
                       ? { ...scenario.manualWeights }
                       : undefined,
+                  );
+                  setEtfSelectionsB(
+                    scenario.etfSelections ? { ...scenario.etfSelections } : {},
                   );
                   toast.success(lang === "de" ? "In Portfolio B geladen" : "Loaded into Portfolio B");
                 },
