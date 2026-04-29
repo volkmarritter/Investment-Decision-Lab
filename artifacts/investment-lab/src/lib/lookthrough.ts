@@ -670,7 +670,8 @@ export interface LookthroughResult {
 
 function buildCurrencyOverview(
   etfs: ETFImplementation[],
-  baseCurrency: string
+  baseCurrency: string,
+  useLookThroughCurrency: boolean = true
 ): CurrencyOverview {
   const hedgedMap: ExposureMap = {};
   const unhedgedMap: ExposureMap = {};
@@ -678,18 +679,39 @@ function buildCurrencyOverview(
   let unmapped = 0;
 
   for (const e of etfs) {
-    const p = profileFor(e.isin);
-    if (!p) {
-      unmapped += e.weight;
-      continue;
-    }
+    // Hedged sleeve is handled first and unconditionally: after hedging,
+    // FX exposure is fully neutralised to the share-class currency, so
+    // we never need a curated underlying-currency profile here. This
+    // also guarantees that flipping the look-through toggle leaves the
+    // hedged share of the portfolio unchanged.
     if (isHedged(e)) {
-      // After hedging, FX exposure is the share-class currency (typically the base ccy).
       const target = e.currency || baseCurrency;
       hedgedMap[target] = (hedgedMap[target] ?? 0) + e.weight;
       hedgedShare += e.weight;
-    } else {
+      continue;
+    }
+
+    const p = profileFor(e.isin);
+    if (useLookThroughCurrency) {
+      if (!p) {
+        // No curated profile → cannot decompose the underlying currencies,
+        // so the weight is reported as "unmapped" in look-through mode.
+        unmapped += e.weight;
+        continue;
+      }
+      // Look-through ON: split the unhedged weight across the curated
+      // breakdown of underlying currencies (so an unhedged MSCI World USD
+      // ETF contributes USD + EUR + JPY + GBP + CHF + ... in the right
+      // proportions).
       addInto(unhedgedMap, p.currency, e.weight);
+    } else {
+      // Look-through OFF: count the full unhedged weight as the ETF's own
+      // share-class currency. No split — this is the "ETF currency only"
+      // view that the per-side toggle exposes in Build and Compare. We
+      // fall back to baseCurrency only if the share-class currency is
+      // missing, so weight is never silently dropped.
+      const target = e.currency || baseCurrency;
+      unhedgedMap[target] = (unhedgedMap[target] ?? 0) + e.weight;
     }
   }
 
@@ -723,8 +745,10 @@ function buildCurrencyOverview(
 export function buildLookthrough(
   etfs: ETFImplementation[],
   lang: "en" | "de" = "en",
-  baseCurrency: string = "USD"
+  baseCurrency: string = "USD",
+  options: { useLookThroughCurrency?: boolean } = {}
 ): LookthroughResult {
+  const useLookThroughCurrency = options.useLookThroughCurrency ?? true;
   const de = lang === "de";
   let equityWeightTotal = 0;
   let fixedIncomeWeightTotal = 0;
@@ -830,7 +854,7 @@ export function buildLookthrough(
     );
   }
 
-  const currencyOverview = buildCurrencyOverview(etfs, baseCurrency);
+  const currencyOverview = buildCurrencyOverview(etfs, baseCurrency, useLookThroughCurrency);
 
   return {
     equityWeightTotal,

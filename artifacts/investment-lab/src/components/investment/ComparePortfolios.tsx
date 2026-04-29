@@ -1430,21 +1430,21 @@ export function ComparePortfolios() {
                             <TabsTrigger value="B">Portfolio B</TabsTrigger>
                           </TabsList>
                           <TabsContent value="A" className="mt-4 min-w-0">
-                            <CurrencyOverview etfs={outputA.etfImplementation} baseCurrency={inputA.baseCurrency} />
+                            <CurrencyOverview etfs={outputA.etfImplementation} baseCurrency={inputA.baseCurrency} lookThroughView={inputA.lookThroughView} />
                           </TabsContent>
                           <TabsContent value="B" className="mt-4 min-w-0">
-                            <CurrencyOverview etfs={outputB.etfImplementation} baseCurrency={inputB.baseCurrency} />
+                            <CurrencyOverview etfs={outputB.etfImplementation} baseCurrency={inputB.baseCurrency} lookThroughView={inputB.lookThroughView} />
                           </TabsContent>
                         </Tabs>
                       </div>
                       <div className="hidden md:grid md:grid-cols-2 md:gap-6">
                         <div className="min-w-0">
                           <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio A</h3>
-                          <CurrencyOverview etfs={outputA.etfImplementation} baseCurrency={inputA.baseCurrency} />
+                          <CurrencyOverview etfs={outputA.etfImplementation} baseCurrency={inputA.baseCurrency} lookThroughView={inputA.lookThroughView} />
                         </div>
                         <div className="min-w-0">
                           <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio B</h3>
-                          <CurrencyOverview etfs={outputB.etfImplementation} baseCurrency={inputB.baseCurrency} />
+                          <CurrencyOverview etfs={outputB.etfImplementation} baseCurrency={inputB.baseCurrency} lookThroughView={inputB.lookThroughView} />
                         </div>
                       </div>
                     </CardContent>

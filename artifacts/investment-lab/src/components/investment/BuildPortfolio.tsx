@@ -1468,10 +1468,14 @@ export function BuildPortfolio() {
                   }}
                 />
 
-                {/* Always-visible: Consolidated Currency Overview (post-hedge) */}
+                {/* Always-visible: Consolidated Currency Overview (post-hedge).
+                 *  The Look-Through toggle flips the unhedged-currency split:
+                 *  ON  → curated underlying currencies (e.g. World ETF → USD/EUR/JPY/...).
+                 *  OFF → ETF share-class currency only (no look-through). */}
                 <CurrencyOverview
                   etfs={output.etfImplementation}
                   baseCurrency={form.getValues().baseCurrency}
+                  lookThroughView={form.getValues().lookThroughView}
                 />
 
                 {/* Geographic Exposure Map + Look-Through Analysis + Top 10 Holdings (only when look-through view is active) */}

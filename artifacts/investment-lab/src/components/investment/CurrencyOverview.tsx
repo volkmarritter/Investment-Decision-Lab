@@ -10,13 +10,21 @@ import { useT } from "@/lib/i18n";
 interface Props {
   etfs: ETFImplementation[];
   baseCurrency: BaseCurrency;
+  /** When false, the unhedged-currency split falls back to each ETF's own
+   *  share-class currency (no look-through into the underlying holdings).
+   *  Defaults to true so existing callers keep the look-through view. */
+  lookThroughView?: boolean;
 }
 
-export function CurrencyOverview({ etfs, baseCurrency }: Props) {
+export function CurrencyOverview({ etfs, baseCurrency, lookThroughView = true }: Props) {
   const { t, lang } = useT();
-  const { currencyOverview: r } = buildLookthrough(etfs, lang, baseCurrency);
+  const { currencyOverview: r } = buildLookthrough(etfs, lang, baseCurrency, {
+    useLookThroughCurrency: lookThroughView,
+  });
   const [open, setOpen] = useState(false);
   const baseShare = (r.rows.find((x) => x.currency === r.baseCurrency)?.pctOfPortfolio ?? 0).toFixed(1);
+  const modeLabel = lookThroughView ? t("build.fx.mode.lookthrough") : t("build.fx.mode.etfOnly");
+  const disclaimer = lookThroughView ? t("build.fx.disclaimer") : t("build.fx.disclaimer.etfOnly");
 
   return (
     <Card>
@@ -26,6 +34,18 @@ export function CurrencyOverview({ etfs, baseCurrency }: Props) {
             <CardTitle className="flex items-center gap-2 flex-wrap">
               <Coins className="h-5 w-5" />
               <span>{t("build.fx.title")}</span>
+              <span
+                className={
+                  "text-[10px] uppercase tracking-wide font-medium px-1.5 py-0.5 rounded border " +
+                  (lookThroughView
+                    ? "border-emerald-500/40 text-emerald-700 dark:text-emerald-300 bg-emerald-50/60 dark:bg-emerald-500/10"
+                    : "border-amber-500/40 text-amber-700 dark:text-amber-300 bg-amber-50/60 dark:bg-amber-500/10")
+                }
+                data-testid="fx-mode-badge"
+                data-mode={lookThroughView ? "lookthrough" : "etfOnly"}
+              >
+                {modeLabel}
+              </span>
               <span className="text-xs text-muted-foreground font-normal">
                 {r.baseCurrency} {baseShare}% · {t("build.fx.summary.hedgedShare")}: {r.hedgedShareOfPortfolio.toFixed(1)}%
               </span>
@@ -96,7 +116,7 @@ export function CurrencyOverview({ etfs, baseCurrency }: Props) {
             </div>
           </div>
         </div>
-        <p className="text-[10px] text-muted-foreground italic">{t("build.fx.disclaimer")}</p>
+        <p className="text-[10px] text-muted-foreground italic" data-testid="fx-disclaimer">{disclaimer}</p>
       </CardContent>
       )}
     </Card>

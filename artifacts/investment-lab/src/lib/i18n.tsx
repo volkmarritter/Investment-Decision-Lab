@@ -117,6 +117,9 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "build.fx.summary.baseShare": "Effective {base}-denominated exposure",
     "build.fx.summary.baseShareDesc": "Combined unhedged base-currency holdings plus hedged-to-base share classes.",
     "build.fx.disclaimer": "Currency weights for unhedged ETFs use reference index compositions; FX hedges are assumed to fully neutralise the share-class currency risk (in practice, residual hedging error of a few bps remains).",
+    "build.fx.mode.lookthrough": "Look-through · underlying currencies",
+    "build.fx.mode.etfOnly": "ETF currency only · no look-through",
+    "build.fx.disclaimer.etfOnly": "Currency weights are taken from each ETF's own share-class currency only — no look-through into the underlying holdings is applied. Turn Look-Through on (above) to see the curated underlying-currency split.",
 
     // Top-10 look-through holdings report
     "build.top10.title": "Top 10 Equity Holdings (Look-Through)",
@@ -622,6 +625,9 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "build.fx.summary.baseShare": "Effektives {base}-Engagement",
     "build.fx.summary.baseShareDesc": "Summe aus ungesicherten Beständen in Basiswährung und auf Basiswährung gehedgten Anteilsklassen.",
     "build.fx.disclaimer": "Währungsgewichte ungesicherter ETFs basieren auf Referenz-Indexzusammensetzungen; FX-Hedges werden als vollständige Neutralisierung des Anteilsklassen-Währungsrisikos angenommen (in der Praxis verbleibt ein Hedging-Restfehler von wenigen Basispunkten).",
+    "build.fx.mode.lookthrough": "Look-Through · zugrundeliegende Währungen",
+    "build.fx.mode.etfOnly": "Nur ETF-Währung · kein Look-Through",
+    "build.fx.disclaimer.etfOnly": "Währungsgewichte basieren ausschließlich auf der Anteilsklassenwährung des jeweiligen ETF — es wird keine Durchschau auf die zugrundeliegenden Positionen angewandt. Aktivieren Sie Look-Through (oben), um die kuratierte Aufteilung der zugrundeliegenden Währungen zu sehen.",
 
     // Top-10 look-through holdings report
     "build.top10.title": "Top 10 Aktienpositionen (Look-Through)",

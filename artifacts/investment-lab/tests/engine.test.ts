@@ -1441,6 +1441,184 @@ describe("buildLookthrough", () => {
     const lt = buildLookthrough(out.etfImplementation, "en", "USD");
     expect(lt.topConcentrations.length).toBeGreaterThan(0);
   });
+
+  it("currencyOverview honours the look-through option (ETF-currency-only fallback)", () => {
+    // CHF base, no hedging — unhedged ETFs are mostly USD/EUR share classes.
+    // In look-through mode the World ETF should split its weight across many
+    // currencies (USD, EUR, JPY, GBP, CHF, ...). With look-through OFF the
+    // entire unhedged weight collapses to the share-class currency only, so
+    // the number of distinct currencies reported should be smaller and the
+    // dominant share-class currency should pick up materially more weight.
+    const out = buildPortfolio(
+      baseInput({
+        baseCurrency: "CHF",
+        includeCurrencyHedging: false,
+        targetEquityPct: 80,
+        riskAppetite: "High",
+        numETFs: 8,
+      })
+    );
+
+    const ltOn = buildLookthrough(out.etfImplementation, "en", "CHF", {
+      useLookThroughCurrency: true,
+    });
+    const ltOff = buildLookthrough(out.etfImplementation, "en", "CHF", {
+      useLookThroughCurrency: false,
+    });
+
+    // Both views should report the same hedged share (hedged weight does
+    // not depend on the look-through toggle).
+    expect(ltOff.currencyOverview.hedgedShareOfPortfolio).toBeCloseTo(
+      ltOn.currencyOverview.hedgedShareOfPortfolio,
+      6
+    );
+
+    // The total reported weight (rows + unmapped) is conserved across
+    // modes: switching the toggle only re-distributes the unhedged sleeve
+    // between currencies, it never adds or destroys weight overall.
+    const sumPct = (rows: typeof ltOn.currencyOverview.rows) =>
+      rows.reduce((s, r) => s + r.pctOfPortfolio, 0);
+    const totalOn = sumPct(ltOn.currencyOverview.rows) + ltOn.currencyOverview.unmappedWeight;
+    const totalOff = sumPct(ltOff.currencyOverview.rows) + ltOff.currencyOverview.unmappedWeight;
+    expect(totalOff).toBeCloseTo(totalOn, 6);
+
+    // ETF-currency-only view should never have unmapped weight, because
+    // every ETF has a known share-class currency (or falls back to base).
+    expect(ltOff.currencyOverview.unmappedWeight).toBe(0);
+
+    // Look-through ON typically yields more distinct currencies than the
+    // share-class-only view (World ETF expands into USD/EUR/JPY/GBP/...).
+    expect(ltOn.currencyOverview.rows.length).toBeGreaterThanOrEqual(
+      ltOff.currencyOverview.rows.length
+    );
+
+    // The two views must disagree somewhere — otherwise the toggle has
+    // no visible effect on the consolidated overview.
+    const sameRows =
+      ltOn.currencyOverview.rows.length === ltOff.currencyOverview.rows.length &&
+      ltOn.currencyOverview.rows.every((row, i) => {
+        const other = ltOff.currencyOverview.rows[i];
+        return (
+          other &&
+          other.currency === row.currency &&
+          Math.abs(other.pctOfPortfolio - row.pctOfPortfolio) < 0.01
+        );
+      });
+    expect(sameRows).toBe(false);
+  });
+
+  it("currencyOverview hedged share is invariant across the look-through toggle, even for hedged ETFs without a curated profile", () => {
+    // Synthesise a tiny portfolio that the curated profile map does not
+    // know about: a hedged share class whose ISIN is deliberately fake.
+    // Whichever way we flip the look-through toggle, the hedged-share
+    // metric must be identical and the hedged weight must always be
+    // routed to the share-class currency — never to "unmapped".
+    // Build a minimal hand-crafted ETF list whose ISINs are not in the
+    // curated profile map. The hedged ETF is detected via the "Hedged"
+    // keyword in `exampleETF` (see isHedged() in lookthrough.ts).
+    const mk = (
+      overrides: Partial<import("../src/lib/types").ETFImplementation>
+    ): import("../src/lib/types").ETFImplementation => ({
+      bucket: "Equities — Diversified",
+      assetClass: "Equity",
+      weight: 0,
+      intent: "Test fixture",
+      exampleETF: "Fake ETF",
+      rationale: "",
+      isin: "XX0000000FAKE0",
+      ticker: "FAKE",
+      exchange: "—",
+      terBps: 20,
+      domicile: "IE",
+      replication: "Physical",
+      distribution: "Accumulating",
+      currency: "USD",
+      comment: "",
+      catalogKey: null,
+      selectedSlot: 0,
+      selectableOptions: [],
+      ...overrides,
+    });
+    const etfs: import("../src/lib/types").ETFImplementation[] = [
+      mk({
+        weight: 60,
+        ticker: "FAKEH",
+        isin: "XX0000000HEDGED1",
+        exampleETF: "Fake World CHF Hedged",
+        currency: "CHF",
+        domicile: "LU",
+      }),
+      mk({
+        bucket: "Bonds — Aggregate",
+        assetClass: "Fixed Income",
+        weight: 40,
+        ticker: "FAKEU",
+        isin: "XX0000000UNHED1",
+        exampleETF: "Fake Bonds USD",
+        currency: "USD",
+      }),
+    ];
+
+    const ltOn = buildLookthrough(etfs, "en", "CHF", { useLookThroughCurrency: true });
+    const ltOff = buildLookthrough(etfs, "en", "CHF", { useLookThroughCurrency: false });
+
+    // Hedged share must be identical across modes — the toggle only
+    // affects the unhedged-currency split, never the hedged sleeve.
+    expect(ltOff.currencyOverview.hedgedShareOfPortfolio).toBe(
+      ltOn.currencyOverview.hedgedShareOfPortfolio
+    );
+    expect(ltOn.currencyOverview.hedgedShareOfPortfolio).toBe(60);
+
+    // The hedged ETF must contribute to the CHF row (its share-class
+    // currency) in BOTH modes, even though no profile exists for it.
+    const chfOn = ltOn.currencyOverview.rows.find((r) => r.currency === "CHF");
+    const chfOff = ltOff.currencyOverview.rows.find((r) => r.currency === "CHF");
+    expect(chfOn?.hedgedPct).toBe(60);
+    expect(chfOff?.hedgedPct).toBe(60);
+
+    // The unhedged USD bond ETF (no profile) goes to "unmapped" in
+    // look-through mode but to USD in ETF-currency-only mode.
+    expect(ltOn.currencyOverview.unmappedWeight).toBe(40);
+    expect(ltOff.currencyOverview.unmappedWeight).toBe(0);
+    const usdOff = ltOff.currencyOverview.rows.find((r) => r.currency === "USD");
+    expect(usdOff?.unhedgedPct).toBe(40);
+  });
+
+  it("currencyOverview ETF-currency-only mode keeps unhedged ETF weight in its share-class currency", () => {
+    // EUR base with hedging on — the hedged sleeve still goes to EUR, but
+    // any unhedged share class in (say) USD must show up entirely as USD
+    // when look-through is OFF, never split across underlying currencies.
+    const out = buildPortfolio(
+      baseInput({
+        baseCurrency: "EUR",
+        includeCurrencyHedging: true,
+        preferredExchange: "XETRA",
+        targetEquityPct: 70,
+      })
+    );
+
+    const ltOff = buildLookthrough(out.etfImplementation, "en", "EUR", {
+      useLookThroughCurrency: false,
+    });
+
+    // Defaults stay backward-compatible: omitting the option behaves like ON.
+    const ltDefault = buildLookthrough(out.etfImplementation, "en", "EUR");
+    const ltOn = buildLookthrough(out.etfImplementation, "en", "EUR", {
+      useLookThroughCurrency: true,
+    });
+    expect(ltDefault.currencyOverview.rows.length).toBe(ltOn.currencyOverview.rows.length);
+
+    // Every reported currency in the ETF-only view must match the share-class
+    // currency of at least one selected ETF (i.e. nothing got split into a
+    // currency that no ETF actually trades in).
+    const shareClassCurrencies = new Set(
+      out.etfImplementation.map((e) => e.currency).filter(Boolean) as string[]
+    );
+    shareClassCurrencies.add("EUR"); // base currency is a valid fallback
+    for (const row of ltOff.currencyOverview.rows) {
+      expect(shareClassCurrencies.has(row.currency)).toBe(true);
+    }
+  });
 });
 
 describe("AI Prompt builder (buildAiPrompt)", () => {
