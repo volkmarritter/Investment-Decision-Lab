@@ -141,6 +141,124 @@ describe("buildPortfolio per-call etfSelections argument", () => {
 });
 
 // ----------------------------------------------------------------------------
+// Task #78 — Compare Slot B is a defaults-only baseline unless a saved
+// scenario has explicitly been loaded into it. Mirrors the resolution
+// the Compare onSubmit handler now performs:
+//
+//   const etfSelectionsBForBuild = etfSelectionsB ?? {};
+//   buildPortfolio(input, "en", manualWeightsB, etfSelectionsBForBuild)
+//
+// Test cases pin both halves of the contract:
+//   1. No saved scenario loaded (etfSelectionsB is undefined in the
+//      component) → B uses the curated default for every bucket even
+//      when the global picker store has non-default selections set by
+//      the Build tab.
+//   2. Saved scenario loaded into B (component installs the snapshot
+//      map) → B uses the snapshot's picks for every bucket the
+//      snapshot mentions, and the curated default for the rest.
+// ----------------------------------------------------------------------------
+describe("Compare Slot B: defaults-only baseline (Task #78)", () => {
+  beforeEach(() => {
+    installLocalStorage();
+    vi.resetModules();
+  });
+
+  it("ignores Build's global picker selections when no saved scenario has been loaded into B", async () => {
+    const { buildPortfolio } = await import("../src/lib/portfolio");
+    const { setETFSelection } = await import("../src/lib/etfSelection");
+
+    // Simulate a user who picked alternative #1 for two buckets on the
+    // Build tab — these go into the shared global picker store.
+    setETFSelection("Equity-USA", 1);
+    setETFSelection("FixedIncome-Global", 1);
+
+    // Compare's component-level state for an unloaded Slot B is
+    // `etfSelectionsB === undefined`. The onSubmit handler now resolves
+    // that to `{}` before calling buildPortfolio.
+    const etfSelectionsB: Record<string, number> | undefined = undefined;
+    const etfSelectionsBForBuild = etfSelectionsB ?? {};
+
+    const outputB = buildPortfolio(baseInput, "en", undefined, etfSelectionsBForBuild);
+
+    // Every implementation row should report the curated default
+    // (slot 0) — Build's picks must not bleed in.
+    for (const row of outputB.etfImplementation) {
+      expect(row.selectedSlot).toBe(0);
+    }
+
+    // Sanity check: with the same global store, a regular build call
+    // (Slot A's behaviour, which intentionally inherits Build) does
+    // pick up the alternatives. This proves the test would catch a
+    // regression if `?? {}` were ever removed.
+    const inheritsGlobal = buildPortfolio(baseInput, "en");
+    const usaRow = inheritsGlobal.etfImplementation.find((r) => r.bucket === "Equity - USA");
+    expect(usaRow?.selectedSlot).toBe(1);
+  });
+
+  it("honours a saved scenario's picker snapshot when it has been loaded into B", async () => {
+    const { buildPortfolio } = await import("../src/lib/portfolio");
+    const { setETFSelection } = await import("../src/lib/etfSelection");
+
+    // Build tab has its own picks in the global store — they must NOT
+    // win against the snapshot installed via "load saved scenario".
+    setETFSelection("Equity-USA", 1);
+
+    // Simulate Compare's onLoadB installing the saved scenario's
+    // snapshot into local state (alternative #2 for one bucket, no
+    // entry for any other bucket → defaults).
+    const loadedSnapshot: Record<string, number> = { "Equity-USA": 2 };
+    const etfSelectionsB: Record<string, number> | undefined = loadedSnapshot;
+    const etfSelectionsBForBuild = etfSelectionsB ?? {};
+
+    const outputB = buildPortfolio(baseInput, "en", undefined, etfSelectionsBForBuild);
+
+    const usaRow = outputB.etfImplementation.find((r) => r.bucket === "Equity - USA");
+    expect(usaRow?.selectedSlot).toBe(2);
+
+    // Buckets not in the snapshot stay on the curated default — the
+    // empty-key fallback inside getETFDetails resolves to slot 0
+    // rather than falling through to the global store.
+    const otherRows = outputB.etfImplementation.filter((r) => r.bucket !== "Equity - USA");
+    for (const row of otherRows) {
+      expect(row.selectedSlot).toBe(0);
+    }
+  });
+
+  it("re-generating B after edits keeps the loaded snapshot (no surprise reset to defaults)", async () => {
+    const { buildPortfolio } = await import("../src/lib/portfolio");
+
+    // Snapshot stays in local state across re-generations; the
+    // resolution `etfSelectionsB ?? {}` returns the snapshot itself,
+    // not `{}`.
+    const loadedSnapshot: Record<string, number> = { "Equity-USA": 2 };
+    let etfSelectionsB: Record<string, number> | undefined = loadedSnapshot;
+
+    const first = buildPortfolio(baseInput, "en", undefined, etfSelectionsB ?? {});
+    expect(first.etfImplementation.find((r) => r.bucket === "Equity - USA")?.selectedSlot).toBe(2);
+
+    // Re-generate (e.g. user edited horizon, hit Generate again) — the
+    // local state in the component is unchanged.
+    const second = buildPortfolio(
+      { ...baseInput, horizon: 12 },
+      "en",
+      undefined,
+      etfSelectionsB ?? {},
+    );
+    expect(second.etfImplementation.find((r) => r.bucket === "Equity - USA")?.selectedSlot).toBe(2);
+
+    // Loading a different (or empty-snapshot) scenario clears the
+    // snapshot back to `{}` — that is what onLoadB does for older
+    // saves with no etfSelections field. Subsequent generations
+    // resolve to defaults again.
+    etfSelectionsB = {};
+    const third = buildPortfolio(baseInput, "en", undefined, etfSelectionsB ?? {});
+    for (const row of third.etfImplementation) {
+      expect(row.selectedSlot).toBe(0);
+    }
+  });
+});
+
+// ----------------------------------------------------------------------------
 // Build → Compare publish/subscribe channel — fundamentals.
 // ----------------------------------------------------------------------------
 // These tests lock in the wire contract Compare's "Linked to Build" badge

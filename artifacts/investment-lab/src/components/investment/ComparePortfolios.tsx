@@ -312,7 +312,17 @@ export function ComparePortfolios() {
     if (valA.isValid) { setOutputA(buildPortfolio(parsedA, "en", manualWeightsA, etfSelectionsA)); setInputA(parsedA); }
     else { setOutputA(null); setInputA(null); }
 
-    if (valB.isValid) { setOutputB(buildPortfolio(parsedB, "en", manualWeightsB, etfSelectionsB)); setInputB(parsedB); }
+    // Slot B contract (Task #78): Portfolio B is a clean default-only
+    // baseline unless a saved scenario has explicitly been loaded into
+    // it. When `etfSelectionsB` is undefined (no scenario loaded), pass
+    // an empty map instead of letting the engine fall back to the
+    // global ETF picker store the Build tab writes to — otherwise
+    // Build's per-bucket picks would silently leak into Slot B. The
+    // saved-scenario load path (onLoadB below) already installs a
+    // concrete map (or `{}` for older saves), so this fallback only
+    // affects the never-loaded case.
+    const etfSelectionsBForBuild = etfSelectionsB ?? {};
+    if (valB.isValid) { setOutputB(buildPortfolio(parsedB, "en", manualWeightsB, etfSelectionsBForBuild)); setInputB(parsedB); }
     else { setOutputB(null); setInputB(null); }
 
     setHasGenerated(true);
@@ -411,6 +421,18 @@ export function ComparePortfolios() {
             data-testid="compare-slot-a-linked-statement"
           >
             {t("compare.slotA.linkedStatement")}
+          </p>
+        )}
+        {/* Slot B helper (Task #78): tell the user up-front that B is a
+            clean defaults-only baseline until a saved scenario is loaded
+            into it. Hidden once a scenario IS loaded (snapshot present)
+            so the message doesn't contradict reality. */}
+        {prefix === "portB" && etfSelectionsB === undefined && manualWeightsB === undefined && (
+          <p
+            className="mt-2 text-xs text-muted-foreground italic"
+            data-testid="compare-slot-b-defaults-statement"
+          >
+            {t("compare.slotB.defaultsStatement")}
           </p>
         )}
       </CardHeader>
