@@ -128,6 +128,9 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "build.fx.mode.lookthrough": "Look-through · underlying currencies",
     "build.fx.mode.etfOnly": "ETF currency only · no look-through",
     "build.fx.disclaimer.etfOnly": "Currency weights are taken from each ETF's own share-class currency only — no look-through into the underlying holdings is applied. Emerging-market equity ETFs and physical-gold ETCs are surfaced on dedicated EM Currencies and XAU (Gold) rows so the share-class currency line stays honest. Turn Look-Through on (above) to see the curated underlying-currency split for EM.",
+    "build.fx.row.xau.tooltip": "Bullion exposure (LBMA gold). Listed separately from USD so the table reflects gold as a precious-metals allocation, not a dollar-denominated security.",
+    "build.fx.row.em.tooltip": "Combined exposure of emerging-market equity ETFs. Switch on Look-Through to see the per-country split (CNY, INR, TWD, KRW, …).",
+    "build.fx.row.hint.aria": "What is {row}?",
 
     // Top-10 look-through holdings report
     "build.top10.title": "Top 10 Equity Holdings (Look-Through)",
@@ -648,6 +651,9 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "build.fx.mode.lookthrough": "Look-Through · zugrundeliegende Währungen",
     "build.fx.mode.etfOnly": "Nur ETF-Währung · kein Look-Through",
     "build.fx.disclaimer.etfOnly": "Währungsgewichte basieren ausschließlich auf der Anteilsklassenwährung des jeweiligen ETF — es wird keine Durchschau auf die zugrundeliegenden Positionen angewandt. Schwellenländer-Aktien-ETFs und physische Gold-ETCs werden in eigenen Zeilen EM Currencies und XAU (Gold) ausgewiesen, damit die Anteilsklassenwährungs-Zeile nicht künstlich aufgebläht wird. Aktivieren Sie Look-Through (oben), um die kuratierte Länder-/Währungsaufteilung der EM zu sehen.",
+    "build.fx.row.xau.tooltip": "Barren-Engagement (LBMA-Gold). Wird separat vom USD ausgewiesen, damit die Tabelle Gold als Edelmetall-Allokation und nicht als USD-denominiertes Wertpapier abbildet.",
+    "build.fx.row.em.tooltip": "Aggregiertes Engagement aus Schwellenländer-Aktien-ETFs. Aktivieren Sie Look-Through, um die Länderaufteilung (CNY, INR, TWD, KRW, …) zu sehen.",
+    "build.fx.row.hint.aria": "Was ist {row}?",
 
     // Top-10 look-through holdings report
     "build.top10.title": "Top 10 Aktienpositionen (Look-Through)",

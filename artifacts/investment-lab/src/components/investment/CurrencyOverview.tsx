@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Coins, ChevronDown, ChevronUp } from "lucide-react";
 import { ETFImplementation, BaseCurrency } from "@/lib/types";
-import { buildLookthrough } from "@/lib/lookthrough";
+import { buildLookthrough, XAU_GOLD_KEY, EM_CURRENCIES_KEY } from "@/lib/lookthrough";
 import { useT } from "@/lib/i18n";
 
 interface Props {
@@ -14,6 +15,60 @@ interface Props {
    *  share-class currency (no look-through into the underlying holdings).
    *  Defaults to true so existing callers keep the look-through view. */
   lookThroughView?: boolean;
+}
+
+interface RowHintProps {
+  label: string;
+  ariaLabel: string;
+  testId: string;
+  children: ReactNode;
+}
+
+function RowHint({ label, ariaLabel, testId, children }: RowHintProps) {
+  const [open, setOpen] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const cancelClose = () => {
+    if (closeTimer.current) {
+      clearTimeout(closeTimer.current);
+      closeTimer.current = null;
+    }
+  };
+  const scheduleClose = () => {
+    cancelClose();
+    closeTimer.current = setTimeout(() => setOpen(false), 120);
+  };
+  const openNow = () => {
+    cancelClose();
+    setOpen(true);
+  };
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={ariaLabel}
+          data-testid={testId}
+          onMouseEnter={openNow}
+          onMouseLeave={scheduleClose}
+          onFocus={openNow}
+          onBlur={scheduleClose}
+          className="inline-flex items-center text-left underline decoration-dotted decoration-muted-foreground/60 underline-offset-2 hover:decoration-foreground hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm touch-manipulation cursor-help"
+        >
+          {label}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        side="top"
+        align="start"
+        className="w-72 max-w-[calc(100vw-2rem)] text-xs leading-relaxed p-3"
+        onOpenAutoFocus={(e) => e.preventDefault()}
+        onMouseEnter={openNow}
+        onMouseLeave={scheduleClose}
+      >
+        <div className="text-muted-foreground">{children}</div>
+      </PopoverContent>
+    </Popover>
+  );
 }
 
 export function CurrencyOverview({ etfs, baseCurrency, lookThroughView = true }: Props) {
@@ -72,21 +127,41 @@ export function CurrencyOverview({ etfs, baseCurrency, lookThroughView = true }:
               </TableRow>
             </TableHeader>
             <TableBody>
-              {r.rows.map((row) => (
-                <TableRow key={row.currency}>
-                  <TableCell className="font-medium">
-                    {row.currency}
-                    {row.currency === r.baseCurrency && (
-                      <span className="ml-2 text-[10px] text-muted-foreground">
-                        ({t("build.fx.base")})
-                      </span>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right font-mono">{row.pctOfPortfolio.toFixed(1)}%</TableCell>
-                  <TableCell className="text-right font-mono">{row.unhedgedPct.toFixed(1)}%</TableCell>
-                  <TableCell className="text-right font-mono">{row.hedgedPct.toFixed(1)}%</TableCell>
-                </TableRow>
-              ))}
+              {r.rows.map((row) => {
+                const hintKey =
+                  row.currency === XAU_GOLD_KEY
+                    ? "build.fx.row.xau.tooltip"
+                    : row.currency === EM_CURRENCIES_KEY
+                    ? "build.fx.row.em.tooltip"
+                    : null;
+                return (
+                  <TableRow key={row.currency}>
+                    <TableCell className="font-medium">
+                      {hintKey ? (
+                        <RowHint
+                          label={row.currency}
+                          ariaLabel={t("build.fx.row.hint.aria").replace("{row}", row.currency)}
+                          testId={
+                            row.currency === XAU_GOLD_KEY ? "fx-row-hint-xau" : "fx-row-hint-em"
+                          }
+                        >
+                          {t(hintKey)}
+                        </RowHint>
+                      ) : (
+                        row.currency
+                      )}
+                      {row.currency === r.baseCurrency && (
+                        <span className="ml-2 text-[10px] text-muted-foreground">
+                          ({t("build.fx.base")})
+                        </span>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right font-mono">{row.pctOfPortfolio.toFixed(1)}%</TableCell>
+                    <TableCell className="text-right font-mono">{row.unhedgedPct.toFixed(1)}%</TableCell>
+                    <TableCell className="text-right font-mono">{row.hedgedPct.toFixed(1)}%</TableCell>
+                  </TableRow>
+                );
+              })}
               {r.unmappedWeight > 0 && (
                 <TableRow>
                   <TableCell className="text-muted-foreground italic">{t("build.fx.unmapped")}</TableCell>
