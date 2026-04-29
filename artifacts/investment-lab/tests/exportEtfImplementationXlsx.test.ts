@@ -38,6 +38,7 @@ import {
   buildEtfImplementationWorkbook,
 } from "../src/lib/exportEtfImplementationXlsx";
 import type { ETFImplementation } from "../src/lib/types";
+import { TRANSLATIONS } from "../src/lib/i18n";
 
 // A deliberately tiny fake `t`: returns the key wrapped in [[ ]] so we
 // can assert on column-header text without depending on the EN/DE bundle
@@ -311,9 +312,88 @@ describe("buildEtfImplementationWorkbook", () => {
     // JS-level crash.
     const wb = buildEtfImplementationWorkbook([], fakeT, "en");
     const sheet = roundTrip(wb);
-    // Header row is still emitted; no data rows after it.
+    // Header row is still emitted; no data rows between the header and
+    // the spacer + disclaimer (which now sit at rows 2 and 3).
     expect(cellAt(sheet, "A", 1)?.v).toBe("[[build.impl.col.assetClass]]");
     expect(cellAt(sheet, "A", 2)).toBeUndefined();
+  });
+
+  // --------------------------------------------------------------------
+  // Disclaimer (Task #114) — the on-screen warning above the ETF
+  // Implementation table must travel with the exported workbook so a
+  // recipient who only ever sees the file still sees the warning.
+  // --------------------------------------------------------------------
+
+  it("appends a spacer row and the localised disclaimer below the data rows (EN)", () => {
+    // Two fixture rows → header at row 1, data at rows 2–3, spacer at
+    // row 4, disclaimer at row 5. We assert on the structure (spacer is
+    // empty, disclaimer in column A) and on the exact EN copy from the
+    // i18n bundle so the export and the on-screen banner stay in sync.
+    const wb = buildEtfImplementationWorkbook(
+      [curatedRow(), fallbackRow()],
+      // Use the real EN translator-shape (lookup against TRANSLATIONS)
+      // so the disclaimer cell holds the actual user-facing copy.
+      (key) => TRANSLATIONS.en[key] ?? key,
+      "en",
+    );
+    const sheet = roundTrip(wb);
+
+    // Spacer row (row 4) carries no cells in column A.
+    expect(cellAt(sheet, "A", 4)).toBeUndefined();
+
+    // Disclaimer cell sits at A5, is a string cell, and contains the
+    // exact EN bundle text — not paraphrased, not truncated.
+    const disclaimer = cellAt(sheet, "A", 5);
+    expect(disclaimer?.t).toBe("s");
+    expect(disclaimer?.v).toBe(TRANSLATIONS.en["build.impl.disclaimer"]);
+
+    // The header row (row 1) and the existing Weight (B2) and TER (F2)
+    // numeric formats are unaffected by the disclaimer addition.
+    expect(cellAt(sheet, "A", 1)?.v).toBe(
+      TRANSLATIONS.en["build.impl.col.assetClass"],
+    );
+    expect(cellAt(sheet, "B", 2)?.t).toBe("n");
+    expect(cellAt(sheet, "B", 2)?.z).toBe("0.00%");
+    expect(cellAt(sheet, "F", 2)?.t).toBe("n");
+    expect(cellAt(sheet, "F", 2)?.z).toBe("0.00%");
+
+    // Column count is still 11 (no 12th column slipped in beside the
+    // disclaimer).
+    expect(cellAt(sheet, "L", 1)).toBeUndefined();
+
+    // Disclaimer row is merged across all 11 data columns so the long
+    // sentence wraps cleanly when opened in Excel / Numbers / LibreOffice
+    // instead of looking like it belongs to the Asset Class column.
+    const merges = sheet["!merges"] ?? [];
+    expect(merges).toEqual(
+      expect.arrayContaining([
+        { s: { r: 4, c: 0 }, e: { r: 4, c: 10 } }, // row 5 in 1-based = r:4 in 0-based
+      ]),
+    );
+  });
+
+  it("uses the German disclaimer when lang='de'", () => {
+    // Same shape as the EN test but with the German translator and
+    // exact-match assertion, so EN and DE exports never drift apart.
+    const wb = buildEtfImplementationWorkbook(
+      [curatedRow()],
+      (key) => TRANSLATIONS.de[key] ?? key,
+      "de",
+    );
+    const sheet = roundTrip(wb);
+
+    // One data row → header at row 1, data at row 2, spacer at row 3,
+    // disclaimer at row 4.
+    expect(cellAt(sheet, "A", 3)).toBeUndefined();
+    const disclaimer = cellAt(sheet, "A", 4);
+    expect(disclaimer?.t).toBe("s");
+    expect(disclaimer?.v).toBe(TRANSLATIONS.de["build.impl.disclaimer"]);
+
+    // Sanity: the EN and DE strings are genuinely different copy, so the
+    // assertion above is meaningful.
+    expect(TRANSLATIONS.en["build.impl.disclaimer"]).not.toBe(
+      TRANSLATIONS.de["build.impl.disclaimer"],
+    );
   });
 });
 

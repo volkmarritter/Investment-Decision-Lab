@@ -186,7 +186,34 @@ export function buildEtfImplementationWorkbook(
   const dataRows: XLSX.CellObject[][] = rows.map((etf) =>
     COLUMNS.map((col) => col.build(etf, lang, t)),
   );
-  const sheet = XLSX.utils.aoa_to_sheet([headerRow, ...dataRows]);
+  // Spacer row and disclaimer row appended after the data so the warning
+  // travels with the file. The disclaimer text is pulled from the same
+  // i18n key the on-screen table uses (`build.impl.disclaimer`), so EN
+  // and DE exports always match what the user just saw above the table.
+  const spacerRow: XLSX.CellObject[] = [];
+  const disclaimerRow: XLSX.CellObject[] = [
+    { t: "s", v: t("build.impl.disclaimer") },
+  ];
+  const sheet = XLSX.utils.aoa_to_sheet([
+    headerRow,
+    ...dataRows,
+    spacerRow,
+    disclaimerRow,
+  ]);
+
+  // Merge the disclaimer cell across all data columns so the long warning
+  // text wraps cleanly when the file is opened in Excel / Numbers /
+  // LibreOffice instead of appearing to belong only to the Asset Class
+  // column. Row index is 0-based for SheetJS ranges; the disclaimer row
+  // sits at `1 + rows.length + 1` (header + data rows + spacer).
+  const disclaimerRowIdx = 1 + rows.length + 1;
+  const lastColIdx = COLUMNS.length - 1;
+  sheet["!merges"] = [
+    {
+      s: { r: disclaimerRowIdx, c: 0 },
+      e: { r: disclaimerRowIdx, c: lastColIdx },
+    },
+  ];
 
   // Mild column widths so the file opens with sensible column sizing
   // instead of every column collapsed to its header width. Values are
