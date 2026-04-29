@@ -60,6 +60,7 @@ import { StressTest } from "./StressTest";
 import { FeeEstimator } from "./FeeEstimator";
 import { MonteCarloSimulation } from "./MonteCarloSimulation";
 import { PortfolioMetrics } from "./PortfolioMetrics";
+import type { RiskRegime } from "@/lib/metrics";
 import { LookThroughAnalysis } from "./LookThroughAnalysis";
 import { GeoExposureMap } from "./GeoExposureMap";
 import { HomeBiasAnalysis } from "./HomeBiasAnalysis";
@@ -99,6 +100,10 @@ export function BuildPortfolio() {
   const [output, setOutput] = useState<PortfolioOutput | null>(null);
   const [validation, setValidation] = useState<ValidationResult | null>(null);
   const [hasGenerated, setHasGenerated] = useState(false);
+  // Shared Crisis-Σ toggle: lifted up from PortfolioMetrics + MonteCarlo so a
+  // single flip moves both tiles into the stressed-correlation view (Task #99).
+  // Default "normal" preserves the legacy baseline reading.
+  const [riskRegime, setRiskRegime] = useState<RiskRegime>("normal");
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingDetailed, setIsExportingDetailed] = useState(false);
   const [numETFsMode, setNumETFsMode] = useState<"auto" | "manual">("auto");
@@ -1539,6 +1544,8 @@ export function BuildPortfolio() {
                   hedged={form.getValues().includeCurrencyHedging}
                   includeSyntheticETFs={form.getValues().includeSyntheticETFs}
                   etfImplementation={watchedLookThroughView ? output.etfImplementation : undefined}
+                  riskRegime={riskRegime}
+                  onRiskRegimeChange={setRiskRegime}
                 />
 
                 {/* Risk & Performance Metrics (Sharpe, Beta, Alpha, TE, Max DD, Frontier, Correlation) */}
@@ -1548,6 +1555,8 @@ export function BuildPortfolio() {
                   etfImplementation={watchedLookThroughView ? output.etfImplementation : undefined}
                   includeSyntheticETFs={form.getValues().includeSyntheticETFs}
                   hedged={form.getValues().includeCurrencyHedging}
+                  riskRegime={riskRegime}
+                  onRiskRegimeChange={setRiskRegime}
                 />
 
                 {/* Scenario Stress Test */}

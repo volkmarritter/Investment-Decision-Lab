@@ -80,6 +80,14 @@ interface MonteCarloSimulationProps {
    *  agree with the metrics tile to within sampling noise. When omitted,
    *  the legacy region-only routing is used (no regression). */
   etfImplementation?: ETFImplementation[];
+  /** Controlled correlation regime. When supplied, the parent owns the
+   *  toggle state and changes are forwarded via `onRiskRegimeChange`.
+   *  Used by the Build / Compare tabs to share the Crisis-Σ flip with
+   *  the Risk & Performance Metrics tile (Task #99). When omitted, the
+   *  component falls back to its own internal state — preserving the
+   *  legacy standalone behaviour. */
+  riskRegime?: RiskRegime;
+  onRiskRegimeChange?: (r: RiskRegime) => void;
 }
 
 export function MonteCarloSimulation({
@@ -89,6 +97,8 @@ export function MonteCarloSimulation({
   hedged,
   includeSyntheticETFs,
   etfImplementation,
+  riskRegime: riskRegimeProp,
+  onRiskRegimeChange,
 }: MonteCarloSimulationProps) {
   const { t, lang } = useT();
   // Raw text buffer is the source of truth so mobile users on Swiss/German/
@@ -125,7 +135,19 @@ export function MonteCarloSimulation({
   //   noticeably worse 99 %-CVaR.
   // Both toggles are independent: the operator can study Crisis-Σ alone,
   // Student-t alone, or both stacked (the "everything goes wrong" view).
-  const [riskRegime, setRiskRegime] = useState<RiskRegime>("normal");
+  //
+  // Crisis-Σ is *shared* with the sibling Risk & Performance Metrics tile
+  // when this component is rendered inside the Build / Compare tabs (the
+  // parent passes `riskRegime` + `onRiskRegimeChange`). Flipping the toggle
+  // on either tile updates both — see Task #99. When the prop is omitted
+  // (legacy callers / standalone usage) we fall back to internal state so
+  // the existing baselines stay byte-identical.
+  const [internalRiskRegime, setInternalRiskRegime] = useState<RiskRegime>("normal");
+  const riskRegime = riskRegimeProp ?? internalRiskRegime;
+  const setRiskRegime = (r: RiskRegime) => {
+    if (riskRegimeProp === undefined) setInternalRiskRegime(r);
+    onRiskRegimeChange?.(r);
+  };
   const [tailModel, setTailModel] = useState<TailModel>("gauss");
   const studentTDf = 5; // operator default; df-slider can be added later
 

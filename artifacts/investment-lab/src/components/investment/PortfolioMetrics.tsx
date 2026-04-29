@@ -11,7 +11,7 @@ import { getRiskFreeRate, subscribeRiskFreeRate, subscribeCMAOverrides } from "@
 import { applyCMALayers } from "@/lib/metrics";
 import { useT } from "@/lib/i18n";
 
-export function PortfolioMetrics({ allocation, baseCurrency, etfImplementation, includeSyntheticETFs, hedged }: { allocation: AssetAllocation[]; baseCurrency: BaseCurrency; etfImplementation?: ETFImplementation[]; includeSyntheticETFs?: boolean; hedged?: boolean }) {
+export function PortfolioMetrics({ allocation, baseCurrency, etfImplementation, includeSyntheticETFs, hedged, riskRegime: riskRegimeProp, onRiskRegimeChange }: { allocation: AssetAllocation[]; baseCurrency: BaseCurrency; etfImplementation?: ETFImplementation[]; includeSyntheticETFs?: boolean; hedged?: boolean; riskRegime?: RiskRegime; onRiskRegimeChange?: (r: RiskRegime) => void }) {
   const { t, lang } = useT();
   const de = lang === "de";
   const [showDetails, setShowDetails] = useState(false);
@@ -21,7 +21,20 @@ export function PortfolioMetrics({ allocation, baseCurrency, etfImplementation, 
   // Sharpe / α / max-DD / frontier / correlation matrix all re-compute
   // against the stress regime without touching expected returns. See
   // metrics.ts:CRISIS_C for the calibration anchors.
-  const [riskRegime, setRiskRegime] = useState<RiskRegime>("normal");
+  //
+  // Controlled / uncontrolled: parent tabs (Build, Compare) lift the
+  // toggle state up so the same Crisis-Σ flip is honored by both this
+  // tile and the Monte Carlo tile rendered next to it (Task #99). When
+  // `riskRegime` is passed as a prop the toggle becomes controlled and
+  // every click is forwarded to `onRiskRegimeChange`; when omitted (e.g.
+  // legacy / standalone callers) the component falls back to internal
+  // state, preserving the original byte-identical behaviour.
+  const [internalRiskRegime, setInternalRiskRegime] = useState<RiskRegime>("normal");
+  const riskRegime = riskRegimeProp ?? internalRiskRegime;
+  const setRiskRegime = (r: RiskRegime) => {
+    if (riskRegimeProp === undefined) setInternalRiskRegime(r);
+    onRiskRegimeChange?.(r);
+  };
   const [rf, setRf] = useState<number>(() => getRiskFreeRate(baseCurrency));
   useEffect(() => subscribeRiskFreeRate((all) => setRf(all[baseCurrency])), [baseCurrency]);
   // Re-read RF whenever the active base currency changes (Sharpe / Alpha must

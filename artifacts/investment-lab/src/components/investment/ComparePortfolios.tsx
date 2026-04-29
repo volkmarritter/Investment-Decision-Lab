@@ -41,6 +41,7 @@ import {
 import { PortfolioMetrics } from "./PortfolioMetrics";
 import { StressTest } from "./StressTest";
 import { MonteCarloSimulation } from "./MonteCarloSimulation";
+import type { RiskRegime } from "@/lib/metrics";
 import { FeeEstimator, formatThousandsLive } from "./FeeEstimator";
 import { CurrencyOverview } from "./CurrencyOverview";
 import { LookThroughAnalysis } from "./LookThroughAnalysis";
@@ -265,6 +266,14 @@ export function ComparePortfolios() {
   const [etfSelectionsB, setEtfSelectionsB] = useState<Record<string, ETFSlot> | undefined>(undefined);
 
   const [hasGenerated, setHasGenerated] = useState(false);
+  // Shared Crisis-Σ toggles (Task #99). Per-side state so each portfolio's
+  // Monte Carlo + Risk-&-Performance tiles stay in lockstep — and both the
+  // mobile A/B-tabbed instances and the desktop side-by-side instances
+  // reuse the same value, so flipping the regime in one location moves
+  // every linked tile for that side. Defaults to "normal" so existing
+  // baselines stay byte-identical.
+  const [riskRegimeA, setRiskRegimeA] = useState<RiskRegime>("normal");
+  const [riskRegimeB, setRiskRegimeB] = useState<RiskRegime>("normal");
   const resultsRef = useRef<HTMLDivElement>(null);
 
   // Lifted Fee Estimator amount draft for Portfolio A. Owning this here
@@ -1175,6 +1184,8 @@ export function ComparePortfolios() {
                               hedged={inputA.includeCurrencyHedging}
                               includeSyntheticETFs={inputA.includeSyntheticETFs}
                               etfImplementation={inputA.lookThroughView ? outputA!.etfImplementation : undefined}
+                              riskRegime={riskRegimeA}
+                              onRiskRegimeChange={setRiskRegimeA}
                             />
                           </TabsContent>
                           <TabsContent value="B" className="mt-4">
@@ -1185,6 +1196,8 @@ export function ComparePortfolios() {
                               hedged={inputB.includeCurrencyHedging}
                               includeSyntheticETFs={inputB.includeSyntheticETFs}
                               etfImplementation={inputB.lookThroughView ? outputB!.etfImplementation : undefined}
+                              riskRegime={riskRegimeB}
+                              onRiskRegimeChange={setRiskRegimeB}
                             />
                           </TabsContent>
                         </Tabs>
@@ -1196,10 +1209,10 @@ export function ComparePortfolios() {
                             <TabsTrigger value="B">Portfolio B</TabsTrigger>
                           </TabsList>
                           <TabsContent value="A" className="mt-4">
-                            <PortfolioMetrics allocation={outputA!.allocation} baseCurrency={inputA.baseCurrency} etfImplementation={inputA.lookThroughView ? outputA!.etfImplementation : undefined} includeSyntheticETFs={inputA.includeSyntheticETFs} hedged={inputA.includeCurrencyHedging} />
+                            <PortfolioMetrics allocation={outputA!.allocation} baseCurrency={inputA.baseCurrency} etfImplementation={inputA.lookThroughView ? outputA!.etfImplementation : undefined} includeSyntheticETFs={inputA.includeSyntheticETFs} hedged={inputA.includeCurrencyHedging} riskRegime={riskRegimeA} onRiskRegimeChange={setRiskRegimeA} />
                           </TabsContent>
                           <TabsContent value="B" className="mt-4">
-                            <PortfolioMetrics allocation={outputB!.allocation} baseCurrency={inputB.baseCurrency} etfImplementation={inputB.lookThroughView ? outputB!.etfImplementation : undefined} includeSyntheticETFs={inputB.includeSyntheticETFs} hedged={inputB.includeCurrencyHedging} />
+                            <PortfolioMetrics allocation={outputB!.allocation} baseCurrency={inputB.baseCurrency} etfImplementation={inputB.lookThroughView ? outputB!.etfImplementation : undefined} includeSyntheticETFs={inputB.includeSyntheticETFs} hedged={inputB.includeCurrencyHedging} riskRegime={riskRegimeB} onRiskRegimeChange={setRiskRegimeB} />
                           </TabsContent>
                         </Tabs>
 
@@ -1229,8 +1242,10 @@ export function ComparePortfolios() {
                             hedged={inputA.includeCurrencyHedging}
                             includeSyntheticETFs={inputA.includeSyntheticETFs}
                             etfImplementation={inputA.lookThroughView ? outputA!.etfImplementation : undefined}
+                            riskRegime={riskRegimeA}
+                            onRiskRegimeChange={setRiskRegimeA}
                           />
-                          <PortfolioMetrics allocation={outputA!.allocation} baseCurrency={inputA.baseCurrency} etfImplementation={inputA.lookThroughView ? outputA!.etfImplementation : undefined} includeSyntheticETFs={inputA.includeSyntheticETFs} hedged={inputA.includeCurrencyHedging} />
+                          <PortfolioMetrics allocation={outputA!.allocation} baseCurrency={inputA.baseCurrency} etfImplementation={inputA.lookThroughView ? outputA!.etfImplementation : undefined} includeSyntheticETFs={inputA.includeSyntheticETFs} hedged={inputA.includeCurrencyHedging} riskRegime={riskRegimeA} onRiskRegimeChange={setRiskRegimeA} />
                           <StressTest allocation={outputA!.allocation} baseCurrency={inputA.baseCurrency} />
                         </div>
                         <div className="space-y-0 min-w-0">
@@ -1242,8 +1257,10 @@ export function ComparePortfolios() {
                             hedged={inputB.includeCurrencyHedging}
                             includeSyntheticETFs={inputB.includeSyntheticETFs}
                             etfImplementation={inputB.lookThroughView ? outputB!.etfImplementation : undefined}
+                            riskRegime={riskRegimeB}
+                            onRiskRegimeChange={setRiskRegimeB}
                           />
-                          <PortfolioMetrics allocation={outputB!.allocation} baseCurrency={inputB.baseCurrency} etfImplementation={inputB.lookThroughView ? outputB!.etfImplementation : undefined} includeSyntheticETFs={inputB.includeSyntheticETFs} hedged={inputB.includeCurrencyHedging} />
+                          <PortfolioMetrics allocation={outputB!.allocation} baseCurrency={inputB.baseCurrency} etfImplementation={inputB.lookThroughView ? outputB!.etfImplementation : undefined} includeSyntheticETFs={inputB.includeSyntheticETFs} hedged={inputB.includeCurrencyHedging} riskRegime={riskRegimeB} onRiskRegimeChange={setRiskRegimeB} />
                           <StressTest allocation={outputB!.allocation} baseCurrency={inputB.baseCurrency} />
                         </div>
                       </div>
