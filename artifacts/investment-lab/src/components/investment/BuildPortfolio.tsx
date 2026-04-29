@@ -1668,6 +1668,7 @@ export function BuildPortfolio() {
                   output={output}
                   input={form.getValues()}
                   generatedAt={new Date()}
+                  riskRegime={riskRegime}
                 />
               </div>
             )}
@@ -1694,6 +1695,7 @@ export function BuildPortfolio() {
                   input={form.getValues()}
                   generatedAt={new Date()}
                   variant="detailed"
+                  riskRegime={riskRegime}
                 />
               </div>
             )}

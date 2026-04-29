@@ -5,6 +5,7 @@ import {
   computeMetrics,
   isSyntheticUsEffective,
   mapAllocationToAssetsLookthrough,
+  type RiskRegime,
 } from "@/lib/metrics";
 import { getRiskFreeRate } from "@/lib/settings";
 import { colorForBucket, compareBuckets } from "@/lib/chartColors";
@@ -28,6 +29,13 @@ interface PortfolioReportProps {
    *  "detailed" = adds Top 10 Equity Holdings (always look-through),
    *  Monte Carlo summary + projection chart, and Fee Estimator summary. */
   variant?: "basic" | "detailed";
+  /** Correlation regime the printed analytical metrics block and the
+   *  embedded Monte Carlo block are computed under. Mirrors the on-screen
+   *  Crisis-Σ toggle that sits above PortfolioMetrics + MonteCarlo on the
+   *  Build / Compare tabs (Task #99). Defaults to "normal" so any caller
+   *  that doesn't pass the prop keeps the legacy long-run reading and
+   *  prior exports stay reproducible. */
+  riskRegime?: RiskRegime;
 }
 
 /** For values stored as fractions in [0..1] (e.g. computeMetrics outputs). */
@@ -70,6 +78,7 @@ export function PortfolioReport({
   input,
   generatedAt,
   variant = "basic",
+  riskRegime = "normal",
 }: PortfolioReportProps) {
   const { t, lang } = useT();
   const de = lang === "de";
@@ -88,7 +97,7 @@ export function PortfolioReport({
         input.baseCurrency,
         input.lookThroughView ? output.etfImplementation : undefined,
         syntheticUsEffective,
-        "normal",
+        riskRegime,
       ),
     [
       output.allocation,
@@ -96,6 +105,7 @@ export function PortfolioReport({
       input.baseCurrency,
       input.lookThroughView,
       syntheticUsEffective,
+      riskRegime,
     ],
   );
 
@@ -232,6 +242,31 @@ export function PortfolioReport({
           <div>
             <span className="text-slate-500">{t("report.meta.base")}: </span>
             <span className="font-medium">{input.baseCurrency}</span>
+          </div>
+          {/* Correlation regime stamp — tells the reader which Σ matrix
+           *  the printed σ / β / TE / Sharpe / α / heuristic-MDD / frontier
+           *  and embedded Monte Carlo numbers were computed under. Mirrors
+           *  the on-screen Crisis-Σ toggle (Task #99) so the printed
+           *  deliverable matches what the user signed off on screen. The
+           *  crisis variant is rendered in red for at-a-glance recognition. */}
+          <div data-testid="report-risk-regime">
+            <span className="text-slate-500">
+              {de ? "Korrelations-Regime" : "Correlation regime"}:{" "}
+            </span>
+            <span
+              className="font-medium"
+              style={{
+                color: riskRegime === "crisis" ? "#b91c1c" : "#0f172a",
+              }}
+            >
+              {riskRegime === "crisis"
+                ? de
+                  ? "Krise (gestresst)"
+                  : "Crisis (stressed)"
+                : de
+                  ? "Normal"
+                  : "Normal"}
+            </span>
           </div>
         </div>
       </header>
@@ -486,6 +521,7 @@ export function PortfolioReport({
           input={input}
           syntheticUsEffective={syntheticUsEffective}
           lang={lang}
+          riskRegime={riskRegime}
         />
       )}
 
@@ -628,11 +664,13 @@ function DetailedSections({
   input,
   syntheticUsEffective,
   lang,
+  riskRegime,
 }: {
   output: PortfolioOutput;
   input: PortfolioInput;
   syntheticUsEffective: boolean;
   lang: "de" | "en";
+  riskRegime: RiskRegime;
 }) {
   const de = lang === "de";
   // formatters for the illustrative-amount currency tiles
@@ -666,7 +704,7 @@ function DetailedSections({
         hedged: input.includeCurrencyHedging,
         baseCurrency: input.baseCurrency,
         syntheticUsEffective,
-        riskRegime: "normal",
+        riskRegime,
         tailModel: "gauss",
         etfImplementation: input.lookThroughView ? output.etfImplementation : undefined,
       }),
@@ -678,6 +716,7 @@ function DetailedSections({
       input.includeCurrencyHedging,
       input.baseCurrency,
       syntheticUsEffective,
+      riskRegime,
     ],
   );
 
