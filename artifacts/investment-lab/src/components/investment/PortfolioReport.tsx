@@ -325,26 +325,31 @@ export function PortfolioReport({
             label={t("metrics.expReturn")}
             value={fmtPctFromFraction(metrics.expReturn)}
             sub="p.a."
+            testId="report-metric-expReturn"
           />
           <MetricTile
             label={t("metrics.vol")}
             value={fmtPctFromFraction(metrics.vol)}
             sub={de ? "Standardabw." : "stdev"}
+            testId="report-metric-vol"
           />
           <MetricTile
             label={t("metrics.sharpe")}
             value={fmtNum(metrics.sharpe)}
             sub={`${sharpeBand(metrics.sharpe, lang)} · Rf ${fmtPctFromFraction(rf, 1)}`}
+            testId="report-metric-sharpe"
           />
           <MetricTile
             label={t("metrics.maxDD")}
             value={fmtPctFromFraction(metrics.maxDrawdown, 1)}
             sub={de ? "Heuristik" : "heuristic"}
+            testId="report-metric-maxDD"
           />
           <MetricTile
             label={de ? "Alpha vs. ACWI" : "Alpha vs ACWI"}
             value={fmtPctFromFraction(metrics.alpha)}
             sub="p.a."
+            testId="report-metric-alpha"
           />
         </div>
       </section>
@@ -622,10 +627,16 @@ function MetricTile({
   label,
   value,
   sub,
+  testId,
 }: {
   label: string;
   value: string;
   sub?: string;
+  /** Optional test id applied to the value cell. Used by the regime
+   *  regression tests to read back the printed σ / Sharpe / heuristic-MDD
+   *  / MC expected-vol / MC P(loss) without having to walk i18n labels.
+   *  Stays optional so callers that don't care don't pollute the DOM. */
+  testId?: string;
 }) {
   return (
     <div
@@ -638,6 +649,7 @@ function MetricTile({
       <div
         className="font-bold text-slate-900 tabular-nums mt-0.5"
         style={{ fontSize: "13px" }}
+        data-testid={testId}
       >
         {value}
       </div>
@@ -825,21 +837,25 @@ function DetailedSections({
             label={de ? "Erwart. Rendite p.a." : "Expected return p.a."}
             value={fmtPctFromFraction(mc.expectedReturn, 2)}
             sub={de ? "geometr. Mittel" : "geometric mean"}
+            testId="report-mc-expectedReturn"
           />
           <MetricTile
             label={de ? "Erwart. Vol. p.a." : "Expected vol. p.a."}
             value={fmtPctFromFraction(mc.expectedVol, 1)}
             sub={de ? "Standardabw." : "std. deviation"}
+            testId="report-mc-expectedVol"
           />
           <MetricTile
             label={de ? "Endwert P50" : "Final value P50"}
             value={fmtMoney(mc.finalP50)}
             sub={`P10 ${fmtMoney(mc.finalP10)} · P90 ${fmtMoney(mc.finalP90)}`}
+            testId="report-mc-finalP50"
           />
           <MetricTile
             label={de ? "P(Verlust) / P(Verdoppl.)" : "P(loss) / P(doubled)"}
             value={`${fmtPctFromFraction(mc.probLoss, 1)} / ${fmtPctFromFraction(mc.probDoubled, 1)}`}
             sub={`${input.horizon} ${de ? "Jahre Horizont" : "year horizon"}`}
+            testId="report-mc-probLossDoubled"
           />
         </div>
         <div className="mt-2">
