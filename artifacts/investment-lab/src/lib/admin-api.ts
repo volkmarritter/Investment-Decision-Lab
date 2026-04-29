@@ -345,28 +345,28 @@ export const adminApi = {
       method: "POST",
       body: JSON.stringify({ parentKey, entry }),
     }),
-  // Adds a curated alternative under `parentKey`. The server opens TWO
-  // PRs (best-effort): one against etfs.ts (always) and one against
-  // lookthrough.overrides.json (only if justETF returns complete data).
-  // The look-through PR is non-blocking — if scraping fails the etfs PR
-  // still goes through and `lookthroughError` carries the explanation.
+  // Adds a curated alternative under `parentKey` (Task #122 T004:
+  // unified single-PR flow). The server opens ONE PR that bundles the
+  // etfs.ts change with the look-through entry in the SAME commit when
+  // the justETF scrape returns complete data; otherwise the PR carries
+  // only the etfs.ts change and the monthly refresh job picks up the
+  // look-through later. `lookthroughIncluded` reports whether the JSON
+  // sidecar rode along.
   addBucketAlternative: (parentKey: string, entry: AddBucketAlternativeRequest) =>
     call<{
       ok: boolean;
       prUrl: string;
       prNumber: number;
-      lookthroughPrUrl?: string;
-      lookthroughPrNumber?: number;
+      lookthroughIncluded: boolean;
       // Distinct positive signal: the ISIN is already covered by
       // look-through data (in the curated overrides, the auto-refresh
-      // pool, or the base file we PR against). No second PR was opened
-      // because none was needed — render this as success, not as an
-      // error/skip.
+      // pool, or the base file we PR against). The bundle was a no-op
+      // — render this as success, not as an error/skip.
       lookthroughAlreadyPresent?: boolean;
       lookthroughAlreadyPresentSource?: "overrides" | "pool" | "base-file";
       // Genuine problems (scrape failed, scrape returned incomplete
-      // data, GitHub call threw). The etfs PR still succeeded — this is
-      // only about the optional second PR.
+      // data). The etfs PR still succeeded — this is only about the
+      // bundled JSON sidecar.
       lookthroughError?: string;
     }>(
       "/admin/bucket-alternatives",
@@ -505,8 +505,21 @@ export const adminApi = {
   // tree-row "Set as default" / "Add alternative" actions; the legacy
   // addBucketAlternative / proposeAppDefaultsPr still exist for
   // ad-hoc / batch flows.
+  // Task #122 (T004): the picker attach flow also bundles a
+  // look-through scrape when the JSON sidecar doesn't yet have data
+  // for the picked ISIN. Same single-PR-end-state as
+  // addBucketAlternative — `lookthroughIncluded` reports whether the
+  // bundle made it into the commit.
   attachAlternativeIsin: (parentKey: string, isin: string) =>
-    call<{ ok: boolean; prUrl: string; prNumber: number }>(
+    call<{
+      ok: boolean;
+      prUrl: string;
+      prNumber: number;
+      lookthroughIncluded: boolean;
+      lookthroughAlreadyPresent?: boolean;
+      lookthroughAlreadyPresentSource?: "overrides" | "pool" | "base-file";
+      lookthroughError?: string;
+    }>(
       `/admin/buckets/${encodeURIComponent(parentKey)}/alternatives`,
       {
         method: "POST",
@@ -651,7 +664,11 @@ export type BulkAltLookthroughStatus =
   | "already_present"
   | "incomplete"
   | "scrape_failed"
-  | "would_add";
+  | "would_add"
+  // Task #122 (T004): row was rejected by the etfs.ts pre-flight
+  // (parent missing / duplicate ISIN / cap exceeded), so its
+  // look-through entry was correctly NOT committed either.
+  | "skipped_row_failed";
 
 export interface BulkAltRowOutcome {
   parentKey: string;
@@ -702,9 +719,13 @@ export interface BulkBucketAlternativesResponse {
   // Present on submit only:
   prUrl?: string;
   prNumber?: number;
-  lookthroughPrUrl?: string;
-  lookthroughPrNumber?: number;
-  lookthroughError?: string;
+  // Task #122 (T004): unified single-PR flow. The bulk endpoint now
+  // bundles look-through entries into the SAME PR as the etfs.ts
+  // change. `lookthroughIncluded` is true iff at least one
+  // look-through entry rode along; `lookthroughCount` is the exact
+  // count for the toast text.
+  lookthroughIncluded?: boolean;
+  lookthroughCount?: number;
 }
 
 // ---- Workspace sync (Task #51) ---------------------------------------------

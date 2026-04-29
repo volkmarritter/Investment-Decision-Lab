@@ -129,6 +129,38 @@ function parseAllProfileIsinsFromLookthroughSource(src) {
 // raw lookthrough.ts source to also extract the full PROFILES set for the
 // orphan-override check below.
 
+// ---------------------------------------------------------------------------
+// Task #122 (T005) — INSTRUMENTS-as-allowlist guards.
+//
+// After unification, every ISIN in lookthrough.overrides.json (`overrides`
+// or `pool`) MUST also be a registered instrument in src/lib/etfs.ts. The
+// monthly refresh job is the second-most-likely vector for zombie entries
+// to creep back in (the most-likely is the admin "+ Alternative" flow,
+// addressed by T004's multi-file PR). Two pure helpers, exported so the
+// orphan unit test can exercise them without the network loop:
+//
+//   • validateExplicitTargets — explicit-arg run: refuse any CLI ISIN
+//     that isn't in INSTRUMENTS. Returns the list of offending ISINs;
+//     main() exits 1 if non-empty.
+//   • pruneNonInstrumentsKeys — full-refresh run: silently drop any
+//     pre-existing JSON key that no longer matches INSTRUMENTS. Logged
+//     but never preserved through write — the admin pane / picker is
+//     the operator's UI for re-adding a removed instrument.
+// ---------------------------------------------------------------------------
+export function validateExplicitTargets(targets, instrumentSet) {
+  return targets.filter((isin) => !instrumentSet.has(isin));
+}
+
+export function pruneNonInstrumentsKeys(map, instrumentSet) {
+  const kept = {};
+  const orphans = [];
+  for (const [isin, value] of Object.entries(map ?? {})) {
+    if (instrumentSet.has(isin)) kept[isin] = value;
+    else orphans.push(isin);
+  }
+  return { kept, orphans };
+}
+
 // Top-10 holdings: parses the static <table data-testid="etf-holdings_top-holdings_table">
 // block on a justETF profile page. Returns an array of { name, pct } sorted in
 // the same order justETF presents them (descending weight).
@@ -462,6 +494,44 @@ async function main() {
   } catch {
     // first run — leave both empty
   }
+
+  // Task #122 (T005) — INSTRUMENTS-as-allowlist guards:
+  //   1. Explicit-arg run: refuse any CLI ISIN that has no INSTRUMENTS
+  //      row. Such an ISIN cannot reach the picker even if the scrape
+  //      succeeds (the picker filters on INSTRUMENTS), so writing for
+  //      it would just re-create a zombie. Exit 1 with the offending
+  //      list so the operator sees it in the GitHub Action output.
+  //   2. Full-refresh run: prune any pre-existing pool/override entry
+  //      whose ISIN no longer matches INSTRUMENTS. The validator in
+  //      etfs.ts will fail the build the moment such an entry lands,
+  //      so the only sensible refresh-job behaviour is to drop them
+  //      before write — never preserve them through.
+  const instrumentSet = new Set(allIsins);
+  if (TARGET_ISINS.length) {
+    const offending = validateExplicitTargets(TARGET_ISINS, instrumentSet);
+    if (offending.length > 0) {
+      console.error(
+        `\nrefuse: ${offending.length} explicit ISIN(s) not registered in INSTRUMENTS — ` +
+          `${offending.join(", ")}. ` +
+          `Register them via the Instruments tab in /admin first, then re-run with the same args.\n`
+      );
+      process.exit(1);
+    }
+  }
+  const prunedPool = pruneNonInstrumentsKeys(existingPool, instrumentSet);
+  const prunedOverrides = pruneNonInstrumentsKeys(existing, instrumentSet);
+  if (prunedPool.orphans.length > 0 || prunedOverrides.orphans.length > 0) {
+    console.warn(
+      `\n! pruning ${prunedPool.orphans.length} orphan pool entry/entries ` +
+        `and ${prunedOverrides.orphans.length} orphan override entry/entries ` +
+        `from lookthrough.overrides.json (no matching INSTRUMENTS row): ` +
+        `pool=[${prunedPool.orphans.join(", ")}] ` +
+        `overrides=[${prunedOverrides.orphans.join(", ")}]\n`
+    );
+  }
+  existing = prunedOverrides.kept;
+  existingPool = prunedPool.kept;
+
   const poolIsinSet = new Set(Object.keys(existingPool));
   const isPoolIsin = (isin) => poolIsinSet.has(isin);
 

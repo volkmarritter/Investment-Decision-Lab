@@ -612,6 +612,27 @@ if (orphanOverrideIsins.length > 0) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Raw look-through-key getters (Task #122 — unify ETF master list and
+// look-through pool). Exposed for validateCatalog() in etfs.ts so the
+// catalog validator can enforce the structural invariant
+//
+//   ∀ ISIN ∈ pool ∪ overrides:  ISIN ∈ INSTRUMENTS
+//
+// without lookthrough.ts having to import INSTRUMENTS itself (which would
+// re-trigger the curated PROFILES merge loop on every test that mocks the
+// JSON file). Returning fresh arrays keeps the JSON keys read-only from
+// the validator's perspective.
+// ---------------------------------------------------------------------------
+const POOL_ISIN_KEYS: string[] = Object.keys(RAW_LOOKTHROUGH_POOL);
+const OVERRIDE_ISIN_KEYS: string[] = Object.keys(RAW_LOOKTHROUGH_OVERRIDES);
+export function getLookthroughPoolIsins(): string[] {
+  return [...POOL_ISIN_KEYS];
+}
+export function getLookthroughOverrideIsins(): string[] {
+  return [...OVERRIDE_ISIN_KEYS];
+}
+
 export function profileFor(isin: string): LookthroughProfile | null {
   const key = ALIAS[isin] ?? isin;
   return PROFILES[key] ?? null;

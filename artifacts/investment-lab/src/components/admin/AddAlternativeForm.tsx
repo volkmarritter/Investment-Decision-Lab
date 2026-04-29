@@ -163,20 +163,24 @@ export function AddAlternativeForm({
     setSubmitting(true);
     try {
       const r = await adminApi.addBucketAlternative(parentKey, draft);
-      const lookthroughLine = r.lookthroughPrUrl
+      // Task #122 (T004): one PR carries both files. The toast line
+      // explains exactly what's in it so the operator knows whether to
+      // expect the look-through data on day 1 or wait for the monthly
+      // refresh job.
+      const lookthroughLine = r.lookthroughIncluded
         ? t({
-            de: `Look-through-Pull Request: ${r.lookthroughPrUrl}`,
-            en: `Look-through Pull Request: ${r.lookthroughPrUrl}`,
+            de: "Look-through-Daten sind im selben Pull Request enthalten.",
+            en: "Look-through data is bundled in the same Pull Request.",
           })
         : r.lookthroughAlreadyPresent
           ? t({
-              de: "Look-through-Daten bereits vorhanden — kein zweiter Pull Request nötig.",
-              en: "Look-through data already available — no second Pull Request needed.",
+              de: "Look-through-Daten waren bereits vorhanden — kein Update nötig.",
+              en: "Look-through data was already available — no update needed.",
             })
           : r.lookthroughError
             ? t({
-                de: `Look-through-Pull Request übersprungen: ${r.lookthroughError}`,
-                en: `Look-through Pull Request skipped: ${r.lookthroughError}`,
+                de: `Look-through-Daten werden später per Refresh-Job nachgereicht: ${r.lookthroughError}`,
+                en: `Look-through data will be filled in later by the refresh job: ${r.lookthroughError}`,
               })
             : null;
       toast.success(

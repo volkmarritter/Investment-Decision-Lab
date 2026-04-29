@@ -2,6 +2,14 @@ import { PortfolioInput } from "./types";
 import overridesFile from "@/data/etfs.overrides.json";
 import { getUserETFOverride } from "./etfOverrides";
 import { getETFSelection } from "./etfSelection";
+// Task #122: validateCatalog() needs to know which ISINs the look-through
+// JSON references so it can flag entries that have no INSTRUMENTS row.
+// Importing only key getters (no PROFILES merge entry-points) keeps this
+// file's module-load surface unchanged.
+import {
+  getLookthroughPoolIsins,
+  getLookthroughOverrideIsins,
+} from "./lookthrough";
 
 // ----------------------------------------------------------------------------
 // Per-bucket alternatives cap.
@@ -1340,7 +1348,12 @@ export function getETFDetails(
 // Wired into a vitest unit test — failures cause CI to refuse the build.
 // ----------------------------------------------------------------------------
 export interface CatalogValidationIssue {
-  severity: "error";
+  // "warning" entries are surfaced (test output, admin pane) but do NOT
+  // block the build. "error" entries fail the catalog-validate test in
+  // CI. Task #122 introduces "warning" so the look-through ⊆ INSTRUMENTS
+  // check can land in two phases: warn first (T002), flip to error
+  // once the pool/overrides JSON has been cleaned (T003).
+  severity: "error" | "warning";
   bucket: string;
   message: string;
 }
@@ -1391,6 +1404,39 @@ export function validateCatalog(): CatalogValidationIssue[] {
         severity: "error",
         bucket: u.bucket,
         message: `ISIN ${isin} is already assigned to bucket "${first.bucket}" as ${first.role} — every ISIN may appear in at most one bucket slot`,
+      });
+    }
+  }
+  // Task #122: look-through ISIN ⊆ INSTRUMENTS keys. Every ISIN keyed in
+  // src/data/lookthrough.overrides.json (`overrides` and `pool` maps)
+  // MUST also be a registered instrument. The runtime folds pool
+  // entries into PROFILES (lookthrough.ts) and shallow-merges overrides
+  // onto PROFILES, but neither path is reachable from the UI for an
+  // ISIN that no instrument row references — so a look-through entry
+  // without an INSTRUMENTS row is structurally unreachable data and
+  // silently signals "INSTRUMENTS table is out of sync with the
+  // look-through JSON". Phase 2 (T003): with the JSON cleaned by T002
+  // and the refresh job tightened by T005, severity is "error" so any
+  // future zombie entry trips the catalog-validate unit test in CI
+  // before it can ship.
+  const instrumentSet = new Set(Object.keys(INSTRUMENTS));
+  const ltPool = getLookthroughPoolIsins();
+  const ltOverrides = getLookthroughOverrideIsins();
+  for (const isin of ltPool) {
+    if (!instrumentSet.has(isin)) {
+      issues.push({
+        severity: "error",
+        bucket: "lookthrough.pool",
+        message: `Pool ISIN ${isin} is known to look-through but not registered in INSTRUMENTS. Register it via the Instruments tab first, then re-add the pool entry to src/data/lookthrough.overrides.json.`,
+      });
+    }
+  }
+  for (const isin of ltOverrides) {
+    if (!instrumentSet.has(isin)) {
+      issues.push({
+        severity: "error",
+        bucket: "lookthrough.overrides",
+        message: `Override ISIN ${isin} is known to look-through but not registered in INSTRUMENTS. Register it via the Instruments tab first, then re-add the override entry to src/data/lookthrough.overrides.json.`,
       });
     }
   }

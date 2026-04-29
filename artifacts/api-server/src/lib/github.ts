@@ -310,6 +310,129 @@ export async function ensureFreshBranch(args: {
 }
 
 // ---------------------------------------------------------------------------
+// commitMultiFile — single commit, N file changes (Task #122, 2026-04-29)
+// ---------------------------------------------------------------------------
+// Replaces the per-file `repos.createOrUpdateFileContents` idiom for the
+// "+ Alternative" admin flows (single, bulk, attach). Those flows now
+// touch BOTH `etfs.ts` AND `lookthrough.overrides.json` in ONE PR — the
+// per-file helper would land two commits on the same branch (and, more
+// importantly, two separate PRs in the operator's queue), defeating
+// the unification of the ETF master list and the look-through data
+// promised by Task #122.
+//
+// The branch MUST already exist — call `ensureFreshBranch` first. The
+// final `git.updateRef` uses `force: true` so a stale branch reset
+// in-place by ensureFreshBranch can be advanced cleanly to the new
+// commit (the previous tip was just a copy of `baseSha` so there's
+// nothing to lose).
+//
+// Files are sent inline as UTF-8 strings; GitHub creates the blobs
+// transparently. `mode: "100644"` matches the file mode of every text
+// file we currently commit through this code path.
+// ---------------------------------------------------------------------------
+export async function commitMultiFile(args: {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  branch: string;
+  baseSha: string;
+  files: Array<{ path: string; content: string }>;
+  message: string;
+}): Promise<{ commitSha: string }> {
+  const { octokit, owner, repo, branch, baseSha, files, message } = args;
+  if (files.length === 0) {
+    throw new Error("commitMultiFile called with zero files.");
+  }
+  const { data: baseCommit } = await octokit.git.getCommit({
+    owner,
+    repo,
+    commit_sha: baseSha,
+  });
+  const { data: tree } = await octokit.git.createTree({
+    owner,
+    repo,
+    base_tree: baseCommit.tree.sha,
+    tree: files.map((f) => ({
+      path: f.path,
+      mode: "100644",
+      type: "blob",
+      content: f.content,
+    })),
+  });
+  const { data: commit } = await octokit.git.createCommit({
+    owner,
+    repo,
+    message,
+    tree: tree.sha,
+    parents: [baseSha],
+  });
+  await octokit.git.updateRef({
+    owner,
+    repo,
+    ref: `heads/${branch}`,
+    sha: commit.sha,
+    force: true,
+  });
+  return { commitSha: commit.sha };
+}
+
+// ---------------------------------------------------------------------------
+// mergeLookthroughEntries — pure JSON merge for the unified PR helpers
+// ---------------------------------------------------------------------------
+// Takes the current `lookthrough.overrides.json` content and a list of
+// (isin, entry) pairs to inject. Mirrors `openAddLookthroughPoolPr`'s
+// behaviour:
+//   • An ISIN already present in EITHER `pool` OR `overrides` is a
+//     skip — never overwritten (curated overrides win, refresh job
+//     replaces pool entries via its own path).
+//   • A new ISIN lands under `pool[isin]` (same key the auto-refresh
+//     job writes to, distinct from the curated `overrides` baseline).
+// Returns the new JSON content, the list of accepted ISINs, and the
+// list of skipped ISINs for caller-side outcome reporting.
+// ---------------------------------------------------------------------------
+export function mergeLookthroughEntries(args: {
+  currentContent: string;
+  entries: Array<{ isin: string; entry: LookthroughPoolEntry }>;
+}): {
+  nextContent: string;
+  added: string[];
+  skippedAlreadyPresent: string[];
+} {
+  let parsed: {
+    _meta?: unknown;
+    overrides?: Record<string, unknown>;
+    pool?: Record<string, unknown>;
+    [k: string]: unknown;
+  };
+  try {
+    parsed = JSON.parse(args.currentContent);
+  } catch (err) {
+    throw new Error(
+      `lookthrough.overrides.json is not valid JSON: ${
+        err instanceof Error ? err.message : String(err)
+      }`,
+    );
+  }
+  const overrides = (parsed.overrides ?? {}) as Record<string, unknown>;
+  const pool = (parsed.pool ?? {}) as Record<string, unknown>;
+  const added: string[] = [];
+  const skippedAlreadyPresent: string[] = [];
+  for (const { isin, entry } of args.entries) {
+    if (overrides[isin] || pool[isin]) {
+      skippedAlreadyPresent.push(isin);
+      continue;
+    }
+    pool[isin] = entry;
+    added.push(isin);
+  }
+  parsed.pool = pool;
+  const nextContent = added.length === 0
+    ? args.currentContent
+    : JSON.stringify(parsed, null, 2) + "\n";
+  return { nextContent, added, skippedAlreadyPresent };
+}
+
+// ---------------------------------------------------------------------------
 // openUpdateAppDefaultsPr — global defaults editor (Task #35, 2026-04-27)
 // ---------------------------------------------------------------------------
 // Replaces `artifacts/investment-lab/src/data/app-defaults.json` wholesale
@@ -1272,11 +1395,24 @@ export interface BulkBucketAltRowOutcome {
 
 export async function openBulkAddBucketAlternativesPr(args: {
   rows: Array<{ parentKey: string; entry: NewAlternativeEntry }>;
+  // Task #122 (T004): optional look-through bundle. When non-empty,
+  // the PR carries lookthrough.overrides.json changes in the SAME
+  // commit as the etfs.ts changes — collapsing what used to be one
+  // etfs.ts PR + one look-through PR into a single review surface.
+  // Entries already present in `pool` or `overrides` are silently
+  // skipped at merge time and surface in `lookthroughSkippedAlreadyPresent`.
+  lookthroughEntries?: Array<{ isin: string; entry: LookthroughPoolEntry }>;
 }): Promise<{
   url: string;
   number: number;
   perRow: BulkBucketAltRowOutcome[];
   added: Array<{ parentKey: string; isin: string }>;
+  // Task #122 (T004): per-ISIN outcome of the look-through bundle.
+  // `lookthroughAdded` is the subset of `lookthroughEntries` that
+  // actually landed in the PR (the rest were already in the file at
+  // PR-open time).
+  lookthroughAdded: string[];
+  lookthroughSkippedAlreadyPresent: string[];
 }> {
   if (!githubConfigured()) {
     throw new Error(
@@ -1340,6 +1476,42 @@ export async function openBulkAddBucketAlternativesPr(args: {
     );
   }
 
+  // 2b. Build the look-through bundle in-memory (Task #122 T004). We
+  //     scope the entries to ISINs that actually made it into `added`
+  //     so the JSON change stays consistent with the etfs.ts change —
+  //     no orphan look-through entry lands when its row was skipped
+  //     (parent missing, isin dup vs catalog, cap exceeded).
+  const addedIsins = new Set(added.map((a) => a.isin.toUpperCase()));
+  const lookthroughCandidates = (args.lookthroughEntries ?? []).filter((e) =>
+    addedIsins.has(e.isin.toUpperCase()),
+  );
+  let lookthroughAdded: string[] = [];
+  let lookthroughSkippedAlreadyPresent: string[] = [];
+  let nextLookthroughContent: string | null = null;
+  if (lookthroughCandidates.length > 0) {
+    const { data: ltMeta } = await octokit.repos.getContent({
+      owner,
+      repo,
+      path: LOOKTHROUGH_OVERRIDES_FILE_PATH,
+      ref: baseSha,
+    });
+    if (Array.isArray(ltMeta) || ltMeta.type !== "file") {
+      throw new Error(
+        `Unexpected GitHub response for ${LOOKTHROUGH_OVERRIDES_FILE_PATH}.`,
+      );
+    }
+    const ltCurrent = Buffer.from(ltMeta.content, "base64").toString("utf8");
+    const merged = mergeLookthroughEntries({
+      currentContent: ltCurrent,
+      entries: lookthroughCandidates,
+    });
+    lookthroughAdded = merged.added;
+    lookthroughSkippedAlreadyPresent = merged.skippedAlreadyPresent;
+    if (merged.added.length > 0) {
+      nextLookthroughContent = merged.nextContent;
+    }
+  }
+
   // 3. Create branch with deterministic-ish name. Stamp encodes UTC
   //    YYYYMMDDHHmmss so consecutive runs don't collide and the branch
   //    name tells the operator at a glance how many entries are inside.
@@ -1355,18 +1527,43 @@ export async function openBulkAddBucketAlternativesPr(args: {
     sha: baseSha,
   });
 
-  // 4. Single commit with the fully-accumulated content.
-  await octokit.repos.createOrUpdateFileContents({
-    owner,
-    repo,
-    path: ETFS_FILE_PATH,
-    branch,
-    message: `Add ${added.length} curated alternatives across ${
-      new Set(added.map((a) => a.parentKey)).size
-    } buckets (batch)`,
-    content: Buffer.from(currentContent, "utf8").toString("base64"),
-    sha: fileMeta.sha,
-  });
+  // 4. Single commit with the fully-accumulated content. When the
+  //    look-through bundle is active, the JSON change rides along in
+  //    the SAME commit via commitMultiFile (Task #122).
+  const commitMessage = `Add ${added.length} curated alternatives across ${
+    new Set(added.map((a) => a.parentKey)).size
+  } buckets (batch)${
+    lookthroughAdded.length > 0
+      ? ` + ${lookthroughAdded.length} look-through entries`
+      : ""
+  }`;
+  if (nextLookthroughContent !== null) {
+    await commitMultiFile({
+      octokit,
+      owner,
+      repo,
+      branch,
+      baseSha,
+      message: commitMessage,
+      files: [
+        { path: ETFS_FILE_PATH, content: currentContent },
+        {
+          path: LOOKTHROUGH_OVERRIDES_FILE_PATH,
+          content: nextLookthroughContent,
+        },
+      ],
+    });
+  } else {
+    await octokit.repos.createOrUpdateFileContents({
+      owner,
+      repo,
+      path: ETFS_FILE_PATH,
+      branch,
+      message: commitMessage,
+      content: Buffer.from(currentContent, "utf8").toString("base64"),
+      sha: fileMeta.sha,
+    });
+  }
 
   // 5. PR body: list every added row + every skipped row with reason
   //    so the reviewer sees the same per-row table the operator saw in
@@ -1404,20 +1601,37 @@ export async function openBulkAddBucketAlternativesPr(args: {
   const body = [
     `Bulk-adds **${added.length}** curated alternatives across **${
       new Set(added.map((a) => a.parentKey)).size
-    }** buckets.`,
+    }** buckets${lookthroughAdded.length > 0 ? ` and bundles **${lookthroughAdded.length}** look-through entries` : ""}.`,
     "",
     "Generated from `/admin` → Batch-Add-Alternatives. One PR collapses what would otherwise be one-PR-per-ISIN; rows that failed validation are listed below and were not committed.",
+    ...(lookthroughAdded.length > 0
+      ? [
+          "",
+          "Look-through data (`lookthrough.overrides.json`, `pool` section) for the added ISINs is bundled in the SAME commit so the alternatives are usable on day 1 without waiting for the monthly refresh job.",
+        ]
+      : []),
     "",
     "**Added**",
     ...addedSection,
     ...(skippedLines.length > 0
       ? ["", "**Skipped (validated server-side, not committed)**", ...skippedLines]
       : []),
+    ...(lookthroughSkippedAlreadyPresent.length > 0
+      ? [
+          "",
+          "**Look-through bundle skips (already in `lookthrough.overrides.json`)**",
+          ...lookthroughSkippedAlreadyPresent.map((isin) => `- \`${isin}\``),
+        ]
+      : []),
     "",
     "**Reviewer checklist**",
     "- Confirm each ISIN is the correct alternative for its bucket.",
     `- Confirm the per-bucket cap (default + ≤ ${MAX_ALTERNATIVES_PER_BUCKET} alternatives) is respected after merge.`,
-    "- The companion look-through PR (if any) lives on a separate branch and can merge independently.",
+    ...(lookthroughAdded.length > 0
+      ? [
+          "- Spot-check the bundled look-through entries (top-holding names, geo / sector totals near 1.0).",
+        ]
+      : []),
   ].join("\n");
 
   const { data: pr } = await octokit.pulls.create({
@@ -1425,7 +1639,7 @@ export async function openBulkAddBucketAlternativesPr(args: {
     repo,
     head: branch,
     base,
-    title: `Add ${added.length} curated alternatives (batch)`,
+    title: `Add ${added.length} curated alternatives (batch)${lookthroughAdded.length > 0 ? " + look-through bundle" : ""}`,
     body,
   });
 
@@ -1434,6 +1648,8 @@ export async function openBulkAddBucketAlternativesPr(args: {
     number: pr.number,
     perRow,
     added,
+    lookthroughAdded,
+    lookthroughSkippedAlreadyPresent,
   };
 }
 
@@ -1446,7 +1662,22 @@ export async function openBulkAddBucketAlternativesPr(args: {
 export async function openAddBucketAlternativePr(
   parentKey: string,
   entry: NewAlternativeEntry,
-): Promise<{ url: string; number: number }> {
+  // Task #122 (T004): optional look-through bundle. When provided, the
+  // PR carries a SECOND file change (lookthrough.overrides.json) in the
+  // SAME commit so the operator's queue collapses from two PRs to one.
+  // If the JSON already has data for this ISIN (in `pool` or
+  // `overrides`), the bundle is silently skipped — the etfs.ts change
+  // still goes through and `lookthroughIncluded` reports false.
+  lookthroughEntry?: { isin: string; entry: LookthroughPoolEntry },
+): Promise<{
+  url: string;
+  number: number;
+  // True iff the PR included a `lookthrough.overrides.json` change.
+  // False either because no entry was passed, or because the JSON
+  // already had data for this ISIN at PR-open time (race with a
+  // concurrent merge).
+  lookthroughIncluded: boolean;
+}> {
   if (!githubConfigured()) {
     throw new Error(
       "GitHub PR creation is not configured. Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO.",
@@ -1496,20 +1727,73 @@ export async function openAddBucketAlternativePr(
     );
   }
 
+  // 2b. Build the look-through file change in-memory (if requested).
+  // We read the JSON from the same baseSha so the multi-file commit
+  // sits on a consistent snapshot. The merge helper skips ISINs that
+  // are already in `overrides` or `pool` — that's the race-window
+  // case (another PR landed between admin.ts's pre-flight read and
+  // ours), and it's the only reason `lookthroughIncluded` may flip
+  // back to false here.
+  let lookthroughIncluded = false;
+  let nextLookthroughContent: string | null = null;
+  if (lookthroughEntry) {
+    const { data: ltMeta } = await octokit.repos.getContent({
+      owner,
+      repo,
+      path: LOOKTHROUGH_OVERRIDES_FILE_PATH,
+      ref: baseSha,
+    });
+    if (Array.isArray(ltMeta) || ltMeta.type !== "file") {
+      throw new Error(
+        `Unexpected GitHub response for ${LOOKTHROUGH_OVERRIDES_FILE_PATH}.`,
+      );
+    }
+    const ltCurrent = Buffer.from(ltMeta.content, "base64").toString("utf8");
+    const merged = mergeLookthroughEntries({
+      currentContent: ltCurrent,
+      entries: [lookthroughEntry],
+    });
+    if (merged.added.length > 0) {
+      lookthroughIncluded = true;
+      nextLookthroughContent = merged.nextContent;
+    }
+  }
+
   // 3. Create the branch — or auto-recover a stale leftover (Task #48).
   const branch = `add-alt/${entry.isin.toLowerCase()}`;
   await ensureFreshBranch({ octokit, owner, repo, branch, baseSha });
 
-  // 4. Commit the modified file.
-  await octokit.repos.createOrUpdateFileContents({
-    owner,
-    repo,
-    path: ETFS_FILE_PATH,
-    branch,
-    message: `Add ${entry.name} (${entry.isin}) as alternative under ${parentKey}`,
-    content: Buffer.from(result.content, "utf8").toString("base64"),
-    sha: fileMeta.sha,
-  });
+  // 4. Commit the modified file(s). When the look-through bundle is
+  // active, both files land in ONE commit via commitMultiFile (Task
+  // #122) so the resulting PR is a single review surface.
+  const commitMessage = `Add ${entry.name} (${entry.isin}) as alternative under ${parentKey}${lookthroughIncluded ? " (with look-through data)" : ""}`;
+  if (lookthroughIncluded && nextLookthroughContent !== null) {
+    await commitMultiFile({
+      octokit,
+      owner,
+      repo,
+      branch,
+      baseSha,
+      message: commitMessage,
+      files: [
+        { path: ETFS_FILE_PATH, content: result.content },
+        {
+          path: LOOKTHROUGH_OVERRIDES_FILE_PATH,
+          content: nextLookthroughContent,
+        },
+      ],
+    });
+  } else {
+    await octokit.repos.createOrUpdateFileContents({
+      owner,
+      repo,
+      path: ETFS_FILE_PATH,
+      branch,
+      message: commitMessage,
+      content: Buffer.from(result.content, "utf8").toString("base64"),
+      sha: fileMeta.sha,
+    });
+  }
 
   // 5. Open the PR.
   const renderedBlock = renderAlternativeBlock(entry, "      ");
@@ -1519,10 +1803,12 @@ export async function openAddBucketAlternativePr(
     head: branch,
     base,
     title: `Add ${entry.name} (${entry.isin}) as alternative under ${parentKey}`,
-    body: buildAlternativePrBody(parentKey, entry, renderedBlock),
+    body: buildAlternativePrBody(parentKey, entry, renderedBlock, {
+      lookthroughIncluded,
+    }),
   });
 
-  return { url: pr.html_url, number: pr.number };
+  return { url: pr.html_url, number: pr.number, lookthroughIncluded };
 }
 
 // ---------------------------------------------------------------------------
@@ -1784,9 +2070,22 @@ function buildAlternativePrBody(
   parentKey: string,
   entry: NewAlternativeEntry,
   renderedBlock: string,
+  // Task #122 (T004): the unified PR may also touch
+  // `lookthrough.overrides.json`. The body explicitly calls that out so
+  // the reviewer knows to review BOTH file diffs (the look-through
+  // entry is an opaque blob of justETF data — they should at least
+  // sanity-check the ISIN and the holdings count).
+  options?: { lookthroughIncluded?: boolean },
 ): string {
+  const lookthroughIncluded = options?.lookthroughIncluded === true;
   return [
     `Adds **${entry.name}** (\`${entry.isin}\`) as a curated alternative under bucket \`${parentKey}\`.`,
+    ...(lookthroughIncluded
+      ? [
+          "",
+          "This PR also bundles the look-through data (`lookthrough.overrides.json`, `pool` section) for the ISIN, scraped from justETF at PR-open time. The two file changes land in a single commit so the alternative is usable on day 1 without waiting for the monthly refresh job.",
+        ]
+      : []),
     "",
     "Generated from the in-app admin pane (Bucket Alternatives editor). Please review:",
     "",
@@ -1801,6 +2100,13 @@ function buildAlternativePrBody(
     "- Confirm the ISIN is not already used by any other catalog entry or alternative (the in-app validator enforces this, but a manual check is cheap insurance).",
     "- Confirm `defaultExchange` matches your preferred listing.",
     "- Confirm the `comment` is accurate (it shows up in tooltips and in the picker dropdown).",
+    ...(lookthroughIncluded
+      ? [
+          "- Spot-check the look-through entry under `pool[\"" +
+            entry.isin +
+            "\"]` — the top holding names and the geo / sector totals (should sum close to 1.0).",
+        ]
+      : []),
     "",
     "After merging, the new alternative becomes selectable in the Build tab's per-bucket ETF picker.",
   ].join("\n");
@@ -2280,7 +2586,14 @@ export async function openSetBucketDefaultPr(
 export async function openAttachBucketAlternativePr(
   parentKey: string,
   isin: string,
-): Promise<{ url: string; number: number }> {
+  // Task #122 (T004): optional look-through bundle. The picker flow
+  // attaches an INSTRUMENTS-registered ISIN to a bucket; if the JSON
+  // doesn't yet have look-through data for it, admin.ts scrapes
+  // justETF and passes the entry here so the resulting PR carries
+  // both file changes — same single-PR-end-state as the manual-add
+  // flow.
+  lookthroughEntry?: { isin: string; entry: LookthroughPoolEntry },
+): Promise<{ url: string; number: number; lookthroughIncluded: boolean }> {
   if (!githubConfigured()) {
     throw new Error(
       "GitHub PR creation is not configured. Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO.",
@@ -2368,19 +2681,68 @@ export async function openAttachBucketAlternativePr(
     );
   }
 
+  // Look-through bundle (Task #122 T004). Same pattern as
+  // openAddBucketAlternativePr — read the JSON at baseSha so the
+  // multi-file commit is consistent; mergeLookthroughEntries skips
+  // ISINs already in `pool` / `overrides`. The picker can pass an
+  // entry "just in case", and we silently no-op if the JSON already
+  // covers it.
+  let lookthroughIncluded = false;
+  let nextLookthroughContent: string | null = null;
+  if (lookthroughEntry) {
+    const { data: ltMeta } = await octokit.repos.getContent({
+      owner,
+      repo,
+      path: LOOKTHROUGH_OVERRIDES_FILE_PATH,
+      ref: baseSha,
+    });
+    if (Array.isArray(ltMeta) || ltMeta.type !== "file") {
+      throw new Error(
+        `Unexpected GitHub response for ${LOOKTHROUGH_OVERRIDES_FILE_PATH}.`,
+      );
+    }
+    const ltCurrent = Buffer.from(ltMeta.content, "base64").toString("utf8");
+    const merged = mergeLookthroughEntries({
+      currentContent: ltCurrent,
+      entries: [lookthroughEntry],
+    });
+    if (merged.added.length > 0) {
+      lookthroughIncluded = true;
+      nextLookthroughContent = merged.nextContent;
+    }
+  }
+
   const branch = `add-alt/${isin.toLowerCase()}`;
   await ensureFreshBranch({ octokit, owner, repo, branch, baseSha });
 
-  const title = `Attach ${isin} as alternative under ${parentKey}`;
-  await octokit.repos.createOrUpdateFileContents({
-    owner,
-    repo,
-    path: ETFS_FILE_PATH,
-    branch,
-    message: title,
-    content: Buffer.from(result.content, "utf8").toString("base64"),
-    sha: fileMeta.sha,
-  });
+  const title = `Attach ${isin} as alternative under ${parentKey}${lookthroughIncluded ? " (with look-through data)" : ""}`;
+  if (lookthroughIncluded && nextLookthroughContent !== null) {
+    await commitMultiFile({
+      octokit,
+      owner,
+      repo,
+      branch,
+      baseSha,
+      message: title,
+      files: [
+        { path: ETFS_FILE_PATH, content: result.content },
+        {
+          path: LOOKTHROUGH_OVERRIDES_FILE_PATH,
+          content: nextLookthroughContent,
+        },
+      ],
+    });
+  } else {
+    await octokit.repos.createOrUpdateFileContents({
+      owner,
+      repo,
+      path: ETFS_FILE_PATH,
+      branch,
+      message: title,
+      content: Buffer.from(result.content, "utf8").toString("base64"),
+      sha: fileMeta.sha,
+    });
+  }
 
   const { data: pr } = await octokit.pulls.create({
     owner,
@@ -2390,6 +2752,12 @@ export async function openAttachBucketAlternativePr(
     title,
     body: [
       `Adds existing ISIN \`${isin}\` (${inst.name}) to the curated alternatives of bucket \`${parentKey}\`.`,
+      ...(lookthroughIncluded
+        ? [
+            "",
+            "This PR also bundles the look-through data (`lookthrough.overrides.json`, `pool` section) for the ISIN so it is usable on day 1 without waiting for the monthly refresh job.",
+          ]
+        : []),
       "",
       "Generated from the in-app admin pane (tree-row picker). The pre-flight checks confirmed:",
       `- The ISIN already exists in the INSTRUMENTS table.`,
@@ -2399,8 +2767,13 @@ export async function openAttachBucketAlternativePr(
       "**Reviewer checklist**",
       `- Confirm \`${parentKey}\` is the correct bucket (currency / asset-class match).`,
       `- After merge, the picker on the Build tab offers this ISIN as an alternative for that bucket.`,
+      ...(lookthroughIncluded
+        ? [
+            `- Spot-check the bundled look-through entry under \`pool["${isin}"]\` (top-holding names, geo / sector totals near 1.0).`,
+          ]
+        : []),
     ].join("\n"),
   });
 
-  return { url: pr.html_url, number: pr.number };
+  return { url: pr.html_url, number: pr.number, lookthroughIncluded };
 }

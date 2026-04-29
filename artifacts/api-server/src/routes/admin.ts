@@ -361,34 +361,20 @@ router.post("/admin/bucket-alternatives", async (req, res) => {
     return;
   }
 
-  let prUrl: string;
-  let prNumber: number;
-  try {
-    const pr = await openAddBucketAlternativePr(parentKey, entry);
-    prUrl = pr.url;
-    prNumber = pr.number;
-  } catch (err) {
-    res.status(502).json({
-      error: "pr_creation_failed",
-      message: err instanceof Error ? err.message : String(err),
-    });
-    return;
-  }
-
-  // Best-effort: also gather look-through reference data for this ISIN
-  // and open a separate look-through-pool PR. This makes the alt usable
-  // immediately on day 1 (top holdings, geo, sector breakdowns) instead
-  // of waiting for the next monthly refresh-lookthrough cron tick. The
-  // two PRs are independent: if look-through scraping fails (no data,
-  // already in pool, scrape error) the etfs.ts PR still stands and the
-  // operator just sees a non-blocking message in the response.
+  // Task #122 (T004): unified single-PR flow. We scrape look-through
+  // data BEFORE opening the PR, then pass the scraped entry to
+  // openAddBucketAlternativePr so etfs.ts AND
+  // lookthrough.overrides.json land in the SAME commit / SAME review
+  // surface. The two-PR variant is gone — operators kept losing track
+  // of which review still needed approval.
   //
-  // Why best-effort: requirement is "Look-through data should be
-  // gathered for all alternatives". The monthly cron already covers
-  // every ISIN in etfs.ts via regex extraction, so missing the immediate
-  // scrape just means a one-cron-tick delay — never a permanent gap.
-  let lookthroughPrUrl: string | undefined;
-  let lookthroughPrNumber: number | undefined;
+  // Best-effort: if scraping fails (no data, network blip,
+  // methodology data missing) the PR still goes through with only the
+  // etfs.ts change. The monthly refresh-lookthrough cron will re-try
+  // for the JSON sidecar at the next tick.
+  let lookthroughEntry:
+    | Parameters<typeof openAddBucketAlternativePr>[2]
+    | undefined;
   let lookthroughError: string | undefined;
   // Positive signal: the ISIN is already covered by look-through data
   // (either committed in the base file, or live on the auto-refresh
@@ -410,11 +396,6 @@ router.post("/admin/bucket-alternatives", async (req, res) => {
         : "pool";
     } else {
       const scraped = await scrapeLookthrough(norm);
-      // Pull all four required fields into locals first so TS narrows
-      // their type from `T | undefined` to `T` after the guard below.
-      // Inline `&& length > 0` checks would compile but wouldn't narrow
-      // the field types — see the existing /lookthrough-pool flow which
-      // assumes presence implicitly.
       const top = scraped.topHoldings;
       const geo = scraped.geo;
       const sector = scraped.sector;
@@ -428,9 +409,9 @@ router.post("/admin/bucket-alternatives", async (req, res) => {
         Object.keys(sector).length === 0 ||
         !currency
       ) {
-        lookthroughError = `Look-through-Scrape unvollständig für ${norm} — Methodology-Override-Daten fehlen, der Pool-PR wird übersprungen. Der monatliche Refresh-Job kann es später erneut versuchen.`;
+        lookthroughError = `Look-through-Scrape unvollständig für ${norm} — Methodology-Override-Daten fehlen, die Look-through-Daten werden separat per Refresh-Job nachgereicht.`;
       } else {
-        const ltPr = await openAddLookthroughPoolPr({
+        lookthroughEntry = {
           isin: norm,
           entry: {
             ...(scraped.name ? { name: scraped.name } : {}),
@@ -444,31 +425,47 @@ router.post("/admin/bucket-alternatives", async (req, res) => {
             _addedAt: scraped.asOf,
             _addedVia: "admin/bucket-alternatives (auto)",
           },
-        });
-        if (ltPr.alreadyInBaseFile) {
-          // Race-window case: another PR landed on the base branch
-          // between our pre-flight read and our PR attempt. Surface as
-          // "already present" so the UI shows the same positive signal
-          // as the pre-flight match path.
-          lookthroughAlreadyPresent = true;
-          lookthroughAlreadyPresentSource = "base-file";
-        } else {
-          lookthroughPrUrl = ltPr.url;
-          lookthroughPrNumber = ltPr.number;
-        }
+        };
       }
     }
   } catch (err) {
     lookthroughError = err instanceof Error ? err.message : String(err);
   }
 
+  let prUrl: string;
+  let prNumber: number;
+  let lookthroughIncluded = false;
+  try {
+    const pr = await openAddBucketAlternativePr(
+      parentKey,
+      entry,
+      lookthroughEntry,
+    );
+    prUrl = pr.url;
+    prNumber = pr.number;
+    lookthroughIncluded = pr.lookthroughIncluded;
+  } catch (err) {
+    res.status(502).json({
+      error: "pr_creation_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+
+  // Race-window: scraper produced an entry but mergeLookthroughEntries
+  // skipped it because another PR landed in between. Surface as
+  // "already present" so the operator sees a green signal instead of
+  // worrying that the bundle was lost.
+  if (lookthroughEntry && !lookthroughIncluded && !lookthroughAlreadyPresent) {
+    lookthroughAlreadyPresent = true;
+    lookthroughAlreadyPresentSource = "base-file";
+  }
+
   res.json({
     ok: true,
     prUrl,
     prNumber,
-    ...(lookthroughPrUrl
-      ? { lookthroughPrUrl, lookthroughPrNumber }
-      : {}),
+    lookthroughIncluded,
     ...(lookthroughAlreadyPresent
       ? {
           lookthroughAlreadyPresent: true,
@@ -600,7 +597,11 @@ router.post("/admin/bucket-alternatives/bulk", async (req, res) => {
       | "already_present"
       | "incomplete"
       | "scrape_failed"
-      | "would_add";
+      | "would_add"
+      // Task #122 (T004): row was rejected by the etfs.ts pre-flight
+      // (parent missing / duplicate ISIN / cap exceeded), so its
+      // look-through entry was correctly NOT committed either.
+      | "skipped_row_failed";
     lookthroughMessage?: string;
   };
 
@@ -1021,64 +1022,26 @@ router.post("/admin/bucket-alternatives/bulk", async (req, res) => {
     return;
   }
 
-  let prUrl: string;
-  let prNumber: number;
-  let prRowOutcomes: BulkBucketAltRowOutcome[] = [];
-  try {
-    const pr = await openBulkAddBucketAlternativesPr({
-      rows: validatedRows.map((r) => ({
-        parentKey: r.parentKey,
-        entry: r.entry,
-      })),
-    });
-    prUrl = pr.url;
-    prNumber = pr.number;
-    prRowOutcomes = pr.perRow;
-  } catch (err) {
-    res.status(502).json({
-      error: "pr_creation_failed",
-      message: err instanceof Error ? err.message : String(err),
-      perRow: outcomes,
-    });
-    return;
-  }
-
-  // Reconcile injectAlternative's per-row outcomes back onto the
-  // operator-facing outcomes array. The PR helper might have surfaced
-  // a race-window dup or cap that wasn't visible at preflight time
-  // (extremely unlikely but possible if etfs.ts on origin has moved
-  // between our loadCatalog and the PR open).
-  for (let i = 0; i < validatedRows.length; i++) {
-    const v = validatedRows[i];
-    const prRow = prRowOutcomes[i];
-    if (!prRow || prRow.status === "ok") continue;
-    outcomes[v.outcomeIdx].status =
-      prRow.status === "parent_missing"
-        ? "parent_missing"
-        : prRow.status === "isin_present"
-          ? "duplicate_isin"
-          : "cap_exceeded";
-    outcomes[v.outcomeIdx].message = `Race condition vs origin/${process.env.GITHUB_BASE_BRANCH ?? "main"}: ${prRow.status}${prRow.status === "cap_exceeded" ? ` (max ${MAX_ALTERNATIVES_PER_BUCKET} alternatives per bucket)` : ""}${prRow.conflict ? ` (${prRow.conflict})` : ""}`;
-    if (prRow.conflict) outcomes[v.outcomeIdx].conflict = prRow.conflict;
-  }
-
-  // Look-through pass. For each row that's still "ok" AND not already
-  // covered, scrape and collect complete entries. We open at most ONE
-  // bulk look-through PR for the lot.
+  // Task #122 (T004): unified single-PR flow. Scrape look-through
+  // data UPFRONT for every validated row that isn't already covered,
+  // then pass both `rows` and `lookthroughEntries` to
+  // openBulkAddBucketAlternativesPr so etfs.ts AND
+  // lookthrough.overrides.json land in ONE commit / ONE PR. The
+  // helper internally filters lookthroughEntries to ISINs that
+  // actually made it into etfs.ts (so race-window dropouts don't
+  // create orphan look-through entries).
   const lookthroughEntries: Array<{
     isin: string;
     entry: LookthroughPoolEntry;
     outcomeIdx: number;
   }> = [];
-  const stillOkRows = validatedRows.filter(
-    (_, i) => prRowOutcomes[i]?.status === "ok",
-  );
-  for (const v of stillOkRows) {
+  for (const v of validatedRows) {
     const isin = v.entry.isin;
     const o = outcomes[v.outcomeIdx];
     if (lookthroughSources.overrides[isin] || lookthroughSources.pool[isin]) {
       o.lookthroughStatus = "already_present";
-      o.lookthroughMessage = "Look-through data already covered (no scrape needed).";
+      o.lookthroughMessage =
+        "Look-through data already covered (no scrape needed).";
       continue;
     }
     try {
@@ -1123,38 +1086,72 @@ router.post("/admin/bucket-alternatives/bulk", async (req, res) => {
     }
   }
 
-  let lookthroughPrUrl: string | undefined;
-  let lookthroughPrNumber: number | undefined;
-  let lookthroughError: string | undefined;
-  if (lookthroughEntries.length > 0) {
-    try {
-      const ltPr = await openBulkAddLookthroughPoolPr({
-        entries: lookthroughEntries.map((e) => ({
-          isin: e.isin,
-          entry: e.entry,
-        })),
-      });
-      lookthroughPrUrl = ltPr.url;
-      lookthroughPrNumber = ltPr.number;
-      // Mark added rows.
-      const addedSet = new Set(ltPr.added);
-      const skippedSet = new Set(ltPr.skippedAlreadyPresent);
-      for (const e of lookthroughEntries) {
-        const o = outcomes[e.outcomeIdx];
-        if (addedSet.has(e.isin)) {
-          o.lookthroughStatus = "pr_added";
-        } else if (skippedSet.has(e.isin)) {
-          o.lookthroughStatus = "already_present";
-          o.lookthroughMessage =
-            "Already in base file at PR-open time (race window).";
-        }
-      }
-    } catch (err) {
-      lookthroughError = err instanceof Error ? err.message : String(err);
-      for (const e of lookthroughEntries) {
-        outcomes[e.outcomeIdx].lookthroughStatus = "scrape_failed";
-        outcomes[e.outcomeIdx].lookthroughMessage = lookthroughError;
-      }
+  let prUrl: string;
+  let prNumber: number;
+  let prRowOutcomes: BulkBucketAltRowOutcome[] = [];
+  let lookthroughAddedSet = new Set<string>();
+  let lookthroughSkippedSet = new Set<string>();
+  try {
+    const pr = await openBulkAddBucketAlternativesPr({
+      rows: validatedRows.map((r) => ({
+        parentKey: r.parentKey,
+        entry: r.entry,
+      })),
+      lookthroughEntries: lookthroughEntries.map((e) => ({
+        isin: e.isin,
+        entry: e.entry,
+      })),
+    });
+    prUrl = pr.url;
+    prNumber = pr.number;
+    prRowOutcomes = pr.perRow;
+    lookthroughAddedSet = new Set(pr.lookthroughAdded);
+    lookthroughSkippedSet = new Set(pr.lookthroughSkippedAlreadyPresent);
+  } catch (err) {
+    res.status(502).json({
+      error: "pr_creation_failed",
+      message: err instanceof Error ? err.message : String(err),
+      perRow: outcomes,
+    });
+    return;
+  }
+
+  // Reconcile injectAlternative's per-row outcomes back onto the
+  // operator-facing outcomes array. The PR helper might have surfaced
+  // a race-window dup or cap that wasn't visible at preflight time
+  // (extremely unlikely but possible if etfs.ts on origin has moved
+  // between our loadCatalog and the PR open).
+  for (let i = 0; i < validatedRows.length; i++) {
+    const v = validatedRows[i];
+    const prRow = prRowOutcomes[i];
+    if (!prRow || prRow.status === "ok") continue;
+    outcomes[v.outcomeIdx].status =
+      prRow.status === "parent_missing"
+        ? "parent_missing"
+        : prRow.status === "isin_present"
+          ? "duplicate_isin"
+          : "cap_exceeded";
+    outcomes[v.outcomeIdx].message = `Race condition vs origin/${process.env.GITHUB_BASE_BRANCH ?? "main"}: ${prRow.status}${prRow.status === "cap_exceeded" ? ` (max ${MAX_ALTERNATIVES_PER_BUCKET} alternatives per bucket)` : ""}${prRow.conflict ? ` (${prRow.conflict})` : ""}`;
+    if (prRow.conflict) outcomes[v.outcomeIdx].conflict = prRow.conflict;
+  }
+
+  // Mark per-row look-through outcomes from the unified PR result.
+  for (const e of lookthroughEntries) {
+    const o = outcomes[e.outcomeIdx];
+    if (lookthroughAddedSet.has(e.isin)) {
+      o.lookthroughStatus = "pr_added";
+    } else if (lookthroughSkippedSet.has(e.isin)) {
+      o.lookthroughStatus = "already_present";
+      o.lookthroughMessage =
+        "Already in base file at PR-open time (race window).";
+    } else if (
+      outcomes[e.outcomeIdx].status !== "ok" &&
+      !o.lookthroughStatus
+    ) {
+      // Row was kicked out by the etfs.ts pre-flight (parent missing /
+      // dup / cap) → its look-through entry was correctly dropped too.
+      o.lookthroughStatus = "skipped_row_failed";
+      o.lookthroughMessage = "Row was rejected, look-through entry not committed.";
     }
   }
 
@@ -1163,10 +1160,8 @@ router.post("/admin/bucket-alternatives/bulk", async (req, res) => {
     dryRun: false,
     prUrl,
     prNumber,
-    ...(lookthroughPrUrl
-      ? { lookthroughPrUrl, lookthroughPrNumber }
-      : {}),
-    ...(lookthroughError ? { lookthroughError } : {}),
+    lookthroughIncluded: lookthroughAddedSet.size > 0,
+    lookthroughCount: lookthroughAddedSet.size,
     perRow: outcomes,
     summary: {
       total: outcomes.length,
@@ -1181,7 +1176,8 @@ router.post("/admin/bucket-alternatives/bulk", async (req, res) => {
       lookthroughSkipped: outcomes.filter(
         (o) =>
           o.lookthroughStatus === "incomplete" ||
-          o.lookthroughStatus === "scrape_failed",
+          o.lookthroughStatus === "scrape_failed" ||
+          o.lookthroughStatus === "skipped_row_failed",
       ).length,
     },
   });
@@ -2453,9 +2449,88 @@ router.post("/admin/buckets/:key/alternatives", async (req, res) => {
     });
     return;
   }
+  // Task #122 (T004): unified single-PR flow. The picker attach path
+  // also bundles a look-through scrape if the JSON doesn't yet have
+  // data for this ISIN — so the attached alternative is usable on
+  // day 1 instead of waiting for the monthly refresh job.
+  let lookthroughEntry:
+    | Parameters<typeof openAttachBucketAlternativePr>[2]
+    | undefined;
+  let lookthroughError: string | undefined;
+  let lookthroughAlreadyPresent = false;
+  let lookthroughAlreadyPresentSource:
+    | "overrides"
+    | "pool"
+    | "base-file"
+    | undefined;
   try {
-    const pr = await openAttachBucketAlternativePr(parentKey, isin);
-    res.json({ ok: true, prUrl: pr.url, prNumber: pr.number });
+    const sources = await readLookthroughSources();
+    if (sources.pool[isin] || sources.overrides[isin]) {
+      lookthroughAlreadyPresent = true;
+      lookthroughAlreadyPresentSource = sources.overrides[isin]
+        ? "overrides"
+        : "pool";
+    } else {
+      const scraped = await scrapeLookthrough(isin);
+      const top = scraped.topHoldings;
+      const geo = scraped.geo;
+      const sector = scraped.sector;
+      const currency = scraped.currency;
+      if (
+        !top ||
+        top.length === 0 ||
+        !geo ||
+        Object.keys(geo).length === 0 ||
+        !sector ||
+        Object.keys(sector).length === 0 ||
+        !currency
+      ) {
+        lookthroughError = `Look-through-Scrape unvollständig für ${isin} — die Look-through-Daten werden separat per Refresh-Job nachgereicht.`;
+      } else {
+        lookthroughEntry = {
+          isin,
+          entry: {
+            ...(scraped.name ? { name: scraped.name } : {}),
+            topHoldings: top,
+            topHoldingsAsOf: scraped.asOf,
+            geo,
+            sector,
+            currency,
+            breakdownsAsOf: scraped.asOf,
+            _source: scraped.sourceUrl,
+            _addedAt: scraped.asOf,
+            _addedVia: "admin/buckets/:key/alternatives",
+          },
+        };
+      }
+    }
+  } catch (err) {
+    lookthroughError = err instanceof Error ? err.message : String(err);
+  }
+
+  try {
+    const pr = await openAttachBucketAlternativePr(
+      parentKey,
+      isin,
+      lookthroughEntry,
+    );
+    if (lookthroughEntry && !pr.lookthroughIncluded && !lookthroughAlreadyPresent) {
+      lookthroughAlreadyPresent = true;
+      lookthroughAlreadyPresentSource = "base-file";
+    }
+    res.json({
+      ok: true,
+      prUrl: pr.url,
+      prNumber: pr.number,
+      lookthroughIncluded: pr.lookthroughIncluded,
+      ...(lookthroughAlreadyPresent
+        ? {
+            lookthroughAlreadyPresent: true,
+            lookthroughAlreadyPresentSource,
+          }
+        : {}),
+      ...(lookthroughError ? { lookthroughError } : {}),
+    });
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
     if (/already exists/i.test(msg)) {

@@ -70,6 +70,10 @@ export function lookthroughStatusLabel(
     return lang === "de" ? "Scrape fehler" : "Scrape failed";
   if (status === "would_add")
     return lang === "de" ? "Wird ergänzt" : "Will add";
+  // Task #122 (T004): row was rejected by the etfs.ts pre-flight, so
+  // the look-through entry was correctly NOT committed either.
+  if (status === "skipped_row_failed")
+    return lang === "de" ? "Übersprungen (Zeile abgelehnt)" : "Skipped (row rejected)";
   if (plan === "would_scrape")
     return lang === "de" ? "Wird gescraped" : "Will scrape";
   if (plan === "already_present")

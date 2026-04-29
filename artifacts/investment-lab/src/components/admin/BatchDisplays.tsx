@@ -179,6 +179,10 @@ export function BatchSubmitDisplay({
         >
           {t({ de: "Batch eingereicht", en: "Batch submitted" })}
         </Badge>
+        {/* Task #122 (T004): one PR carries both files. The link
+            wording reflects the unified bundle when look-through data
+            rode along, otherwise it stays focused on the catalog
+            change. */}
         {result.prUrl && (
           <a
             href={result.prUrl}
@@ -187,19 +191,15 @@ export function BatchSubmitDisplay({
             className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 hover:underline"
           >
             <GitPullRequest className="h-3.5 w-3.5" />
-            etfs.ts pull request #{result.prNumber}
-            <ExternalLink className="h-3 w-3" />
-          </a>
-        )}
-        {result.lookthroughPrUrl && (
-          <a
-            href={result.lookthroughPrUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400 hover:underline"
-          >
-            <GitPullRequest className="h-3.5 w-3.5" />
-            look-through pull request #{result.lookthroughPrNumber}
+            {result.lookthroughIncluded
+              ? t({
+                  de: `Pull Request #${result.prNumber} (Katalog + Look-through)`,
+                  en: `Pull Request #${result.prNumber} (catalog + look-through)`,
+                })
+              : t({
+                  de: `Pull Request #${result.prNumber} (nur Katalog)`,
+                  en: `Pull Request #${result.prNumber} (catalog only)`,
+                })}
             <ExternalLink className="h-3 w-3" />
           </a>
         )}
@@ -242,19 +242,6 @@ export function BatchSubmitDisplay({
           </Badge>
         )}
       </div>
-      {result.lookthroughError && (
-        <Alert variant="destructive">
-          <AlertTitle>
-            {t({
-              de: "Look-through Pull Request fehlgeschlagen",
-              en: "Look-through pull request failed",
-            })}
-          </AlertTitle>
-          <AlertDescription className="text-xs whitespace-pre-line break-words">
-            {result.lookthroughError}
-          </AlertDescription>
-        </Alert>
-      )}
       <BatchOutcomeTable rows={result.perRow} lang={lang} t={t} />
     </div>
   );

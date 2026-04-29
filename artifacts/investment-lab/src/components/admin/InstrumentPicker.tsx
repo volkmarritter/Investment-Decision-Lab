@@ -29,6 +29,26 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ChevronLeft, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+// Task #122 (T006) — defence-in-depth: when the picker's empty state
+// is reached because the operator typed an ISIN that is "known to
+// look-through" (i.e. has a row in lookthrough.overrides.json) but has
+// no INSTRUMENTS row, surface a self-explanatory hint that points the
+// operator at the Instruments tab. Pulled from the same getters
+// validateCatalog() uses, so the picker and the build-time validator
+// share one set of look-through keys.
+import {
+  getLookthroughPoolIsins,
+  getLookthroughOverrideIsins,
+} from "@/lib/lookthrough";
+
+// Lightweight ISIN-shape regex — same as the one the catalog parsers
+// use. Matched only as a precondition for the look-through hint, not as
+// a hard validator (the picker's text input accepts any free-text query).
+const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{9}\d$/;
+const LOOKTHROUGH_KNOWN_ISINS: ReadonlySet<string> = new Set([
+  ...getLookthroughPoolIsins(),
+  ...getLookthroughOverrideIsins(),
+]);
 
 export type InstrumentPickerMode = "default" | "alternative";
 
@@ -375,19 +395,49 @@ export function InstrumentPicker({
           {t({ de: "Lade …", en: "Loading …" })}
         </p>
       )}
-      {instruments && candidates.length === 0 && (
-        <p className="text-xs text-muted-foreground italic">
-          {query.trim()
-            ? t({
-                de: "Kein Treffer mit diesem Suchbegriff.",
-                en: "No match for this search term.",
-              })
-            : t({
-                de: "Keine ungebundenen Instrumente verfügbar — lege zuerst eines im Tab „Instrumente“ an.",
-                en: "No unassigned instruments available — register one first in the “Instruments” tab.",
-              })}
-        </p>
-      )}
+      {instruments && candidates.length === 0 && (() => {
+        const trimmedQuery = query.trim().toUpperCase();
+        // Defence in depth (Task #122 T006): the empty-state hint
+        // explicitly calls out the "look-through knows it, INSTRUMENTS
+        // doesn't" case so a stale zombie injected outside the
+        // refresh-job allow-list is self-explanatory rather than a
+        // mystery "no match" — the build-time validator (T003) and
+        // the refresh-job prune (T005) keep this from triggering in
+        // the normal flow.
+        const isLookthroughOnly =
+          ISIN_RE.test(trimmedQuery) && LOOKTHROUGH_KNOWN_ISINS.has(trimmedQuery);
+        if (isLookthroughOnly) {
+          return (
+            <Alert variant="default" data-testid={`alert-lookthrough-orphan-${parentKey}`}>
+              <AlertTitle className="text-xs">
+                {t({
+                  de: "Look-through bekannt, aber nicht registriert",
+                  en: "Known to look-through but not registered",
+                })}
+              </AlertTitle>
+              <AlertDescription className="text-xs">
+                {t({
+                  de: `Für die ISIN ${trimmedQuery} existieren bereits Look-through-Daten, aber sie ist nicht in INSTRUMENTS eingetragen. Lege sie zuerst im Tab „Instrumente“ an, dann steht sie hier zur Auswahl.`,
+                  en: `Look-through data already exists for ISIN ${trimmedQuery}, but it is not registered in INSTRUMENTS. Register it first in the “Instruments” tab and it will appear here.`,
+                })}
+              </AlertDescription>
+            </Alert>
+          );
+        }
+        return (
+          <p className="text-xs text-muted-foreground italic">
+            {query.trim()
+              ? t({
+                  de: "Kein Treffer mit diesem Suchbegriff.",
+                  en: "No match for this search term.",
+                })
+              : t({
+                  de: "Keine ungebundenen Instrumente verfügbar — lege zuerst eines im Tab „Instrumente“ an.",
+                  en: "No unassigned instruments available — register one first in the “Instruments” tab.",
+                })}
+          </p>
+        );
+      })()}
       {candidates.length > 0 && (
         <div className="max-h-64 overflow-y-auto rounded border divide-y">
           {candidates.map((inst) => {

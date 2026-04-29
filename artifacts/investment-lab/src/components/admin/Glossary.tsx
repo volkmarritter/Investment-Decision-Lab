@@ -30,9 +30,13 @@ const TERMS: Term[] = [
     en: "Resolved holdings behind a wrapper or multi-asset ETF (equity/bond splits, regions, sectors).",
   },
   {
-    term: "Pool",
-    de: "Look-through-Pool: zentrale Datei mit allen aufgelösten Holdings, die der Engine zur Look-through-Aggregation dient.",
-    en: "Look-through pool: central file holding every resolved holding the engine uses for look-through aggregation.",
+    term: "Look-through-Daten",
+    de:
+      "Look-through-Daten: zentrale JSON-Datei (lookthrough.overrides.json) mit den aufgelösten Holdings, die die Engine pro ETF anwendet. " +
+      "Strikte Invariante seit Aufgabe #122: jede ISIN in dieser Datei muss auch in INSTRUMENTS (etfs.ts) registriert sein — INSTRUMENTS ist die alleinige Quelle der Wahrheit; die JSON-Datei trägt nur die volatilen Look-through-Felder.",
+    en:
+      "Look-through data: central JSON file (lookthrough.overrides.json) holding the resolved per-ETF holdings the engine applies. " +
+      "Strict invariant since Task #122: every ISIN in this file must also be registered in INSTRUMENTS (etfs.ts) — INSTRUMENTS is the single source of truth; the JSON sidecar only carries the volatile look-through fields.",
   },
   {
     term: "Pull Request",
