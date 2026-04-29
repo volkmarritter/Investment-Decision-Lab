@@ -93,6 +93,7 @@ function BothCards({
   lookThroughView,
   hedged,
   includeSyntheticETFs,
+  initialRegime = "normal",
 }: {
   allocation: AssetAllocation[];
   etfImplementation: ETFImplementation[];
@@ -100,8 +101,14 @@ function BothCards({
   lookThroughView: boolean;
   hedged?: boolean;
   includeSyntheticETFs?: boolean;
+  // Lets a single test render the pair under a non-default regime
+  // (e.g. "crisis") without having to click the toggle. Mirrors how
+  // BuildPortfolio would behave if the user had landed on the page
+  // with the regime already flipped — same lifted-up wiring, just a
+  // different starting value.
+  initialRegime?: RiskRegime;
 }) {
-  const [riskRegime, setRiskRegime] = useState<RiskRegime>("normal");
+  const [riskRegime, setRiskRegime] = useState<RiskRegime>(initialRegime);
   const etfProp = lookThroughView ? etfImplementation : undefined;
   return (
     <>
@@ -238,5 +245,77 @@ describe("Monte Carlo ↔ Risk & Performance σ agreement (UI integration)", () 
     expect(mcVol).toBeGreaterThan(1);
     expect(metricsVol).toBeGreaterThan(1);
     expect(Math.abs(mcVol - metricsVol)).toBeLessThan(0.5);
+  });
+
+  // Task #107: Task #99 lifted the Crisis-Σ toggle up so both cards share
+  // the same `riskRegime`. Task #100 (the two cases above) only pins σ
+  // agreement under the default "normal" regime — a future refactor that
+  // forgets to forward `riskRegime` to one of the two cards would still
+  // pass those cases, while silently breaking the regime stakeholders
+  // care about most. The case below renders the pair starting in
+  // "crisis" mode and asserts (a) the two on-screen σ values still
+  // agree, and (b) crisis σ has actually moved vs the normal baseline
+  // — without (b) a no-op forward (e.g. hard-coded "normal" on one
+  // side) would pass (a) trivially.
+  it("Crisis-Σ regime: both cards still agree on σ, and σ actually moved vs normal", () => {
+    // Crisis baseline: same wiring as the Look-Through ON case above,
+    // but the shared lifted-up `riskRegime` starts at "crisis" so both
+    // cards render through the crisis correlation matrix on first paint.
+    const { unmount } = renderBothCards({
+      allocation,
+      etfImplementation: [europeETF],
+      baseCurrency: "USD",
+      lookThroughView: true,
+      hedged: false,
+      includeSyntheticETFs: false,
+      initialRegime: "crisis",
+    });
+
+    const mcVolCrisis = readPercentByLabel("Expected Volatility");
+    const metricsVolCrisis = readPercentByLabel("Volatility");
+
+    // Sanity: only meaningful if σ > 0 on both sides.
+    expect(mcVolCrisis).toBeGreaterThan(1);
+    expect(metricsVolCrisis).toBeGreaterThan(1);
+
+    // (a) Agreement contract under crisis: same < 0.5pp band as the
+    // normal-regime cases. A future bug that forwards `riskRegime` to
+    // one card but not the other would blow this open by several pp
+    // (crisis correlations are materially higher across the equity
+    // block + equity↔bonds, so a 70/30 mix moves visibly under crisis).
+    expect(Math.abs(mcVolCrisis - metricsVolCrisis)).toBeLessThan(0.5);
+
+    // Tear the crisis render down before mounting the normal baseline,
+    // so the two renders don't share DOM state and `readPercentByLabel`
+    // can't accidentally pick up the wrong tile.
+    unmount();
+
+    // Normal baseline for the same allocation + look-through wiring.
+    renderBothCards({
+      allocation,
+      etfImplementation: [europeETF],
+      baseCurrency: "USD",
+      lookThroughView: true,
+      hedged: false,
+      includeSyntheticETFs: false,
+      initialRegime: "normal",
+    });
+
+    const mcVolNormal = readPercentByLabel("Expected Volatility");
+    const metricsVolNormal = readPercentByLabel("Volatility");
+
+    expect(mcVolNormal).toBeGreaterThan(1);
+    expect(metricsVolNormal).toBeGreaterThan(1);
+
+    // (b) The test only has teeth if flipping the regime actually moves
+    // σ. A no-op forward (e.g. one card pins regime to "normal"
+    // internally) would make crisis ≈ normal on that side, which would
+    // either fail (a) above (the OTHER card still moves) or — if BOTH
+    // cards regressed to "normal" — would fail HERE because crisis
+    // would equal normal. Equity-Europe sleeves move ~1pp+ between
+    // regimes on this 70/30 mix; 0.5pp is a comfortable lower bound
+    // that's well above sampling noise on the MC side.
+    expect(mcVolCrisis - mcVolNormal).toBeGreaterThan(0.5);
+    expect(metricsVolCrisis - metricsVolNormal).toBeGreaterThan(0.5);
   });
 });
