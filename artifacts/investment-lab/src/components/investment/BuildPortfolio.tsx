@@ -63,8 +63,7 @@ import { HomeBiasAnalysis } from "./HomeBiasAnalysis";
 import { CurrencyOverview } from "./CurrencyOverview";
 import { TopHoldings } from "./TopHoldings";
 import { ETFDetailsDialog } from "./ETFDetailsDialog";
-import { profileFor } from "@/lib/lookthrough";
-import { describeEtf } from "@/lib/etfDescription";
+import { EtfImplementationCommentCell } from "./EtfImplementationCommentCell";
 import { ETFSnapshotFreshness } from "./SnapshotFreshness";
 import { SavedScenariosUI } from "./SavedScenariosUI";
 import { DisclaimerPdfBlock } from "./Disclaimer";
@@ -1326,34 +1325,11 @@ export function BuildPortfolio() {
                                     read the per-ETF summary inline without having to
                                     click into each row's detail dialog. The
                                     "auto-generated" hint label keeps the two
-                                    distinguishable at a glance. */}
-                                {etf.comment && etf.comment.trim()
-                                  ? etf.comment
-                                  : (() => {
-                                      const auto = describeEtf({
-                                        name: etf.exampleETF,
-                                        profile: profileFor(etf.isin),
-                                        catalog: {
-                                          domicile: etf.domicile,
-                                          distribution: etf.distribution,
-                                          currency: etf.currency,
-                                        },
-                                      });
-                                      if (!auto) return null;
-                                      return (
-                                        <div
-                                          className="space-y-1"
-                                          data-testid={`etf-impl-auto-description-${etf.bucket}`}
-                                        >
-                                          <div className="italic">
-                                            {lang === "de" ? auto.de : auto.en}
-                                          </div>
-                                          <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70 not-italic">
-                                            {t("etf.details.autoDescriptionHint")}
-                                          </div>
-                                        </div>
-                                      );
-                                    })()}
+                                    distinguishable at a glance. The render is
+                                    delegated to <EtfImplementationCommentCell> so it
+                                    can be locked in by a focused component-level
+                                    vitest (see tests/etfImplementationCommentCell.test.tsx). */}
+                                <EtfImplementationCommentCell etf={etf} />
                               </TableCell>
                             </TableRow>
                           ))}
