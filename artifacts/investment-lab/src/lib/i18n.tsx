@@ -222,6 +222,9 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "build.implementation.maximiseHint": "Open this table in a screen-filling overlay so all rows and columns fit at once",
     "build.implementation.minimise": "Close",
     "build.implementation.dialogTitle": "ETF Implementation — maximised view",
+    "build.implementation.resetEtfs": "Reset ETFs to Default",
+    "build.implementation.resetEtfsHint": "Revert every per-bucket ETF picker selection back to the curated default",
+    "build.implementation.resetEtfsToast": "ETF selections reset",
 
     // ExplainPortfolio
     "explain.current.title": "Current Portfolio",
@@ -266,6 +269,10 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "compare.table.delta": "Δ (B - A)",
     "compare.allocA.title": "Portfolio A Allocation",
     "compare.allocB.title": "Portfolio B Allocation",
+    "compare.slotA.linked": "Linked to Build",
+    "compare.slotA.linkedHint": "Slot A mirrors the portfolio currently configured on the Build tab. Click the pin to freeze Slot A so further Build changes don't overwrite it.",
+    "compare.slotA.unlinkToast": "Slot A unlinked from Build",
+    "compare.slotA.relink": "Re-link to Build",
 
     // StressTest
     "stress.title": "Scenario Stress Test",
@@ -702,6 +709,9 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "build.implementation.maximiseHint": "Tabelle in einer bildschirmfüllenden Ansicht öffnen, damit alle Zeilen und Spalten auf einmal sichtbar sind",
     "build.implementation.minimise": "Schliessen",
     "build.implementation.dialogTitle": "ETF-Umsetzung — vergrösserte Ansicht",
+    "build.implementation.resetEtfs": "ETFs zurücksetzen",
+    "build.implementation.resetEtfsHint": "Alle bucketspezifischen ETF-Auswahlen auf den kuratierten Standard zurücksetzen",
+    "build.implementation.resetEtfsToast": "ETF-Auswahl zurückgesetzt",
 
     // ExplainPortfolio
     "explain.current.title": "Aktuelles Portfolio",
@@ -746,6 +756,10 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "compare.table.delta": "Δ (B - A)",
     "compare.allocA.title": "Portfolio A Allokation",
     "compare.allocB.title": "Portfolio B Allokation",
+    "compare.slotA.linked": "Aus Build übernommen",
+    "compare.slotA.linkedHint": "Slot A spiegelt das aktuell im Build-Tab konfigurierte Portfolio. Mit dem Pin lässt sich Slot A einfrieren, sodass weitere Änderungen in Build den Slot nicht mehr überschreiben.",
+    "compare.slotA.unlinkToast": "Slot A entkoppelt",
+    "compare.slotA.relink": "Erneut mit Build verknüpfen",
 
     // StressTest
     "stress.title": "Szenario-Stresstest",

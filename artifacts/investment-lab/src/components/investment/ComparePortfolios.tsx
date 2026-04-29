@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
-import { AlertCircle, CheckCircle2, Scale, ShieldAlert, Target } from "lucide-react";
+import { AlertCircle, CheckCircle2, Scale, ShieldAlert, Target, Link2, PinOff } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { SavedScenariosUI } from "./SavedScenariosUI";
@@ -21,6 +21,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 import { PortfolioInput, PortfolioOutput, ValidationResult } from "@/lib/types";
 import { runValidation } from "@/lib/validation";
@@ -30,6 +31,13 @@ import { colorForBucket, compareBuckets } from "@/lib/chartColors";
 import { defaultExchangeFor } from "@/lib/exchange";
 import { diffPortfolios } from "@/lib/compare";
 import type { ManualWeights } from "@/lib/manualWeights";
+import { getAllETFSelections, type ETFSlot } from "@/lib/etfSelection";
+import {
+  getLastBuildInput,
+  getLastBuildManualWeights,
+  subscribeLastBuildInput,
+  subscribeLastBuildManualWeights,
+} from "@/lib/settings";
 import { PortfolioMetrics } from "./PortfolioMetrics";
 import { StressTest } from "./StressTest";
 import { MonteCarloSimulation } from "./MonteCarloSimulation";
@@ -118,6 +126,37 @@ export function ComparePortfolios() {
   // save / load.
   const [manualWeightsA, setManualWeightsA] = useState<ManualWeights | undefined>(undefined);
   const [manualWeightsB, setManualWeightsB] = useState<ManualWeights | undefined>(undefined);
+  // Per-slot ETF picker snapshots. Undefined = "fall back to the global
+  // selection store" (the same store the Build tab is mutating today). A
+  // defined map = "use exactly this snapshot for the slot", which is what
+  // a saved-scenario load installs so the two slots can diverge cleanly.
+  // Without this split, both slots historically shared the global store
+  // and would silently disagree with the saved scenario data for at least
+  // one slot.
+  const [etfSelectionsA, setEtfSelectionsA] = useState<Record<string, ETFSlot> | undefined>(undefined);
+  const [etfSelectionsB, setEtfSelectionsB] = useState<Record<string, ETFSlot> | undefined>(undefined);
+
+  // Link state: when true, Slot A mirrors whatever the user has currently
+  // configured on the Build tab (form values + manual weights snapshot).
+  // Default-on if Build has already published anything by mount time, so the
+  // first arrival on Compare from a populated Build state is "already linked".
+  // Auto-detaches (sets to false) when the user makes any edit to a portA
+  // field or loads a saved scenario into Slot A — those are explicit signals
+  // that Slot A should diverge from Build.
+  const [linked, setLinked] = useState<boolean>(() => getLastBuildInput() !== null);
+  // Tracks whether Build has ever published. Drives whether we render the
+  // "Linked / Re-link" badge at all (no point showing it on a fresh page
+  // load where Build has never been visited).
+  const [hasBuildPublished, setHasBuildPublished] = useState<boolean>(
+    () => getLastBuildInput() !== null,
+  );
+  // Ref flag set to true during programmatic setValue calls driven by the
+  // linked-sync effect, so the auto-pin watcher below can distinguish
+  // user-driven edits from our own mirror updates. Synchronous toggle is
+  // sufficient because react-hook-form's watch fires synchronously inside
+  // setValue.
+  const syncingRef = useRef(false);
+
   const [hasGenerated, setHasGenerated] = useState(false);
   const resultsRef = useRef<HTMLDivElement>(null);
 
@@ -170,10 +209,10 @@ export function ComparePortfolios() {
     setValidationA(stripComplexity(valA));
     setValidationB(stripComplexity(valB));
 
-    if (valA.isValid) { setOutputA(buildPortfolio(parsedA, "en", manualWeightsA)); setInputA(parsedA); }
+    if (valA.isValid) { setOutputA(buildPortfolio(parsedA, "en", manualWeightsA, etfSelectionsA)); setInputA(parsedA); }
     else { setOutputA(null); setInputA(null); }
 
-    if (valB.isValid) { setOutputB(buildPortfolio(parsedB, "en", manualWeightsB)); setInputB(parsedB); }
+    if (valB.isValid) { setOutputB(buildPortfolio(parsedB, "en", manualWeightsB, etfSelectionsB)); setInputB(parsedB); }
     else { setOutputB(null); setInputB(null); }
 
     setHasGenerated(true);

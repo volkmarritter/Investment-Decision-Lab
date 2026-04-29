@@ -469,3 +469,68 @@ export function subscribeLastEtfImplementation(
   window.addEventListener(LAST_ETF_IMPL_EVENT, handler);
   return () => window.removeEventListener(LAST_ETF_IMPL_EVENT, handler);
 }
+
+// ----------------------------------------------------------------------------
+// Cross-tab publish/subscribe for the user's last Build PortfolioInput
+// (form values) and last manual-weights snapshot. Mirrors the in-memory
+// pattern of the channels above. Used by the Compare tab to auto-link
+// Slot A to whatever the user has currently configured in Build, so the
+// two views stay in sync without copy/paste of the same settings.
+//
+// Like the channels above, lives in-memory only — fresh on full page
+// reload — and uses defensive copies at the boundary.
+// Boundary types are deliberately loose (unknown / Record<string, number>)
+// to avoid an import cycle with src/lib/types and src/lib/manualWeights.
+// Consumers re-cast to PortfolioInput / ManualWeights at the call site.
+// ----------------------------------------------------------------------------
+const LAST_BUILD_INPUT_EVENT = "idl-last-build-input-changed";
+let lastBuildInput: Record<string, unknown> | null = null;
+
+export function setLastBuildInput(input: Record<string, unknown> | null): void {
+  if (typeof window === "undefined") return;
+  lastBuildInput = input ? { ...input } : null;
+  window.dispatchEvent(new CustomEvent(LAST_BUILD_INPUT_EVENT, { detail: lastBuildInput }));
+}
+
+export function getLastBuildInput(): Record<string, unknown> | null {
+  return lastBuildInput ? { ...lastBuildInput } : null;
+}
+
+export function subscribeLastBuildInput(
+  cb: (input: Record<string, unknown> | null) => void,
+): () => void {
+  if (typeof window === "undefined") return () => {};
+  const handler = (e: Event) => {
+    const detail = (e as CustomEvent).detail;
+    cb(detail ?? null);
+  };
+  window.addEventListener(LAST_BUILD_INPUT_EVENT, handler);
+  return () => window.removeEventListener(LAST_BUILD_INPUT_EVENT, handler);
+}
+
+const LAST_BUILD_MANUAL_WEIGHTS_EVENT = "idl-last-build-manual-weights-changed";
+let lastBuildManualWeights: Record<string, number> | null = null;
+
+export function setLastBuildManualWeights(w: Record<string, number> | null): void {
+  if (typeof window === "undefined") return;
+  lastBuildManualWeights = w && Object.keys(w).length > 0 ? { ...w } : null;
+  window.dispatchEvent(
+    new CustomEvent(LAST_BUILD_MANUAL_WEIGHTS_EVENT, { detail: lastBuildManualWeights }),
+  );
+}
+
+export function getLastBuildManualWeights(): Record<string, number> | null {
+  return lastBuildManualWeights ? { ...lastBuildManualWeights } : null;
+}
+
+export function subscribeLastBuildManualWeights(
+  cb: (w: Record<string, number> | null) => void,
+): () => void {
+  if (typeof window === "undefined") return () => {};
+  const handler = (e: Event) => {
+    const detail = (e as CustomEvent).detail;
+    cb(detail ?? null);
+  };
+  window.addEventListener(LAST_BUILD_MANUAL_WEIGHTS_EVENT, handler);
+  return () => window.removeEventListener(LAST_BUILD_MANUAL_WEIGHTS_EVENT, handler);
+}

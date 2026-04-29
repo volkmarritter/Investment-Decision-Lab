@@ -10,6 +10,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { PortfolioInput } from "@/lib/types";
 import { useSavedScenarios, saveScenario, deleteScenario, renameScenario, SavedScenario } from "@/lib/savedScenarios";
 import type { ManualWeights } from "@/lib/manualWeights";
+import type { ETFSlot } from "@/lib/etfSelection";
 import { useT } from "@/lib/i18n";
 
 export interface CompareSlots {
@@ -19,6 +20,10 @@ export interface CompareSlots {
   getSnapshotA?: () => ManualWeights | undefined;
   /** Custom-weights snapshot currently associated with slot B (or undefined). */
   getSnapshotB?: () => ManualWeights | undefined;
+  /** Per-bucket ETF picker snapshot currently associated with slot A (or undefined). */
+  getEtfSelectionsA?: () => Record<string, ETFSlot> | undefined;
+  /** Per-bucket ETF picker snapshot currently associated with slot B (or undefined). */
+  getEtfSelectionsB?: () => Record<string, ETFSlot> | undefined;
   onLoadA: (scenario: SavedScenario) => void;
   onLoadB: (scenario: SavedScenario) => void;
   hasGeneratedA: boolean;
@@ -29,6 +34,7 @@ export function SavedScenariosUI({
   hasGenerated,
   getCurrentInput,
   getCurrentManualWeights,
+  getCurrentETFSelections,
   onLoadScenario,
   compareSlots,
 }: {
@@ -36,6 +42,8 @@ export function SavedScenariosUI({
   getCurrentInput?: () => PortfolioInput;
   /** Active Build-tab custom weights to snapshot when the user saves. */
   getCurrentManualWeights?: () => ManualWeights | undefined;
+  /** Active Build-tab ETF picker selections to snapshot when the user saves. */
+  getCurrentETFSelections?: () => Record<string, ETFSlot> | undefined;
   onLoadScenario?: (scenario: SavedScenario) => void;
   compareSlots?: CompareSlots;
 }) {
@@ -56,18 +64,22 @@ export function SavedScenariosUI({
     if (!saveName.trim() || isSaveOpen === false) return;
     let input: PortfolioInput | undefined;
     let manualWeights: ManualWeights | undefined;
+    let etfSelections: Record<string, ETFSlot> | undefined;
     if (isSaveOpen === "single" && getCurrentInput) {
       input = getCurrentInput();
       manualWeights = getCurrentManualWeights?.();
+      etfSelections = getCurrentETFSelections?.();
     } else if (isSaveOpen === "A" && compareSlots) {
       input = compareSlots.getInputA();
       manualWeights = compareSlots.getSnapshotA?.();
+      etfSelections = compareSlots.getEtfSelectionsA?.();
     } else if (isSaveOpen === "B" && compareSlots) {
       input = compareSlots.getInputB();
       manualWeights = compareSlots.getSnapshotB?.();
+      etfSelections = compareSlots.getEtfSelectionsB?.();
     }
     if (!input) return;
-    saveScenario(saveName.trim(), input, manualWeights);
+    saveScenario(saveName.trim(), input, manualWeights, etfSelections);
     toast.success(t("saved.toast.saved"));
     setIsSaveOpen(false);
     setSaveName("");

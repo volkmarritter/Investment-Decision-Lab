@@ -179,6 +179,13 @@ export function buildPortfolio(
   input: PortfolioInput,
   lang: Lang = "en",
   manualWeights?: ManualWeights,
+  // Optional per-call ETF picker selections (catalog key → slot). When
+  // provided, getETFDetails uses this map instead of the global
+  // localStorage-backed selection store. Used by the Compare tab so each
+  // slot can carry its own picker snapshot from a saved scenario without
+  // mutating global state. Build leaves this undefined and falls back to
+  // the global store as today.
+  etfSelections?: Record<string, number>,
 ): PortfolioOutput {
   const de = lang === "de";
   const maxEquityMap: Record<string, number> = {
@@ -344,7 +351,7 @@ export function buildPortfolio(
   const etfImplementation: ETFImplementation[] = [];
   for (const alloc of allocation) {
     if (alloc.assetClass === "Cash") continue;
-    const d = getETFDetails(alloc.assetClass, alloc.region, input);
+    const d = getETFDetails(alloc.assetClass, alloc.region, input, etfSelections);
     etfImplementation.push({
       bucket: `${alloc.assetClass} - ${alloc.region}`,
       assetClass: alloc.assetClass,

@@ -1165,7 +1165,15 @@ export function getCatalog(): Readonly<Record<string, ETFRecord>> {
 export function getETFDetails(
   assetClass: string,
   region: string,
-  input: PortfolioInput
+  input: PortfolioInput,
+  // Optional per-call selection map (catalog key → 1-based alternative
+  // slot, 0 = default). When provided, takes the place of the global
+  // localStorage-backed getETFSelection() lookup so a Compare slot can
+  // honour a saved scenario's picker snapshot without mutating the
+  // shared store the Build tab is reading from. The Methodology
+  // override layer still wins — admin-pinned ETFs take precedence over
+  // any user picker selection, mirroring today's resolution chain.
+  selections?: Record<string, number>,
 ): ETFDetails {
   const key = lookupKey(assetClass, region, input);
   if (!key) return placeholder(assetClass, region);
@@ -1187,9 +1195,12 @@ export function getETFDetails(
   if (override) {
     rec = override;
   } else {
+    const slot = selections !== undefined
+      ? (selections[key] ?? 0)
+      : getETFSelection(key);
     ({ rec, selectedSlot, selectableOptions } = resolvePickerSelection(
       curated,
-      getETFSelection(key)
+      slot,
     ));
   }
   const { ticker, exchange } = pickListing(rec, input.preferredExchange);

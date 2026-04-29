@@ -23,6 +23,15 @@ export type MaximisableSectionProps = {
   testIdPrefix: string;
   renderContent: (opts: { compact: boolean }) => ReactNode;
   renderFooter?: () => ReactNode;
+  /**
+   * Optional content rendered in the card header to the LEFT of the
+   * maximise button. Used by the ETF Implementation panel to host
+   * extra header actions like "Reset ETFs to Default" without
+   * forcing every consumer to wrap the title in a custom layout.
+   * Not rendered in the maximised dialog header — those actions are
+   * only meaningful in the inline (non-dialog) view.
+   */
+  headerExtra?: ReactNode;
 };
 
 export function MaximisableSection({
@@ -36,6 +45,7 @@ export function MaximisableSection({
   testIdPrefix,
   renderContent,
   renderFooter,
+  headerExtra,
 }: MaximisableSectionProps) {
   const [open, setOpen] = useState(false);
 
@@ -47,24 +57,27 @@ export function MaximisableSection({
             <CardTitle>{title}</CardTitle>
             {description && <CardDescription>{description}</CardDescription>}
           </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="hidden md:inline-flex h-8 w-8 shrink-0 -mt-1 -mr-2"
-                onClick={() => setOpen((prev) => nextMaximisedState(prev, "toggle"))}
-                data-testid={`${testIdPrefix}-maximise-button`}
-                aria-label={maximiseLabel}
-                title={maximiseLabel}
-              >
-                <Maximize2 className="h-4 w-4" />
-                <span className="sr-only">{maximiseLabel}</span>
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>{maximiseHint}</TooltipContent>
-          </Tooltip>
+          <div className="flex items-center gap-1 shrink-0 -mt-1 -mr-2">
+            {headerExtra}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="hidden md:inline-flex h-8 w-8"
+                  onClick={() => setOpen((prev) => nextMaximisedState(prev, "toggle"))}
+                  data-testid={`${testIdPrefix}-maximise-button`}
+                  aria-label={maximiseLabel}
+                  title={maximiseLabel}
+                >
+                  <Maximize2 className="h-4 w-4" />
+                  <span className="sr-only">{maximiseLabel}</span>
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>{maximiseHint}</TooltipContent>
+            </Tooltip>
+          </div>
         </CardHeader>
         <CardContent>
           {renderContent({ compact: false })}

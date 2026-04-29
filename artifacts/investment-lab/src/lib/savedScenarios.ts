@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { PortfolioInput } from "./types";
 import type { ManualWeights } from "./manualWeights";
+import type { ETFSlot } from "./etfSelection";
 
 const STORAGE_KEY = "investment-lab.savedScenarios.v1";
 
@@ -17,6 +18,14 @@ export interface SavedScenario {
    * before.
    */
   manualWeights?: ManualWeights;
+  /**
+   * Optional snapshot of the per-bucket ETF picker selections at save time
+   * (a copy of getAllETFSelections() — keyed by catalog key, value is the
+   * 1-based alternative slot index). Loading a scenario without this field
+   * (older saves) falls back to the curated default for every bucket, so
+   * they keep loading exactly as before — no migration needed.
+   */
+  etfSelections?: Record<string, ETFSlot>;
 }
 
 export function listSaved(): SavedScenario[] {
@@ -35,6 +44,7 @@ export function saveScenario(
   name: string,
   input: PortfolioInput,
   manualWeights?: ManualWeights,
+  etfSelections?: Record<string, ETFSlot>,
 ): SavedScenario {
   const newScenario: SavedScenario = {
     id: crypto.randomUUID(),
@@ -46,6 +56,12 @@ export function saveScenario(
   // a clean save stays clean and behaves identically to pre-Task-#24 entries.
   if (manualWeights && Object.keys(manualWeights).length > 0) {
     newScenario.manualWeights = { ...manualWeights };
+  }
+  // Picker snapshot is also additive: only persisted when the user has any
+  // non-default selections, so older save records and clean states stay
+  // structurally identical.
+  if (etfSelections && Object.keys(etfSelections).length > 0) {
+    newScenario.etfSelections = { ...etfSelections };
   }
 
   try {

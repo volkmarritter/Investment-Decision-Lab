@@ -15,6 +15,8 @@ import {
 import {
   setETFSelection,
   subscribeETFSelections,
+  getAllETFSelections,
+  clearAllETFSelections,
   type ETFSlot,
 } from "@/lib/etfSelection";
 import { buildAiPrompt } from "@/lib/aiPrompt";
@@ -45,7 +47,12 @@ import { buildPortfolio, computeNaturalBucketCount } from "@/lib/portfolio";
 import { mapAllocationToAssetsLookthrough, CMA } from "@/lib/metrics";
 import { colorForBucket, compareBuckets } from "@/lib/chartColors";
 import { defaultExchangeFor } from "@/lib/exchange";
-import { setLastAllocation, setLastEtfImplementation } from "@/lib/settings";
+import {
+  setLastAllocation,
+  setLastEtfImplementation,
+  setLastBuildInput,
+  setLastBuildManualWeights,
+} from "@/lib/settings";
 import { StressTest } from "./StressTest";
 import { FeeEstimator } from "./FeeEstimator";
 import { MonteCarloSimulation } from "./MonteCarloSimulation";
@@ -160,6 +167,44 @@ export function BuildPortfolio() {
     () => subscribeETFSelections(() => bumpEtfSelectionTick((n) => n + 1)),
     [],
   );
+
+  // Track whether any per-bucket ETF picker selection is currently active,
+  // so the "Reset ETFs to Default" header button can be disabled when
+  // there is nothing to reset (avoids the "did anything happen?" surprise).
+  // Initialized synchronously and kept in sync via the same etfSelection
+  // change channel the rebuild effect uses.
+  const [hasEtfSelections, setHasEtfSelections] = useState<boolean>(
+    () => Object.keys(getAllETFSelections()).length > 0,
+  );
+  useEffect(
+    () =>
+      subscribeETFSelections((all) =>
+        setHasEtfSelections(Object.keys(all).length > 0),
+      ),
+    [],
+  );
+
+  // Cross-tab publishing: broadcast the latest Build form values and
+  // manual-weights snapshot so the Compare tab can mirror them into Slot A
+  // (when linked). In-memory only — fresh on full page reload, mirrors the
+  // existing setLastAllocation pattern. Subscribing via form.watch (instead
+  // of a list of form.watch("field") deps) keeps every keystroke in sync
+  // without enumerating every input.
+  useEffect(() => {
+    setLastBuildInput(form.getValues() as unknown as Record<string, unknown>);
+    const sub = form.watch((value) => {
+      setLastBuildInput(value as unknown as Record<string, unknown>);
+    });
+    return () => sub.unsubscribe();
+  }, [form]);
+
+  // Manual-weights snapshot pub/sub. Fires every time the local snapshot
+  // changes (which already happens on every pin/unpin/edit via the existing
+  // subscribeManualWeights wiring), so Compare always sees the latest set
+  // even when the user is mid-edit and hasn't pressed Generate yet.
+  useEffect(() => {
+    setLastBuildManualWeights(manualWeights);
+  }, [manualWeights]);
 
   useEffect(() => {
     if (hasGenerated && output) {
@@ -347,6 +392,7 @@ export function BuildPortfolio() {
                   hasGenerated={hasGenerated}
                   getCurrentInput={() => form.getValues()}
                   getCurrentManualWeights={() => manualWeights}
+                  getCurrentETFSelections={() => getAllETFSelections()}
                   onLoadScenario={(scenario) => {
                     form.reset(scenario.input);
                     setNumETFsMode("manual");
@@ -367,6 +413,19 @@ export function BuildPortfolio() {
                       }
                     } else {
                       clearAllManualWeights();
+                    }
+                    // Restore the per-bucket ETF picker selections atomically:
+                    // clear first to drop pre-existing picks, then re-write
+                    // each entry from the saved snapshot. Older scenarios
+                    // (saved before this feature) carry no etfSelections
+                    // field — those load with every bucket back at the
+                    // curated default, exactly the previous behaviour.
+                    clearAllETFSelections();
+                    const sel = scenario.etfSelections;
+                    if (sel) {
+                      for (const [key, slot] of Object.entries(sel)) {
+                        setETFSelection(key, slot);
+                      }
                     }
                     onSubmit(scenario.input);
                   }}
@@ -1277,6 +1336,34 @@ export function BuildPortfolio() {
                       dialogTitle={t("build.implementation.dialogTitle")}
                       dialogDescription={t("build.implementation.desc")}
                       testIdPrefix="etf-implementation"
+                      headerExtra={
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="hidden md:inline-flex h-8 w-8"
+                              disabled={!hasEtfSelections}
+                              onClick={() => {
+                                clearAllETFSelections();
+                                toast.success(t("build.implementation.resetEtfsToast"));
+                              }}
+                              data-testid="etf-implementation-reset-button"
+                              aria-label={t("build.implementation.resetEtfs")}
+                              title={t("build.implementation.resetEtfs")}
+                            >
+                              <RotateCcw className="h-4 w-4" />
+                              <span className="sr-only">{t("build.implementation.resetEtfs")}</span>
+                            </Button>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            {hasEtfSelections
+                              ? t("build.implementation.resetEtfsHint")
+                              : t("build.implementation.resetEtfs")}
+                          </TooltipContent>
+                        </Tooltip>
+                      }
                       renderContent={({ compact }) => (
                         <>
                           {renderBanner()}
