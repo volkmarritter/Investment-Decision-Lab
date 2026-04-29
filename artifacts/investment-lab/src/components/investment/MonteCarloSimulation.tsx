@@ -17,7 +17,7 @@ import {
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { AssetAllocation, BaseCurrency } from "@/lib/types";
+import { AssetAllocation, BaseCurrency, ETFImplementation } from "@/lib/types";
 import { runMonteCarlo, TailModel } from "@/lib/monteCarlo";
 import { isSyntheticUsEffective, RiskRegime } from "@/lib/metrics";
 import { parseDecimalInput } from "@/lib/manualWeights";
@@ -73,6 +73,13 @@ interface MonteCarloSimulationProps {
   baseCurrency: BaseCurrency;
   hedged?: boolean;
   includeSyntheticETFs?: boolean;
+  /** ETF implementation list, gated upstream by the per-portfolio
+   *  Look-Through toggle. When supplied, the engine routes each row through
+   *  the curated ETF look-through (the same helper the Risk & Performance
+   *  Metrics tile uses) so the headline σ / CVaR / Path-MDD on this card
+   *  agree with the metrics tile to within sampling noise. When omitted,
+   *  the legacy region-only routing is used (no regression). */
+  etfImplementation?: ETFImplementation[];
 }
 
 export function MonteCarloSimulation({
@@ -81,6 +88,7 @@ export function MonteCarloSimulation({
   baseCurrency,
   hedged,
   includeSyntheticETFs,
+  etfImplementation,
 }: MonteCarloSimulationProps) {
   const { t, lang } = useT();
   // Raw text buffer is the source of truth so mobile users on Swiss/German/
@@ -130,8 +138,9 @@ export function MonteCarloSimulation({
         riskRegime,
         tailModel,
         studentTDf,
+        etfImplementation,
       }),
-    [allocation, horizonYears, investmentAmount, hedged, baseCurrency, syntheticUsEffective, riskRegime, tailModel, cmaVersion]
+    [allocation, horizonYears, investmentAmount, hedged, baseCurrency, syntheticUsEffective, riskRegime, tailModel, etfImplementation, cmaVersion]
   );
 
   const formatCurrency = (value: number) => {

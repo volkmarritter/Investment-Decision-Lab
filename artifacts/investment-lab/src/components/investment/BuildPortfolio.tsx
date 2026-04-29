@@ -1505,6 +1505,7 @@ export function BuildPortfolio() {
                   baseCurrency={form.getValues().baseCurrency}
                   hedged={form.getValues().includeCurrencyHedging}
                   includeSyntheticETFs={form.getValues().includeSyntheticETFs}
+                  etfImplementation={watchedLookThroughView ? output.etfImplementation : undefined}
                 />
 
                 {/* Risk & Performance Metrics (Sharpe, Beta, Alpha, TE, Max DD, Frontier, Correlation) */}

@@ -1,5 +1,13 @@
-import { AssetAllocation, BaseCurrency } from "./types";
-import { CMA, AssetKey, corr, BENCHMARK, whtDragForKey, RiskRegime } from "./metrics";
+import { AssetAllocation, BaseCurrency, ETFImplementation } from "./types";
+import {
+  CMA,
+  AssetKey,
+  corr,
+  BENCHMARK,
+  whtDragForKey,
+  RiskRegime,
+  mapAllocationToAssetsLookthrough,
+} from "./metrics";
 
 /** Tail-distribution choice for the Monte-Carlo annual-return sampler.
  *  - "gauss" (default, backward compatible): standard log-normal paths,
@@ -86,14 +94,18 @@ export interface MonteCarloResult {
   realizedMddP05: number;
 }
 
-function bucketAssumption(
-  assetClass: string,
-  region: string,
-  hedged: boolean = false,
-  baseCurrency: BaseCurrency = "USD",
-  syntheticUsEffective: boolean = false,
+// Compute the drift (mu) and shock-scale (sigma) for a single CMA bucket key.
+// Centralised so both the legacy region-only path and the look-through path
+// (which already has AssetKey buckets in hand from
+// mapAllocationToAssetsLookthrough) read μ/σ — and the WHT drag and FX-hedge
+// sigma cut — from exactly the same place. Keeps Monte Carlo internally
+// consistent regardless of which bucket router was used upstream.
+function muSigmaForKey(
+  key: AssetKey,
+  hedged: boolean,
+  baseCurrency: BaseCurrency,
+  syntheticUsEffective: boolean,
 ): BucketAssumption {
-  const key = bucketKey(assetClass, region, baseCurrency);
   const cma = CMA[key];
   // Net of irrecoverable WHT on dividends — same drag definition used by
   // computeMetrics, so MC paths and the analytical Risk & Performance
@@ -117,6 +129,21 @@ function bucketAssumption(
     }
   }
   return { mu, sigma };
+}
+
+function bucketAssumption(
+  assetClass: string,
+  region: string,
+  hedged: boolean = false,
+  baseCurrency: BaseCurrency = "USD",
+  syntheticUsEffective: boolean = false,
+): BucketAssumption {
+  return muSigmaForKey(
+    bucketKey(assetClass, region, baseCurrency),
+    hedged,
+    baseCurrency,
+    syntheticUsEffective,
+  );
 }
 
 function mulberry32(seed: number) {
@@ -201,6 +228,17 @@ export function runMonteCarlo(
     /** Degrees of freedom for the Student-t sampler. Ignored when
      *  tailModel === "gauss". Clamped to [3, 100]; default 5. */
     studentTDf?: number;
+    /** ETF implementation list. When supplied, the engine routes each
+     *  allocation row through `mapAllocationToAssetsLookthrough` (the same
+     *  helper the Risk & Performance Metrics view uses) so a multi-country
+     *  ETF (e.g. iShares MSCI Europe → 23 % UK + 15 % CH + …) contributes
+     *  to the actual country buckets instead of the row's region label.
+     *  Headline volatility, CVaR and Path-MDD then agree with the Risk &
+     *  Performance Metrics tile to within sampling noise. When omitted /
+     *  empty, the legacy region-only routing (with Equity-Global ACWI
+     *  expansion and Equity-Home base-currency routing) is used so existing
+     *  callers and tests are byte-identical. */
+    etfImplementation?: ETFImplementation[];
   } = {}
 ): MonteCarloResult {
   const numPaths = options.paths ?? 2000;
@@ -224,36 +262,61 @@ export function runMonteCarlo(
   // "Expected Volatility" line up with the analytical Risk & Performance
   // Metrics view (modulo the FX-hedge sigma reduction below, which is
   // intentionally a Monte-Carlo-only feature).
-  // Equity-sleeve compaction: an "Equity-Global" (MSCI ACWI IMI) row
-  // expands across the BENCHMARK regional weights so MC vol / Sharpe stay
-  // consistent with metrics.mapAllocationToAssets. Without this, Global
-  // would collapse to one bucket and produce a different sigma than the
-  // analytical Risk & Performance Metrics view.
-  const expanded: { assetClass: string; region: string; weight: number }[] = [];
-  const benchSum = BENCHMARK.reduce((s, e) => s + e.weight, 0);
-  for (const a of allocation) {
-    if (a.assetClass === "Equity" && a.region === "Global") {
-      for (const b of BENCHMARK) {
-        const regionLabel =
-          b.key === "equity_us" ? "USA" :
-          b.key === "equity_eu" ? "Europe" :
-          b.key === "equity_uk" ? "UK" :
-          b.key === "equity_ch" ? "Switzerland" :
-          b.key === "equity_jp" ? "Japan" : "EM";
-        expanded.push({ assetClass: "Equity", region: regionLabel, weight: a.weight * (b.weight / benchSum) });
-      }
-    } else {
-      expanded.push({ assetClass: a.assetClass, region: a.region, weight: a.weight });
-    }
-  }
-
+  //
+  // Two routing paths, kept behaviour-identical at the bucket level so the
+  // covariance loop downstream doesn't need to know which one was used:
+  //
+  //   1. Look-through path (when an etfImplementation list is supplied):
+  //      defer to mapAllocationToAssetsLookthrough — the same helper the
+  //      Risk & Performance Metrics tile uses — so a multi-country ETF
+  //      (e.g. iShares MSCI Europe → 23 % UK + 15 % CH + …) contributes to
+  //      the actual country buckets instead of the row's region label.
+  //      That helper already handles Equity-Global ACWI expansion,
+  //      Equity-Home base-currency routing AND the per-row fallback to
+  //      region routing for ETFs without a curated profile.
+  //
+  //   2. Region-only path (legacy, used when no impl list is supplied):
+  //      expand Equity-Global rows across the BENCHMARK weights and route
+  //      everything else by `bucketKey(assetClass, region, baseCurrency)`.
+  //      This preserves the byte-identical behaviour every existing caller
+  //      and unit test depended on before look-through was wired in.
   const buckets: { weight: number; mu: number; sigma: number; key: AssetKey }[] = [];
-  for (const a of expanded) {
-    const w = a.weight / 100;
-    const { mu, sigma } = bucketAssumption(a.assetClass, a.region, hedged, baseCurrency, syntheticUsEffective);
-    const key = bucketKey(a.assetClass, a.region, baseCurrency);
-    buckets.push({ weight: w, mu, sigma, key });
-    portfolioMu += w * mu;
+  if (options.etfImplementation && options.etfImplementation.length > 0) {
+    const exposures = mapAllocationToAssetsLookthrough(
+      allocation,
+      options.etfImplementation,
+      baseCurrency,
+    );
+    for (const e of exposures) {
+      const { mu, sigma } = muSigmaForKey(e.key, hedged, baseCurrency, syntheticUsEffective);
+      buckets.push({ weight: e.weight, mu, sigma, key: e.key });
+      portfolioMu += e.weight * mu;
+    }
+  } else {
+    const expanded: { assetClass: string; region: string; weight: number }[] = [];
+    const benchSum = BENCHMARK.reduce((s, e) => s + e.weight, 0);
+    for (const a of allocation) {
+      if (a.assetClass === "Equity" && a.region === "Global") {
+        for (const b of BENCHMARK) {
+          const regionLabel =
+            b.key === "equity_us" ? "USA" :
+            b.key === "equity_eu" ? "Europe" :
+            b.key === "equity_uk" ? "UK" :
+            b.key === "equity_ch" ? "Switzerland" :
+            b.key === "equity_jp" ? "Japan" : "EM";
+          expanded.push({ assetClass: "Equity", region: regionLabel, weight: a.weight * (b.weight / benchSum) });
+        }
+      } else {
+        expanded.push({ assetClass: a.assetClass, region: a.region, weight: a.weight });
+      }
+    }
+    for (const a of expanded) {
+      const w = a.weight / 100;
+      const { mu, sigma } = bucketAssumption(a.assetClass, a.region, hedged, baseCurrency, syntheticUsEffective);
+      const key = bucketKey(a.assetClass, a.region, baseCurrency);
+      buckets.push({ weight: w, mu, sigma, key });
+      portfolioMu += w * mu;
+    }
   }
 
   // σ_p = sqrt( ΣΣ w_i w_j σ_i σ_j ρ_ij ). Self-pairs contribute the old

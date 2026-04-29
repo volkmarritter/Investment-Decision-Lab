@@ -1166,6 +1166,7 @@ export function ComparePortfolios() {
                               baseCurrency={inputA.baseCurrency}
                               hedged={inputA.includeCurrencyHedging}
                               includeSyntheticETFs={inputA.includeSyntheticETFs}
+                              etfImplementation={inputA.lookThroughView ? outputA!.etfImplementation : undefined}
                             />
                           </TabsContent>
                           <TabsContent value="B" className="mt-4">
@@ -1175,6 +1176,7 @@ export function ComparePortfolios() {
                               baseCurrency={inputB.baseCurrency}
                               hedged={inputB.includeCurrencyHedging}
                               includeSyntheticETFs={inputB.includeSyntheticETFs}
+                              etfImplementation={inputB.lookThroughView ? outputB!.etfImplementation : undefined}
                             />
                           </TabsContent>
                         </Tabs>
@@ -1218,6 +1220,7 @@ export function ComparePortfolios() {
                             baseCurrency={inputA.baseCurrency}
                             hedged={inputA.includeCurrencyHedging}
                             includeSyntheticETFs={inputA.includeSyntheticETFs}
+                            etfImplementation={inputA.lookThroughView ? outputA!.etfImplementation : undefined}
                           />
                           <PortfolioMetrics allocation={outputA!.allocation} baseCurrency={inputA.baseCurrency} etfImplementation={inputA.lookThroughView ? outputA!.etfImplementation : undefined} includeSyntheticETFs={inputA.includeSyntheticETFs} hedged={inputA.includeCurrencyHedging} />
                           <StressTest allocation={outputA!.allocation} baseCurrency={inputA.baseCurrency} />
@@ -1230,6 +1233,7 @@ export function ComparePortfolios() {
                             baseCurrency={inputB.baseCurrency}
                             hedged={inputB.includeCurrencyHedging}
                             includeSyntheticETFs={inputB.includeSyntheticETFs}
+                            etfImplementation={inputB.lookThroughView ? outputB!.etfImplementation : undefined}
                           />
                           <PortfolioMetrics allocation={outputB!.allocation} baseCurrency={inputB.baseCurrency} etfImplementation={inputB.lookThroughView ? outputB!.etfImplementation : undefined} includeSyntheticETFs={inputB.includeSyntheticETFs} hedged={inputB.includeCurrencyHedging} />
                           <StressTest allocation={outputB!.allocation} baseCurrency={inputB.baseCurrency} />

@@ -43,6 +43,7 @@ const LAST_REVIEWED = "Q2 2026";
 const SECTION_VERSIONS: Record<string, { version: string; month: string }> = {
   wht: { version: "v1.5", month: "Apr 2026" },
   "tail-realism": { version: "v1.6", month: "Apr 2026" },
+  mc: { version: "v1.7", month: "Apr 2026" },
 };
 const sectionVersionShort = (id: string): string | undefined =>
   SECTION_VERSIONS[id]?.version;
@@ -503,6 +504,14 @@ export function Methodology() {
           for (const block of tocBlocks) {
             for (const item of block.items) map[item.value] = item.label;
           }
+          // Overrides — when a release's headline is a *change* to the
+          // section rather than the section itself, the panel reads
+          // better with a verb-y label ("Monte Carlo simulation with
+          // look-through") than the bare section title ("Monte Carlo
+          // Simulation"). The ToC / JumpMenu still use the plain title.
+          map["mc"] = de
+            ? "Monte-Carlo-Simulation mit Look-Through"
+            : "Monte Carlo simulation with look-through";
           return map;
         })()}
         de={de}
@@ -1458,6 +1467,7 @@ export function Methodology() {
               <li>{de ? "TE-Contribution-Tabelle (Treiberzuordnung pro Bucket)" : "TE-Contribution table (per-bucket driver attribution)"}</li>
               <li>{de ? "Effiziente Frontier (Marker-Position des Portfolios)" : "Efficient Frontier (portfolio marker position)"}</li>
               <li>{de ? "Korrelationsmatrix oben (welche Zeilen als \u201Egehalten\u201C markiert werden)" : "Correlation matrix above (which rows are marked as “held”)"}</li>
+              <li>{de ? "Monte-Carlo-Simulation (Erwartete Volatilität, CVaR95/99, Path-MDD — neu seit v1.7, Apr 2026; vorher region-basierter Pfad)" : "Monte Carlo simulation (Expected Volatility, CVaR95/99, Path-MDD — new since v1.7, Apr 2026; previously a region-based path)"}</li>
               <li>{de ? "Compare-Tab (Portfolios A und B unabhängig, je nach deren Toggle-Stellung)" : "Compare tab (Portfolios A and B independently, depending on each one’s toggle setting)"}</li>
             </ul>
           </div>
@@ -1466,7 +1476,6 @@ export function Methodology() {
             <p className="text-xs font-semibold">{de ? "Wo das Routing (bewusst) NICHT greift" : "Where the routing (intentionally) does NOT apply"}</p>
             <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
               <li>{de ? "Allokations-Tabelle (unter dem Pie-Chart): zeigt bewusst die vom Nutzer gewählten Buckets, damit „was ich ausgewählt habe\u201C nachvollziehbar bleibt." : "Allocation table (below the pie chart): intentionally shows the user-selected buckets, so that “what I picked” stays traceable."}</li>
-              <li>{de ? "Monte-Carlo-Simulation: nutzt einen eigenen, älteren Bucket-Pfad (`monteCarlo.ts`); Look-Through dort als bekannter Folge-Schritt offen." : "Monte Carlo simulation: uses its own older bucket path (`monteCarlo.ts`); look-through there is a known follow-up."}</li>
               <li>{de ? "Stress-Test: schockt direkt die deklarierten Buckets, da die historischen Schock-Vektoren auf Region/Asset-Klassen-Ebene kalibriert sind." : "Stress test: shocks the declared buckets directly, because the historical shock vectors are calibrated at region / asset-class level."}</li>
             </ul>
           </div>
@@ -1685,12 +1694,13 @@ export function Methodology() {
               : "Limitation: model assumes IE-domiciled vehicles and a CH-resident default investor. For US-domiciled ETFs, EU-resident setups or other domicile combinations the rates are conservative and partly too low (US-domiciled: ~60 bps instead of 30 bps). Capital-gains and wealth tax (cantonal, CH) are still not modelled."}
           </p>
         </Section>
-        <Section value="mc" icon={<Calculator className="h-4 w-4" />} title={de ? "Monte-Carlo-Simulation" : "Monte Carlo Simulation"}>
+        <Section value="mc" icon={<Calculator className="h-4 w-4" />} title={de ? "Monte-Carlo-Simulation" : "Monte Carlo Simulation"} version={sectionVersionLong("mc")}>
           <ul className="text-sm space-y-2 list-disc pl-5">
             <li>{de ? "Verteilung: log-normale jährliche Renditen pro Anlageklasse, gezogen aus der CMA-Tabelle (μ und σ wie oben)." : "Distribution: log-normal annual returns per asset class, drawn from the CMA table above (μ and σ as listed)."}</li>
             <li>{de ? "Korrelation: die Portfolio-Volatilität σₚ wird vorab aus der vollständigen Korrelationsmatrix berechnet (Formel im Abschnitt „Formeln“); anschließend wird das Portfolio als Ganzes simuliert (eine Gauß-Ziehung pro Jahr)." : "Correlation: portfolio volatility σₚ is computed up front from the full correlation matrix (formula in the \"Formulas\" section); the portfolio is then simulated as a single asset (one Gaussian draw per year)."}</li>
             <li>{de ? "Pfade: 2.000 unabhängige Pfade über den Anlagehorizont des Nutzers." : "Paths: 2,000 independent paths over the user's chosen horizon."}</li>
             <li>{de ? "Ausgewiesen: Median, P10, P90, Wahrscheinlichkeit eines Verlusts, CVaR(95)/CVaR(99) am Horizont und pfadbasierter realisierter Max-Drawdown (Median + 5.-Perzentil)." : "Reported: median, P10, P90, probability of loss, CVaR(95)/CVaR(99) at horizon, and path-based realized Max Drawdown (median + 5th-percentile)."}</li>
+            <li>{de ? "ETF-Look-Through: ist der Schalter „Look-Through-Analyse\u201C im Tab Build aktiv, leitet die Simulation jede Allokationszeile durch dieselbe ETF-Durchsicht-Hilfsfunktion wie die Risk-&-Performance-Kachel — ein Multi-Country-ETF (z. B. iShares MSCI Europe → 23 % UK + 15 % CH + …) trägt zu den tatsächlichen Länder-Buckets bei, statt zum Region-Label der Zeile. Erwartete Volatilität, CVaR95/99 und Path-MDD stimmen daher mit der Risk-&-Performance-Kachel im Rahmen der Sampling-Streuung überein. Bei AUS-Stellung (oder im Vergleichstab pro Portfolio) wird der ältere Region-Pfad verwendet." : "ETF look-through: when the \u201CLook-Through Analysis\u201D toggle in the Build tab is on, the simulation routes each allocation row through the same ETF look-through helper as the Risk & Performance Metrics tile — a multi-country ETF (e.g. iShares MSCI Europe → 23 % UK + 15 % CH + …) contributes to the actual country buckets instead of the row's region label. Expected volatility, CVaR95/99 and Path-MDD therefore agree with the Risk & Performance tile within sampling noise. When OFF (or per-portfolio in the Compare tab), the older region path is used."}</li>
           </ul>
           <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 my-3">
             <p className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400 mb-1">

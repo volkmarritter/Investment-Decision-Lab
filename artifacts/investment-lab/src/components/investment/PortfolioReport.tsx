@@ -654,7 +654,12 @@ function DetailedSections({
   const topHoldings = lookthrough.topConcentrations.slice(0, 10);
 
   // Monte Carlo — run with the same defaults as the on-screen widget so
-  // the report numbers reproduce on screen at a glance.
+  // the report numbers reproduce on screen at a glance. When the user has
+  // Look-Through enabled on Build, pass the same etfImplementation list the
+  // on-screen Risk & Performance Metrics tile uses, so the PDF's Monte
+  // Carlo block reflects the look-through-aware σ / CVaR / Path-MDD instead
+  // of the older region-only routing. When Look-Through is OFF we omit it
+  // and fall back to the legacy path (no regression).
   const mc = useMemo(
     () =>
       runMonteCarlo(output.allocation, input.horizon, ILLUSTRATIVE_AMOUNT, {
@@ -663,10 +668,13 @@ function DetailedSections({
         syntheticUsEffective,
         riskRegime: "normal",
         tailModel: "gauss",
+        etfImplementation: input.lookThroughView ? output.etfImplementation : undefined,
       }),
     [
       output.allocation,
+      output.etfImplementation,
       input.horizon,
+      input.lookThroughView,
       input.includeCurrencyHedging,
       input.baseCurrency,
       syntheticUsEffective,
