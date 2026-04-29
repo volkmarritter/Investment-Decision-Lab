@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
 import { AlertCircle, CheckCircle2, Scale, ShieldAlert, Target, Link2, PinOff } from "lucide-react";
@@ -160,7 +160,14 @@ export function ComparePortfolios() {
       const initial = getLastBuildInput() as PortfolioInput | null;
       if (initial) {
         syncingRef.current = true;
-        form.setValue("portA", initial, { shouldDirty: false, shouldValidate: false });
+        // Backfill `lookThroughView` to `true` defensively if a stale
+        // Build snapshot lacks the field — the per-slot toggle in
+        // Compare must default ON.
+        form.setValue(
+          "portA",
+          { ...initial, lookThroughView: initial.lookThroughView ?? true },
+          { shouldDirty: false, shouldValidate: false },
+        );
         syncingRef.current = false;
       }
       const initialMW = getLastBuildManualWeights();
@@ -183,7 +190,12 @@ export function ComparePortfolios() {
       }
       if (!linked || !input) return;
       syncingRef.current = true;
-      form.setValue("portA", input as unknown as PortfolioInput, { shouldDirty: false, shouldValidate: false });
+      const safe = input as unknown as PortfolioInput;
+      form.setValue(
+        "portA",
+        { ...safe, lookThroughView: safe.lookThroughView ?? true },
+        { shouldDirty: false, shouldValidate: false },
+      );
       syncingRef.current = false;
     });
     const unsubMW = subscribeLastBuildManualWeights((w) => {
@@ -282,30 +294,67 @@ export function ComparePortfolios() {
     return parseDecimalInput(cleaned, { min: 0 }) ?? 0;
   })();
 
-  const onSubmit = (data: CompareFormValues) => {
-    const parse = (p: PortfolioInput): PortfolioInput => ({
-      ...p,
-      horizon: Number(p.horizon),
-      targetEquityPct: Number(p.targetEquityPct),
-      numETFs: Number(p.numETFs),
-      numETFsMin: Number(p.numETFsMin ?? p.numETFs),
-    });
+  const parseSide = (p: PortfolioInput): PortfolioInput => ({
+    ...p,
+    horizon: Number(p.horizon),
+    targetEquityPct: Number(p.targetEquityPct),
+    numETFs: Number(p.numETFs),
+    numETFsMin: Number(p.numETFsMin ?? p.numETFs),
+  });
 
-    const parsedA = parse(data.portA);
-    const parsedB = parse(data.portB);
+  // In Compare the user cannot adjust the ETF max-cap (control was removed),
+  // so the "High complexity" warning is not actionable here. Suppress it; the
+  // Build tab still surfaces it where the user can react to it.
+  const stripComplexity = (v: ValidationResult): ValidationResult => ({
+    ...v,
+    warnings: v.warnings.filter(
+      (w) => w.message !== "High complexity (Complexity Risk)." &&
+             w.message !== "Hohe Komplexität (Komplexitätsrisiko).",
+    ),
+  });
+
+  // Per-side rebuild used by the Look-Through toggle so toggling that
+  // side's switch immediately re-runs that side's portfolio (refreshing
+  // the captured `inputA`/`inputB` value the gating predicates read)
+  // without re-running the other slot or re-scrolling the page.
+  // Only re-runs if the side has already been generated at least once.
+  const rebuildSide = (prefix: "portA" | "portB") => {
+    const v = form.getValues()[prefix];
+    const parsed = parseSide(v);
+    const val = runValidation(parsed);
+    if (prefix === "portA") {
+      // Skip if Slot A has not been generated yet — toggling before
+      // pressing Compare should just update the form value, not
+      // generate output out of nowhere.
+      if (!outputA && !inputA) return;
+      setValidationA(stripComplexity(val));
+      if (val.isValid) {
+        setOutputA(buildPortfolio(parsed, "en", manualWeightsA, etfSelectionsA));
+        setInputA(parsed);
+      } else {
+        setOutputA(null);
+        setInputA(null);
+      }
+    } else {
+      if (!outputB && !inputB) return;
+      const etfSelectionsBForBuild = etfSelectionsB ?? {};
+      setValidationB(stripComplexity(val));
+      if (val.isValid) {
+        setOutputB(buildPortfolio(parsed, "en", manualWeightsB, etfSelectionsBForBuild));
+        setInputB(parsed);
+      } else {
+        setOutputB(null);
+        setInputB(null);
+      }
+    }
+  };
+
+  const onSubmit = (data: CompareFormValues) => {
+    const parsedA = parseSide(data.portA);
+    const parsedB = parseSide(data.portB);
 
     const valA = runValidation(parsedA);
     const valB = runValidation(parsedB);
-    // In Compare the user cannot adjust the ETF max-cap (control was removed),
-    // so the "High complexity" warning is not actionable here. Suppress it; the
-    // Build tab still surfaces it where the user can react to it.
-    const stripComplexity = (v: ValidationResult): ValidationResult => ({
-      ...v,
-      warnings: v.warnings.filter(
-        (w) => w.message !== "High complexity (Complexity Risk)." &&
-               w.message !== "Hohe Komplexität (Komplexitätsrisiko).",
-      ),
-    });
     setValidationA(stripComplexity(valA));
     setValidationB(stripComplexity(valB));
 
@@ -588,6 +637,42 @@ export function ComparePortfolios() {
               </FormItem>
             )}
           />
+          {/* Per-slot Look-Through toggle. Mirrors Build's switch (same
+           *  label / description keys so EN+DE stay aligned). When OFF for a
+           *  side, all look-through-derived sections (Geographic Exposure,
+           *  Look-Through Analysis, Top 10 Holdings) hide for that side and
+           *  PortfolioMetrics falls back to bucket-level routing — same
+           *  behaviour as Build. We additionally re-run that side's
+           *  portfolio on toggle so `inputA`/`inputB` (which the gating
+           *  predicates read) reflect the new toggle without requiring the
+           *  user to press "Compare Portfolios" again. */}
+          <FormField
+            control={form.control}
+            name={`${prefix}.lookThroughView`}
+            render={({ field }) => (
+              <FormItem
+                className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"
+                data-testid={`compare-${prefix === "portA" ? "a" : "b"}-lookthrough-toggle`}
+              >
+                <div className="space-y-0.5">
+                  <FormLabel>{t("build.lookThrough.label")}</FormLabel>
+                  <FormDescription className="text-xs">{t("build.lookThrough.desc")}</FormDescription>
+                </div>
+                <FormControl>
+                  <Switch
+                    data-testid={`compare-${prefix === "portA" ? "a" : "b"}-lookthrough-switch`}
+                    checked={field.value}
+                    onCheckedChange={(checked) => {
+                      field.onChange(checked);
+                      // Defer to next microtask so RHF has the new value
+                      // before we read it via getValues() inside rebuildSide.
+                      queueMicrotask(() => rebuildSide(prefix));
+                    }}
+                  />
+                </FormControl>
+              </FormItem>
+            )}
+          />
         </div>
 
         <div className="space-y-3 pt-2 border-t">
@@ -637,6 +722,81 @@ export function ComparePortfolios() {
       </CardContent>
     </Card>
   );
+
+  // Reusable per-side gating for look-through-derived panels
+  // (Geographic Exposure, Look-Through Analysis, Top 10 Holdings).
+  // - When both sides have lookThroughView OFF: returns null so the
+  //   surrounding wrapper (the inputA/inputB && (showA || showB) check
+  //   on the call site) hides the entire section, including any Card
+  //   chrome. No "Look-through is off for Portfolio X" placeholder.
+  // - When only one side is OFF: desktop drops the hidden side's column
+  //   and renders the visible side at full width; mobile renders the
+  //   visible side directly without an A/B Tabs control so the user
+  //   can't land on an empty tab.
+  // - When both sides are ON: classic side-by-side desktop / A-B mobile
+  //   tabs layout, identical to the previous behaviour.
+  const renderLookThroughSection = (
+    showA: boolean,
+    showB: boolean,
+    renderForSide: (side: "A" | "B") => ReactNode,
+    mobileTestId: string,
+  ) => {
+    if (!showA && !showB) return null;
+    const sideHeading = (label: string) => (
+      <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">
+        {label}
+      </h3>
+    );
+    return (
+      <>
+        {/* Mobile */}
+        <div className="md:hidden">
+          {showA && showB ? (
+            <Tabs defaultValue="A" className="w-full" data-testid={mobileTestId}>
+              <TabsList className="grid w-full max-w-xs grid-cols-2">
+                <TabsTrigger value="A">Portfolio A</TabsTrigger>
+                <TabsTrigger value="B">Portfolio B</TabsTrigger>
+              </TabsList>
+              <TabsContent value="A" className="mt-4 min-w-0">
+                {sideHeading("Portfolio A")}
+                {renderForSide("A")}
+              </TabsContent>
+              <TabsContent value="B" className="mt-4 min-w-0">
+                {sideHeading("Portfolio B")}
+                {renderForSide("B")}
+              </TabsContent>
+            </Tabs>
+          ) : (
+            <div className="min-w-0">
+              {sideHeading(`Portfolio ${showA ? "A" : "B"}`)}
+              {renderForSide(showA ? "A" : "B")}
+            </div>
+          )}
+        </div>
+        {/* Desktop. When only one side is visible, the visible side is
+         *  rendered as a single full-width column (no empty placeholder
+         *  on the hidden side) — feels cleaner than an empty grid cell.
+         *  When both are visible, classic two-column grid. */}
+        {showA && showB ? (
+          <div className="hidden md:grid md:grid-cols-2 md:gap-6">
+            <div className="min-w-0">
+              {sideHeading("Portfolio A")}
+              {renderForSide("A")}
+            </div>
+            <div className="min-w-0">
+              {sideHeading("Portfolio B")}
+              {renderForSide("B")}
+            </div>
+          </div>
+        ) : (
+          <div className="hidden md:block min-w-0">
+            {sideHeading(`Portfolio ${showA ? "A" : "B"}`)}
+            {renderForSide(showA ? "A" : "B")}
+          </div>
+        )}
+      </>
+    );
+  };
 
   return (
     <div className="space-y-8 pb-12">
@@ -697,7 +857,14 @@ export function ComparePortfolios() {
                   // already set linked=false above, but a stale watcher
                   // could still see linked=true in this same tick).
                   syncingRef.current = true;
-                  form.setValue("portA", { ...scenario.input }, { shouldDirty: true, shouldValidate: false });
+                  // Backfill `lookThroughView` to `true` for older saved
+                  // scenarios that don't carry the field — the per-slot
+                  // toggle in Compare must default ON.
+                  form.setValue(
+                    "portA",
+                    { ...scenario.input, lookThroughView: scenario.input.lookThroughView ?? true },
+                    { shouldDirty: true, shouldValidate: false },
+                  );
                   syncingRef.current = false;
                   // Replace slot A's snapshot with the saved entry's (or
                   // clear it when the saved entry has none) so the next
@@ -721,7 +888,14 @@ export function ComparePortfolios() {
                   toast.success(lang === "de" ? "In Portfolio A geladen" : "Loaded into Portfolio A");
                 },
                 onLoadB: (scenario) => {
-                  form.setValue("portB", { ...scenario.input }, { shouldDirty: true, shouldValidate: false });
+                  // Backfill `lookThroughView` to `true` for older saved
+                  // scenarios that don't carry the field — the per-slot
+                  // toggle in Compare must default ON.
+                  form.setValue(
+                    "portB",
+                    { ...scenario.input, lookThroughView: scenario.input.lookThroughView ?? true },
+                    { shouldDirty: true, shouldValidate: false },
+                  );
                   setManualWeightsB(
                     scenario.manualWeights && Object.keys(scenario.manualWeights).length > 0
                       ? { ...scenario.manualWeights }
@@ -948,50 +1122,22 @@ export function ComparePortfolios() {
                   );
                 })()}
 
-                {/* Effective geographic equity allocation per portfolio.
-                 *  Mobile: per-section A/B toggle. Desktop: side-by-side. */}
-                {inputA && inputB && outputA && outputB && (
-                  <>
-                    <div className="md:hidden">
-                      <Tabs defaultValue="A" className="w-full" data-testid="geo-mobile-toggle">
-                        <TabsList className="grid w-full max-w-xs grid-cols-2">
-                          <TabsTrigger value="A">Portfolio A</TabsTrigger>
-                          <TabsTrigger value="B">Portfolio B</TabsTrigger>
-                        </TabsList>
-                        <TabsContent value="A" className="mt-4 min-w-0">
-                          <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio A</h3>
-                          <GeoExposureMap
-                            etfs={outputA.etfImplementation}
-                            baseCurrency={inputA.baseCurrency}
-                          />
-                        </TabsContent>
-                        <TabsContent value="B" className="mt-4 min-w-0">
-                          <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio B</h3>
-                          <GeoExposureMap
-                            etfs={outputB.etfImplementation}
-                            baseCurrency={inputB.baseCurrency}
-                          />
-                        </TabsContent>
-                      </Tabs>
-                    </div>
-                    <div className="hidden md:grid md:grid-cols-2 md:gap-6">
-                      <div className="min-w-0">
-                        <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio A</h3>
-                        <GeoExposureMap
-                          etfs={outputA.etfImplementation}
-                          baseCurrency={inputA.baseCurrency}
-                        />
-                      </div>
-                      <div className="min-w-0">
-                        <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio B</h3>
-                        <GeoExposureMap
-                          etfs={outputB.etfImplementation}
-                          baseCurrency={inputB.baseCurrency}
-                        />
-                      </div>
-                    </div>
-                  </>
-                )}
+                {/* Geographic Exposure Map — gated per side on
+                 *  lookThroughView. Hidden entirely when both sides are OFF;
+                 *  collapses cleanly to a single column when only one side
+                 *  is OFF. Matches Build's behaviour. */}
+                {inputA && inputB && outputA && outputB &&
+                  renderLookThroughSection(
+                    inputA.lookThroughView,
+                    inputB.lookThroughView,
+                    (side) => (
+                      <GeoExposureMap
+                        etfs={(side === "A" ? outputA : outputB).etfImplementation}
+                        baseCurrency={(side === "A" ? inputA : inputB).baseCurrency}
+                      />
+                    ),
+                    "geo-mobile-toggle",
+                  )}
 
                 {/* Per-portfolio deep dives: Monte Carlo, Risk Metrics, Stress Test */}
                 {inputA && inputB && (
@@ -1305,7 +1451,12 @@ export function ComparePortfolios() {
                   </Card>
                 )}
 
-                {/* Look-Through Analysis — gated per side on lookThroughView. */}
+                {/* Look-Through Analysis — gated per side on lookThroughView.
+                 *  When both sides are OFF the entire wrapping Card disappears
+                 *  (no empty card shell, no "Look-through is off for Portfolio
+                 *  X" placeholder), matching how Build hides the section. When
+                 *  only one side is OFF, we drop that side's column on
+                 *  desktop and remove its tab on mobile. */}
                 {inputA && inputB && outputA && outputB && (inputA.lookThroughView || inputB.lookThroughView) && (
                   <Card>
                     <CardHeader>
@@ -1319,67 +1470,24 @@ export function ComparePortfolios() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="md:hidden">
-                        <Tabs defaultValue={inputA.lookThroughView ? "A" : "B"} className="w-full" data-testid="compare-lookthrough-mobile-toggle">
-                          <TabsList className="grid w-full max-w-xs grid-cols-2">
-                            <TabsTrigger value="A">Portfolio A</TabsTrigger>
-                            <TabsTrigger value="B">Portfolio B</TabsTrigger>
-                          </TabsList>
-                          <TabsContent value="A" className="mt-4 min-w-0">
-                            {inputA.lookThroughView ? (
-                              <LookThroughAnalysis etfs={outputA.etfImplementation} baseCurrency={inputA.baseCurrency} />
-                            ) : (
-                              <p className="text-sm text-muted-foreground italic">
-                                {lang === "de"
-                                  ? "Look-Through ist für Portfolio A deaktiviert."
-                                  : "Look-through is off for Portfolio A."}
-                              </p>
-                            )}
-                          </TabsContent>
-                          <TabsContent value="B" className="mt-4 min-w-0">
-                            {inputB.lookThroughView ? (
-                              <LookThroughAnalysis etfs={outputB.etfImplementation} baseCurrency={inputB.baseCurrency} />
-                            ) : (
-                              <p className="text-sm text-muted-foreground italic">
-                                {lang === "de"
-                                  ? "Look-Through ist für Portfolio B deaktiviert."
-                                  : "Look-through is off for Portfolio B."}
-                              </p>
-                            )}
-                          </TabsContent>
-                        </Tabs>
-                      </div>
-                      <div className="hidden md:grid md:grid-cols-2 md:gap-6">
-                        <div className="min-w-0">
-                          <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio A</h3>
-                          {inputA.lookThroughView ? (
-                            <LookThroughAnalysis etfs={outputA.etfImplementation} baseCurrency={inputA.baseCurrency} />
-                          ) : (
-                            <p className="text-sm text-muted-foreground italic">
-                              {lang === "de"
-                                ? "Look-Through ist für Portfolio A deaktiviert."
-                                : "Look-through is off for Portfolio A."}
-                            </p>
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio B</h3>
-                          {inputB.lookThroughView ? (
-                            <LookThroughAnalysis etfs={outputB.etfImplementation} baseCurrency={inputB.baseCurrency} />
-                          ) : (
-                            <p className="text-sm text-muted-foreground italic">
-                              {lang === "de"
-                                ? "Look-Through ist für Portfolio B deaktiviert."
-                                : "Look-through is off for Portfolio B."}
-                            </p>
-                          )}
-                        </div>
-                      </div>
+                      {renderLookThroughSection(
+                        inputA.lookThroughView,
+                        inputB.lookThroughView,
+                        (side) => (
+                          <LookThroughAnalysis
+                            etfs={(side === "A" ? outputA : outputB).etfImplementation}
+                            baseCurrency={(side === "A" ? inputA : inputB).baseCurrency}
+                          />
+                        ),
+                        "compare-lookthrough-mobile-toggle",
+                      )}
                     </CardContent>
                   </Card>
                 )}
 
-                {/* Top 10 Equity Holdings (Look-Through) — gated per side on lookThroughView. */}
+                {/* Top 10 Equity Holdings (Look-Through) — gated per side on
+                 *  lookThroughView. Same all-off / one-off semantics as the
+                 *  Look-Through Analysis card above. */}
                 {inputA && inputB && outputA && outputB && (inputA.lookThroughView || inputB.lookThroughView) && (
                   <Card>
                     <CardHeader>
@@ -1395,62 +1503,17 @@ export function ComparePortfolios() {
                       </CardDescription>
                     </CardHeader>
                     <CardContent>
-                      <div className="md:hidden">
-                        <Tabs defaultValue={inputA.lookThroughView ? "A" : "B"} className="w-full" data-testid="compare-topholdings-mobile-toggle">
-                          <TabsList className="grid w-full max-w-xs grid-cols-2">
-                            <TabsTrigger value="A">Portfolio A</TabsTrigger>
-                            <TabsTrigger value="B">Portfolio B</TabsTrigger>
-                          </TabsList>
-                          <TabsContent value="A" className="mt-4 min-w-0">
-                            {inputA.lookThroughView ? (
-                              <TopHoldings etfs={outputA.etfImplementation} baseCurrency={inputA.baseCurrency} />
-                            ) : (
-                              <p className="text-sm text-muted-foreground italic">
-                                {lang === "de"
-                                  ? "Look-Through ist für Portfolio A deaktiviert."
-                                  : "Look-through is off for Portfolio A."}
-                              </p>
-                            )}
-                          </TabsContent>
-                          <TabsContent value="B" className="mt-4 min-w-0">
-                            {inputB.lookThroughView ? (
-                              <TopHoldings etfs={outputB.etfImplementation} baseCurrency={inputB.baseCurrency} />
-                            ) : (
-                              <p className="text-sm text-muted-foreground italic">
-                                {lang === "de"
-                                  ? "Look-Through ist für Portfolio B deaktiviert."
-                                  : "Look-through is off for Portfolio B."}
-                              </p>
-                            )}
-                          </TabsContent>
-                        </Tabs>
-                      </div>
-                      <div className="hidden md:grid md:grid-cols-2 md:gap-6">
-                        <div className="min-w-0">
-                          <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio A</h3>
-                          {inputA.lookThroughView ? (
-                            <TopHoldings etfs={outputA.etfImplementation} baseCurrency={inputA.baseCurrency} />
-                          ) : (
-                            <p className="text-sm text-muted-foreground italic">
-                              {lang === "de"
-                                ? "Look-Through ist für Portfolio A deaktiviert."
-                                : "Look-through is off for Portfolio A."}
-                            </p>
-                          )}
-                        </div>
-                        <div className="min-w-0">
-                          <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio B</h3>
-                          {inputB.lookThroughView ? (
-                            <TopHoldings etfs={outputB.etfImplementation} baseCurrency={inputB.baseCurrency} />
-                          ) : (
-                            <p className="text-sm text-muted-foreground italic">
-                              {lang === "de"
-                                ? "Look-Through ist für Portfolio B deaktiviert."
-                                : "Look-through is off for Portfolio B."}
-                            </p>
-                          )}
-                        </div>
-                      </div>
+                      {renderLookThroughSection(
+                        inputA.lookThroughView,
+                        inputB.lookThroughView,
+                        (side) => (
+                          <TopHoldings
+                            etfs={(side === "A" ? outputA : outputB).etfImplementation}
+                            baseCurrency={(side === "A" ? inputA : inputB).baseCurrency}
+                          />
+                        ),
+                        "compare-topholdings-mobile-toggle",
+                      )}
                     </CardContent>
                   </Card>
                 )}
