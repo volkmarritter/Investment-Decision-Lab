@@ -1,14 +1,17 @@
 import { useEffect, useState } from "react";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { BuildPortfolio } from "@/components/investment/BuildPortfolio";
 import { ExplainPortfolio } from "@/components/investment/ExplainPortfolio";
 import { ComparePortfolios } from "@/components/investment/ComparePortfolios";
 import { Methodology, VALID_SECTION_IDS as METHODOLOGY_SECTION_IDS } from "@/components/investment/Methodology";
-import { BookOpen, Layers, PieChart, Scale } from "lucide-react";
+import { BookOpen, CalendarClock, Layers, PieChart, Scale } from "lucide-react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useT } from "@/lib/i18n";
 import { DisclaimerFooter } from "@/components/investment/Disclaimer";
+import { BiconMark } from "@/components/investment/BiconMark";
+import { biconContactMailto } from "@/lib/brand";
 
 // Tab values used by the URL `?tab=` query parameter (Task #43). The default
 // is "build", so a missing or unknown tab parameter falls back to it and the
@@ -73,17 +76,52 @@ export default function InvestmentLab() {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-40 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="bg-primary/10 p-2 rounded-lg text-primary">
+        <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="bg-primary/10 p-2 rounded-lg text-primary shrink-0">
               <Layers className="h-5 w-5" />
             </div>
-            <div>
-              <h1 className="text-lg font-bold leading-none tracking-tight">{t("header.title")}</h1>
-              <p className="text-xs text-muted-foreground">{t("header.tagline")}</p>
+            <div className="min-w-0">
+              <h1 className="text-lg font-bold leading-none tracking-tight truncate">{t("header.title")}</h1>
+              {/* Tagline row carries both the lab tagline AND a discreet
+                * BICon attribution. The attribution is hidden on very small
+                * viewports so the title doesn't get crowded; the persistent
+                * "Talk to us" pill on the right and the footer attribution
+                * row keep the brand surface present on mobile. */}
+              <p className="text-xs text-muted-foreground flex items-center gap-1.5 leading-snug">
+                <span className="truncate">{t("header.tagline")}</span>
+                <span
+                  className="hidden md:inline-flex items-center gap-1 text-muted-foreground/70 shrink-0"
+                  aria-label={t("header.bicon.attribution.aria")}
+                  data-testid="bicon-header-attribution"
+                >
+                  <span aria-hidden="true">·</span>
+                  <BiconMark size={11} className="text-muted-foreground/80" />
+                  <span>{t("header.bicon.attribution")}</span>
+                </span>
+              </p>
             </div>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+            {/* Persistent "Talk to us" CTA — full label on sm+, icon + short
+              * label on mobile. Uses a mailto: with a pre-filled subject so
+              * inbound leads from the showcase are recognisable. */}
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="h-8 px-2.5 sm:px-3 text-xs gap-1.5"
+              data-testid="bicon-cta-header"
+            >
+              <a
+                href={biconContactMailto(lang)}
+                aria-label={t("header.bicon.cta.aria")}
+              >
+                <CalendarClock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span className="hidden sm:inline whitespace-nowrap">{t("header.bicon.cta")}</span>
+                <span className="sm:hidden whitespace-nowrap">{t("header.bicon.cta.short")}</span>
+              </a>
+            </Button>
             <ToggleGroup type="single" value={lang} onValueChange={(v: any) => v && setLang(v)} size="sm">
               <ToggleGroupItem value="en" className="text-xs px-2 h-7">EN</ToggleGroupItem>
               <ToggleGroupItem value="de" className="text-xs px-2 h-7">DE</ToggleGroupItem>

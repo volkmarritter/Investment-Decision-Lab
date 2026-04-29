@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ShieldAlert } from "lucide-react";
+import { Mail, ShieldAlert } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -11,12 +11,14 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useT } from "@/lib/i18n";
+import { BRAND, biconContactMailto, biconSiteUrl } from "@/lib/brand";
+import { BiconMark } from "@/components/investment/BiconMark";
 
 export function DisclaimerFooter() {
   const { t, lang } = useT();
   const [open, setOpen] = useState(false);
   // Language-aware BICon site link (German default vs English subpath).
-  const biconHref = lang === "de" ? "https://www.bicon.li" : "https://www.bicon.li/en/";
+  const biconHref = biconSiteUrl(lang);
 
   return (
     <footer className="mt-12 border-t border-border bg-muted/30">
@@ -55,27 +57,58 @@ export function DisclaimerFooter() {
           </div>
         </div>
 
-        {/* BICon brand line + outbound link, language-aware. */}
-        <div className="border-t border-border/60 pt-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs text-muted-foreground">
-          <p className="leading-relaxed">
-            © BICon | Business &amp; IT Consulting –{" "}
-            <span className="whitespace-nowrap">Strategy. Technology. Financial Services.</span>
-          </p>
-          <Button
-            asChild
-            variant="outline"
-            size="sm"
-            className="h-7 px-3 text-xs self-start sm:self-auto"
-          >
-            <a
-              href={biconHref}
-              target="_blank"
-              rel="noopener noreferrer"
-              data-testid="bicon-link"
+        {/* BICon attribution row — language-aware site link, mailto CTA,
+         *  and a one-line tagline. Carries the brand and a contact path
+         *  on every screen so the showcase nature is visible without
+         *  needing to scroll back to the header. */}
+        <div
+          className="border-t border-border/60 pt-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 text-xs text-muted-foreground"
+          data-testid="bicon-footer-attribution"
+        >
+          <div className="flex items-start gap-2 min-w-0">
+            <BiconMark size={18} className="text-foreground/80 shrink-0 mt-0.5" />
+            <div className="space-y-0.5 min-w-0">
+              <p className="leading-relaxed">
+                © {BRAND.copyrightYear} {BRAND.fullName} –{" "}
+                <span className="whitespace-nowrap">{BRAND.disciplineTagline}</span>
+              </p>
+              <p className="leading-relaxed">
+                {t("footer.bicon.tagline")}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="h-7 px-3 text-xs gap-1.5"
             >
-              bicon.li
-            </a>
-          </Button>
+              <a
+                href={biconContactMailto(lang)}
+                data-testid="bicon-footer-mailto"
+                aria-label={t("header.bicon.cta.aria")}
+              >
+                <Mail className="h-3 w-3" aria-hidden="true" />
+                <span>{BRAND.contactEmail}</span>
+              </a>
+            </Button>
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="h-7 px-3 text-xs"
+            >
+              <a
+                href={biconHref}
+                target="_blank"
+                rel="noopener noreferrer"
+                data-testid="bicon-link"
+              >
+                {BRAND.hostLabel}
+              </a>
+            </Button>
+          </div>
         </div>
       </div>
     </footer>

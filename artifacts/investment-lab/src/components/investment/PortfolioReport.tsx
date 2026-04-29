@@ -13,6 +13,8 @@ import { runMonteCarlo } from "@/lib/monteCarlo";
 import { estimateFees } from "@/lib/fees";
 import { describeEtf } from "@/lib/etfDescription";
 import { useT } from "@/lib/i18n";
+import { BRAND } from "@/lib/brand";
+import { BiconMark } from "@/components/investment/BiconMark";
 
 /** Illustrative investment amount used by the Monte Carlo and Fee Estimator
  *  blocks of the detailed report. Mirrors the on-screen default for both
@@ -184,6 +186,7 @@ export function PortfolioReport({
       <header
         className="flex items-start justify-between border-b-2 pb-3 mb-4"
         style={{ borderColor: "#0f172a" }}
+        data-testid="report-header"
       >
         <div>
           <div
@@ -209,6 +212,18 @@ export function PortfolioReport({
                 ? t("report.feature.lookThrough")
                 : t("report.feature.surfaceView")}
             </span>
+          </div>
+          {/* BICon attribution under the title — keeps the brand visible on
+           *  every printed/forwarded PDF. Inline-styled rather than
+           *  Tailwind-classed so the colour is locked in at rasterisation
+           *  time regardless of theme. */}
+          <div
+            className="flex items-center gap-1.5 mt-1.5"
+            style={{ fontSize: "9px", color: "#64748b" }}
+            data-testid="report-bicon-attribution"
+          >
+            <BiconMark size={11} style={{ color: "#475569" }} />
+            <span>{t("report.bicon.attribution")}</span>
           </div>
         </div>
         <div className="text-right text-slate-700" style={{ fontSize: "10px" }}>
@@ -515,6 +530,25 @@ export function PortfolioReport({
               </span>
             </div>
           ))}
+        </div>
+        {/* BICon brand footer — sits under the legal disclaimer so every
+         *  forwarded PDF carries the showcase attribution alongside the
+         *  contact path. Colours are inline-styled to lock at the slate
+         *  values used by the rest of the printed footer. */}
+        <div
+          className="mt-3 pt-2 border-t border-slate-300 flex items-center justify-between gap-3"
+          style={{ fontSize: "8px", color: "#64748b" }}
+          data-testid="report-bicon-footer"
+        >
+          <div className="flex items-center gap-1.5">
+            <BiconMark size={10} style={{ color: "#475569" }} />
+            <span>{t("report.bicon.footer")}</span>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <span>{BRAND.contactEmail}</span>
+            <span style={{ color: "#cbd5e1" }}>·</span>
+            <span>{BRAND.hostLabel}</span>
+          </div>
         </div>
       </footer>
     </div>
