@@ -10,6 +10,16 @@ const TERMS: Term[] = [
     en: "Asset-class bucket (e.g. equity_us, gov_bonds_eur). Each bucket has a default ETF and up to 10 curated alternatives.",
   },
   {
+    term: "Instrument",
+    de: "Ein einzelner ETF in der Master-Liste, eindeutig per ISIN. Hier liegen Name, TER, Domizil, Replikation, Listings — die Stamm-Daten des Fonds. Ein Instrument lebt unabhängig davon, ob es einem Bucket zugeordnet ist.",
+    en: "A single ETF in the master list, uniquely identified by ISIN. This is where name, TER, domicile, replication and listings live — the fund's master data. An instrument exists independently of whether it is assigned to a bucket.",
+  },
+  {
+    term: "Bucket-Zuordnung",
+    de: "Eigener Schritt nach der Instrument-Registrierung: ein bestehendes Instrument wird als Default oder Alternative an einen Bucket gehängt. Strenge Regel: jede ISIN darf in höchstens einem Bucket-Slot vorkommen — keine Mehrfach-Belegung über Buckets hinweg.",
+    en: "A separate step after instrument registration: an existing instrument is attached to a bucket as either default or alternative. Strict rule — every ISIN may appear in at most one bucket slot; no cross-bucket reuse.",
+  },
+  {
     term: "Alternative",
     de: "Kuratierte Bucket-Alternative — austauschbare ETF-Variante (bis zu 10 pro Bucket).",
     en: "Curated bucket alternative — interchangeable ETF variant (up to 10 per bucket).",

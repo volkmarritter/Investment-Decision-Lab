@@ -8,8 +8,8 @@
 // any of:
 //   • alternatives.length ≤ MAX_ALTERNATIVES_PER_BUCKET per bucket
 //   • all ISINs within a bucket are distinct
-//   • alternative ISINs are unique globally (no overlap with other
-//     buckets' defaults or alternatives)
+//   • every ISIN appears in at most one bucket slot across the whole
+//     catalog (default OR alternative — Task #111 strict-uniqueness rule)
 // ----------------------------------------------------------------------------
 
 import { describe, it, expect } from "vitest";
@@ -53,44 +53,25 @@ describe("validateCatalog()", () => {
     }
   });
 
-  it("alternative ISINs are globally unique across the catalog", () => {
+  it("every ISIN appears in at most one bucket slot across the catalog", () => {
     const cat = getCatalog();
-    const ownership = new Map<string, string>();
+    const ownership = new Map<string, { bucket: string; role: string }>();
     for (const [key, rec] of Object.entries(cat)) {
-      for (const alt of rec.alternatives ?? []) {
-        const prev = ownership.get(alt.isin);
+      const slots: Array<{ isin: string; role: string }> = [
+        { isin: rec.isin, role: "default" },
+        ...(rec.alternatives ?? []).map((a) => ({ isin: a.isin, role: "alternative" })),
+      ];
+      for (const slot of slots) {
+        const prev = ownership.get(slot.isin);
         if (prev) {
           throw new Error(
-            `alternative ISIN ${alt.isin} appears in both "${prev}" and "${key}" — alternatives must have a unique bucket assignment`,
+            `ISIN ${slot.isin} appears in "${prev.bucket}" (${prev.role}) and "${key}" (${slot.role}) — every ISIN may belong to at most one bucket slot`,
           );
         }
-        ownership.set(alt.isin, key);
+        ownership.set(slot.isin, { bucket: key, role: slot.role });
       }
     }
-    // No assertion needed — throw above is the failure mode.
     expect(ownership.size).toBeGreaterThan(0);
-  });
-
-  it("alternative ISINs do not collide with any bucket's default ISIN", () => {
-    const cat = getCatalog();
-    const defaultIsins = new Map<string, string>(
-      Object.entries(cat).map(([k, r]) => [r.isin, k]),
-    );
-    for (const [key, rec] of Object.entries(cat)) {
-      for (const alt of rec.alternatives ?? []) {
-        const owner = defaultIsins.get(alt.isin);
-        // Same-bucket default↔alt collision is caught by the previous
-        // intra-bucket-distinct test; here we only flag cross-bucket
-        // collisions where the alternative shadows a different bucket's
-        // default (which would make the picker semantics ambiguous).
-        if (owner && owner !== key) {
-          throw new Error(
-            `alternative ISIN ${alt.isin} in "${key}" also serves as the default of "${owner}"`,
-          );
-        }
-      }
-    }
-    expect(defaultIsins.size).toBeGreaterThan(0);
   });
 
   it("buckets that expose alternatives include the headline 6 the operator selected", () => {

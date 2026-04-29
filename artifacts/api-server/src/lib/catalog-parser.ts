@@ -677,20 +677,79 @@ export function findDuplicateIsinKey(
 
 let cachedSource = "";
 let cachedCatalog: CatalogSummary | null = null;
+let cachedInstruments: Record<string, InstrumentEntrySummary> | null = null;
+let cachedBuckets: Record<string, BucketAssignmentSummary> | null = null;
 
 export async function loadCatalog(): Promise<CatalogSummary> {
+  await loadCatalogSource();
+  return cachedCatalog!;
+}
+
+// Task #111: returns the parsed INSTRUMENTS table on its own (keyed by
+// ISIN). Used by the Instruments sub-tab + tree-row picker dropdowns
+// where the joined catalog view isn't enough — they need to see every
+// instrument, including those not yet assigned to any bucket.
+export async function loadInstruments(): Promise<Record<string, InstrumentEntrySummary>> {
+  await loadCatalogSource();
+  return cachedInstruments!;
+}
+
+// Task #111: returns the parsed BUCKETS assignment table on its own
+// (keyed by bucket key). Each value is { default, alternatives[] } as
+// stored in source. Used by the picker endpoints that need to compute
+// which ISINs are already taken across the catalog.
+export async function loadBuckets(): Promise<Record<string, BucketAssignmentSummary>> {
+  await loadCatalogSource();
+  return cachedBuckets!;
+}
+
+async function loadCatalogSource(): Promise<void> {
   const path = getCatalogPath();
   const source = await readFile(path, "utf8");
-  if (source === cachedSource && cachedCatalog) {
-    return cachedCatalog;
+  if (source === cachedSource && cachedCatalog && cachedInstruments && cachedBuckets) {
+    return;
   }
-  const parsed = parseCatalogFromSource(source);
+  cachedInstruments = parseInstrumentsFromSource(source);
+  cachedBuckets = parseBucketsFromSource(source);
+  cachedCatalog = joinCatalog(cachedInstruments, cachedBuckets);
   cachedSource = source;
-  cachedCatalog = parsed;
-  return parsed;
+}
+
+// Task #111: per-ISIN usage map. For every instrument ISIN, lists the
+// bucket slots (default OR alternative N) it currently occupies. An
+// instrument with an empty list is "unassigned" — a candidate for the
+// tree-row pickers and safe to delete from INSTRUMENTS.
+export interface InstrumentUsage {
+  isin: string;
+  // Bucket key + role pairs where this ISIN is used. Strict-uniqueness
+  // means this list will be either empty (unassigned) or single-entry
+  // (one bucket slot). Stored as an array so callers can render
+  // "unassigned" vs "in use by X" without an extra branch.
+  usages: Array<{ bucket: string; role: "default" | "alternative"; index?: number }>;
+}
+
+export function buildInstrumentUsage(
+  buckets: Record<string, BucketAssignmentSummary>,
+  isin: string,
+): InstrumentUsage {
+  const usages: InstrumentUsage["usages"] = [];
+  const norm = isin.toUpperCase();
+  for (const [k, b] of Object.entries(buckets)) {
+    if (b.default.toUpperCase() === norm) {
+      usages.push({ bucket: k, role: "default" });
+    }
+    for (let i = 0; i < b.alternatives.length; i++) {
+      if (b.alternatives[i].toUpperCase() === norm) {
+        usages.push({ bucket: k, role: "alternative", index: i + 1 });
+      }
+    }
+  }
+  return { isin, usages };
 }
 
 export function _resetCatalogCacheForTests(): void {
   cachedSource = "";
   cachedCatalog = null;
+  cachedInstruments = null;
+  cachedBuckets = null;
 }

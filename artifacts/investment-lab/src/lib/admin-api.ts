@@ -196,6 +196,59 @@ export interface AddBucketAlternativeRequest {
   inceptionDate?: string;
 }
 
+// ----------------------------------------------------------------------------
+// Task #111: Instruments registry types.
+// ----------------------------------------------------------------------------
+// AddInstrumentRequest is identical to AddBucketAlternativeRequest in
+// shape — both omit the bucket key (instruments are keyed by ISIN, not
+// by bucket key) and both carry the same per-fund metadata. We keep
+// them as distinct names so call sites are self-documenting.
+export interface AddInstrumentRequest {
+  name: string;
+  isin: string;
+  terBps: number;
+  domicile: string;
+  replication: "Physical" | "Physical (sampled)" | "Synthetic";
+  distribution: "Accumulating" | "Distributing";
+  currency: string;
+  comment: string;
+  defaultExchange: "LSE" | "XETRA" | "SIX" | "Euronext";
+  listings: Partial<
+    Record<"LSE" | "XETRA" | "SIX" | "Euronext", { ticker: string }>
+  >;
+  aumMillionsEUR?: number;
+  inceptionDate?: string;
+}
+
+// One element of the InstrumentRow.usage array. `role: "default"` means
+// the instrument is the bucket's primary; `role: "alternative"` means
+// it is at index `index` (1-based) inside that bucket's alternatives.
+export interface InstrumentUsageEntry {
+  bucket: string;
+  role: "default" | "alternative";
+  index: number;
+}
+
+// One row of the /admin/instruments response. Combines the parsed
+// INSTRUMENTS metadata with the cross-bucket usage map computed from
+// BUCKETS. `usage.length === 0` means the instrument is "unassigned"
+// and eligible for the tree-row pickers.
+export interface InstrumentRow {
+  name: string;
+  isin: string;
+  terBps: number;
+  domicile: string;
+  replication: string;
+  distribution: string;
+  currency: string;
+  comment: string;
+  listings: Record<string, { ticker: string }>;
+  defaultExchange: string;
+  aumMillionsEUR?: number;
+  inceptionDate?: string;
+  usage: InstrumentUsageEntry[];
+}
+
 export const adminApi = {
   whoami: (token?: string) =>
     call<{
@@ -415,6 +468,58 @@ export const adminApi = {
   // defaults) become visible to the next /admin/catalog request without
   // requiring a redeploy. Refuses to merge over a dirty tree or a
   // diverged history — see the typed 4xx errors below.
+  // ----------------------------------------------------------------------
+  // Task #111: Instruments registry CRUD + tree-row picker endpoints.
+  // ----------------------------------------------------------------------
+  // The Instruments sub-tab manages the master per-ISIN registry. Bucket
+  // assignment is a separate step exposed via the picker endpoints
+  // (attachAlternativeIsin / setBucketDefaultIsin). Strict global ISIN
+  // uniqueness is enforced server-side; clients render the typed errors
+  // verbatim.
+  instruments: () =>
+    call<{ instruments: InstrumentRow[] }>("/admin/instruments"),
+  addInstrument: (entry: AddInstrumentRequest) =>
+    call<{ ok: boolean; prUrl: string; prNumber: number }>(
+      "/admin/instruments",
+      {
+        method: "POST",
+        body: JSON.stringify({ entry }),
+      },
+    ),
+  updateInstrument: (isin: string, entry: AddInstrumentRequest) =>
+    call<{ ok: boolean; prUrl: string; prNumber: number }>(
+      `/admin/instruments/${encodeURIComponent(isin)}`,
+      {
+        method: "PATCH",
+        body: JSON.stringify({ entry }),
+      },
+    ),
+  removeInstrument: (isin: string) =>
+    call<{ ok: boolean; prUrl: string; prNumber: number }>(
+      `/admin/instruments/${encodeURIComponent(isin)}`,
+      { method: "DELETE" },
+    ),
+  // Picker endpoints — these only carry an ISIN (the metadata comes
+  // from the existing INSTRUMENTS row server-side). Use these for the
+  // tree-row "Set as default" / "Add alternative" actions; the legacy
+  // addBucketAlternative / proposeAppDefaultsPr still exist for
+  // ad-hoc / batch flows.
+  attachAlternativeIsin: (parentKey: string, isin: string) =>
+    call<{ ok: boolean; prUrl: string; prNumber: number }>(
+      `/admin/buckets/${encodeURIComponent(parentKey)}/alternatives`,
+      {
+        method: "POST",
+        body: JSON.stringify({ isin }),
+      },
+    ),
+  setBucketDefaultIsin: (parentKey: string, isin: string) =>
+    call<{ ok: boolean; prUrl: string; prNumber: number }>(
+      `/admin/buckets/${encodeURIComponent(parentKey)}/default`,
+      {
+        method: "PUT",
+        body: JSON.stringify({ isin }),
+      },
+    ),
   workspaceStatus: () =>
     call<WorkspaceStatusResponse>("/admin/workspace-status"),
   workspaceSync: () =>

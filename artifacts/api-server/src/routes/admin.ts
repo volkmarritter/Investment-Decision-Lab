@@ -28,8 +28,11 @@ import {
   injectAlternative,
   listOpenPrs,
   openAddBucketAlternativePr,
+  openAttachBucketAlternativePr,
   openBulkAddBucketAlternativesPr,
+  openInstrumentPr,
   openRemoveBucketAlternativePr,
+  openSetBucketDefaultPr,
   openAddEtfPr,
   openAddLookthroughPoolPr,
   openBulkAddLookthroughPoolPr,
@@ -40,8 +43,15 @@ import {
   type LookthroughPoolEntry,
   type NewAlternativeEntry,
   type NewEtfEntry,
+  type NewInstrumentEntry,
 } from "../lib/github";
-import { findDuplicateIsinKey, loadCatalog } from "../lib/catalog-parser";
+import {
+  buildInstrumentUsage,
+  findDuplicateIsinKey,
+  loadBuckets,
+  loadCatalog,
+  loadInstruments,
+} from "../lib/catalog-parser";
 import { MAX_ALTERNATIVES_PER_BUCKET } from "../lib/limits";
 import { getCatalogPath } from "../lib/data-paths";
 import { scrapePreview, PreviewError, normalizeIsin } from "../lib/etf-scrape";
@@ -2174,6 +2184,362 @@ function buildAppDefaultsPrBody(
   }
   return lines.join("\n");
 }
+
+// ----------------------------------------------------------------------------
+// Task #111: Instruments sub-tab CRUD + tree-row picker endpoints.
+// ----------------------------------------------------------------------------
+// The split-data model (INSTRUMENTS keyed by ISIN, BUCKETS keyed by
+// bucket key) needs two distinct admin surfaces:
+//
+//   1. Instruments sub-tab — manages the master per-ISIN registry.
+//      Operators register a fund here once; bucket assignment is a
+//      separate step.
+//   2. Tree-row pickers — attach an existing INSTRUMENTS row to a
+//      bucket as default OR as alternative.
+//
+// Both surfaces enforce the strict cross-bucket uniqueness rule
+// (ISIN appears in at most one bucket slot) via the github helpers.
+// ----------------------------------------------------------------------------
+
+// --- /api/admin/instruments --------------------------------------------------
+// GET — full list of every INSTRUMENTS row + its current usage info
+// (which bucket+role references this ISIN, if any). The sub-tab table
+// renders an "in use" column from this; the tree-row pickers filter
+// usages.length === 0 to compute "unassigned".
+router.get("/admin/instruments", async (_req, res) => {
+  try {
+    const [instruments, buckets] = await Promise.all([
+      loadInstruments(),
+      loadBuckets(),
+    ]);
+    const rows = Object.values(instruments)
+      .map((inst) => ({
+        ...inst,
+        usage: buildInstrumentUsage(buckets, inst.isin).usages,
+      }))
+      .sort((a, b) => a.isin.localeCompare(b.isin));
+    res.json({ instruments: rows });
+  } catch (err) {
+    res.status(500).json({
+      error: "catalog_parse_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+  }
+});
+
+// POST /admin/instruments — register a new ISIN in INSTRUMENTS without
+// any bucket assignment. Refuses when the ISIN is already in the table.
+router.post("/admin/instruments", async (req, res) => {
+  const entry = req.body?.entry as NewInstrumentEntry | undefined;
+  // Reuse validateEntry by stamping a placeholder key; the renderer
+  // ignores it and the route doesn't persist it.
+  const validationError = validateEntry({
+    ...(entry as NewEtfEntry),
+    key: "Unassigned",
+  } as NewEtfEntry);
+  if (validationError || !entry) {
+    res.status(400).json({ error: "invalid_entry", message: validationError });
+    return;
+  }
+  if (!githubConfigured()) {
+    res.status(503).json({
+      error: "github_not_configured",
+      message: "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
+    });
+    return;
+  }
+  try {
+    const instruments = await loadInstruments();
+    if (instruments[entry.isin.toUpperCase()]) {
+      res.status(409).json({
+        error: "isin_present",
+        message: `ISIN ${entry.isin} is already in the INSTRUMENTS table — use PATCH to update its metadata.`,
+      });
+      return;
+    }
+  } catch (err) {
+    res.status(500).json({
+      error: "catalog_parse_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+  try {
+    const pr = await openInstrumentPr({ action: "add", entry });
+    res.json({ ok: true, prUrl: pr.url, prNumber: pr.number });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/already exists/i.test(msg)) {
+      res.status(409).json({ error: "pr_already_open", message: msg });
+      return;
+    }
+    res.status(502).json({ error: "pr_creation_failed", message: msg });
+  }
+});
+
+// PATCH /admin/instruments/:isin — update an existing instrument's
+// metadata. ISIN renames are not supported (delete + re-add).
+router.patch("/admin/instruments/:isin", async (req, res) => {
+  let isin: string;
+  try {
+    isin = normalizeIsin(req.params.isin);
+  } catch (err) {
+    res.status(400).json({
+      error: "invalid_isin",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+  const entry = req.body?.entry as NewInstrumentEntry | undefined;
+  if (!entry || entry.isin?.toUpperCase() !== isin) {
+    res.status(400).json({
+      error: "isin_mismatch",
+      message:
+        "Payload entry.isin must match the URL path ISIN. Use POST + DELETE to rename an instrument.",
+    });
+    return;
+  }
+  const validationError = validateEntry({
+    ...(entry as NewEtfEntry),
+    key: "Unassigned",
+  } as NewEtfEntry);
+  if (validationError) {
+    res.status(400).json({ error: "invalid_entry", message: validationError });
+    return;
+  }
+  if (!githubConfigured()) {
+    res.status(503).json({
+      error: "github_not_configured",
+      message: "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
+    });
+    return;
+  }
+  try {
+    const instruments = await loadInstruments();
+    if (!instruments[isin]) {
+      res.status(404).json({
+        error: "instrument_missing",
+        message: `ISIN ${isin} is not in the INSTRUMENTS table.`,
+      });
+      return;
+    }
+  } catch (err) {
+    res.status(500).json({
+      error: "catalog_parse_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+  try {
+    const pr = await openInstrumentPr({ action: "edit", entry });
+    res.json({ ok: true, prUrl: pr.url, prNumber: pr.number });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/already exists/i.test(msg)) {
+      res.status(409).json({ error: "pr_already_open", message: msg });
+      return;
+    }
+    res.status(502).json({ error: "pr_creation_failed", message: msg });
+  }
+});
+
+// DELETE /admin/instruments/:isin — refused when the ISIN is still
+// referenced by any bucket slot (the runtime joiner would crash on the
+// next reload otherwise).
+router.delete("/admin/instruments/:isin", async (req, res) => {
+  let isin: string;
+  try {
+    isin = normalizeIsin(req.params.isin);
+  } catch (err) {
+    res.status(400).json({
+      error: "invalid_isin",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+  if (!githubConfigured()) {
+    res.status(503).json({
+      error: "github_not_configured",
+      message: "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
+    });
+    return;
+  }
+  try {
+    const [instruments, buckets] = await Promise.all([
+      loadInstruments(),
+      loadBuckets(),
+    ]);
+    const inst = instruments[isin];
+    if (!inst) {
+      res.status(404).json({
+        error: "instrument_missing",
+        message: `ISIN ${isin} is not in the INSTRUMENTS table.`,
+      });
+      return;
+    }
+    const usage = buildInstrumentUsage(buckets, isin);
+    if (usage.usages.length > 0) {
+      const formatted = usage.usages
+        .map((u) => (u.role === "default" ? `${u.bucket} default` : `${u.bucket} alt ${u.index}`))
+        .join(", ");
+      res.status(409).json({
+        error: "in_use",
+        message: `ISIN ${isin} is still assigned to: ${formatted}. Detach it from those buckets first.`,
+        usages: usage.usages,
+      });
+      return;
+    }
+    // Synthesise a placeholder NewInstrumentEntry — openInstrumentPr's
+    // remove path only reads `entry.isin`. Stub the rest with the
+    // existing INSTRUMENTS row so future uses (PR body) still see real
+    // metadata.
+    const pr = await openInstrumentPr({
+      action: "remove",
+      entry: {
+        name: inst.name,
+        isin: inst.isin,
+        terBps: inst.terBps,
+        domicile: inst.domicile,
+        replication: inst.replication as NewInstrumentEntry["replication"],
+        distribution: inst.distribution as NewInstrumentEntry["distribution"],
+        currency: inst.currency,
+        comment: inst.comment,
+        defaultExchange: inst.defaultExchange as NewInstrumentEntry["defaultExchange"],
+        listings: inst.listings,
+        ...(inst.aumMillionsEUR !== undefined ? { aumMillionsEUR: inst.aumMillionsEUR } : {}),
+        ...(inst.inceptionDate ? { inceptionDate: inst.inceptionDate } : {}),
+      },
+    });
+    res.json({ ok: true, prUrl: pr.url, prNumber: pr.number });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/already exists/i.test(msg)) {
+      res.status(409).json({ error: "pr_already_open", message: msg });
+      return;
+    }
+    res.status(502).json({ error: "pr_creation_failed", message: msg });
+  }
+});
+
+// --- /api/admin/buckets/:key/alternatives -----------------------------------
+// POST: attach an EXISTING INSTRUMENTS ISIN to bucket :key as a curated
+// alternative. Differs from the legacy /admin/bucket-alternatives POST
+// (which carries a full NewAlternativeEntry payload for ad-hoc adds):
+// this endpoint only accepts an ISIN — the metadata comes from the
+// already-registered INSTRUMENTS row.
+router.post("/admin/buckets/:key/alternatives", async (req, res) => {
+  const parentKey = String(req.params.key ?? "");
+  if (!parentKey || !/^[A-Z][A-Za-z0-9-]{2,40}$/.test(parentKey)) {
+    res.status(400).json({
+      error: "invalid_parent_key",
+      message: "parentKey must match the catalog key format.",
+    });
+    return;
+  }
+  let isin: string;
+  try {
+    isin = normalizeIsin(req.body?.isin);
+  } catch (err) {
+    res.status(400).json({
+      error: "invalid_isin",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+  if (!githubConfigured()) {
+    res.status(503).json({
+      error: "github_not_configured",
+      message: "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
+    });
+    return;
+  }
+  try {
+    const pr = await openAttachBucketAlternativePr(parentKey, isin);
+    res.json({ ok: true, prUrl: pr.url, prNumber: pr.number });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/already exists/i.test(msg)) {
+      res.status(409).json({ error: "pr_already_open", message: msg });
+      return;
+    }
+    if (/not in the INSTRUMENTS/i.test(msg)) {
+      res.status(404).json({ error: "instrument_missing", message: msg });
+      return;
+    }
+    if (/not found in catalog/i.test(msg)) {
+      res.status(404).json({ error: "parent_missing", message: msg });
+      return;
+    }
+    if (/already assigned/i.test(msg)) {
+      res.status(409).json({ error: "isin_in_use", message: msg });
+      return;
+    }
+    if (/maximum of/i.test(msg)) {
+      res.status(409).json({ error: "cap_exceeded", message: msg });
+      return;
+    }
+    res.status(502).json({ error: "pr_creation_failed", message: msg });
+  }
+});
+
+// --- /api/admin/buckets/:key/default ----------------------------------------
+// PUT: replace the bucket's `default` ISIN with a different existing
+// INSTRUMENTS ISIN. Strict cross-bucket uniqueness — refused when the
+// new ISIN is already assigned somewhere else.
+router.put("/admin/buckets/:key/default", async (req, res) => {
+  const parentKey = String(req.params.key ?? "");
+  if (!parentKey || !/^[A-Z][A-Za-z0-9-]{2,40}$/.test(parentKey)) {
+    res.status(400).json({
+      error: "invalid_parent_key",
+      message: "parentKey must match the catalog key format.",
+    });
+    return;
+  }
+  let isin: string;
+  try {
+    isin = normalizeIsin(req.body?.isin);
+  } catch (err) {
+    res.status(400).json({
+      error: "invalid_isin",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+  if (!githubConfigured()) {
+    res.status(503).json({
+      error: "github_not_configured",
+      message: "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
+    });
+    return;
+  }
+  try {
+    const pr = await openSetBucketDefaultPr(parentKey, isin);
+    res.json({ ok: true, prUrl: pr.url, prNumber: pr.number });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/already exists/i.test(msg)) {
+      res.status(409).json({ error: "pr_already_open", message: msg });
+      return;
+    }
+    if (/not found in catalog/i.test(msg)) {
+      res.status(404).json({ error: "parent_missing", message: msg });
+      return;
+    }
+    if (/already has/i.test(msg)) {
+      res.status(409).json({ error: "default_unchanged", message: msg });
+      return;
+    }
+    if (/not in the INSTRUMENTS/i.test(msg)) {
+      res.status(404).json({ error: "instrument_missing", message: msg });
+      return;
+    }
+    if (/already assigned/i.test(msg)) {
+      res.status(409).json({ error: "isin_in_use", message: msg });
+      return;
+    }
+    res.status(502).json({ error: "pr_creation_failed", message: msg });
+  }
+});
 
 // Re-export the data-dir helper for tests.
 export const _internal = { resolveDataPath: resolve };

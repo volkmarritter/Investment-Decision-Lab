@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { PendingPrsCard } from "./PendingPrsCard";
 import { AddAlternativeForm } from "./AddAlternativeForm";
 import { BucketRowsTable } from "./BucketRowsTable";
+import { InstrumentPicker } from "./InstrumentPicker";
 import { UnclassifiedRow } from "./UnclassifiedRow";
 
 export function ConsolidatedEtfTreePanel({
@@ -96,6 +97,12 @@ export function ConsolidatedEtfTreePanel({
     presetName?: string;
   } | null>(null);
   const [addingAltKey, setAddingAltKey] = useState<string | null>(null);
+  // Tree-row pickers (Task #111). Mutually exclusive across the whole tree
+  // — opening one closes the other to keep the page tidy.
+  const [pickerOpen, setPickerOpen] = useState<{
+    parentKey: string;
+    mode: "default" | "alternative";
+  } | null>(null);
 
   // Load both data sources in parallel. Re-runs whenever a Pull Request succeeds
   // (prsRefreshKey bump) so the post-merge state surfaces quickly.
@@ -301,6 +308,7 @@ export function ConsolidatedEtfTreePanel({
   function handlePrCreated() {
     setAddingAltKey(null);
     setAttaching(null);
+    setPickerOpen(null);
     setPrsRefreshKey((k) => k + 1);
   }
 
@@ -639,43 +647,117 @@ export function ConsolidatedEtfTreePanel({
                                 </span>
                                 <span className="font-medium">{leaf.name}</span>
                               </div>
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 flex-wrap">
                                 <span className="text-xs text-muted-foreground">
                                   {alts.length}/{MAX_ALTERNATIVES_PER_BUCKET}{" "}
                                   {t({ de: "Alt.", en: "alt." })}
                                 </span>
                                 {githubConfigured && (
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    variant={
-                                      addingAltKey === leaf.key
-                                        ? "secondary"
-                                        : "outline"
-                                    }
-                                    onClick={() =>
-                                      setAddingAltKey((cur) =>
-                                        cur === leaf.key ? null : leaf.key,
-                                      )
-                                    }
-                                    disabled={altsAtCap}
-                                    title={
-                                      altsAtCap
-                                        ? t({
-                                            de: `Maximal ${MAX_ALTERNATIVES_PER_BUCKET} Alternativen pro Bucket erreicht`,
-                                            en: `Maximum ${MAX_ALTERNATIVES_PER_BUCKET} alternatives per bucket reached`,
-                                          })
-                                        : undefined
-                                    }
-                                    data-testid={`button-tree-add-alt-${leaf.key}`}
-                                  >
-                                    {addingAltKey === leaf.key
-                                      ? t({ de: "Schließen", en: "Close" })
-                                      : t({
-                                          de: "+ Alternative",
-                                          en: "+ Alternative",
-                                        })}
-                                  </Button>
+                                  <>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant={
+                                        pickerOpen?.parentKey === leaf.key &&
+                                        pickerOpen.mode === "default"
+                                          ? "secondary"
+                                          : "outline"
+                                      }
+                                      onClick={() =>
+                                        setPickerOpen((cur) =>
+                                          cur?.parentKey === leaf.key &&
+                                          cur.mode === "default"
+                                            ? null
+                                            : {
+                                                parentKey: leaf.key,
+                                                mode: "default",
+                                              },
+                                        )
+                                      }
+                                      data-testid={`button-tree-set-default-${leaf.key}`}
+                                      title={t({
+                                        de: "Default-ISIN dieses Buckets durch ein anderes Instrument aus der Registry ersetzen.",
+                                        en: "Replace this bucket's default ISIN with another instrument from the registry.",
+                                      })}
+                                    >
+                                      {pickerOpen?.parentKey === leaf.key &&
+                                      pickerOpen.mode === "default"
+                                        ? t({ de: "Schließen", en: "Close" })
+                                        : t({
+                                            de: "Default ändern",
+                                            en: "Change default",
+                                          })}
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant={
+                                        pickerOpen?.parentKey === leaf.key &&
+                                        pickerOpen.mode === "alternative"
+                                          ? "secondary"
+                                          : "outline"
+                                      }
+                                      onClick={() =>
+                                        setPickerOpen((cur) =>
+                                          cur?.parentKey === leaf.key &&
+                                          cur.mode === "alternative"
+                                            ? null
+                                            : {
+                                                parentKey: leaf.key,
+                                                mode: "alternative",
+                                              },
+                                        )
+                                      }
+                                      disabled={altsAtCap}
+                                      title={
+                                        altsAtCap
+                                          ? t({
+                                              de: `Maximal ${MAX_ALTERNATIVES_PER_BUCKET} Alternativen pro Bucket erreicht`,
+                                              en: `Maximum ${MAX_ALTERNATIVES_PER_BUCKET} alternatives per bucket reached`,
+                                            })
+                                          : t({
+                                              de: "Bestehendes Instrument als Alternative diesem Bucket hinzufügen.",
+                                              en: "Add an existing instrument from the registry as an alternative.",
+                                            })
+                                      }
+                                      data-testid={`button-tree-pick-alt-${leaf.key}`}
+                                    >
+                                      {pickerOpen?.parentKey === leaf.key &&
+                                      pickerOpen.mode === "alternative"
+                                        ? t({ de: "Schließen", en: "Close" })
+                                        : t({
+                                            de: "+ Alternative",
+                                            en: "+ Alternative",
+                                          })}
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant={
+                                        addingAltKey === leaf.key
+                                          ? "secondary"
+                                          : "ghost"
+                                      }
+                                      onClick={() =>
+                                        setAddingAltKey((cur) =>
+                                          cur === leaf.key ? null : leaf.key,
+                                        )
+                                      }
+                                      disabled={altsAtCap}
+                                      data-testid={`button-tree-add-alt-${leaf.key}`}
+                                      title={t({
+                                        de: "Neues Instrument im selben Schritt anlegen + als Alternative diesem Bucket hinzufügen (justETF-Vorab-Daten).",
+                                        en: "Create a new instrument and attach it as an alternative in one step (with justETF defaults).",
+                                      })}
+                                    >
+                                      {addingAltKey === leaf.key
+                                        ? t({ de: "Schließen", en: "Close" })
+                                        : t({
+                                            de: "Neues Instrument …",
+                                            en: "New instrument …",
+                                          })}
+                                    </Button>
+                                  </>
                                 )}
                               </div>
                             </div>
@@ -687,6 +769,16 @@ export function ConsolidatedEtfTreePanel({
                               onRemoveAlt={removeAlt}
                               githubConfigured={githubConfigured}
                             />
+                            {pickerOpen?.parentKey === leaf.key && (
+                              <div className="mt-2">
+                                <InstrumentPicker
+                                  parentKey={leaf.key}
+                                  mode={pickerOpen.mode}
+                                  onSubmitted={handlePrCreated}
+                                  onCancel={() => setPickerOpen(null)}
+                                />
+                              </div>
+                            )}
                             {addingAltKey === leaf.key && (
                               <div className="mt-2">
                                 <AddAlternativeForm

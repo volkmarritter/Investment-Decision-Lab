@@ -31,7 +31,11 @@ import {
   renderAlternativeBlock,
   type NewAlternativeEntry,
 } from "./render-alternative";
-import { findMatchingClose, parseCatalogFromSource } from "./catalog-parser";
+import {
+  findMatchingClose,
+  parseCatalogFromSource,
+  parseInstrumentsFromSource,
+} from "./catalog-parser";
 import { MAX_ALTERNATIVES_PER_BUCKET } from "./limits";
 
 // Re-exported so downstream callers (admin.ts, tests) keep importing the
@@ -800,15 +804,18 @@ export async function openAddEtfPr(
   );
 
   // 2. Insert the new entry into the CATALOG literal.
-  const { content: nextContent, alreadyPresent } = injectEntry(
-    currentContent,
-    entry,
-  );
-  if (alreadyPresent) {
+  const injectResult = injectEntry(currentContent, entry);
+  if (injectResult.status === "key_present") {
     throw new Error(
       `An entry with key "${entry.key}" already exists in the catalog.`,
     );
   }
+  if (injectResult.status === "isin_in_use") {
+    throw new Error(
+      `ISIN ${entry.isin} is already assigned to bucket "${injectResult.conflict}". Every ISIN may belong to at most one bucket — pick a different ISIN or remove it from "${injectResult.conflict}" first.`,
+    );
+  }
+  const nextContent = injectResult.content;
 
   // 3. Create the branch — or, if a stale leftover exists from a previous
   // closed/merged PR, auto-recover by force-resetting it to baseSha. An
@@ -847,27 +854,61 @@ export async function openAddEtfPr(
 // String-level catalog injection.
 // ---------------------------------------------------------------------------
 
+export type InjectEntryStatus = "ok" | "key_present" | "isin_in_use";
+export interface InjectEntryResult {
+  content: string;
+  status: InjectEntryStatus;
+  // When status === "isin_in_use", the bucket key (or "<key> alt N")
+  // where the ISIN is already assigned, so the operator gets an
+  // actionable error rather than a generic "duplicate" message.
+  conflict?: string;
+}
+
 export function injectEntry(
   source: string,
   entry: NewEtfEntry,
-): { content: string; alreadyPresent: boolean } {
-  // Pre-flight: refuse if the bucket key is already in BUCKETS. The
-  // INSTRUMENTS row may already exist (the ISIN could be referenced by
-  // another bucket); we tolerate that and just append the BUCKETS row.
+): InjectEntryResult {
+  // Pre-flight #1: refuse if the bucket key is already in BUCKETS.
   const keyLine = new RegExp(
     `^\\s*"${escapeRegex(entry.key)}":\\s*B\\(`,
     "m",
   );
   if (keyLine.test(source)) {
-    return { content: source, alreadyPresent: true };
+    return { content: source, status: "key_present" };
+  }
+
+  // Pre-flight #2: strict cross-bucket ISIN uniqueness (Task #111).
+  // The INSTRUMENTS table may already carry this ISIN as an orphaned
+  // row (created via the Instruments sub-tab without a bucket
+  // assignment); that's fine — we just don't append a duplicate row
+  // below. What we MUST refuse is creating a new BUCKETS entry whose
+  // default ISIN already lives in another bucket (default OR alt).
+  const normIsin = entry.isin.trim().toUpperCase();
+  if (normIsin) {
+    const summary = parseCatalogFromSource(source);
+    for (const [k, e] of Object.entries(summary)) {
+      if (e.isin.toUpperCase() === normIsin) {
+        return { content: source, status: "isin_in_use", conflict: k };
+      }
+      if (e.alternatives) {
+        for (let i = 0; i < e.alternatives.length; i++) {
+          if (e.alternatives[i].isin.toUpperCase() === normIsin) {
+            return {
+              content: source,
+              status: "isin_in_use",
+              conflict: `${k} alt ${i + 1}`,
+            };
+          }
+        }
+      }
+    }
   }
 
   // Step 1: ensure the INSTRUMENTS row exists. Append a fresh I({...})
-  // entry only when the ISIN isn't already in the master table — the
-  // operator may be reusing an existing instrument under a new bucket
-  // (e.g. CHF vs EUR sleeves of the same fund).
+  // entry only when the ISIN isn't already in the master table — an
+  // unassigned-instrument row may exist already.
   let next = source;
-  let instrumentsBlock = findLiteralBlock(next, INSTRUMENTS_HEADER);
+  const instrumentsBlock = findLiteralBlock(next, INSTRUMENTS_HEADER);
   if (!instrumentRowExists(next, instrumentsBlock, entry.isin)) {
     next = appendInstrumentRow(next, instrumentsBlock, entry);
     // BUCKETS literal moved when INSTRUMENTS grew; recompute below.
@@ -881,7 +922,7 @@ export function injectEntry(
   const after = next.slice(bucketsBlock.closeBrace);
   const trimmed = before.replace(/\s*$/, "");
   const content = `${trimmed}\n${bucketRow}\n${after}`;
-  return { content, alreadyPresent: false };
+  return { content, status: "ok" };
 }
 
 function buildPrBody(
@@ -1506,24 +1547,31 @@ export interface RemoveAlternativeResult {
   status: RemoveAlternativeStatus;
 }
 
-// Task #111: replace the `default` ISIN of a bucket. Used by the future
-// "set Default" picker in the tree-row UI. Returns `parent_missing`
-// when the bucket key is not in BUCKETS, `default_unchanged` when the
-// new ISIN is identical to the current default (idempotent no-op), or
-// `ok` with the mutated source.
+// Task #111: replace the `default` ISIN of a bucket. Used by the
+// "Set as default" picker in the tree-row UI. Returns:
+//   • `parent_missing`     bucket key is not in BUCKETS.
+//   • `default_unchanged`  new ISIN equals the current default (no-op).
+//   • `instrument_missing` no INSTRUMENTS row exists for the new ISIN.
+//   • `isin_in_use`        new ISIN already lives in another bucket.
+//   • `ok`                 mutated source ready to PR.
 //
-// We do NOT validate that the new ISIN exists in INSTRUMENTS — the
-// caller is expected to chain this with a separate "ensure instrument"
-// step (admin Instruments sub-tab CRUD). The runtime catalog joiner
-// throws if a bucket points at a missing instrument, so the operator
-// would see the error on the next reload.
+// We DO require the instrument row to exist (the runtime catalog joiner
+// throws if a bucket points at a missing instrument, so a missing row
+// would crash the next reload — better to refuse upfront with an
+// actionable error). The Instruments sub-tab is the place to register
+// new ISINs before they can be assigned to buckets.
 export type SetBucketDefaultStatus =
   | "ok"
   | "parent_missing"
-  | "default_unchanged";
+  | "default_unchanged"
+  | "instrument_missing"
+  | "isin_in_use";
 export interface SetBucketDefaultResult {
   content: string;
   status: SetBucketDefaultStatus;
+  // When status === "isin_in_use", the bucket key (or "<key> alt N")
+  // where the ISIN is already assigned.
+  conflict?: string;
 }
 export function setBucketDefault(
   source: string,
@@ -1562,13 +1610,50 @@ export function setBucketDefault(
     i++;
   }
   const currentDefault = inner.slice(valStart, i);
-  if (currentDefault.toUpperCase() === newDefaultIsin.trim().toUpperCase()) {
+  const normNew = newDefaultIsin.trim().toUpperCase();
+  if (currentDefault.toUpperCase() === normNew) {
     return { content: source, status: "default_unchanged" };
+  }
+  // Pre-flight: the new ISIN must (a) already live in INSTRUMENTS and
+  // (b) not be assigned to any other bucket — strict cross-bucket
+  // uniqueness (Task #111). We reuse the parser to check INSTRUMENTS
+  // existence so the lookup is case-insensitive (parser uppercases
+  // ISINs), matching the rest of the function's case handling.
+  const instrumentsFromParser = parseInstrumentsFromSource(source);
+  if (!Object.keys(instrumentsFromParser).some((k) => k.toUpperCase() === normNew)) {
+    return { content: source, status: "instrument_missing" };
+  }
+  const summary = parseCatalogFromSource(source);
+  for (const [k, e] of Object.entries(summary)) {
+    if (k !== parentKey) {
+      // Other buckets — strict cross-bucket check: the new ISIN must
+      // not be assigned anywhere else, default OR alternative.
+      if (e.isin.toUpperCase() === normNew) {
+        return { content: source, status: "isin_in_use", conflict: k };
+      }
+    }
+    // Same bucket OR another bucket — alternatives are always scanned.
+    // For the parent we MUST scan because if the new ISIN already lives
+    // inside this bucket's alternatives, swapping it into `default`
+    // would create a within-bucket duplicate (default == alt). The
+    // operator must detach the alternative first OR pick a genuinely
+    // unassigned ISIN.
+    if (e.alternatives) {
+      for (let j = 0; j < e.alternatives.length; j++) {
+        if (e.alternatives[j].isin.toUpperCase() === normNew) {
+          return {
+            content: source,
+            status: "isin_in_use",
+            conflict: `${k} alt ${j + 1}`,
+          };
+        }
+      }
+    }
   }
   const absStart = bucketBody.openBrace + 1 + valStart;
   const absEnd = bucketBody.openBrace + 1 + i;
   const content =
-    source.slice(0, absStart) + newDefaultIsin + source.slice(absEnd);
+    source.slice(0, absStart) + normNew + source.slice(absEnd);
   return { content, status: "ok" };
 }
 
@@ -1768,4 +1853,554 @@ export async function listOpenPrs(prefix?: string): Promise<OpenPrInfo[]> {
     createdAt: p.created_at,
     draft: p.draft ?? false,
   }));
+}
+
+// ---------------------------------------------------------------------------
+// Task #111: INSTRUMENTS row CRUD (admin Instruments sub-tab).
+// ---------------------------------------------------------------------------
+// The Instruments sub-tab manages the master ISIN-keyed INSTRUMENTS table
+// independently of any bucket assignment. Operators register a fund here
+// once, then attach it to a bucket via the tree-row pickers (set as
+// default OR add as alternative). The split-data invariant the runtime
+// catalog joiner enforces is:
+//
+//   • Every BUCKETS row's `default` AND every alternative ISIN MUST
+//     have a matching INSTRUMENTS row, otherwise the joiner throws.
+//
+// So the CRUD helpers below MUST refuse a delete that would orphan a
+// live bucket reference. The Instruments sub-tab UI surfaces the
+// in-use list ("default of Equity-USA-CHF", "alternative #1 of
+// Equity-Global") so the operator can detach first, then retry the
+// delete.
+// ---------------------------------------------------------------------------
+
+// Same shape as NewEtfEntry minus the bucket key — Instruments rows
+// have no key (they're keyed by ISIN). Re-using the existing renderer
+// (renderInstrumentRow) keeps a single source of truth for the per-field
+// layout the catalog ships with today.
+export type NewInstrumentEntry = Omit<NewEtfEntry, "key">;
+
+export type AddInstrumentRowStatus = "ok" | "isin_present";
+export interface AddInstrumentRowResult {
+  content: string;
+  status: AddInstrumentRowStatus;
+}
+
+export type UpdateInstrumentRowStatus = "ok" | "instrument_missing";
+export interface UpdateInstrumentRowResult {
+  content: string;
+  status: UpdateInstrumentRowStatus;
+}
+
+export type RemoveInstrumentRowStatus =
+  | "ok"
+  | "instrument_missing"
+  | "in_use";
+export interface RemoveInstrumentRowResult {
+  content: string;
+  status: RemoveInstrumentRowStatus;
+  // Populated when status === "in_use": the bucket slot(s) that still
+  // reference this ISIN, formatted "<key>" for default and
+  // "<key> alt N" for alternatives.
+  usages?: string[];
+}
+
+// Locate `"<ISIN>": I({...}),` in the INSTRUMENTS literal. Returns
+// absolute indices for the start of the row (the opening `"`) and the
+// end (one past the trailing `,`/newline so a slice deletes the whole
+// row cleanly). Returns null if the ISIN row isn't present.
+function findInstrumentRowRange(
+  source: string,
+  isin: string,
+): { start: number; end: number } | null {
+  const block = findLiteralBlock(source, INSTRUMENTS_HEADER);
+  const body = source.slice(block.openBrace + 1, block.closeBrace);
+  const re = new RegExp(`"${escapeRegex(isin)}":\\s*I\\(\\{`, "g");
+  const m = re.exec(body);
+  if (!m) return null;
+  const relRowStart = m.index;
+  const relOpenBrace = m.index + m[0].length - 1;
+  const relCloseBrace = findMatchingClose(body, relOpenBrace);
+  if (relCloseBrace < 0) {
+    throw new Error(
+      `Unbalanced braces inside INSTRUMENTS["${isin}"] — refusing to edit.`,
+    );
+  }
+  // Walk past the closing `})` and the optional trailing `,`. Then
+  // include exactly one trailing newline so the surrounding rows stay
+  // tidy (the renderer always emits a row terminated with `}),\n`).
+  let i = relCloseBrace + 1; // past `}`
+  if (body[i] === ")") i++; // past `)`
+  if (body[i] === ",") i++;
+  if (body[i] === "\n") i++;
+  return {
+    start: block.openBrace + 1 + relRowStart,
+    end: block.openBrace + 1 + i,
+  };
+}
+
+export function addInstrumentRow(
+  source: string,
+  entry: NewInstrumentEntry,
+): AddInstrumentRowResult {
+  const block = findLiteralBlock(source, INSTRUMENTS_HEADER);
+  if (instrumentRowExists(source, block, entry.isin)) {
+    return { content: source, status: "isin_present" };
+  }
+  // Re-use the same renderer + insertion strategy as injectEntry's
+  // INSTRUMENTS-side step so the diff style matches the rest of the
+  // catalog.
+  const next = appendInstrumentRow(source, block, {
+    ...entry,
+    // appendInstrumentRow / renderInstrumentRow read from a NewEtfEntry
+    // shape; the unused `key` field is ignored by renderInstrumentRow
+    // (which keys the row by ISIN). Stub it with a placeholder so the
+    // type checks; injectEntry never sees this entry, only the renderer
+    // does, and the renderer doesn't read `key`.
+    key: "Unassigned",
+  });
+  return { content: next, status: "ok" };
+}
+
+export function updateInstrumentRow(
+  source: string,
+  isin: string,
+  entry: NewInstrumentEntry,
+): UpdateInstrumentRowResult {
+  if (entry.isin.trim().toUpperCase() !== isin.trim().toUpperCase()) {
+    throw new Error(
+      `Refusing to update INSTRUMENTS["${isin}"] with payload ISIN ${entry.isin} — ISIN renames are not supported (delete + re-add).`,
+    );
+  }
+  const range = findInstrumentRowRange(source, isin);
+  if (!range) {
+    return { content: source, status: "instrument_missing" };
+  }
+  const rendered = renderInstrumentRow({ ...entry, key: "Unassigned" }, "  ");
+  const content =
+    source.slice(0, range.start) + rendered + "\n" + source.slice(range.end);
+  return { content, status: "ok" };
+}
+
+export function removeInstrumentRow(
+  source: string,
+  isin: string,
+): RemoveInstrumentRowResult {
+  const range = findInstrumentRowRange(source, isin);
+  if (!range) {
+    return { content: source, status: "instrument_missing" };
+  }
+  // Refuse if any bucket still references this ISIN — the runtime
+  // joiner would crash on the next reload otherwise.
+  const summary = parseCatalogFromSource(source);
+  const norm = isin.trim().toUpperCase();
+  const usages: string[] = [];
+  for (const [k, e] of Object.entries(summary)) {
+    if (e.isin.toUpperCase() === norm) usages.push(k);
+    if (e.alternatives) {
+      for (let i = 0; i < e.alternatives.length; i++) {
+        if (e.alternatives[i].isin.toUpperCase() === norm) {
+          usages.push(`${k} alt ${i + 1}`);
+        }
+      }
+    }
+  }
+  if (usages.length > 0) {
+    return { content: source, status: "in_use", usages };
+  }
+  const content = source.slice(0, range.start) + source.slice(range.end);
+  return { content, status: "ok" };
+}
+
+// ---------------------------------------------------------------------------
+// openInstrumentPr — orchestration for the three Instruments CRUD ops.
+// ---------------------------------------------------------------------------
+// Branch naming:
+//   instr-add/<isin>   — register a new ISIN with no bucket assignment.
+//   instr-edit/<isin>  — patch an existing INSTRUMENTS row's metadata.
+//   instr-rm/<isin>    — delete an unassigned INSTRUMENTS row.
+//
+// Each variant produces a focused single-file diff against etfs.ts so
+// the reviewer sees exactly the rows being touched. The PR body
+// summarises the action + lists any bucket assignments the operator
+// will need to follow up on (e.g. "this row is unassigned — attach via
+// the tree-row picker after merge").
+// ---------------------------------------------------------------------------
+export type InstrumentPrAction = "add" | "edit" | "remove";
+export interface OpenInstrumentPrArgs {
+  action: InstrumentPrAction;
+  // For add/edit: the full entry. For remove: only `isin` is read.
+  entry: NewInstrumentEntry;
+}
+export async function openInstrumentPr(
+  args: OpenInstrumentPrArgs,
+): Promise<{ url: string; number: number }> {
+  if (!githubConfigured()) {
+    throw new Error(
+      "GitHub PR creation is not configured. Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO.",
+    );
+  }
+  const owner = process.env.GITHUB_OWNER!;
+  const repo = process.env.GITHUB_REPO!;
+  const base = process.env.GITHUB_BASE_BRANCH ?? "main";
+  const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
+
+  const { data: baseRef } = await octokit.git.getRef({
+    owner,
+    repo,
+    ref: `heads/${base}`,
+  });
+  const baseSha = baseRef.object.sha;
+
+  const { data: fileMeta } = await octokit.repos.getContent({
+    owner,
+    repo,
+    path: ETFS_FILE_PATH,
+    ref: baseSha,
+  });
+  if (Array.isArray(fileMeta) || fileMeta.type !== "file") {
+    throw new Error(`Unexpected GitHub response for ${ETFS_FILE_PATH}.`);
+  }
+  const currentContent = Buffer.from(fileMeta.content, "base64").toString(
+    "utf8",
+  );
+
+  let nextContent: string;
+  let title: string;
+  let body: string;
+  let branchPrefix: string;
+
+  if (args.action === "add") {
+    const result = addInstrumentRow(currentContent, args.entry);
+    if (result.status === "isin_present") {
+      throw new Error(
+        `ISIN ${args.entry.isin} is already in INSTRUMENTS — use the edit action to change its metadata.`,
+      );
+    }
+    nextContent = result.content;
+    title = `Register ${args.entry.name} (${args.entry.isin}) in instruments table`;
+    body = buildInstrumentPrBody("add", args.entry);
+    branchPrefix = "instr-add";
+  } else if (args.action === "edit") {
+    const result = updateInstrumentRow(
+      currentContent,
+      args.entry.isin,
+      args.entry,
+    );
+    if (result.status === "instrument_missing") {
+      throw new Error(
+        `ISIN ${args.entry.isin} is not in INSTRUMENTS — register it first via the add action.`,
+      );
+    }
+    nextContent = result.content;
+    title = `Update instrument ${args.entry.name} (${args.entry.isin})`;
+    body = buildInstrumentPrBody("edit", args.entry);
+    branchPrefix = "instr-edit";
+  } else {
+    const result = removeInstrumentRow(currentContent, args.entry.isin);
+    if (result.status === "instrument_missing") {
+      throw new Error(
+        `ISIN ${args.entry.isin} is not in INSTRUMENTS — nothing to remove.`,
+      );
+    }
+    if (result.status === "in_use") {
+      throw new Error(
+        `ISIN ${args.entry.isin} is still assigned to: ${(result.usages ?? []).join(", ")}. Detach it from those buckets first, then retry.`,
+      );
+    }
+    nextContent = result.content;
+    title = `Remove instrument ${args.entry.isin} from registry`;
+    body = buildInstrumentPrBody("remove", args.entry);
+    branchPrefix = "instr-rm";
+  }
+
+  const branch = `${branchPrefix}/${args.entry.isin.toLowerCase()}`;
+  await ensureFreshBranch({ octokit, owner, repo, branch, baseSha });
+
+  await octokit.repos.createOrUpdateFileContents({
+    owner,
+    repo,
+    path: ETFS_FILE_PATH,
+    branch,
+    message: title,
+    content: Buffer.from(nextContent, "utf8").toString("base64"),
+    sha: fileMeta.sha,
+  });
+
+  const { data: pr } = await octokit.pulls.create({
+    owner,
+    repo,
+    head: branch,
+    base,
+    title,
+    body,
+  });
+  return { url: pr.html_url, number: pr.number };
+}
+
+function buildInstrumentPrBody(
+  action: InstrumentPrAction,
+  entry: NewInstrumentEntry,
+): string {
+  if (action === "remove") {
+    return [
+      `Removes ISIN \`${entry.isin}\` from the INSTRUMENTS registry.`,
+      "",
+      "Generated from the in-app admin pane (Instruments sub-tab). The pre-flight check confirmed no bucket still references this ISIN — safe to merge.",
+      "",
+      "**Reviewer checklist**",
+      "- Confirm no in-flight PR re-attaches this ISIN to a bucket (would crash the catalog joiner).",
+      "- The ETF's look-through profile in `lookthrough.overrides.json` is intentionally NOT touched — operators may re-register the same ISIN later without losing scrape data.",
+    ].join("\n");
+  }
+  const headline =
+    action === "add"
+      ? `Registers **${entry.name}** (\`${entry.isin}\`) in the INSTRUMENTS table without any bucket assignment.`
+      : `Updates the INSTRUMENTS row for **${entry.name}** (\`${entry.isin}\`).`;
+  return [
+    headline,
+    "",
+    "Generated from the in-app admin pane (Instruments sub-tab). Per the split-catalog model, INSTRUMENTS holds master per-ISIN metadata; bucket assignments live in the BUCKETS table and are managed via the tree-row pickers.",
+    "",
+    "**Reviewer checklist**",
+    "- Confirm `defaultExchange` matches the operator's preferred listing.",
+    "- Confirm `terBps` and `domicile` match the latest factsheet.",
+    "- Confirm the `comment` is accurate (it shows up in tooltips and pickers).",
+    action === "add"
+      ? "- After merge, attach this ISIN to a bucket via the tree-row picker (Set as default OR Add as alternative)."
+      : "- Spot-check downstream buckets that already reference this ISIN — every assignment now picks up the updated metadata.",
+  ].join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// openSetBucketDefaultPr — orchestration for the tree-row "Set as default"
+// ---------------------------------------------------------------------------
+// Branch name: `set-default/<key>-<isin-lower>` so multiple in-flight
+// default changes for different buckets coexist without colliding.
+// ---------------------------------------------------------------------------
+export async function openSetBucketDefaultPr(
+  parentKey: string,
+  newDefaultIsin: string,
+): Promise<{ url: string; number: number }> {
+  if (!githubConfigured()) {
+    throw new Error(
+      "GitHub PR creation is not configured. Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO.",
+    );
+  }
+  const owner = process.env.GITHUB_OWNER!;
+  const repo = process.env.GITHUB_REPO!;
+  const base = process.env.GITHUB_BASE_BRANCH ?? "main";
+  const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
+
+  const { data: baseRef } = await octokit.git.getRef({
+    owner,
+    repo,
+    ref: `heads/${base}`,
+  });
+  const baseSha = baseRef.object.sha;
+
+  const { data: fileMeta } = await octokit.repos.getContent({
+    owner,
+    repo,
+    path: ETFS_FILE_PATH,
+    ref: baseSha,
+  });
+  if (Array.isArray(fileMeta) || fileMeta.type !== "file") {
+    throw new Error(`Unexpected GitHub response for ${ETFS_FILE_PATH}.`);
+  }
+  const currentContent = Buffer.from(fileMeta.content, "base64").toString(
+    "utf8",
+  );
+
+  const result = setBucketDefault(currentContent, parentKey, newDefaultIsin);
+  if (result.status === "parent_missing") {
+    throw new Error(`Parent bucket "${parentKey}" not found in catalog.`);
+  }
+  if (result.status === "default_unchanged") {
+    throw new Error(
+      `Bucket "${parentKey}" already has ${newDefaultIsin} as its default — nothing to change.`,
+    );
+  }
+  if (result.status === "instrument_missing") {
+    throw new Error(
+      `ISIN ${newDefaultIsin} is not in the INSTRUMENTS table — register it first via the Instruments sub-tab.`,
+    );
+  }
+  if (result.status === "isin_in_use") {
+    throw new Error(
+      `ISIN ${newDefaultIsin} is already assigned to bucket "${result.conflict}". Detach it first or pick a different ISIN.`,
+    );
+  }
+
+  const branch = `set-default/${parentKey.toLowerCase()}-${newDefaultIsin.toLowerCase()}`;
+  await ensureFreshBranch({ octokit, owner, repo, branch, baseSha });
+
+  const title = `Set ${newDefaultIsin} as default for bucket ${parentKey}`;
+  await octokit.repos.createOrUpdateFileContents({
+    owner,
+    repo,
+    path: ETFS_FILE_PATH,
+    branch,
+    message: title,
+    content: Buffer.from(result.content, "utf8").toString("base64"),
+    sha: fileMeta.sha,
+  });
+
+  const { data: pr } = await octokit.pulls.create({
+    owner,
+    repo,
+    head: branch,
+    base,
+    title,
+    body: [
+      `Replaces the \`default\` ISIN of bucket \`${parentKey}\` with \`${newDefaultIsin}\`.`,
+      "",
+      "Generated from the in-app admin pane (tree-row picker). The pre-flight checks confirmed:",
+      `- The new ISIN already exists in the INSTRUMENTS table.`,
+      `- No other bucket currently references this ISIN (strict global uniqueness).`,
+      "",
+      "**Reviewer checklist**",
+      `- Confirm \`${newDefaultIsin}\` is the right new default for \`${parentKey}\` (currency / hedging / replication match).`,
+      `- After merge, the previously-default ISIN becomes unassigned and can be reused on another bucket OR retired via the Instruments sub-tab.`,
+    ].join("\n"),
+  });
+
+  return { url: pr.html_url, number: pr.number };
+}
+
+// ---------------------------------------------------------------------------
+// openAttachAlternativePr — tree-row "Add as alternative" (attach existing).
+// ---------------------------------------------------------------------------
+// Differs from openAddBucketAlternativePr (the legacy add-with-metadata
+// flow): this variant ONLY appends to BUCKETS[parent].alternatives. The
+// ISIN MUST already exist in INSTRUMENTS (registered via the Instruments
+// sub-tab); we refuse otherwise. Branch name reuses `add-alt/<isin>` to
+// keep the existing PR-list filter consistent.
+// ---------------------------------------------------------------------------
+export async function openAttachBucketAlternativePr(
+  parentKey: string,
+  isin: string,
+): Promise<{ url: string; number: number }> {
+  if (!githubConfigured()) {
+    throw new Error(
+      "GitHub PR creation is not configured. Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO.",
+    );
+  }
+  const owner = process.env.GITHUB_OWNER!;
+  const repo = process.env.GITHUB_REPO!;
+  const base = process.env.GITHUB_BASE_BRANCH ?? "main";
+  const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
+
+  const { data: baseRef } = await octokit.git.getRef({
+    owner,
+    repo,
+    ref: `heads/${base}`,
+  });
+  const baseSha = baseRef.object.sha;
+
+  const { data: fileMeta } = await octokit.repos.getContent({
+    owner,
+    repo,
+    path: ETFS_FILE_PATH,
+    ref: baseSha,
+  });
+  if (Array.isArray(fileMeta) || fileMeta.type !== "file") {
+    throw new Error(`Unexpected GitHub response for ${ETFS_FILE_PATH}.`);
+  }
+  const currentContent = Buffer.from(fileMeta.content, "base64").toString(
+    "utf8",
+  );
+
+  // Pre-flight: ISIN must already live in INSTRUMENTS. Without this the
+  // append below would still succeed (alternatives are stored as ISIN
+  // strings only) but the runtime catalog joiner would crash on the
+  // next reload.
+  const instrumentsBlock = findLiteralBlock(currentContent, INSTRUMENTS_HEADER);
+  if (!instrumentRowExists(currentContent, instrumentsBlock, isin)) {
+    throw new Error(
+      `ISIN ${isin} is not in the INSTRUMENTS table — register it first via the Instruments sub-tab.`,
+    );
+  }
+
+  // Build a NewAlternativeEntry from the existing INSTRUMENTS row so we
+  // can reuse the injectAlternative pre-flight + append logic. Since the
+  // row already exists, injectAlternative will skip the INSTRUMENTS-side
+  // append and only touch BUCKETS[parent].alternatives.
+  const instruments = parseInstrumentsFromSource(currentContent);
+  const norm = isin.trim().toUpperCase();
+  const inst = instruments[norm];
+  if (!inst) {
+    // Defensive: instrumentRowExists matched but the parser didn't —
+    // means the row uses an unexpected shape. Surface the inconsistency.
+    throw new Error(
+      `ISIN ${isin} is referenced in INSTRUMENTS but the parser could not read it — manual review needed.`,
+    );
+  }
+  const entry: NewAlternativeEntry = {
+    name: inst.name,
+    isin: inst.isin,
+    terBps: inst.terBps,
+    domicile: inst.domicile,
+    replication: inst.replication as NewAlternativeEntry["replication"],
+    distribution: inst.distribution as NewAlternativeEntry["distribution"],
+    currency: inst.currency,
+    comment: inst.comment,
+    defaultExchange: inst.defaultExchange as NewAlternativeEntry["defaultExchange"],
+    listings: inst.listings,
+    ...(inst.aumMillionsEUR !== undefined
+      ? { aumMillionsEUR: inst.aumMillionsEUR }
+      : {}),
+    ...(inst.inceptionDate ? { inceptionDate: inst.inceptionDate } : {}),
+  };
+
+  const result = injectAlternative(currentContent, parentKey, entry);
+  if (result.status === "parent_missing") {
+    throw new Error(`Parent bucket "${parentKey}" not found in catalog.`);
+  }
+  if (result.status === "isin_present") {
+    throw new Error(
+      `ISIN ${isin} is already assigned to bucket "${result.conflict}". Every ISIN may belong to at most one bucket.`,
+    );
+  }
+  if (result.status === "cap_exceeded") {
+    throw new Error(
+      `Bucket "${parentKey}" already has the maximum of ${MAX_ALTERNATIVES_PER_BUCKET} alternatives.`,
+    );
+  }
+
+  const branch = `add-alt/${isin.toLowerCase()}`;
+  await ensureFreshBranch({ octokit, owner, repo, branch, baseSha });
+
+  const title = `Attach ${isin} as alternative under ${parentKey}`;
+  await octokit.repos.createOrUpdateFileContents({
+    owner,
+    repo,
+    path: ETFS_FILE_PATH,
+    branch,
+    message: title,
+    content: Buffer.from(result.content, "utf8").toString("base64"),
+    sha: fileMeta.sha,
+  });
+
+  const { data: pr } = await octokit.pulls.create({
+    owner,
+    repo,
+    head: branch,
+    base,
+    title,
+    body: [
+      `Adds existing ISIN \`${isin}\` (${inst.name}) to the curated alternatives of bucket \`${parentKey}\`.`,
+      "",
+      "Generated from the in-app admin pane (tree-row picker). The pre-flight checks confirmed:",
+      `- The ISIN already exists in the INSTRUMENTS table.`,
+      `- No other bucket currently references this ISIN (strict global uniqueness).`,
+      `- The bucket has fewer than ${MAX_ALTERNATIVES_PER_BUCKET} alternatives, so the cap holds.`,
+      "",
+      "**Reviewer checklist**",
+      `- Confirm \`${parentKey}\` is the correct bucket (currency / asset-class match).`,
+      `- After merge, the picker on the Build tab offers this ISIN as an alternative for that bucket.`,
+    ].join("\n"),
+  });
+
+  return { url: pr.html_url, number: pr.number };
 }

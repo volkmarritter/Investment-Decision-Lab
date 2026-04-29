@@ -8,6 +8,7 @@ import { useAdminContext } from "@/components/admin/AdminContext";
 import { ConsolidatedEtfTreePanel } from "@/components/admin/ConsolidatedEtfTreePanel";
 import { SuggestIsinPanel } from "@/components/admin/SuggestIsinPanel";
 import { BatchAddAlternativesPanel } from "@/components/admin/BatchAddAlternativesPanel";
+import { InstrumentsPanel } from "@/components/admin/InstrumentsPanel";
 
 export default function Catalog() {
   const { t } = useAdminT();
@@ -19,6 +20,11 @@ export default function Catalog() {
       to: "/admin/catalog/browse",
       label: t({ de: "Browse", en: "Browse" }),
       testid: "tab-catalog-browse",
+    },
+    {
+      to: "/admin/catalog/instruments",
+      label: t({ de: "Instrumente", en: "Instruments" }),
+      testid: "tab-catalog-instruments",
     },
     {
       to: "/admin/catalog/add-isin",
@@ -37,12 +43,18 @@ export default function Catalog() {
       ? "add-isin"
       : location === "/admin/catalog/batch"
         ? "batch"
-        : "browse";
+        : location === "/admin/catalog/instruments"
+          ? "instruments"
+          : "browse";
 
   const description = {
     browse: t({
       de: "Alle Buckets mit ihren Default-ETFs, Alternativen und Look-through-Status in einem Baum.",
       en: "Every bucket with its default ETF, alternatives, and look-through status in a single tree.",
+    }),
+    instruments: t({
+      de: "Master-Liste aller ETF-Instrumente. Hier werden Instrumente registriert, bearbeitet oder entfernt — die Bucket-Zuordnung passiert separat im Browse-Tab.",
+      en: "Master list of every ETF instrument. Register, edit or retire instruments here — bucket assignment happens separately in the Browse tab.",
     }),
     "add-isin": t({
       de: "Eine ISIN scrapen, Felder prüfen und einen einzelnen Pull Request für den ETF-Katalog öffnen.",
@@ -95,6 +107,9 @@ export default function Catalog() {
         )}
         {active === "batch" && (
           <BatchAddAlternativesPanel githubConfigured={githubConfigured} />
+        )}
+        {active === "instruments" && (
+          <InstrumentsPanel githubConfigured={githubConfigured} />
         )}
       </div>
     </section>

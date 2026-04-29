@@ -46,8 +46,18 @@ and BUCKETS in sync and rely on the headers
 `const BUCKETS: Record<string, BucketAssignment> = {` to locate the
 blocks. Renaming those headers requires updating the helpers.
 
-Phase 2 (Instruments admin sub-tab, tree-row registry pickers, strict
-cross-bucket validator, glossary copy) is tracked as a separate task.
+Phase 2 (Task #111 Phase 2 — 2026-04, completed): the catalog now
+enforces **strict global ISIN uniqueness** — every ISIN appears in at
+most one bucket slot (default OR alternative), and `validateCatalog`
+fails fast otherwise. The mutators `injectEntry`, `injectAlternative`,
+and `setBucketDefault` reject any write that would violate this
+invariant; in particular `setBucketDefault` also refuses targets that
+already live as an alternative within the SAME bucket (would create a
+within-bucket duplicate). Operator-facing surfaces:
+- **Instruments sub-tab** (`src/pages/admin/Catalog.tsx` + `src/components/admin/InstrumentsPanel.tsx`) — full CRUD over the INSTRUMENTS table with usage column.
+- **Tree-row registry pickers** (`src/components/admin/InstrumentPicker.tsx`, wired in `ConsolidatedEtfTreePanel.tsx`) — "Default ändern" and "+ Alternative" buttons pick from already-registered, currently-unassigned ISINs; "Neues Instrument …" still allows ad-hoc creation via the legacy `AddAlternativeForm`.
+- **Glossary** (`src/components/admin/Glossary.tsx`) — added plain-language entries explaining "Instrument" vs "Bucket-Zuordnung" (DE+EN).
+- New backend routes: `GET/POST/PATCH/DELETE /admin/instruments`, `POST /admin/buckets/:key/alternatives`, `PUT /admin/buckets/:key/default` (all PR-only writes).
 
 ## Project Documentation
 

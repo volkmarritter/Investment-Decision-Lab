@@ -23,6 +23,7 @@ import { describe, it, expect } from "vitest";
 import {
   injectAlternative,
   removeAlternative,
+  setBucketDefault,
   type NewAlternativeEntry,
 } from "../../api-server/src/lib/github";
 import { parseCatalogFromSource } from "../../api-server/src/lib/catalog-parser";
@@ -396,6 +397,157 @@ describe("removeAlternative", () => {
 
   it("produces output that round-trips through the parser cleanly", () => {
     const r = removeAlternative(TWO_ALTS, "Equity-Global", "IE00BK5BQT80");
+    expect(r.status).toBe("ok");
+    expect(() => parseCatalogFromSource(r.content)).not.toThrow();
+  });
+});
+
+describe("setBucketDefault", () => {
+  // The mutator must enforce strict global ISIN uniqueness — the new
+  // default cannot already live in another bucket as default OR alt,
+  // AND it cannot already live inside the SAME bucket as an alternative
+  // (that would create a within-bucket duplicate). The instrument must
+  // also already exist in the INSTRUMENTS table.
+  it("swaps the default to a registered, unassigned ISIN", () => {
+    const src = buildSource({
+      instruments: [
+        { isin: "IE00B3YLTY66", name: "ACWI IMI" },
+        { isin: "IE00BK5BQT80", name: "VWRA" },
+        { isin: "IE00B5BMR087", name: "CSPX" },
+      ],
+      buckets: [
+        { key: "Equity-Global", default: "IE00B3YLTY66", alternatives: [] },
+        { key: "Equity-USA", default: "IE00B5BMR087", alternatives: [] },
+      ],
+    });
+    const r = setBucketDefault(src, "Equity-Global", "IE00BK5BQT80");
+    expect(r.status).toBe("ok");
+    const parsed = parseCatalogFromSource(r.content);
+    expect(parsed["Equity-Global"].isin).toBe("IE00BK5BQT80");
+  });
+
+  it("returns parent_missing when the bucket key doesn't exist", () => {
+    const src = buildSource({
+      instruments: [{ isin: "IE00B3YLTY66", name: "X" }],
+      buckets: [
+        { key: "Equity-Global", default: "IE00B3YLTY66", alternatives: [] },
+      ],
+    });
+    const r = setBucketDefault(src, "Does-Not-Exist", "IE00B3YLTY66");
+    expect(r.status).toBe("parent_missing");
+  });
+
+  it("returns instrument_missing when the ISIN isn't in INSTRUMENTS", () => {
+    const src = buildSource({
+      instruments: [{ isin: "IE00B3YLTY66", name: "X" }],
+      buckets: [
+        { key: "Equity-Global", default: "IE00B3YLTY66", alternatives: [] },
+      ],
+    });
+    const r = setBucketDefault(src, "Equity-Global", "IE00BUNKNOWN0");
+    expect(r.status).toBe("instrument_missing");
+  });
+
+  it("returns default_unchanged when the ISIN already is the default", () => {
+    const src = buildSource({
+      instruments: [{ isin: "IE00B3YLTY66", name: "X" }],
+      buckets: [
+        { key: "Equity-Global", default: "IE00B3YLTY66", alternatives: [] },
+      ],
+    });
+    const r = setBucketDefault(src, "Equity-Global", "IE00B3YLTY66");
+    expect(r.status).toBe("default_unchanged");
+  });
+
+  it("returns isin_in_use when the ISIN is the default of another bucket", () => {
+    const src = buildSource({
+      instruments: [
+        { isin: "IE00B3YLTY66", name: "ACWI" },
+        { isin: "IE00B5BMR087", name: "CSPX" },
+      ],
+      buckets: [
+        { key: "Equity-Global", default: "IE00B3YLTY66", alternatives: [] },
+        { key: "Equity-USA", default: "IE00B5BMR087", alternatives: [] },
+      ],
+    });
+    const r = setBucketDefault(src, "Equity-Global", "IE00B5BMR087");
+    expect(r.status).toBe("isin_in_use");
+    expect(r.conflict).toBe("Equity-USA");
+  });
+
+  it("returns isin_in_use when the ISIN is an alternative of another bucket", () => {
+    const src = buildSource({
+      instruments: [
+        { isin: "IE00B3YLTY66", name: "ACWI" },
+        { isin: "IE00BK5BQT80", name: "VWRA" },
+        { isin: "IE00B5BMR087", name: "CSPX" },
+      ],
+      buckets: [
+        {
+          key: "Equity-Global",
+          default: "IE00B3YLTY66",
+          alternatives: ["IE00BK5BQT80"],
+        },
+        { key: "Equity-USA", default: "IE00B5BMR087", alternatives: [] },
+      ],
+    });
+    const r = setBucketDefault(src, "Equity-USA", "IE00BK5BQT80");
+    expect(r.status).toBe("isin_in_use");
+    expect(r.conflict).toBe("Equity-Global alt 1");
+  });
+
+  // Regression — within-bucket duplicate. Before the fix, swapping the
+  // default into an ISIN that already lived as an alternative of the
+  // SAME bucket was allowed, producing { default: X, alternatives: [X] }.
+  // The mutator must refuse this; operator must detach the alt first.
+  it("returns isin_in_use when target ISIN is an alternative of the SAME bucket", () => {
+    const src = buildSource({
+      instruments: [
+        { isin: "IE00B3YLTY66", name: "ACWI" },
+        { isin: "IE00BK5BQT80", name: "VWRA" },
+      ],
+      buckets: [
+        {
+          key: "Equity-Global",
+          default: "IE00B3YLTY66",
+          alternatives: ["IE00BK5BQT80"],
+        },
+      ],
+    });
+    const r = setBucketDefault(src, "Equity-Global", "IE00BK5BQT80");
+    expect(r.status).toBe("isin_in_use");
+    expect(r.conflict).toBe("Equity-Global alt 1");
+    // Catalog source must be untouched on failure.
+    expect(r.content).toBe(src);
+  });
+
+  it("normalises ISIN comparison case-insensitively", () => {
+    const src = buildSource({
+      instruments: [
+        { isin: "IE00B3YLTY66", name: "ACWI" },
+        { isin: "IE00BK5BQT80", name: "VWRA" },
+      ],
+      buckets: [
+        { key: "Equity-Global", default: "IE00B3YLTY66", alternatives: [] },
+      ],
+    });
+    const r = setBucketDefault(src, "Equity-Global", "ie00bk5bqt80");
+    expect(r.status).toBe("ok");
+    const parsed = parseCatalogFromSource(r.content);
+    expect(parsed["Equity-Global"].isin.toUpperCase()).toBe("IE00BK5BQT80");
+  });
+
+  it("produces output that round-trips through the parser cleanly", () => {
+    const src = buildSource({
+      instruments: [
+        { isin: "IE00B3YLTY66", name: "ACWI" },
+        { isin: "IE00BK5BQT80", name: "VWRA" },
+      ],
+      buckets: [
+        { key: "Equity-Global", default: "IE00B3YLTY66", alternatives: [] },
+      ],
+    });
+    const r = setBucketDefault(src, "Equity-Global", "IE00BK5BQT80");
     expect(r.status).toBe("ok");
     expect(() => parseCatalogFromSource(r.content)).not.toThrow();
   });

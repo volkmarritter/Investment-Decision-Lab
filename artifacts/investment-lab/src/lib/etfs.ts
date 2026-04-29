@@ -90,10 +90,10 @@ export interface ETFRecord {
   // validateCatalog():
   //   • alternatives.length ≤ MAX_ALTERNATIVES_PER_BUCKET
   //   • all ISINs within a bucket (default + alternatives) are distinct
-  //   • an ISIN used as an alternative is not used as default OR
-  //     alternative anywhere else in the catalog (uniqueness preserved
-  //     for the alternatives layer; pre-existing default-default ISIN
-  //     duplicates between hedged/synthetic variants are tolerated).
+  //   • every ISIN appears at most once across the entire catalog —
+  //     whether as default or alternative — so the INSTRUMENTS table is
+  //     the unambiguous source of truth and bucket assignments cannot
+  //     diverge.
   // ----------------------------------------------------------------------
   alternatives?: ETFRecord[];
 }
@@ -266,6 +266,18 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     comment: "GBP-hedged share class for sterling-based investors; identical underlying basket.",
     listings: { LSE: { ticker: "GSPX" } },
     defaultExchange: "LSE",
+  }),
+  "IE00B88DZ566": I({
+    name: "UBS Core S&P 500 CHF Hedged UCITS",
+    isin: "IE00B88DZ566",
+    terBps: 20,
+    domicile: "Ireland",
+    replication: "Physical",
+    distribution: "Accumulating",
+    currency: "CHF",
+    comment: "CHF-hedged share class for franc-based investors; strips USD/CHF FX volatility from S&P 500 exposure.",
+    listings: { SIX: { ticker: "SP5CHA" } },
+    defaultExchange: "SIX",
   }),
   "IE00B3F81409": I({
     name: "iShares Core Global Aggregate Bond UCITS",
@@ -885,7 +897,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
     alternatives: ["IE00BM67HW99", "IE00BRKWGL70"],
   }),
   "Equity-USA-CHF": B({
-    default: "IE00B3ZW0K18",
+    default: "IE00B88DZ566",
     alternatives: [],
   }),
   "Equity-USA-GBP": B({
@@ -1310,23 +1322,20 @@ export function getETFDetails(
 // ----------------------------------------------------------------------------
 // Deterministic structural integrity check for the curated catalog.
 // Asserts the per-bucket-ETF-picker invariants the operator demanded
-// when introducing the alternatives layer:
+// when introducing the alternatives layer + the strict cross-bucket
+// uniqueness invariant introduced with Task #111 (split INSTRUMENTS
+// table):
 //
 //   • Every CATALOG key has a default (the entry itself — guaranteed by
 //     construction since the key cannot exist without an ETFRecord).
 //   • alternatives.length ≤ MAX_ALTERNATIVES_PER_BUCKET per bucket
 //     (max 1 default + MAX_ALTERNATIVES_PER_BUCKET alternatives).
-//   • Within a single bucket, all 1–3 ISINs are distinct (no duplicate
+//   • Within a single bucket, all 1..N ISINs are distinct (no duplicate
 //     "role" within a bucket).
-//   • An ISIN that appears in any bucket's alternatives list does NOT
-//     appear as a default ISIN of another bucket, nor as an alternative
-//     ISIN of any other bucket. ("Jeder ETF zur Auswahl benötigt eine
-//     eindeutige Bucket-Zuordnung.")
-//
-// Pre-existing default-only ISIN duplicates between hedged variant keys
-// (e.g. Equity-USA-EUR and Equity-USA-CHF historically share an ISIN)
-// are tolerated — they're not part of the alternatives layer and the
-// validation rule is scoped to the new picker concept.
+//   • Every ISIN appears AT MOST ONCE across the entire catalog —
+//     whether as default or as alternative, in any bucket. This is the
+//     unique bucket-assignment rule the operator demanded so the
+//     INSTRUMENTS table stays the unambiguous source of truth.
 //
 // Wired into a vitest unit test — failures cause CI to refuse the build.
 // ----------------------------------------------------------------------------
@@ -1338,10 +1347,14 @@ export interface CatalogValidationIssue {
 
 export function validateCatalog(): CatalogValidationIssue[] {
   const issues: CatalogValidationIssue[] = [];
-  // First pass: per-bucket invariants (size cap + intra-bucket ISIN
-  // uniqueness). Collect alternative ISINs and their owning bucket for
-  // the cross-bucket pass.
-  const altOwnership = new Map<string, string>(); // alt-ISIN → owning bucket key
+  // ownership[isin] = list of "bucketKey:role" usages; any ISIN with
+  // more than one usage is a global-uniqueness violation.
+  const ownership = new Map<string, Array<{ bucket: string; role: "default" | "alternative" }>>();
+  function note(isin: string, bucket: string, role: "default" | "alternative") {
+    const list = ownership.get(isin) ?? [];
+    list.push({ bucket, role });
+    ownership.set(isin, list);
+  }
   for (const [key, rec] of Object.entries(CATALOG)) {
     const alts = rec.alternatives ?? [];
     if (alts.length > MAX_ALTERNATIVES_PER_BUCKET) {
@@ -1351,6 +1364,7 @@ export function validateCatalog(): CatalogValidationIssue[] {
         message: `bucket has ${alts.length} alternatives; max is ${MAX_ALTERNATIVES_PER_BUCKET} (1 default + ${MAX_ALTERNATIVES_PER_BUCKET} alternatives = ${MAX_ALTERNATIVES_PER_BUCKET + 1} ETFs total)`,
       });
     }
+    note(rec.isin, key, "default");
     const seenInBucket = new Set<string>([rec.isin]);
     for (const alt of alts) {
       if (seenInBucket.has(alt.isin)) {
@@ -1362,30 +1376,22 @@ export function validateCatalog(): CatalogValidationIssue[] {
       } else {
         seenInBucket.add(alt.isin);
       }
-      const prevOwner = altOwnership.get(alt.isin);
-      if (prevOwner && prevOwner !== key) {
-        issues.push({
-          severity: "error",
-          bucket: key,
-          message: `alternative ISIN ${alt.isin} is also used as an alternative in bucket "${prevOwner}" — alternatives must have a unique bucket assignment`,
-        });
-      } else {
-        altOwnership.set(alt.isin, key);
-      }
+      note(alt.isin, key, "alternative");
     }
   }
-  // Second pass: alternative ISIN must not collide with any bucket's
-  // default ISIN (the alternatives layer must be strictly distinct from
-  // the defaults universe).
-  for (const [altIsin, owningBucket] of altOwnership.entries()) {
-    for (const [otherKey, otherRec] of Object.entries(CATALOG)) {
-      if (otherRec.isin === altIsin) {
-        issues.push({
-          severity: "error",
-          bucket: owningBucket,
-          message: `alternative ISIN ${altIsin} also serves as the default ISIN of bucket "${otherKey}" — alternatives must not shadow another bucket's default`,
-        });
-      }
+  // Cross-bucket uniqueness pass: any ISIN that shows up in more than
+  // one bucket slot is a violation, regardless of role.
+  for (const [isin, usages] of ownership.entries()) {
+    if (usages.length <= 1) continue;
+    // Report the second+ occurrence(s); the first usage is implicitly
+    // "the existing one" the new edit collides with.
+    const [first, ...rest] = usages;
+    for (const u of rest) {
+      issues.push({
+        severity: "error",
+        bucket: u.bucket,
+        message: `ISIN ${isin} is already assigned to bucket "${first.bucket}" as ${first.role} — every ISIN may appear in at most one bucket slot`,
+      });
     }
   }
   return issues;
