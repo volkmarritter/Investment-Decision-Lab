@@ -187,24 +187,33 @@ export function BuildPortfolio() {
   // Cross-tab publishing: broadcast the latest Build form values and
   // manual-weights snapshot so the Compare tab can mirror them into Slot A
   // (when linked). In-memory only — fresh on full page reload, mirrors the
-  // existing setLastAllocation pattern. Subscribing via form.watch (instead
-  // of a list of form.watch("field") deps) keeps every keystroke in sync
-  // without enumerating every input.
+  // existing setLastAllocation pattern.
+  //
+  // GATED on hasGenerated: until the user explicitly clicks "Generate
+  // Portfolio" at least once, Build is just sitting at its default form
+  // values and there is no portfolio to link Compare to. Publishing pre-
+  // generate would auto-link Slot A on every fresh page load and replace
+  // Compare's own defaults with Build's defaults — confusing and not what
+  // the user asked for. Once hasGenerated flips true, we publish the
+  // current snapshot and then keep streaming updates via form.watch so
+  // mid-edit changes show up live in a linked Slot A.
   useEffect(() => {
+    if (!hasGenerated) return;
     setLastBuildInput(form.getValues() as unknown as Record<string, unknown>);
     const sub = form.watch((value) => {
       setLastBuildInput(value as unknown as Record<string, unknown>);
     });
     return () => sub.unsubscribe();
-  }, [form]);
+  }, [form, hasGenerated]);
 
-  // Manual-weights snapshot pub/sub. Fires every time the local snapshot
-  // changes (which already happens on every pin/unpin/edit via the existing
-  // subscribeManualWeights wiring), so Compare always sees the latest set
-  // even when the user is mid-edit and hasn't pressed Generate yet.
+  // Manual-weights snapshot pub/sub. Same hasGenerated gate as above —
+  // pre-generate, the local snapshot is whatever the user is mid-pinning
+  // but hasn't asked to apply yet. Once Build has generated, every
+  // subsequent pin/unpin/edit propagates to Compare.
   useEffect(() => {
+    if (!hasGenerated) return;
     setLastBuildManualWeights(manualWeights);
-  }, [manualWeights]);
+  }, [manualWeights, hasGenerated]);
 
   useEffect(() => {
     if (hasGenerated && output) {
