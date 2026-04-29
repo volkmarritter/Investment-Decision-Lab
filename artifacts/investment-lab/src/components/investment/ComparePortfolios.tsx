@@ -423,11 +423,13 @@ export function ComparePortfolios() {
             {t("compare.slotA.linkedStatement")}
           </p>
         )}
-        {/* Slot B helper (Task #78): tell the user up-front that B is a
-            clean defaults-only baseline until a saved scenario is loaded
-            into it. Hidden once a scenario IS loaded (snapshot present)
-            so the message doesn't contradict reality. */}
-        {prefix === "portB" && etfSelectionsB === undefined && manualWeightsB === undefined && (
+        {/* Slot B helper (Task #78): mirror Slot A's linked-statement
+            visibility — only show this hint when A is currently
+            displaying its "this is your Build portfolio" statement, so
+            the two sentences appear as a paired explanation of the
+            Compare layout. The check `hasBuildPublished && linked`
+            matches Slot A's render condition above. */}
+        {prefix === "portB" && hasBuildPublished && linked && (
           <p
             className="mt-2 text-xs text-muted-foreground italic"
             data-testid="compare-slot-b-defaults-statement"
