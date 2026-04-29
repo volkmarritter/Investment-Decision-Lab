@@ -2,17 +2,22 @@
 // ----------------------------------------------------------------------------
 // biconBrand.test.tsx
 // ----------------------------------------------------------------------------
-// Locks in the BICon brand chrome introduced by Task #80 across the three
-// surfaces it lives on:
+// Locks in the surviving BICon brand chrome (Task #80, trimmed by Task #87)
+// across the three surfaces it lives on:
 //
-//   1. App header — small mark + "A BICon showcase" attribution next to the
-//      Lab tagline, plus a persistent "Talk to us" CTA pill that links to
-//      the BICon mailto contact.
+//   1. App header — "A BICon showcase" attribution next to the Lab tagline,
+//      plus a persistent "Talk to us" CTA pill that links to the BICon
+//      mailto contact.
 //   2. App footer (DisclaimerFooter) — language-aware attribution row with
-//      mark, copyright line, tagline, mailto button and bicon.li button.
-//   3. PDF report — the same mark and attribution lines appear in the
-//      printed/forwarded PortfolioReport header and footer so any artefact
-//      that travels carries the brand and a contact path.
+//      copyright line, mailto button and bicon.li button.
+//   3. PDF report — the same attribution lines appear in the printed/forwarded
+//      PortfolioReport header and footer so any artefact that travels carries
+//      the brand and a contact path.
+//
+// Task #87 removed the BiconMark logo from every surface and the
+// "We build investment tools like this — talk to us about your project."
+// tagline from the footer; this file now also pins those removals so they
+// can't silently regress.
 //
 // We render the real components (not snapshots) and assert on stable
 // data-testid hooks so future copy / styling tweaks don't fight the tests.
@@ -25,7 +30,6 @@ import { cleanup, render, screen, act } from "@testing-library/react";
 import { LanguageProvider, useT } from "../src/lib/i18n";
 import { TooltipProvider } from "../src/components/ui/tooltip";
 import { DisclaimerFooter } from "../src/components/investment/Disclaimer";
-import { BiconMark } from "../src/components/investment/BiconMark";
 import { BRAND } from "../src/lib/brand";
 import { PortfolioReport } from "../src/components/investment/PortfolioReport";
 import type {
@@ -33,6 +37,13 @@ import type {
   PortfolioOutput,
   ETFImplementation,
 } from "../src/lib/types";
+
+// Exact tagline copy that Task #87 removed. Asserted to be absent from every
+// brand surface so a future copy revert won't silently bring it back.
+const REMOVED_TAGLINE_EN =
+  "We build investment tools like this — talk to us about your project.";
+const REMOVED_TAGLINE_DE =
+  "Wir bauen Anlagetools wie dieses — sprechen Sie uns auf Ihr Projekt an.";
 
 // -----------------------------------------------------------------------------
 // Test harness
@@ -109,47 +120,23 @@ function withProviders(node: React.ReactNode, lang: "en" | "de" = "en") {
 }
 
 // -----------------------------------------------------------------------------
-// 1. BiconMark — basic rendering contract
-// -----------------------------------------------------------------------------
-
-describe("BiconMark", () => {
-  it("renders an svg with the data-testid hook and is decorative by default", () => {
-    render(<BiconMark size={20} />);
-    const mark = screen.getByTestId("bicon-mark");
-    expect(mark.tagName.toLowerCase()).toBe("svg");
-    expect(mark.getAttribute("aria-hidden")).toBe("true");
-    expect(mark.getAttribute("width")).toBe("20");
-    expect(mark.getAttribute("height")).toBe("20");
-  });
-
-  it("exposes an accessible name when ariaLabel is provided", () => {
-    render(<BiconMark ariaLabel="BICon" />);
-    const mark = screen.getByTestId("bicon-mark");
-    expect(mark.getAttribute("aria-label")).toBe("BICon");
-    expect(mark.getAttribute("role")).toBe("img");
-  });
-});
-
-// -----------------------------------------------------------------------------
-// 2. Footer — DisclaimerFooter attribution row
+// 1. Footer — DisclaimerFooter attribution row
 // -----------------------------------------------------------------------------
 
 describe("DisclaimerFooter — BICon attribution row", () => {
-  it("renders the mark, copyright line, tagline and both outbound buttons in EN", () => {
-    render(withProviders(<DisclaimerFooter />, "en"));
+  it("renders the copyright line and both outbound buttons in EN, without the logo or tagline", () => {
+    const { container } = render(withProviders(<DisclaimerFooter />, "en"));
 
     const block = screen.getByTestId("bicon-footer-attribution");
     expect(block).toBeTruthy();
-    // Mark is present inside the attribution block.
-    expect(block.querySelector('[data-testid="bicon-mark"]')).toBeTruthy();
-    // Copyright + discipline tagline are rendered.
+    // Logo (Task #87) is no longer rendered anywhere in the footer.
+    expect(container.querySelector('[data-testid="bicon-mark"]')).toBeNull();
+    // Copyright + discipline tagline are still rendered.
     expect(block.textContent ?? "").toContain(String(BRAND.copyrightYear));
     expect(block.textContent ?? "").toContain(BRAND.fullName);
     expect(block.textContent ?? "").toContain(BRAND.disciplineTagline);
-    // English brand tagline.
-    expect(block.textContent ?? "").toContain(
-      "We build investment tools like this",
-    );
+    // The removed tagline copy is not in the footer.
+    expect(block.textContent ?? "").not.toContain(REMOVED_TAGLINE_EN);
     // Mailto + bicon.li buttons with the right hrefs.
     const mailto = screen.getByTestId(
       "bicon-footer-mailto",
@@ -162,14 +149,13 @@ describe("DisclaimerFooter — BICon attribution row", () => {
     expect(link.getAttribute("rel")).toBe("noopener noreferrer");
   });
 
-  it("uses the German subject line and DE site URL when lang=de", () => {
-    render(withProviders(<DisclaimerFooter />, "de"));
+  it("uses the German subject line and DE site URL when lang=de, with no logo or tagline", () => {
+    const { container } = render(withProviders(<DisclaimerFooter />, "de"));
 
     const block = screen.getByTestId("bicon-footer-attribution");
-    // German tagline.
-    expect(block.textContent ?? "").toContain(
-      "Wir bauen Anlagetools wie dieses",
-    );
+    // No logo, no removed tagline.
+    expect(container.querySelector('[data-testid="bicon-mark"]')).toBeNull();
+    expect(block.textContent ?? "").not.toContain(REMOVED_TAGLINE_DE);
     // Mailto subject is the DE variant.
     const mailto = screen.getByTestId(
       "bicon-footer-mailto",
@@ -182,7 +168,7 @@ describe("DisclaimerFooter — BICon attribution row", () => {
 });
 
 // -----------------------------------------------------------------------------
-// 3. App header — Lab page imports
+// 2. App header — Lab page imports
 // -----------------------------------------------------------------------------
 
 // We render the Lab page itself rather than re-implement the header so we
@@ -193,7 +179,7 @@ describe("DisclaimerFooter — BICon attribution row", () => {
 import InvestmentLab from "../src/pages/InvestmentLab";
 
 describe("InvestmentLab header — BICon brand layer", () => {
-  it("renders the BICon attribution and the 'Talk to us' CTA in the header", () => {
+  it("renders the BICon attribution and the 'Talk to us' CTA in the header without a logo", () => {
     // jsdom doesn't implement scrollIntoView; some children call it on mount.
     if (!Element.prototype.scrollIntoView) {
       Element.prototype.scrollIntoView = () => {};
@@ -204,11 +190,14 @@ describe("InvestmentLab header — BICon brand layer", () => {
       container = result.container;
     });
 
-    // Header attribution: span with mark + "A BICon showcase".
+    // Header attribution: span with "A BICon showcase" — no logo any more.
     const headerAttr = screen.getByTestId("bicon-header-attribution");
     expect(headerAttr).toBeTruthy();
-    expect(headerAttr.querySelector('[data-testid="bicon-mark"]')).toBeTruthy();
     expect(headerAttr.textContent ?? "").toContain("A BICon showcase");
+    // Logo (Task #87) is no longer rendered anywhere on the page.
+    expect(container!.querySelector('[data-testid="bicon-mark"]')).toBeNull();
+    // The removed tagline copy must not surface anywhere on the page.
+    expect(container!.textContent ?? "").not.toContain(REMOVED_TAGLINE_EN);
 
     // CTA pill with mailto href and accessible label.
     const cta = screen.getByTestId("bicon-cta-header") as HTMLElement;
@@ -229,7 +218,7 @@ describe("InvestmentLab header — BICon brand layer", () => {
 });
 
 // -----------------------------------------------------------------------------
-// 4. PDF report — header + footer brand chrome
+// 3. PDF report — header + footer brand chrome
 // -----------------------------------------------------------------------------
 
 const baseInput: PortfolioInput = {
@@ -272,8 +261,8 @@ const baseOutput: PortfolioOutput = {
 } as unknown as PortfolioOutput;
 
 describe("PortfolioReport — BICon brand chrome (PDF)", () => {
-  it("renders the BICon attribution under the title and the brand row in the footer", () => {
-    render(
+  it("renders the BICon attribution under the title and the brand row in the footer, without the logo or tagline", () => {
+    const { container } = render(
       withProviders(
         <PortfolioReport
           input={baseInput}
@@ -284,25 +273,25 @@ describe("PortfolioReport — BICon brand chrome (PDF)", () => {
       ),
     );
 
-    // Header attribution block with mark + "A BICon showcase".
+    // Header attribution block with "A BICon showcase" — no logo any more.
     const headerAttr = screen.getByTestId("report-bicon-attribution");
     expect(headerAttr).toBeTruthy();
-    expect(headerAttr.querySelector('[data-testid="bicon-mark"]')).toBeTruthy();
     expect(headerAttr.textContent ?? "").toContain("A BICon showcase");
 
-    // Footer brand row carries the full attribution sentence + email + host.
+    // Footer brand row carries the attribution sentence + email + host.
     const footerRow = screen.getByTestId("report-bicon-footer");
     expect(footerRow).toBeTruthy();
-    expect(footerRow.querySelector('[data-testid="bicon-mark"]')).toBeTruthy();
-    expect(footerRow.textContent ?? "").toContain(
-      "We build investment tools like this",
-    );
     expect(footerRow.textContent ?? "").toContain(BRAND.contactEmail);
     expect(footerRow.textContent ?? "").toContain(BRAND.hostLabel);
+
+    // Logo (Task #87) is no longer rendered anywhere in the report, and the
+    // removed tagline copy must not appear either.
+    expect(container.querySelector('[data-testid="bicon-mark"]')).toBeNull();
+    expect(container.textContent ?? "").not.toContain(REMOVED_TAGLINE_EN);
   });
 
-  it("uses German brand copy when the language is set to DE", () => {
-    render(
+  it("uses German brand copy when the language is set to DE, without the logo or tagline", () => {
+    const { container } = render(
       withProviders(
         <PortfolioReport
           input={baseInput}
@@ -315,9 +304,8 @@ describe("PortfolioReport — BICon brand chrome (PDF)", () => {
     expect(
       screen.getByTestId("report-bicon-attribution").textContent ?? "",
     ).toContain("BICon-Showcase");
-    expect(
-      screen.getByTestId("report-bicon-footer").textContent ?? "",
-    ).toContain("Wir bauen Anlagetools wie dieses");
+    expect(container.querySelector('[data-testid="bicon-mark"]')).toBeNull();
+    expect(container.textContent ?? "").not.toContain(REMOVED_TAGLINE_DE);
   });
 });
 

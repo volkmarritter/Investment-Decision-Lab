@@ -6,8 +6,8 @@
 // (Business & IT Consulting, www.bicon.li) — every header, footer, PDF
 // header and PDF footer pulls its brand strings, links and contact details
 // from here so the chrome stays consistent across the app and the exported
-// reports. To change the email, the Calendly target, or the wordmark
-// styling, edit this file (and the BiconMark SVG component) only.
+// reports. To change the email, the Calendly target, or the brand copy,
+// edit this file only.
 // ----------------------------------------------------------------------------
 
 import type { Lang } from "@/lib/i18n";

@@ -14,7 +14,6 @@ import { estimateFees } from "@/lib/fees";
 import { describeEtf } from "@/lib/etfDescription";
 import { useT } from "@/lib/i18n";
 import { BRAND } from "@/lib/brand";
-import { BiconMark } from "@/components/investment/BiconMark";
 
 /** Illustrative investment amount used by the Monte Carlo and Fee Estimator
  *  blocks of the detailed report. Mirrors the on-screen default for both
@@ -218,11 +217,10 @@ export function PortfolioReport({
            *  Tailwind-classed so the colour is locked in at rasterisation
            *  time regardless of theme. */}
           <div
-            className="flex items-center gap-1.5 mt-1.5"
+            className="mt-1.5"
             style={{ fontSize: "9px", color: "#64748b" }}
             data-testid="report-bicon-attribution"
           >
-            <BiconMark size={11} style={{ color: "#475569" }} />
             <span>{t("report.bicon.attribution")}</span>
           </div>
         </div>
@@ -546,8 +544,7 @@ export function PortfolioReport({
           style={{ fontSize: "8px", color: "#64748b" }}
           data-testid="report-bicon-footer"
         >
-          <div className="flex items-center gap-1.5">
-            <BiconMark size={10} style={{ color: "#475569" }} />
+          <div>
             <span>{t("report.bicon.footer")}</span>
           </div>
           <div className="flex items-center gap-2 shrink-0">

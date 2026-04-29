@@ -12,7 +12,6 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useT } from "@/lib/i18n";
 import { BRAND, biconContactMailto, biconSiteUrl } from "@/lib/brand";
-import { BiconMark } from "@/components/investment/BiconMark";
 
 export function DisclaimerFooter() {
   const { t, lang } = useT();
@@ -58,24 +57,18 @@ export function DisclaimerFooter() {
         </div>
 
         {/* BICon attribution row — language-aware site link, mailto CTA,
-         *  and a one-line tagline. Carries the brand and a contact path
-         *  on every screen so the showcase nature is visible without
-         *  needing to scroll back to the header. */}
+         *  and a copyright/discipline line. Carries the brand and a
+         *  contact path on every screen so the showcase nature is
+         *  visible without needing to scroll back to the header. */}
         <div
           className="border-t border-border/60 pt-3 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 text-xs text-muted-foreground"
           data-testid="bicon-footer-attribution"
         >
-          <div className="flex items-start gap-2 min-w-0">
-            <BiconMark size={18} className="text-foreground/80 shrink-0 mt-0.5" />
-            <div className="space-y-0.5 min-w-0">
-              <p className="leading-relaxed">
-                © {BRAND.copyrightYear} {BRAND.fullName} –{" "}
-                <span className="whitespace-nowrap">{BRAND.disciplineTagline}</span>
-              </p>
-              <p className="leading-relaxed">
-                {t("footer.bicon.tagline")}
-              </p>
-            </div>
+          <div className="min-w-0">
+            <p className="leading-relaxed">
+              © {BRAND.copyrightYear} {BRAND.fullName} –{" "}
+              <span className="whitespace-nowrap">{BRAND.disciplineTagline}</span>
+            </p>
           </div>
           <div className="flex items-center gap-2 self-start sm:self-auto shrink-0">
             <Button

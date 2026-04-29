@@ -10,7 +10,6 @@ import { BookOpen, CalendarClock, Layers, PieChart, Scale } from "lucide-react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useT } from "@/lib/i18n";
 import { DisclaimerFooter } from "@/components/investment/Disclaimer";
-import { BiconMark } from "@/components/investment/BiconMark";
 import { biconContactMailto } from "@/lib/brand";
 
 // Tab values used by the URL `?tab=` query parameter (Task #43). The default
@@ -96,7 +95,6 @@ export default function InvestmentLab() {
                   data-testid="bicon-header-attribution"
                 >
                   <span aria-hidden="true">·</span>
-                  <BiconMark size={11} className="text-muted-foreground/80" />
                   <span>{t("header.bicon.attribution")}</span>
                 </span>
               </p>
