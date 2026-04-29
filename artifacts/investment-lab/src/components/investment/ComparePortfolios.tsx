@@ -1125,18 +1125,26 @@ export function ComparePortfolios() {
                 {/* Geographic Exposure Map — gated per side on
                  *  lookThroughView. Hidden entirely when both sides are OFF;
                  *  collapses cleanly to a single column when only one side
-                 *  is OFF. Matches Build's behaviour. */}
+                 *  is OFF. Matches Build's behaviour. The outer wrapper
+                 *  carries a testid so e2e tests can scope to this
+                 *  section (the Build tab also renders a GeoExposureMap
+                 *  via forceMount, so a page-wide title query would
+                 *  otherwise pick that up too). */}
                 {inputA && inputB && outputA && outputB &&
-                  renderLookThroughSection(
-                    inputA.lookThroughView,
-                    inputB.lookThroughView,
-                    (side) => (
-                      <GeoExposureMap
-                        etfs={(side === "A" ? outputA : outputB).etfImplementation}
-                        baseCurrency={(side === "A" ? inputA : inputB).baseCurrency}
-                      />
-                    ),
-                    "geo-mobile-toggle",
+                  (inputA.lookThroughView || inputB.lookThroughView) && (
+                    <div data-testid="compare-geo-section">
+                      {renderLookThroughSection(
+                        inputA.lookThroughView,
+                        inputB.lookThroughView,
+                        (side) => (
+                          <GeoExposureMap
+                            etfs={(side === "A" ? outputA : outputB).etfImplementation}
+                            baseCurrency={(side === "A" ? inputA : inputB).baseCurrency}
+                          />
+                        ),
+                        "geo-mobile-toggle",
+                      )}
+                    </div>
                   )}
 
                 {/* Per-portfolio deep dives: Monte Carlo, Risk Metrics, Stress Test */}
@@ -1462,7 +1470,7 @@ export function ComparePortfolios() {
                  *  only one side is OFF, we drop that side's column on
                  *  desktop and remove its tab on mobile. */}
                 {inputA && inputB && outputA && outputB && (inputA.lookThroughView || inputB.lookThroughView) && (
-                  <Card>
+                  <Card data-testid="compare-lookthrough-analysis-card">
                     <CardHeader>
                       <CardTitle>
                         {lang === "de" ? "Look-Through-Analyse" : "Look-Through Analysis"}
@@ -1493,7 +1501,7 @@ export function ComparePortfolios() {
                  *  lookThroughView. Same all-off / one-off semantics as the
                  *  Look-Through Analysis card above. */}
                 {inputA && inputB && outputA && outputB && (inputA.lookThroughView || inputB.lookThroughView) && (
-                  <Card>
+                  <Card data-testid="compare-top10-holdings-card">
                     <CardHeader>
                       <CardTitle>
                         {lang === "de"
