@@ -19,6 +19,7 @@ import {
   type ExposureMap,
 } from "@/lib/lookthrough";
 import { useT } from "@/lib/i18n";
+import { describeEtf } from "@/lib/etfDescription";
 
 interface ETFDetailsDialogProps {
   etf: ETFImplementation | null;
@@ -98,6 +99,21 @@ export function ETFDetailsDialog({ etf, open, onOpenChange }: ETFDetailsDialogPr
   const topHoldings = profile?.topHoldings ?? [];
   const topStamp = topHoldingsStampFor(etf.isin);
   const breakdownsStamp = breakdownsStampFor(etf.isin);
+  // Curated `comment` always wins. Only compute the auto-generated fallback
+  // when the catalog row left the field blank — keeps the work behind the
+  // helper out of the hot path for the (common) curated case.
+  const hasCuratedComment = Boolean(etf.comment && etf.comment.trim());
+  const autoDescription = hasCuratedComment
+    ? null
+    : describeEtf({
+        name: etf.exampleETF,
+        profile,
+        catalog: {
+          domicile: etf.domicile,
+          distribution: etf.distribution,
+          currency: etf.currency,
+        },
+      });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -178,11 +194,26 @@ export function ETFDetailsDialog({ etf, open, onOpenChange }: ETFDetailsDialogPr
               </FactCell>
             </div>
 
-            {etf.comment && (
-              <div className="text-xs text-muted-foreground border-l-2 border-muted pl-3 italic">
+            {hasCuratedComment ? (
+              <div
+                className="text-xs text-muted-foreground border-l-2 border-muted pl-3 italic"
+                data-testid="etf-details-curated-comment"
+              >
                 {etf.comment}
               </div>
-            )}
+            ) : autoDescription ? (
+              <div
+                className="space-y-1 border-l-2 border-muted pl-3"
+                data-testid="etf-details-auto-description"
+              >
+                <div className="text-xs text-muted-foreground italic">
+                  {lang === "de" ? autoDescription.de : autoDescription.en}
+                </div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
+                  {t("etf.details.autoDescriptionHint")}
+                </div>
+              </div>
+            ) : null}
 
             <Separator />
 

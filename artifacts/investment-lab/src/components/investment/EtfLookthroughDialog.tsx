@@ -17,6 +17,7 @@ import {
 } from "@/lib/lookthrough";
 import { useT } from "@/lib/i18n";
 import { useAdminT } from "@/lib/admin-i18n";
+import { describeEtf } from "@/lib/etfDescription";
 import { ExposureList, sortedTop, formatStamp } from "./ETFDetailsDialog";
 
 interface EtfLookthroughDialogProps {
@@ -58,6 +59,14 @@ export function EtfLookthroughDialog({
   const topHoldings = profile?.topHoldings ?? [];
   const topStamp = topHoldingsStampFor(isin);
   const breakdownsStamp = breakdownsStampFor(isin);
+  // Pool-only / look-through-only ETFs have no curated `comment`, so we
+  // always fall back to the auto-generated description here. Returns null
+  // if the profile isn't rich enough to say anything useful — in which
+  // case we render nothing rather than a vacuous placeholder.
+  const autoDescription = describeEtf({
+    name: name?.trim() || isin,
+    profile,
+  });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -117,6 +126,19 @@ export function EtfLookthroughDialog({
           data-testid="admin-etf-lookthrough-scroll"
         >
           <div className="space-y-5 py-4">
+            {autoDescription && (
+              <div
+                className="space-y-1 border-l-2 border-muted pl-3"
+                data-testid="admin-etf-lookthrough-auto-description"
+              >
+                <div className="text-xs text-muted-foreground italic">
+                  {lang === "de" ? autoDescription.de : autoDescription.en}
+                </div>
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
+                  {t("etf.details.autoDescriptionHint")}
+                </div>
+              </div>
+            )}
             {profile ? (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <ExposureList
