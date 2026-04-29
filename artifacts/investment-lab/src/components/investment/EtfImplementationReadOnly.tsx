@@ -3,6 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useT } from "@/lib/i18n";
 import type { ETFImplementation } from "@/lib/types";
+import { EtfImplementationCommentCell } from "./EtfImplementationCommentCell";
 import { ETFSnapshotFreshness } from "./SnapshotFreshness";
 
 interface Props {
@@ -114,7 +115,17 @@ export function EtfImplementationReadOnly({ etfs, testIdPrefix = "compare-etf", 
                   </TableCell>
                   <TableCell className="font-mono">{etf.currency}</TableCell>
                   <TableCell className="text-muted-foreground min-w-[220px] max-w-[320px]">
-                    {etf.comment}
+                    {/* Curated `comment` always wins. When the catalog row
+                        left the field blank (typically a look-through-only
+                        ETF), fall back to the same auto-generated description
+                        used in the Build tab's implementation table, the
+                        look-through dialog, the ETF details popup and the
+                        detailed PDF report so Compare doesn't render a blank
+                        cell for those rows. Rendering is delegated to
+                        <EtfImplementationCommentCell> so the fallback
+                        behaviour stays pinned by the existing component-level
+                        vitest. */}
+                    <EtfImplementationCommentCell etf={etf} />
                   </TableCell>
                 </TableRow>
               );
