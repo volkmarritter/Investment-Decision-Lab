@@ -239,7 +239,7 @@ export function PortfolioReport({
       </header>
 
       {/* Profile chips */}
-      <section className="mb-4">
+      <section className="mb-4" data-pdf-keep-together>
         <div className="flex flex-wrap gap-2">
           <ProfileChip
             label={t("report.chip.risk")}
@@ -285,7 +285,7 @@ export function PortfolioReport({
       </section>
 
       {/* Key metrics */}
-      <section className="mb-4">
+      <section className="mb-4" data-pdf-keep-together>
         <SectionTitle>{t("report.section.metrics")}</SectionTitle>
         <div className="grid grid-cols-5 gap-2 mt-2">
           <MetricTile
@@ -317,7 +317,7 @@ export function PortfolioReport({
       </section>
 
       {/* Allocation bars */}
-      <section className="mb-4">
+      <section className="mb-4" data-pdf-keep-together>
         <SectionTitle>{t("report.section.allocation")}</SectionTitle>
         <div className="mt-2 space-y-1">
           {allocationRows.map((row, i) => (
@@ -359,7 +359,7 @@ export function PortfolioReport({
       </section>
 
       {/* ETF implementation */}
-      <section className="mb-4">
+      <section className="mb-4" data-pdf-keep-together>
         <SectionTitle>{t("report.section.implementation")}</SectionTitle>
         <table
           className="w-full mt-2 border-collapse"
@@ -491,25 +491,31 @@ export function PortfolioReport({
         />
       )}
 
-      {/* Methodology line */}
-      <div
-        className="mt-3 pt-3 border-t border-slate-300 text-slate-600"
-        style={{ fontSize: "8.5px", lineHeight: 1.4 }}
-      >
-        <span className="font-semibold text-slate-700">
-          {t("report.footer.methodology")}:{" "}
-        </span>
-        {t("report.footer.methodology.body")}
-      </div>
+      {/* Methodology + Disclaimer footer block — wrapped so the PDF
+       *  exporter treats the methodology line and the full disclaimer as
+       *  one keep-together unit (data-pdf-keep-together), preventing the
+       *  page slicer from splitting the disclaimer halfway through. */}
+      <div data-pdf-keep-together>
+        {/* Methodology line */}
+        <div
+          className="mt-3 pt-3 border-t border-slate-300 text-slate-600"
+          style={{ fontSize: "8.5px", lineHeight: 1.4 }}
+        >
+          <span className="font-semibold text-slate-700">
+            {t("report.footer.methodology")}:{" "}
+          </span>
+          {t("report.footer.methodology.body")}
+        </div>
 
-      {/* Full legal disclaimer — same content as the on-screen 7-section
-       *  DisclaimerPdfBlock used by the legacy export, restyled to match the
-       *  report's typography. Carrying the full disclaimer (rather than a
-       *  short summary) preserves compliance parity with the previous PDF. */}
-      <footer
-        className="mt-3 pt-3 border-t border-slate-300 text-slate-600"
-        style={{ fontSize: "7.5px", lineHeight: 1.4 }}
-      >
+        {/* Full legal disclaimer — same content as the on-screen 7-section
+         *  DisclaimerPdfBlock used by the legacy export, restyled to match
+         *  the report's typography. Carrying the full disclaimer (rather
+         *  than a short summary) preserves compliance parity with the
+         *  previous PDF. */}
+        <footer
+          className="mt-3 pt-3 border-t border-slate-300 text-slate-600"
+          style={{ fontSize: "7.5px", lineHeight: 1.4 }}
+        >
         <h3
           className="font-semibold uppercase tracking-wider text-slate-700 mb-1"
           style={{ fontSize: "8.5px", letterSpacing: "0.06em" }}
@@ -550,7 +556,8 @@ export function PortfolioReport({
             <span>{BRAND.hostLabel}</span>
           </div>
         </div>
-      </footer>
+        </footer>
+      </div>
     </div>
   );
 }
@@ -686,7 +693,7 @@ function DetailedSections({
   return (
     <>
       {/* Section: Top 10 Equity Holdings (look-through) */}
-      <section className="mt-4">
+      <section className="mt-4" data-pdf-keep-together>
         <SectionTitle>
           {de
             ? "Top 10 Aktien-Positionen (Look-Through)"
@@ -757,11 +764,13 @@ function DetailedSections({
       </section>
 
       {/* Section: Monte Carlo projection
-       *  data-pdf-page-break="before" tells exportPdf.ts to start this
-       *  section on a fresh A4 page (operator request: pagination here keeps
-       *  the chart and its surrounding key figures on one continuous page,
-       *  rather than splitting across the seam between page 1 and 2). */}
-      <section className="mt-4" data-pdf-page-break="before">
+       *  Tagged data-pdf-keep-together so exportPdf.ts moves the whole
+       *  section (chart + surrounding key figures) to a fresh A4 page only
+       *  if it would otherwise be split across the page seam. The previous
+       *  hard-coded data-pdf-page-break="before" was removed in favour of
+       *  this uniform "break only when needed" rule shared by every other
+       *  section. */}
+      <section className="mt-4" data-pdf-keep-together>
         <SectionTitle>
           {de
             ? `Monte-Carlo-Projektion (illustrativ, ${fmtMoney(ILLUSTRATIVE_AMOUNT)} Investition)`
@@ -804,7 +813,7 @@ function DetailedSections({
       </section>
 
       {/* Section: Fee Estimator summary */}
-      <section className="mt-4">
+      <section className="mt-4" data-pdf-keep-together>
         <SectionTitle>
           {de
             ? `Gebühren-Schätzung (illustrativ, ${fmtMoney(ILLUSTRATIVE_AMOUNT)} über ${input.horizon} Jahre)`

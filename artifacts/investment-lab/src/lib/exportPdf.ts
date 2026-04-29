@@ -21,13 +21,23 @@ export async function exportToPdf(
     el.classList.remove("hidden");
   });
 
-  // Page-break markers: any descendant carrying data-pdf-page-break="before"
-  // will start on a fresh A4 page in the exported PDF. We can't rely on CSS
-  // page-break-before because the whole element is rasterised to a single
-  // canvas and then sliced at A4 boundaries — so we instead inject a
-  // transparent spacer just before each marker, sized to push the marker to
-  // the start of the next page. Spacers are removed in the finally block so
-  // the off-screen mount returns to its pristine state.
+  // Page-break handling: the whole report is rasterised to a single canvas
+  // and then sliced at A4 boundaries, so CSS page-break-* rules don't
+  // apply. To control where pages split we inject white spacers ahead of
+  // certain elements, sized so the element lands at the top of the next
+  // page. Two attributes drive this:
+  //
+  //   * data-pdf-page-break="before" — explicit "always start this on a
+  //     fresh page" marker. Kept for backward compatibility with any
+  //     consumer that needs forced pagination.
+  //   * data-pdf-keep-together — "don't let this element be split across a
+  //     page seam". A spacer is only injected when the element would
+  //     actually straddle a page boundary AND fits on a single page on its
+  //     own. Sections taller than one page are left to flow naturally so
+  //     we never produce pages that are entirely whitespace.
+  //
+  // Spacers are removed in the finally block so the off-screen mount
+  // returns to its pristine state.
   const PDF_PAGE_HEIGHT_MM = 297; // A4 portrait
   const PDF_PAGE_WIDTH_MM = 210;
   // Top inset applied to every page-break landing point. The off-screen
@@ -40,30 +50,51 @@ export async function exportToPdf(
   // 12mm matches the container's own top padding for consistency.
   const PDF_PAGE_BREAK_TOP_INSET_MM = 12;
   const insertedSpacers: HTMLElement[] = [];
-  const markers = Array.from(
-    element.querySelectorAll<HTMLElement>('[data-pdf-page-break="before"]'),
+  // Collect both marker types in a single document-order pass so cascading
+  // shifts from earlier insertions are reflected in later measurements.
+  const breakNodes = Array.from(
+    element.querySelectorAll<HTMLElement>(
+      '[data-pdf-page-break="before"], [data-pdf-keep-together]',
+    ),
   );
 
   try {
     // Give DOM a moment to reflow if theme changed
     await new Promise((resolve) => setTimeout(resolve, 100));
 
-    if (markers.length > 0) {
+    if (breakNodes.length > 0) {
       // CSS px per mm, derived from the *actual* rendered width of the
       // off-screen container (which is set to 210mm with box-sizing border-
       // box). This must match the px→mm ratio html2canvas+jsPDF will use
       // when sizing the slice, so the spacer aligns the marker exactly to
       // the page boundary.
       const pxPerMm = element.offsetWidth / PDF_PAGE_WIDTH_MM;
-      for (const marker of markers) {
+      for (const node of breakNodes) {
         // Re-measure each iteration: previously-inserted spacers shift the
-        // position of subsequent markers downward.
+        // position (and the height, if reflow rewrapped anything) of
+        // subsequent nodes downward.
         const elTop = element.getBoundingClientRect().top;
-        const markerTop = marker.getBoundingClientRect().top - elTop;
-        const markerTopMm = markerTop / pxPerMm;
-        const overshootMm = markerTopMm % PDF_PAGE_HEIGHT_MM;
+        const rect = node.getBoundingClientRect();
+        const nodeTopMm = (rect.top - elTop) / pxPerMm;
+        const nodeHeightMm = rect.height / pxPerMm;
+        const overshootMm = nodeTopMm % PDF_PAGE_HEIGHT_MM;
         // Already at (or within 1mm of) the top of a page — nothing to do.
         if (overshootMm < 1) continue;
+
+        const isExplicit =
+          node.getAttribute("data-pdf-page-break") === "before";
+        if (!isExplicit) {
+          // Keep-together pass: only break if this section would actually
+          // be split across the page seam. If it fits in the remaining
+          // space on the current page, leave it alone.
+          const remainingOnPageMm = PDF_PAGE_HEIGHT_MM - overshootMm;
+          if (nodeHeightMm <= remainingOnPageMm) continue;
+          // If the section is taller than a single page on its own, no
+          // amount of pushing will keep it together — let it flow
+          // naturally instead of producing a near-empty page.
+          if (nodeHeightMm > PDF_PAGE_HEIGHT_MM) continue;
+        }
+
         // Pad to (next page top) + a fixed top inset, so the section title
         // gets visual breathing room instead of sitting hard against the
         // page edge. See PDF_PAGE_BREAK_TOP_INSET_MM comment above.
@@ -76,7 +107,7 @@ export async function exportToPdf(
         const spacer = document.createElement("div");
         spacer.setAttribute("aria-hidden", "true");
         spacer.style.cssText = `height:${padPx}px;width:100%;background:#ffffff;`;
-        marker.parentNode?.insertBefore(spacer, marker);
+        node.parentNode?.insertBefore(spacer, node);
         insertedSpacers.push(spacer);
       }
       // Allow the layout to settle before measuring for the canvas pass.
