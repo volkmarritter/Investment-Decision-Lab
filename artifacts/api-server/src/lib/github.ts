@@ -632,25 +632,11 @@ export async function openAddEtfPr(
     );
   }
 
-  // 3. Create the branch (or fail if it already exists — surfaces stale
-  // attempts cleanly rather than silently force-pushing).
+  // 3. Create the branch — or, if a stale leftover exists from a previous
+  // closed/merged PR, auto-recover by force-resetting it to baseSha. An
+  // OPEN PR on the same branch still aborts (handled inside the helper).
   const branch = `add-etf/${entry.isin.toLowerCase()}`;
-  try {
-    await octokit.git.createRef({
-      owner,
-      repo,
-      ref: `refs/heads/${branch}`,
-      sha: baseSha,
-    });
-  } catch (err: unknown) {
-    const status = (err as { status?: number }).status;
-    if (status === 422) {
-      throw new Error(
-        `Branch ${branch} already exists. Delete it on GitHub or rename, then retry.`,
-      );
-    }
-    throw err;
-  }
+  await ensureFreshBranch({ octokit, owner, repo, branch, baseSha });
 
   // 4. Commit the modified file on the new branch.
   await octokit.repos.createOrUpdateFileContents({
@@ -1320,24 +1306,9 @@ export async function openAddBucketAlternativePr(
     );
   }
 
-  // 3. Create the branch (or fail if it already exists).
+  // 3. Create the branch — or auto-recover a stale leftover (Task #48).
   const branch = `add-alt/${entry.isin.toLowerCase()}`;
-  try {
-    await octokit.git.createRef({
-      owner,
-      repo,
-      ref: `refs/heads/${branch}`,
-      sha: baseSha,
-    });
-  } catch (err: unknown) {
-    const status = (err as { status?: number }).status;
-    if (status === 422) {
-      throw new Error(
-        `Branch ${branch} already exists. Delete it on GitHub or rename, then retry.`,
-      );
-    }
-    throw err;
-  }
+  await ensureFreshBranch({ octokit, owner, repo, branch, baseSha });
 
   // 4. Commit the modified file.
   await octokit.repos.createOrUpdateFileContents({
@@ -1576,23 +1547,9 @@ export async function openRemoveBucketAlternativePr(
     );
   }
 
+  // Create the branch — or auto-recover a stale leftover (Task #48).
   const branch = `rm-alt/${isin.toLowerCase()}`;
-  try {
-    await octokit.git.createRef({
-      owner,
-      repo,
-      ref: `refs/heads/${branch}`,
-      sha: baseSha,
-    });
-  } catch (err: unknown) {
-    const status = (err as { status?: number }).status;
-    if (status === 422) {
-      throw new Error(
-        `Branch ${branch} already exists. Delete it on GitHub or rename, then retry.`,
-      );
-    }
-    throw err;
-  }
+  await ensureFreshBranch({ octokit, owner, repo, branch, baseSha });
 
   await octokit.repos.createOrUpdateFileContents({
     owner,
