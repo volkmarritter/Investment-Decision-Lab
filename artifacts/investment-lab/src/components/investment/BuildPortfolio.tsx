@@ -73,6 +73,7 @@ import { SavedScenariosUI } from "./SavedScenariosUI";
 import { DisclaimerPdfBlock } from "./Disclaimer";
 import { PortfolioReport } from "./PortfolioReport";
 import { useT } from "@/lib/i18n";
+import { exportEtfImplementationXlsx } from "@/lib/exportEtfImplementationXlsx";
 
 const defaultValues: PortfolioInput = {
   baseCurrency: "CHF",
@@ -1440,14 +1441,59 @@ export function BuildPortfolio() {
                     </div>
                   );
 
-                  const renderFooter = () => (
-                    <>
-                      <p className="text-[10px] text-muted-foreground mt-2 italic">
-                        {t("build.impl.disclaimer")}
-                      </p>
-                      <ETFSnapshotFreshness />
-                    </>
-                  );
+                  const renderFooter = () => {
+                    // The Excel export mirrors exactly the rows the user sees
+                    // in `output.etfImplementation` — including any manual
+                    // weight overrides and any alt-ETF picks the user has
+                    // applied — because both flow through the same engine
+                    // pipeline before landing in `output`. The button is
+                    // disabled (kept in the DOM, just not clickable) when
+                    // there are no rows so the layout doesn't jump and the
+                    // tooltip can still explain why.
+                    const hasRows = output.etfImplementation.length > 0;
+                    return (
+                      <>
+                        <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <p className="text-[10px] text-muted-foreground italic flex-1">
+                            {t("build.impl.disclaimer")}
+                          </p>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <span className="shrink-0">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={!hasRows}
+                                  onClick={() => {
+                                    exportEtfImplementationXlsx(
+                                      output.etfImplementation,
+                                      t,
+                                      lang,
+                                    );
+                                    toast.success(
+                                      t("build.impl.export.toast"),
+                                    );
+                                  }}
+                                  data-testid="etf-implementation-export-xlsx-button"
+                                  aria-label={t("build.impl.export.button")}
+                                >
+                                  <Download className="h-3.5 w-3.5 mr-1.5" />
+                                  {t("build.impl.export.button")}
+                                </Button>
+                              </span>
+                            </TooltipTrigger>
+                            <TooltipContent>
+                              {hasRows
+                                ? t("build.impl.export.tooltip")
+                                : t("build.impl.export.tooltipEmpty")}
+                            </TooltipContent>
+                          </Tooltip>
+                        </div>
+                        <ETFSnapshotFreshness />
+                      </>
+                    );
+                  };
 
                   return (
                     <MaximisableSection

@@ -12,6 +12,11 @@
 // "auto-generated from look-through data" hint label keeps the curated
 // and machine-assembled cases visually distinguishable at a glance.
 //
+// The actual text resolution lives in `resolveEtfImplementationComment()`
+// (lib/etfImplementationCommentText.ts) so the Excel export and this cell
+// stay byte-identical. This component owns only the React presentation:
+// italic styling, the hint label, and the testid wrapper.
+//
 // This component intentionally renders only the *contents* of the table
 // cell (no <TableCell> wrapper, no styling classes that depend on the
 // "compact" layout state) so that BuildPortfolio can keep owning the cell
@@ -19,9 +24,8 @@
 // the fallback in isolation. See `tests/etfImplementationCommentCell.test.tsx`.
 // ----------------------------------------------------------------------------
 
-import { describeEtf } from "@/lib/etfDescription";
-import { profileFor } from "@/lib/lookthrough";
 import { useT } from "@/lib/i18n";
+import { resolveEtfImplementationComment, type EtfCommentInput } from "@/lib/etfImplementationCommentText";
 import type { ETFImplementation } from "@/lib/types";
 
 interface EtfImplementationCommentCellProps {
@@ -41,28 +45,21 @@ export function EtfImplementationCommentCell({
   etf,
 }: EtfImplementationCommentCellProps) {
   const { t, lang } = useT();
+  const resolved = resolveEtfImplementationComment(etf as EtfCommentInput, lang);
 
-  if (etf.comment && etf.comment.trim()) {
-    return <>{etf.comment}</>;
+  if (resolved.source === "curated") {
+    return <>{resolved.text}</>;
   }
-
-  const auto = describeEtf({
-    name: etf.exampleETF,
-    profile: profileFor(etf.isin),
-    catalog: {
-      domicile: etf.domicile,
-      distribution: etf.distribution,
-      currency: etf.currency,
-    },
-  });
-  if (!auto) return null;
+  if (resolved.source === "none") {
+    return null;
+  }
 
   return (
     <div
       className="space-y-1"
       data-testid={`etf-impl-auto-description-${etf.bucket}`}
     >
-      <div className="italic">{lang === "de" ? auto.de : auto.en}</div>
+      <div className="italic">{resolved.text}</div>
       <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70 not-italic">
         {t("etf.details.autoDescriptionHint")}
       </div>

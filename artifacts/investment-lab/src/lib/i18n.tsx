@@ -246,6 +246,10 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "build.implementation.resetEtfs": "Reset ETFs to Default",
     "build.implementation.resetEtfsHint": "Revert every per-bucket ETF picker selection back to the curated default",
     "build.implementation.resetEtfsToast": "ETF selections reset",
+    "build.impl.export.button": "Export to Excel",
+    "build.impl.export.tooltip": "Download this ETF Implementation table as an Excel (.xlsx) file",
+    "build.impl.export.tooltipEmpty": "Generate a portfolio first to enable the Excel export",
+    "build.impl.export.toast": "ETF Implementation exported",
 
     // ExplainPortfolio
     "explain.current.title": "Current Portfolio",
@@ -760,6 +764,10 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "build.implementation.resetEtfs": "ETFs zurücksetzen",
     "build.implementation.resetEtfsHint": "Alle bucketspezifischen ETF-Auswahlen auf den kuratierten Standard zurücksetzen",
     "build.implementation.resetEtfsToast": "ETF-Auswahl zurückgesetzt",
+    "build.impl.export.button": "Nach Excel exportieren",
+    "build.impl.export.tooltip": "Diese ETF-Umsetzungstabelle als Excel-Datei (.xlsx) herunterladen",
+    "build.impl.export.tooltipEmpty": "Zuerst ein Portfolio generieren, um den Excel-Export zu aktivieren",
+    "build.impl.export.toast": "ETF-Umsetzung exportiert",
 
     // ExplainPortfolio
     "explain.current.title": "Aktuelles Portfolio",
