@@ -8,9 +8,10 @@ import {
 } from "@/lib/metrics";
 import { getRiskFreeRate } from "@/lib/settings";
 import { colorForBucket, compareBuckets } from "@/lib/chartColors";
-import { buildLookthrough } from "@/lib/lookthrough";
+import { buildLookthrough, profileFor } from "@/lib/lookthrough";
 import { runMonteCarlo } from "@/lib/monteCarlo";
 import { estimateFees } from "@/lib/fees";
+import { describeEtf } from "@/lib/etfDescription";
 import { useT } from "@/lib/i18n";
 
 /** Illustrative investment amount used by the Monte Carlo and Fee Estimator
@@ -400,6 +401,53 @@ export function PortfolioReport({
                         ? "ausschüttend"
                         : "distributing"}
                   </div>
+                  {/* Per-ETF description line (detailed report only). The
+                   *  curated catalog `comment` always wins; when blank we
+                   *  fall back to the same auto-generated description used
+                   *  in the Build-tab impl table and the look-through /
+                   *  details dialogs, so look-through-only ETFs no longer
+                   *  read as "description missing" in a printed report.
+                   *  When neither is available the cell stays empty. */}
+                  {isDetailed &&
+                    (() => {
+                      if (etf.comment && etf.comment.trim()) {
+                        return (
+                          <div
+                            className="text-slate-600 italic mt-0.5"
+                            style={{ fontSize: "8.5px", lineHeight: 1.35 }}
+                            data-testid={`report-etf-description-${etf.bucket}`}
+                          >
+                            {etf.comment}
+                          </div>
+                        );
+                      }
+                      const auto = describeEtf({
+                        name: etf.exampleETF,
+                        profile: profileFor(etf.isin),
+                        catalog: {
+                          domicile: etf.domicile,
+                          distribution: etf.distribution,
+                          currency: etf.currency,
+                        },
+                      });
+                      if (!auto) return null;
+                      return (
+                        <div
+                          className="text-slate-600 italic mt-0.5"
+                          style={{ fontSize: "8.5px", lineHeight: 1.35 }}
+                          data-testid={`report-etf-description-${etf.bucket}`}
+                        >
+                          {de ? auto.de : auto.en}
+                          <span
+                            className="not-italic text-slate-400 ml-1 uppercase tracking-wider"
+                            style={{ fontSize: "7.5px" }}
+                            data-testid={`report-etf-description-auto-hint-${etf.bucket}`}
+                          >
+                            · auto
+                          </span>
+                        </div>
+                      );
+                    })()}
                 </td>
                 <td className="py-1 pr-2 tabular-nums text-slate-700">
                   {etf.isin}
