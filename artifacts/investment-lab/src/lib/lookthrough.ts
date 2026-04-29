@@ -668,6 +668,20 @@ export interface LookthroughResult {
   currencyOverview: CurrencyOverview;
 }
 
+/** Runtime bucket strings on `ETFImplementation.bucket` are formed as
+ *  `${assetClass} - ${region}` (see `lib/manualWeights.ts.bucketKey`).
+ *  These constants mirror the two buckets that get re-routed to a
+ *  synthetic currency row by `buildCurrencyOverview`. Keep the spaces. */
+const GOLD_BUCKET = "Commodities - Gold";
+const EM_EQUITY_BUCKET = "Equity - EM";
+
+/** Synthetic row labels surfaced in the currency overview. Intentionally
+ *  not localised — they live alongside raw ISO currency codes like USD /
+ *  EUR which we also render verbatim in both languages. Exported so
+ *  tests and downstream renderers can reference them by name. */
+export const XAU_GOLD_KEY = "XAU (Gold)";
+export const EM_CURRENCIES_KEY = "EM Currencies";
+
 function buildCurrencyOverview(
   etfs: ETFImplementation[],
   baseCurrency: string,
@@ -691,6 +705,18 @@ function buildCurrencyOverview(
       continue;
     }
 
+    // Synthetic bucket #1 — Gold (both modes). Physical-gold ETCs are
+    // globally priced in USD but they are not USD currency exposure;
+    // surfacing them under their own "XAU (Gold)" row keeps the USD
+    // line honest in both look-through and ETF-only views. Detected by
+    // bucket equality on the runtime "Commodities - Gold" string (note
+    // the spaces — the ETFImplementation bucket is built as
+    // `${assetClass} - ${region}`, not the catalog key "Commodities-Gold").
+    if (e.bucket === GOLD_BUCKET) {
+      unhedgedMap[XAU_GOLD_KEY] = (unhedgedMap[XAU_GOLD_KEY] ?? 0) + e.weight;
+      continue;
+    }
+
     const p = profileFor(e.isin);
     if (useLookThroughCurrency) {
       if (!p) {
@@ -702,14 +728,31 @@ function buildCurrencyOverview(
       // Look-through ON: split the unhedged weight across the curated
       // breakdown of underlying currencies (so an unhedged MSCI World USD
       // ETF contributes USD + EUR + JPY + GBP + CHF + ... in the right
-      // proportions).
+      // proportions). EM ETFs intentionally fall through here so the
+      // curated CNY / INR / TWD / KRW / ... split is preserved when
+      // look-through is on; only the no-look-through branch below
+      // re-routes EM equity to the synthetic "EM Currencies" bucket.
       addInto(unhedgedMap, p.currency, e.weight);
     } else {
-      // Look-through OFF: count the full unhedged weight as the ETF's own
-      // share-class currency. No split — this is the "ETF currency only"
-      // view that the per-side toggle exposes in Build and Compare. We
-      // fall back to baseCurrency only if the share-class currency is
-      // missing, so weight is never silently dropped.
+      // Synthetic bucket #2 — EM equity in no-look-through mode only.
+      // Without look-through, the EM IMI / FTSE EM / Xtrackers EM
+      // share-class currency (USD) would otherwise inflate USD with
+      // weight that is really CNY/INR/TWD/KRW/.../etc exposure. Group
+      // it under one honest synthetic bucket so the table reads true
+      // even with look-through off. We deliberately do NOT do this in
+      // the look-through branch above, where the curated per-country
+      // split is the more informative answer.
+      if (e.bucket === EM_EQUITY_BUCKET) {
+        unhedgedMap[EM_CURRENCIES_KEY] =
+          (unhedgedMap[EM_CURRENCIES_KEY] ?? 0) + e.weight;
+        continue;
+      }
+      // Look-through OFF (default branch): count the full unhedged
+      // weight as the ETF's own share-class currency. No split — this
+      // is the "ETF currency only" view that the per-side toggle
+      // exposes in Build and Compare. We fall back to baseCurrency only
+      // if the share-class currency is missing, so weight is never
+      // silently dropped.
       const target = e.currency || baseCurrency;
       unhedgedMap[target] = (unhedgedMap[target] ?? 0) + e.weight;
     }

@@ -3,7 +3,12 @@ import { buildPortfolio, computeNaturalBucketCount } from "../src/lib/portfolio"
 import { defaultExchangeFor, DEFAULT_EXCHANGE_FOR_CURRENCY } from "../src/lib/exchange";
 import { runValidation } from "../src/lib/validation";
 import { PortfolioInput, BaseCurrency, RiskAppetite } from "../src/lib/types";
-import { profileFor, buildLookthrough } from "../src/lib/lookthrough";
+import {
+  profileFor,
+  buildLookthrough,
+  EM_CURRENCIES_KEY,
+  XAU_GOLD_KEY,
+} from "../src/lib/lookthrough";
 import { getETFDetails, getCatalogEntry } from "../src/lib/etfs";
 import { runStressTest, runReverseStressTest, SCENARIOS } from "../src/lib/scenarios";
 import { estimateFees, getETFTer } from "../src/lib/fees";
@@ -1610,14 +1615,317 @@ describe("buildLookthrough", () => {
 
     // Every reported currency in the ETF-only view must match the share-class
     // currency of at least one selected ETF (i.e. nothing got split into a
-    // currency that no ETF actually trades in).
+    // currency that no ETF actually trades in). The two synthetic buckets
+    // ("EM Currencies", "XAU (Gold)") are also valid — they intentionally
+    // re-route Equity-EM and Commodities-Gold weight off the share-class
+    // currency to keep the table honest. See lookthrough.ts.
     const shareClassCurrencies = new Set(
       out.etfImplementation.map((e) => e.currency).filter(Boolean) as string[]
     );
     shareClassCurrencies.add("EUR"); // base currency is a valid fallback
+    shareClassCurrencies.add(EM_CURRENCIES_KEY);
+    shareClassCurrencies.add(XAU_GOLD_KEY);
     for (const row of ltOff.currencyOverview.rows) {
       expect(shareClassCurrencies.has(row.currency)).toBe(true);
     }
+  });
+
+  // ---------------------------------------------------------------------
+  // Synthetic currency buckets: EM Currencies + XAU (Gold)
+  // (Task #108)
+  // ---------------------------------------------------------------------
+  describe("currencyOverview synthetic buckets (EM Currencies, XAU Gold)", () => {
+    // Hand-crafted ETFImplementation factory so each scenario stays
+    // isolated from buildPortfolio's allocation choices. We pass the
+    // exact ETFs we want to test the bucket-routing logic on.
+    const mk = (
+      overrides: Partial<import("../src/lib/types").ETFImplementation>
+    ): import("../src/lib/types").ETFImplementation => ({
+      bucket: "Equity - World",
+      assetClass: "Equity",
+      weight: 0,
+      intent: "",
+      exampleETF: "Fixture ETF",
+      rationale: "",
+      isin: "XX0000000FAKE0",
+      ticker: "FAKE",
+      exchange: "—",
+      terBps: 20,
+      domicile: "IE",
+      replication: "Physical",
+      distribution: "Accumulating",
+      currency: "USD",
+      comment: "",
+      catalogKey: null,
+      selectedSlot: 0,
+      selectableOptions: [],
+      ...overrides,
+    });
+
+    it("re-routes physical-gold ETC weight to XAU (Gold) in BOTH look-through modes", () => {
+      const etfs = [
+        mk({
+          bucket: "Commodities - Gold",
+          assetClass: "Commodities",
+          isin: "IE00B579F325", // real curated profile (currency: USD 100)
+          exampleETF: "Invesco Physical Gold ETC",
+          weight: 5,
+        }),
+        mk({
+          // Plain global equity ETF so the rest of the portfolio still
+          // has weight on the USD line — proves Gold was *removed* from
+          // USD without removing anything else.
+          bucket: "Equity - World",
+          isin: "IE00B3YLTY66", // SPDR MSCI ACWI IMI — real curated profile (USD ~62%)
+          exampleETF: "SPDR MSCI ACWI IMI",
+          weight: 95,
+        }),
+      ];
+
+      for (const useLT of [true, false]) {
+        const r = buildLookthrough(etfs, "en", "USD", {
+          useLookThroughCurrency: useLT,
+        }).currencyOverview;
+        const xau = r.rows.find((x) => x.currency === XAU_GOLD_KEY);
+        expect(xau, `XAU row missing (useLT=${useLT})`).toBeDefined();
+        expect(xau!.unhedgedPct).toBeCloseTo(5, 6);
+        expect(xau!.hedgedPct).toBe(0);
+        expect(xau!.pctOfPortfolio).toBeCloseTo(5, 6);
+
+        // USD must NOT include the gold weight in either mode. In LT-on
+        // the World ETF still contributes ~62% USD; in LT-off the World
+        // ETF contributes its 95% share-class USD weight. Either way,
+        // gold's 5% must NOT be added on top.
+        const usd = r.rows.find((x) => x.currency === "USD");
+        if (useLT) {
+          // Curated MSCI World is ~62% USD — assert gold (+5%) didn't
+          // pile on by checking USD < 95 (would be 95+ if gold was here).
+          expect(usd!.unhedgedPct).toBeLessThan(80);
+        } else {
+          // No look-through → World contributes its full 95% to USD.
+          // Gold is the only thing left, and it must NOT be on USD.
+          expect(usd!.unhedgedPct).toBeCloseTo(95, 6);
+        }
+      }
+    });
+
+    it("re-routes EM equity to EM Currencies ONLY in no-look-through mode", () => {
+      const etfs = [
+        mk({
+          bucket: "Equity - EM",
+          isin: "IE00BKM4GZ66", // MSCI EM IMI — real curated profile
+          exampleETF: "iShares Core MSCI EM IMI",
+          weight: 8,
+        }),
+        mk({
+          bucket: "Equity - World",
+          isin: "IE00B3YLTY66",
+          exampleETF: "iShares Core MSCI World",
+          weight: 92,
+        }),
+      ];
+
+      // Look-through OFF → EM lands in synthetic "EM Currencies" bucket.
+      const off = buildLookthrough(etfs, "en", "USD", {
+        useLookThroughCurrency: false,
+      }).currencyOverview;
+      const emOff = off.rows.find((x) => x.currency === EM_CURRENCIES_KEY);
+      expect(emOff).toBeDefined();
+      expect(emOff!.unhedgedPct).toBeCloseTo(8, 6);
+      // USD must NOT include the EM weight (which would otherwise sneak
+      // in via the EM ETF's USD share class). USD picks up only the
+      // World ETF's full 92%, not 92+8=100.
+      const usdOff = off.rows.find((x) => x.currency === "USD");
+      expect(usdOff!.unhedgedPct).toBeCloseTo(92, 6);
+
+      // Look-through ON → EM stays on the curated per-country split.
+      // No "EM Currencies" row should appear; instead CNY / INR / TWD /
+      // KRW / etc must show up with weight proportional to MSCI EM IMI's
+      // curated currency profile.
+      const on = buildLookthrough(etfs, "en", "USD", {
+        useLookThroughCurrency: true,
+      }).currencyOverview;
+      expect(on.rows.find((x) => x.currency === EM_CURRENCIES_KEY)).toBeUndefined();
+      expect(on.rows.find((x) => x.currency === "CNY")).toBeDefined();
+      expect(on.rows.find((x) => x.currency === "INR")).toBeDefined();
+    });
+
+    it("hedged Gold and hedged EM still land on the share-class currency (synthetic bucket bypassed for hedged sleeve)", () => {
+      // Construct a hedged Gold ETF and a hedged EM ETF — neither is in
+      // the real catalog today, but the hedged sleeve must be honoured
+      // first regardless of bucket. The synthetic-bucket re-routing is
+      // explicitly defined as "for unhedged ETFs only".
+      const etfs = [
+        mk({
+          bucket: "Commodities - Gold",
+          assetClass: "Commodities",
+          isin: "XX0000000HGOLD1",
+          exampleETF: "Hypothetical EUR-Hedged Gold ETC",
+          currency: "EUR",
+          weight: 5,
+        }),
+        mk({
+          bucket: "Equity - EM",
+          isin: "XX0000000HEMEQ1",
+          exampleETF: "Hypothetical EUR-Hedged EM Equity ETF",
+          currency: "EUR",
+          weight: 10,
+        }),
+        mk({
+          bucket: "Equity - World",
+          isin: "IE00B3YLTY66",
+          exampleETF: "iShares Core MSCI World",
+          weight: 85,
+        }),
+      ];
+
+      for (const useLT of [true, false]) {
+        const r = buildLookthrough(etfs, "en", "EUR", {
+          useLookThroughCurrency: useLT,
+        }).currencyOverview;
+
+        // Synthetic buckets must be empty — both hedged ETFs are
+        // routed to the EUR hedged sleeve before the bucket check.
+        expect(r.rows.find((x) => x.currency === XAU_GOLD_KEY)).toBeUndefined();
+        expect(r.rows.find((x) => x.currency === EM_CURRENCIES_KEY)).toBeUndefined();
+
+        const eur = r.rows.find((x) => x.currency === "EUR");
+        expect(eur, `EUR row missing (useLT=${useLT})`).toBeDefined();
+        // 5% gold + 10% EM = 15% on the EUR hedged-to line, regardless
+        // of look-through mode.
+        expect(eur!.hedgedPct).toBeCloseTo(15, 6);
+        expect(r.hedgedShareOfPortfolio).toBeCloseTo(15, 6);
+      }
+    });
+
+    it("merges multiple gold or multiple EM holdings into a single synthetic row (no duplicates)", () => {
+      const etfs = [
+        // Two distinct gold ETCs
+        mk({
+          bucket: "Commodities - Gold",
+          assetClass: "Commodities",
+          isin: "IE00B579F325",
+          exampleETF: "Invesco Physical Gold",
+          weight: 3,
+        }),
+        mk({
+          bucket: "Commodities - Gold",
+          assetClass: "Commodities",
+          isin: "IE00B4ND3602",
+          exampleETF: "iShares Physical Gold",
+          weight: 2,
+        }),
+        // Two distinct EM ETFs
+        mk({
+          bucket: "Equity - EM",
+          isin: "IE00BKM4GZ66",
+          exampleETF: "iShares Core MSCI EM IMI",
+          weight: 6,
+        }),
+        mk({
+          bucket: "Equity - EM",
+          isin: "IE00BK5BR733",
+          exampleETF: "Vanguard FTSE Emerging Markets",
+          weight: 4,
+        }),
+        mk({
+          bucket: "Equity - World",
+          isin: "IE00B3YLTY66",
+          exampleETF: "iShares Core MSCI World",
+          weight: 85,
+        }),
+      ];
+
+      const off = buildLookthrough(etfs, "en", "USD", {
+        useLookThroughCurrency: false,
+      }).currencyOverview;
+      const xauRows = off.rows.filter((x) => x.currency === XAU_GOLD_KEY);
+      const emRows = off.rows.filter((x) => x.currency === EM_CURRENCIES_KEY);
+      expect(xauRows).toHaveLength(1);
+      expect(emRows).toHaveLength(1);
+      expect(xauRows[0].unhedgedPct).toBeCloseTo(5, 6); // 3 + 2
+      expect(emRows[0].unhedgedPct).toBeCloseTo(10, 6); // 6 + 4
+    });
+
+    it("EM ISIN under a non-EM bucket stays on the share-class currency (re-routing is intentionally bucket-driven, not ISIN-driven)", () => {
+      // Codifies the documented intent: re-routing fires on the runtime
+      // bucket label, not on the ISIN. If a future operator (or an
+      // unusual catalog edit) places the EM IMI ISIN under, say, an
+      // "Equity - World" bucket, the row must stay on USD (its share
+      // class) instead of jumping to "EM Currencies". Same applies to
+      // Gold ISINs misplaced under non-Gold buckets. This frees the
+      // catalog to evolve without a hidden coupling between the
+      // currency overview and the ISIN list.
+      const etfs = [
+        mk({
+          // EM IMI ISIN, but parked under the World bucket (operator
+          // mis-assignment scenario or a future taxonomy change).
+          bucket: "Equity - World",
+          isin: "IE00BKM4GZ66", // MSCI EM IMI
+          exampleETF: "MSCI EM IMI (mis-bucketed under World)",
+          currency: "USD",
+          weight: 8,
+        }),
+        mk({
+          // Gold ISIN, but parked under a Commodities-Other bucket.
+          bucket: "Commodities - Diversified",
+          assetClass: "Commodities",
+          isin: "IE00B579F325", // Invesco Physical Gold
+          exampleETF: "Invesco Physical Gold (mis-bucketed)",
+          currency: "USD",
+          weight: 5,
+        }),
+      ];
+
+      const off = buildLookthrough(etfs, "en", "USD", {
+        useLookThroughCurrency: false,
+      }).currencyOverview;
+      // Synthetic rows must NOT fire — bucket strings don't match.
+      expect(off.rows.find((x) => x.currency === EM_CURRENCIES_KEY)).toBeUndefined();
+      expect(off.rows.find((x) => x.currency === XAU_GOLD_KEY)).toBeUndefined();
+      // All 13% must land on the share-class currency (USD).
+      const usd = off.rows.find((x) => x.currency === "USD");
+      expect(usd?.unhedgedPct).toBeCloseTo(13, 6);
+    });
+
+    it("rows still sort by total descending and total weight is conserved", () => {
+      const etfs = [
+        mk({
+          bucket: "Commodities - Gold",
+          assetClass: "Commodities",
+          isin: "IE00B579F325",
+          exampleETF: "Invesco Physical Gold",
+          weight: 5,
+        }),
+        mk({
+          bucket: "Equity - EM",
+          isin: "IE00BKM4GZ66",
+          exampleETF: "iShares Core MSCI EM IMI",
+          weight: 8,
+        }),
+        mk({
+          bucket: "Equity - World",
+          isin: "IE00B3YLTY66",
+          exampleETF: "iShares Core MSCI World",
+          weight: 87,
+        }),
+      ];
+      const off = buildLookthrough(etfs, "en", "USD", {
+        useLookThroughCurrency: false,
+      }).currencyOverview;
+      // Sort: descending by pctOfPortfolio
+      for (let i = 1; i < off.rows.length; i++) {
+        expect(off.rows[i - 1].pctOfPortfolio).toBeGreaterThanOrEqual(
+          off.rows[i].pctOfPortfolio
+        );
+      }
+      // Conservation: rows + unmapped sum to 100 (this fixture has no
+      // unmapped weight because every ISIN has either a profile or a
+      // share-class currency).
+      const total =
+        off.rows.reduce((s, r) => s + r.pctOfPortfolio, 0) + off.unmappedWeight;
+      expect(total).toBeCloseTo(100, 6);
+    });
   });
 });
 
