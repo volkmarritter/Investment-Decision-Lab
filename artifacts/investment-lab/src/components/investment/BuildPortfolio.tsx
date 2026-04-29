@@ -1115,7 +1115,18 @@ export function BuildPortfolio() {
                             <TableHead className="whitespace-nowrap">{t("build.impl.col.replication")}</TableHead>
                             <TableHead className="whitespace-nowrap">{t("build.impl.col.distribution")}</TableHead>
                             <TableHead className="whitespace-nowrap">{t("build.impl.col.currency")}</TableHead>
-                            <TableHead className={compact ? "min-w-[180px]" : "min-w-[220px]"}>
+                            <TableHead
+                              className={cn(
+                                "min-w-[220px]",
+                                // Maximised view (compact): no max-width and no wrap
+                                // on the comment column so long comments push the
+                                // table to its natural width and the horizontal
+                                // scrollbar appears when actually needed, instead
+                                // of being silently suppressed by line-wrapping
+                                // inside a clamped cell.
+                                compact && "whitespace-nowrap",
+                              )}
+                            >
                               {t("build.impl.col.comment")}
                             </TableHead>
                           </TableRow>
@@ -1226,7 +1237,16 @@ export function BuildPortfolio() {
                               <TableCell
                                 className={cn(
                                   "text-muted-foreground",
-                                  compact ? "min-w-[180px] max-w-[280px]" : "min-w-[220px] max-w-[320px]"
+                                  // Default (inline) view keeps the wrap+max-width
+                                  // behaviour so the card doesn't get pushed wide.
+                                  // Maximised (compact) view drops both caps and
+                                  // forces a single line so long comments make the
+                                  // table genuinely overflow → horizontal scroll
+                                  // appears as needed instead of being suppressed
+                                  // by silent line-wrapping inside a clamped cell.
+                                  compact
+                                    ? "min-w-[220px] whitespace-nowrap"
+                                    : "min-w-[220px] max-w-[320px]",
                                 )}
                               >
                                 {etf.comment}
