@@ -2,11 +2,12 @@
 // investment-lab/tests) because vitest is already wired up here and the
 // parser is dep-free, so cross-artifact import is harmless.
 //
-// Goal: lock in the field-extraction shape so a future edit of etfs.ts
-// can't silently break the admin pane's replace-vs-add diff (a parser
-// regression would manifest as "every key looks NEW", which is the worst
-// kind of silent bug because the operator would happily open PRs that
-// silently overwrite existing entries).
+// Goal: lock in the field-extraction shape of the new INSTRUMENTS+BUCKETS
+// data model (Task #111) so a future edit of etfs.ts can't silently
+// break the admin pane's replace-vs-add diff. A parser regression would
+// manifest as "every key looks NEW" — the worst kind of silent bug
+// because the operator would happily open PRs that silently overwrite
+// existing entries.
 
 import { describe, it, expect } from "vitest";
 import {
@@ -15,49 +16,100 @@ import {
   parseCatalogFromSource,
 } from "../../api-server/src/lib/catalog-parser";
 
-const SAMPLE = `
-import { foo } from "./bar";
+// Compose a minimal but realistic INSTRUMENTS+BUCKETS source. Tests
+// override the per-instrument or per-bucket details they care about.
+function buildSource(opts: {
+  instruments: Array<{
+    isin: string;
+    name: string;
+    terBps?: number;
+    domicile?: string;
+    replication?: string;
+    distribution?: string;
+    currency?: string;
+    comment?: string;
+    listings?: string; // raw inline literal, e.g. `{ LSE: { ticker: "X" } }`
+    defaultExchange?: string;
+    extraLines?: string[]; // optional fields like aumMillionsEUR
+  }>;
+  buckets: Array<{ key: string; default: string; alternatives: string[] }>;
+}): string {
+  const instrumentRows = opts.instruments
+    .map((i) => {
+      const extras = (i.extraLines ?? [])
+        .map((l) => `    ${l}`)
+        .join("\n");
+      return `  ${JSON.stringify(i.isin)}: I({
+    name: ${JSON.stringify(i.name)},
+    isin: ${JSON.stringify(i.isin)},
+    terBps: ${i.terBps ?? 10},
+    domicile: ${JSON.stringify(i.domicile ?? "Ireland")},
+    replication: ${JSON.stringify(i.replication ?? "Physical")},
+    distribution: ${JSON.stringify(i.distribution ?? "Accumulating")},
+    currency: ${JSON.stringify(i.currency ?? "USD")},
+    comment: ${JSON.stringify(i.comment ?? "Test instrument.")},
+    listings: ${i.listings ?? `{ LSE: { ticker: "TST" } }`},
+    defaultExchange: ${JSON.stringify(i.defaultExchange ?? "LSE")},${
+      extras ? `\n${extras}` : ""
+    }
+  }),`;
+    })
+    .join("\n");
+  const bucketRows = opts.buckets
+    .map(
+      (b) => `  ${JSON.stringify(b.key)}: B({
+    default: ${JSON.stringify(b.default)},
+    alternatives: [${b.alternatives.map((s) => JSON.stringify(s)).join(", ")}],
+  }),`,
+    )
+    .join("\n");
+  return `import { foo } from "./bar";
 
-const E = (x: ETFRecord) => x;
+const I = (x: any) => x;
+const B = (x: any) => x;
 
-const CATALOG: Record<string, ETFRecord> = {
-  // ---------- Equity ----------
-  "Equity-Global": E({
-    name: "SPDR MSCI ACWI IMI UCITS",
-    isin: "IE00B3YLTY66",
-    terBps: 17,
-    domicile: "Ireland",
-    replication: "Physical (sampled)",
-    distribution: "Accumulating",
-    currency: "USD",
-    comment: "Single-fund global equity.",
-    listings: { LSE: { ticker: "SPYI" }, XETRA: { ticker: "SPYI" } },
-    defaultExchange: "LSE",
-  }),
-  "Equity-USA": E({
-    name: "iShares Core S&P 500 UCITS",
-    isin: "IE00B5BMR087",
-    terBps: 7,
-    domicile: "Ireland",
-    replication: "Physical",
-    distribution: "Accumulating",
-    currency: "USD",
-    comment: "Largest, most liquid S&P 500 UCITS.",
-    listings: { LSE: { ticker: "CSPX" }, XETRA: { ticker: "SXR8" } },
-    defaultExchange: "LSE",
-    aumMillionsEUR: 80000,
-    inceptionDate: "2010-05-19",
-  }),
+const INSTRUMENTS: Record<string, InstrumentRecord> = {
+${instrumentRows}
+};
+
+const BUCKETS: Record<string, BucketAssignment> = {
+${bucketRows}
 };
 `;
+}
+
+const SAMPLE = buildSource({
+  instruments: [
+    {
+      isin: "IE00B3YLTY66",
+      name: "SPDR MSCI ACWI IMI UCITS",
+      terBps: 17,
+      replication: "Physical (sampled)",
+      comment: "Single-fund global equity.",
+      listings: `{ LSE: { ticker: "SPYI" }, XETRA: { ticker: "SPYI" } }`,
+    },
+    {
+      isin: "IE00B5BMR087",
+      name: "iShares Core S&P 500 UCITS",
+      terBps: 7,
+      comment: "Largest, most liquid S&P 500 UCITS.",
+      listings: `{ LSE: { ticker: "CSPX" }, XETRA: { ticker: "SXR8" } }`,
+      extraLines: [`aumMillionsEUR: 80000,`, `inceptionDate: "2010-05-19",`],
+    },
+  ],
+  buckets: [
+    { key: "Equity-Global", default: "IE00B3YLTY66", alternatives: [] },
+    { key: "Equity-USA", default: "IE00B5BMR087", alternatives: [] },
+  ],
+});
 
 describe("parseCatalogFromSource", () => {
-  it("extracts every entry by key", () => {
+  it("extracts every bucket by key", () => {
     const out = parseCatalogFromSource(SAMPLE);
     expect(Object.keys(out).sort()).toEqual(["Equity-Global", "Equity-USA"]);
   });
 
-  it("populates required string + number fields", () => {
+  it("populates required string + number fields from INSTRUMENTS", () => {
     const out = parseCatalogFromSource(SAMPLE);
     const usa = out["Equity-USA"];
     expect(usa.key).toBe("Equity-USA");
@@ -92,32 +144,26 @@ describe("parseCatalogFromSource", () => {
     expect(out["Equity-Global"].inceptionDate).toBeUndefined();
   });
 
-  it("throws if the CATALOG marker is missing", () => {
-    expect(() => parseCatalogFromSource("// nothing here\n")).toThrow(
-      /Could not locate/,
-    );
+  it("throws if the INSTRUMENTS marker is missing", () => {
+    expect(() => parseCatalogFromSource("// nothing here\n")).toThrow();
   });
 
   it("parses listings written with QUOTED keys (the renderer's output style)", () => {
-    // renderEntryBlock emits `"LSE": { ticker: "..." }` via JSON.stringify.
+    // renderInstrumentRow emits `"LSE": { ticker: "..." }` via JSON.stringify.
     // The parser must accept that round-trip — otherwise REPLACE diffs of
     // PR-generated entries would always show "current listings: —".
-    const src = `
-      const CATALOG: Record<string, ETFRecord> = {
-        "Equity-Bot": E({
-          name: "Bot ETF",
+    const src = buildSource({
+      instruments: [
+        {
           isin: "IE00BBBBBBB1",
+          name: "Bot ETF",
           terBps: 8,
-          domicile: "Ireland",
-          replication: "Physical",
-          distribution: "Accumulating",
-          currency: "USD",
           comment: "Generated by the renderer.",
-          listings: { "LSE": { ticker: "BOT" }, "XETRA": { ticker: "BTX" } },
-          defaultExchange: "LSE",
-        }),
-      };
-    `;
+          listings: `{ "LSE": { ticker: "BOT" }, "XETRA": { ticker: "BTX" } }`,
+        },
+      ],
+      buckets: [{ key: "Equity-Bot", default: "IE00BBBBBBB1", alternatives: [] }],
+    });
     const out = parseCatalogFromSource(src);
     expect(out["Equity-Bot"].listings).toEqual({
       LSE: { ticker: "BOT" },
@@ -130,34 +176,28 @@ describe("parseCatalogFromSource", () => {
     // containing braces must NOT corrupt brace-counting. Without
     // string-aware walking the parser would either truncate the entry
     // or skip the entry that follows.
-    const src = `
-      const CATALOG: Record<string, ETFRecord> = {
-        "Equity-Tricky": E({
-          name: "Tricky { Equity }",
+    const src = buildSource({
+      instruments: [
+        {
           isin: "IE00TRICKY001",
+          name: "Tricky { Equity }",
           terBps: 9,
-          domicile: "Ireland",
-          replication: "Physical",
-          distribution: "Accumulating",
-          currency: "USD",
           comment: "Has } and { in it",
-          listings: { LSE: { ticker: "TRK" } },
-          defaultExchange: "LSE",
-        }),
-        "Equity-After": E({
-          name: "After Tricky",
+          listings: `{ LSE: { ticker: "TRK" } }`,
+        },
+        {
           isin: "IE00AFTER0001",
+          name: "After Tricky",
           terBps: 10,
-          domicile: "Ireland",
-          replication: "Physical",
-          distribution: "Accumulating",
-          currency: "USD",
           comment: "I should still parse.",
-          listings: { LSE: { ticker: "AFT" } },
-          defaultExchange: "LSE",
-        }),
-      };
-    `;
+          listings: `{ LSE: { ticker: "AFT" } }`,
+        },
+      ],
+      buckets: [
+        { key: "Equity-Tricky", default: "IE00TRICKY001", alternatives: [] },
+        { key: "Equity-After", default: "IE00AFTER0001", alternatives: [] },
+      ],
+    });
     const out = parseCatalogFromSource(src);
     expect(Object.keys(out).sort()).toEqual(["Equity-After", "Equity-Tricky"]);
     expect(out["Equity-Tricky"].name).toBe("Tricky { Equity }");
@@ -227,142 +267,44 @@ describe("parseCatalogFromSource", () => {
     });
   });
 
-  it("is not fooled by 'alternatives:' inside a comment string (regression for splitAlternatives)", () => {
-    // Adversarial source: the parent's `comment` field contains the
-    // literal token `alternatives:` BEFORE the real `alternatives` field.
-    // A naive `body.indexOf("alternatives:")` would land on the comment,
-    // see no `[` after it and bail out — silently dropping the real
-    // alternatives array. That bypass would let the admin pane miss an
-    // ISIN already present in another bucket's alts and open a duplicate
-    // PR. Lock the comment-aware behaviour with this test.
-    const src = `const CATALOG: Record<string, ETFRecord> = {
-  "Equity-Tricky": E({
-    name: "Trick ETF",
-    isin: "IE00BTRK1111",
-    terBps: 10,
-    domicile: "Ireland",
-    replication: "Physical",
-    distribution: "Accumulating",
-    currency: "USD",
-    comment: "see alternatives: VWRA, SSAC for parent index variants",
-    listings: { LSE: { ticker: "TRCK" } },
-    defaultExchange: "LSE",
-    alternatives: [
-      {
-        name: "Real Alt",
-        isin: "IE00BREAL222",
-        terBps: 12,
-        domicile: "Ireland",
-        replication: "Physical",
-        distribution: "Accumulating",
-        currency: "USD",
-        comment: "the real alternative",
-        listings: { LSE: { ticker: "REAL" } },
-        defaultExchange: "LSE",
-      },
-    ],
-  }),
-};
-`;
+  it("resolves bucket alternatives (ISIN strings) to their INSTRUMENTS rows", () => {
+    // Task #111 contract: BUCKETS carries plain ISIN strings; the joined
+    // CatalogSummary view fills in name/listings/etc. by looking the ISIN
+    // up in INSTRUMENTS. Without that join the admin pane's REPLACE diff
+    // and the global ISIN-uniqueness pre-flight in injectAlternative
+    // would both lose every alternative's metadata.
+    const src = buildSource({
+      instruments: [
+        {
+          isin: "IE00BTRK1111",
+          name: "Trick ETF",
+          terBps: 10,
+          comment: "Parent.",
+          listings: `{ LSE: { ticker: "TRCK" } }`,
+        },
+        {
+          isin: "IE00BREAL222",
+          name: "Real Alt",
+          terBps: 12,
+          comment: "the real alternative",
+          listings: `{ LSE: { ticker: "REAL" } }`,
+        },
+      ],
+      buckets: [
+        {
+          key: "Equity-Tricky",
+          default: "IE00BTRK1111",
+          alternatives: ["IE00BREAL222"],
+        },
+      ],
+    });
     const out = parseCatalogFromSource(src);
     expect(out["Equity-Tricky"]).toBeDefined();
     expect(out["Equity-Tricky"].alternatives?.length).toBe(1);
     expect(out["Equity-Tricky"].alternatives?.[0].isin).toBe("IE00BREAL222");
-    // The parent's own scalar fields must still be intact (the strip
-    // step removed only the real alternatives:[…], not the comment).
+    expect(out["Equity-Tricky"].alternatives?.[0].name).toBe("Real Alt");
+    // The parent's own scalar fields remain intact.
     expect(out["Equity-Tricky"].isin).toBe("IE00BTRK1111");
-    expect(out["Equity-Tricky"].comment).toContain("alternatives:");
-  });
-
-  it("does not match substring lookalikes like 'altUnknown:' or 'someAlternatives:'", () => {
-    // Both decoy fields share a token boundary with `alternatives:` but
-    // are NOT the field we want. The walker must reject them and keep
-    // scanning until it finds the real `alternatives` field after them.
-    // Without the boundary checks (prev-char + non-identifier-after) a
-    // naive regex/indexOf would either match `someAlternatives:` (right
-    // edge) or fail to advance past `altUnknown:` (left edge).
-    const src = `const CATALOG: Record<string, ETFRecord> = {
-  "Equity-Decoys": E({
-    name: "Decoy ETF",
-    isin: "IE00BDECY111",
-    terBps: 9,
-    domicile: "Ireland",
-    replication: "Physical",
-    distribution: "Accumulating",
-    currency: "USD",
-    comment: "two decoy field-name lookalikes follow",
-    listings: { LSE: { ticker: "DCY1" } },
-    defaultExchange: "LSE",
-    altUnknown: "ignored-decoy-1",
-    someAlternatives: "ignored-decoy-2",
-    alternatives: [
-      {
-        name: "Real Alt",
-        isin: "IE00BREAL333",
-        terBps: 11,
-        domicile: "Ireland",
-        replication: "Physical",
-        distribution: "Accumulating",
-        currency: "USD",
-        comment: "real",
-        listings: { LSE: { ticker: "REAL" } },
-        defaultExchange: "LSE",
-      },
-    ],
-  }),
-};
-`;
-    const out = parseCatalogFromSource(src);
-    expect(out["Equity-Decoys"].alternatives?.length).toBe(1);
-    expect(out["Equity-Decoys"].alternatives?.[0].isin).toBe("IE00BREAL333");
-    expect(out["Equity-Decoys"].isin).toBe("IE00BDECY111");
-  });
-
-  it("finds the alternatives field even when its key is quoted ('\"alternatives\":')", () => {
-    // The catalog convention uses unquoted keys for scalar fields, but a
-    // future operator who copy-pastes from a JSON dump or a tool emitting
-    // `JSON.stringify` could end up with the alternatives key in quoted
-    // form. The walker must locate it either way — without this support
-    // the array would be silently ignored and the global-ISIN-uniqueness
-    // check in injectAlternative() could miss conflicts in that bucket.
-    // (Other scalar fields stay unquoted because stringField/numberField
-    // assume the unquoted form, which mirrors today's catalog source.)
-    const src = `const CATALOG: Record<string, ETFRecord> = {
-  "Equity-MixedQuoting": E({
-    name: "Mixed ETF",
-    isin: "IE00BMIX1111",
-    terBps: 13,
-    domicile: "Ireland",
-    replication: "Physical",
-    distribution: "Accumulating",
-    currency: "USD",
-    comment: "scalars unquoted, alternatives key quoted",
-    listings: { LSE: { ticker: "MIX1" } },
-    defaultExchange: "LSE",
-    "alternatives": [
-      {
-        name: "Mixed Alt",
-        isin: "IE00BMALT222",
-        terBps: 14,
-        domicile: "Ireland",
-        replication: "Physical",
-        distribution: "Accumulating",
-        currency: "USD",
-        comment: "alt 1",
-        listings: { LSE: { ticker: "MALT" } },
-        defaultExchange: "LSE",
-      },
-    ],
-  }),
-};
-`;
-    const out = parseCatalogFromSource(src);
-    expect(out["Equity-MixedQuoting"]).toBeDefined();
-    expect(out["Equity-MixedQuoting"].isin).toBe("IE00BMIX1111");
-    expect(out["Equity-MixedQuoting"].alternatives?.length).toBe(1);
-    expect(out["Equity-MixedQuoting"].alternatives?.[0].isin).toBe(
-      "IE00BMALT222",
-    );
   });
 
   it("parses the real etfs.ts and finds well-known buckets", async () => {

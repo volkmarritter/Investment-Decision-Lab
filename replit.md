@@ -26,6 +26,29 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
 
+## Investment Lab catalog data model (Task #111 — 2026-04)
+
+The ETF catalog in `artifacts/investment-lab/src/lib/etfs.ts` is split
+into two literals at source:
+
+- `INSTRUMENTS: Record<ISIN, InstrumentRecord>` — master per-fund
+  metadata (name, TER, listings, …). One row per ISIN.
+- `BUCKETS: Record<key, BucketAssignment>` — bucket assignment with
+  `default: ISIN` and `alternatives: ISIN[]` (single-line array).
+
+A joined `CATALOG` view is built at module load so existing consumers
+(engine, UI, admin parser) keep working unchanged. The admin
+PR-injection helpers in `artifacts/api-server/src/lib/github.ts`
+(`injectAlternative`, `removeAlternative`, `injectEntry`,
+`setBucketDefault`) operate on both literals — they keep INSTRUMENTS
+and BUCKETS in sync and rely on the headers
+`const INSTRUMENTS: Record<string, InstrumentRecord> = {` and
+`const BUCKETS: Record<string, BucketAssignment> = {` to locate the
+blocks. Renaming those headers requires updating the helpers.
+
+Phase 2 (Instruments admin sub-tab, tree-row registry pickers, strict
+cross-bucket validator, glossary copy) is tracked as a separate task.
+
 ## Project Documentation
 
 - **Investment Decision Lab** functional & logic documentation: `artifacts/investment-lab/DOCUMENTATION.md`.

@@ -67,44 +67,224 @@ export interface CatalogEntrySummary {
 
 export type CatalogSummary = Record<string, CatalogEntrySummary>;
 
-const CATALOG_HEADER = "const CATALOG: Record<string, ETFRecord> = {";
+// Task #111: the catalog source split into two complementary literals:
+//   • INSTRUMENTS — keyed by ISIN, master per-ETF metadata.
+//   • BUCKETS    — keyed by bucket key, assignment shape
+//                  { default: ISIN, alternatives: [ISIN, ...] }.
+// We parse both and join them to keep producing the same
+// `CatalogSummary` shape every downstream consumer (admin UI, PR
+// helpers, dedup checks) already expects.
+const INSTRUMENTS_HEADER =
+  "const INSTRUMENTS: Record<string, InstrumentRecord> = {";
+const BUCKETS_HEADER =
+  "const BUCKETS: Record<string, BucketAssignment> = {";
 
-export function parseCatalogFromSource(source: string): CatalogSummary {
-  const start = source.indexOf(CATALOG_HEADER);
+export interface InstrumentEntrySummary {
+  isin: string;
+  name: string;
+  terBps: number;
+  domicile: string;
+  replication: string;
+  distribution: string;
+  currency: string;
+  comment: string;
+  listings: Record<string, { ticker: string }>;
+  defaultExchange: string;
+  aumMillionsEUR?: number;
+  inceptionDate?: string;
+}
+
+export interface BucketAssignmentSummary {
+  default: string;
+  alternatives: string[];
+}
+
+export function parseInstrumentsFromSource(
+  source: string,
+): Record<string, InstrumentEntrySummary> {
+  const start = source.indexOf(INSTRUMENTS_HEADER);
   if (start < 0) {
     throw new Error(
-      `Could not locate "${CATALOG_HEADER}" in etfs.ts source — the parser is out of date.`,
+      `Could not locate "${INSTRUMENTS_HEADER}" in etfs.ts source — the parser is out of date.`,
     );
   }
   const open = source.indexOf("{", start);
   const close = findMatchingClose(source, open);
   if (close < 0) {
-    throw new Error("Unbalanced braces in CATALOG literal — refusing to parse.");
+    throw new Error(
+      "Unbalanced braces in INSTRUMENTS literal — refusing to parse.",
+    );
   }
-
   const body = source.slice(open + 1, close);
-  const out: CatalogSummary = {};
-
-  // Each entry begins with `"<KEY>": E({` at any depth-0 position within
-  // the catalog body. We scan for that token, then walk braces (string-
-  // and comment-aware) to find the matching `})` of the entry literal.
-  const entryRe = /"([A-Za-z0-9_-]+)":\s*E\(\{/g;
+  const out: Record<string, InstrumentEntrySummary> = {};
+  // Each entry: `"<ISIN>": I({ ... }),`
+  const entryRe = /"([A-Z0-9]+)":\s*I\(\{/g;
   let m: RegExpExecArray | null;
   while ((m = entryRe.exec(body)) !== null) {
-    const key = m[1];
-    // Position of the `{` we just matched (the last char of `m[0]`).
+    const isin = m[1];
     const openBrace = m.index + m[0].length - 1;
     const closeBrace = findMatchingClose(body, openBrace);
     if (closeBrace < 0) {
-      throw new Error(`Unbalanced braces inside catalog entry "${key}".`);
+      throw new Error(`Unbalanced braces inside INSTRUMENTS entry "${isin}".`);
     }
     const entryBody = body.slice(openBrace + 1, closeBrace);
-    out[key] = parseEntryBody(key, entryBody);
-    // Resume scanning *after* the closing `})` so a stray `E({` inside a
-    // string/comment can't confuse the next iteration.
+    out[isin] = {
+      isin,
+      name: stringField(entryBody, "name") ?? "",
+      terBps: numberField(entryBody, "terBps") ?? 0,
+      domicile: stringField(entryBody, "domicile") ?? "",
+      replication: stringField(entryBody, "replication") ?? "",
+      distribution: stringField(entryBody, "distribution") ?? "",
+      currency: stringField(entryBody, "currency") ?? "",
+      comment: stringField(entryBody, "comment") ?? "",
+      listings: parseListings(entryBody),
+      defaultExchange: stringField(entryBody, "defaultExchange") ?? "",
+      aumMillionsEUR: numberField(entryBody, "aumMillionsEUR"),
+      inceptionDate: stringField(entryBody, "inceptionDate"),
+    };
     entryRe.lastIndex = closeBrace + 1;
   }
+  return out;
+}
 
+export function parseBucketsFromSource(
+  source: string,
+): Record<string, BucketAssignmentSummary> {
+  const start = source.indexOf(BUCKETS_HEADER);
+  if (start < 0) {
+    throw new Error(
+      `Could not locate "${BUCKETS_HEADER}" in etfs.ts source — the parser is out of date.`,
+    );
+  }
+  const open = source.indexOf("{", start);
+  const close = findMatchingClose(source, open);
+  if (close < 0) {
+    throw new Error(
+      "Unbalanced braces in BUCKETS literal — refusing to parse.",
+    );
+  }
+  const body = source.slice(open + 1, close);
+  const out: Record<string, BucketAssignmentSummary> = {};
+  // Each entry: `"<KEY>": B({ default: "...", alternatives: [...] }),`
+  const entryRe = /"([A-Za-z0-9_-]+)":\s*B\(\{/g;
+  let m: RegExpExecArray | null;
+  while ((m = entryRe.exec(body)) !== null) {
+    const key = m[1];
+    const openBrace = m.index + m[0].length - 1;
+    const closeBrace = findMatchingClose(body, openBrace);
+    if (closeBrace < 0) {
+      throw new Error(`Unbalanced braces inside BUCKETS entry "${key}".`);
+    }
+    const entryBody = body.slice(openBrace + 1, closeBrace);
+    const def = stringField(entryBody, "default") ?? "";
+    const alts = parseStringArrayField(entryBody, "alternatives");
+    out[key] = { default: def, alternatives: alts };
+    entryRe.lastIndex = closeBrace + 1;
+  }
+  return out;
+}
+
+// Parse `<name>: ["ISIN", "ISIN", ...]` returning the string elements.
+function parseStringArrayField(body: string, name: string): string[] {
+  const idx = findTopLevelFieldIndex(body, name);
+  if (idx < 0) return [];
+  let cursor = idx;
+  if (body[cursor] === '"') {
+    cursor++;
+    while (cursor < body.length && body[cursor] !== '"') cursor++;
+    cursor++;
+  } else {
+    cursor += name.length;
+  }
+  while (cursor < body.length && /\s/.test(body[cursor])) cursor++;
+  if (body[cursor] !== ":") return [];
+  cursor++;
+  while (cursor < body.length && /\s/.test(body[cursor])) cursor++;
+  if (body[cursor] !== "[") return [];
+  const open = cursor;
+  const close = findMatchingBracket(body, open);
+  if (close < 0) return [];
+  const inner = body.slice(open + 1, close);
+  const out: string[] = [];
+  const re = /"([^"]+)"/g;
+  let mm: RegExpExecArray | null;
+  while ((mm = re.exec(inner)) !== null) {
+    out.push(mm[1]);
+  }
+  return out;
+}
+
+export function parseCatalogFromSource(source: string): CatalogSummary {
+  const instruments = parseInstrumentsFromSource(source);
+  const buckets = parseBucketsFromSource(source);
+  return joinCatalog(instruments, buckets);
+}
+
+// Join the two parsed tables back into the historical CatalogSummary
+// shape (per-bucket entry with its default's metadata + an
+// `alternatives` array of full alternative records).
+function joinCatalog(
+  instruments: Record<string, InstrumentEntrySummary>,
+  buckets: Record<string, BucketAssignmentSummary>,
+): CatalogSummary {
+  const out: CatalogSummary = {};
+  for (const [key, b] of Object.entries(buckets)) {
+    const def = instruments[b.default];
+    if (!def) {
+      // Surface as a structural error so the admin UI shows an actionable
+      // message rather than silently dropping the bucket.
+      throw new Error(
+        `BUCKETS["${key}"].default = "${b.default}" but no INSTRUMENTS["${b.default}"] exists.`,
+      );
+    }
+    const altSummaries: AlternativeEntrySummary[] = [];
+    for (const isin of b.alternatives) {
+      const alt = instruments[isin];
+      if (!alt) {
+        throw new Error(
+          `BUCKETS["${key}"].alternatives contains "${isin}" but no INSTRUMENTS["${isin}"] exists.`,
+        );
+      }
+      altSummaries.push({
+        name: alt.name,
+        isin: alt.isin,
+        terBps: alt.terBps,
+        domicile: alt.domicile,
+        replication: alt.replication,
+        distribution: alt.distribution,
+        currency: alt.currency,
+        comment: alt.comment,
+        listings: alt.listings,
+        defaultExchange: alt.defaultExchange,
+        ...(alt.aumMillionsEUR !== undefined
+          ? { aumMillionsEUR: alt.aumMillionsEUR }
+          : {}),
+        ...(alt.inceptionDate !== undefined
+          ? { inceptionDate: alt.inceptionDate }
+          : {}),
+      });
+    }
+    out[key] = {
+      key,
+      name: def.name,
+      isin: def.isin,
+      terBps: def.terBps,
+      domicile: def.domicile,
+      replication: def.replication,
+      distribution: def.distribution,
+      currency: def.currency,
+      comment: def.comment,
+      listings: def.listings,
+      defaultExchange: def.defaultExchange,
+      ...(def.aumMillionsEUR !== undefined
+        ? { aumMillionsEUR: def.aumMillionsEUR }
+        : {}),
+      ...(def.inceptionDate !== undefined
+        ? { inceptionDate: def.inceptionDate }
+        : {}),
+      ...(altSummaries.length > 0 ? { alternatives: altSummaries } : {}),
+    };
+  }
   return out;
 }
 

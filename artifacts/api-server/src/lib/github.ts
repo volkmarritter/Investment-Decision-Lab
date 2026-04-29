@@ -21,7 +21,12 @@
 // ----------------------------------------------------------------------------
 
 import { Octokit } from "@octokit/rest";
-import { renderEntryBlock, type NewEtfEntry } from "./render-entry";
+import {
+  renderEntryBlock,
+  renderInstrumentRow,
+  renderBucketRow,
+  type NewEtfEntry,
+} from "./render-entry";
 import {
   renderAlternativeBlock,
   type NewAlternativeEntry,
@@ -35,7 +40,180 @@ import { MAX_ALTERNATIVES_PER_BUCKET } from "./limits";
 // "Show generated code" disclosure without dragging octokit into the
 // test bundle.
 export type { NewEtfEntry, NewAlternativeEntry };
-export { renderEntryBlock, renderAlternativeBlock };
+export {
+  renderEntryBlock,
+  renderAlternativeBlock,
+  renderInstrumentRow,
+  renderBucketRow,
+};
+
+// Task #111 markers — kept identical to catalog-parser.ts so the text
+// walker can locate the new split literals. If you rename them, update
+// catalog-parser.ts too.
+const INSTRUMENTS_HEADER =
+  "const INSTRUMENTS: Record<string, InstrumentRecord> = {";
+const BUCKETS_HEADER = "const BUCKETS: Record<string, BucketAssignment> = {";
+
+// Locate the matching `{`/`}` pair of a top-level literal whose declaration
+// begins with `header`. Returns the absolute indices of `{` and the
+// matching `}`. Throws if either side is missing.
+function findLiteralBlock(
+  source: string,
+  header: string,
+): { openBrace: number; closeBrace: number } {
+  const start = source.indexOf(header);
+  if (start < 0) {
+    throw new Error(
+      `Could not locate "${header}" in etfs.ts source — refusing to edit.`,
+    );
+  }
+  const openBrace = source.indexOf("{", start);
+  const closeBrace = findMatchingClose(source, openBrace);
+  if (closeBrace < 0) {
+    throw new Error(
+      `Unbalanced braces inside literal starting with "${header}".`,
+    );
+  }
+  return { openBrace, closeBrace };
+}
+
+// Locate the body of a single bucket entry inside the BUCKETS literal —
+// i.e. the `{ ... }` of a `B({ ... })` call following `"<key>":`.
+// Returns absolute indices for the `{` and matching `}` of that body, or
+// null when the bucket key isn't present. The match is depth-0 inside the
+// BUCKETS body, string- and comment-aware via findMatchingClose.
+function findBucketEntry(
+  source: string,
+  bucketsBlock: { openBrace: number; closeBrace: number },
+  parentKey: string,
+): { openBrace: number; closeBrace: number } | null {
+  const body = source.slice(bucketsBlock.openBrace + 1, bucketsBlock.closeBrace);
+  const re = new RegExp(
+    `"${escapeRegex(parentKey)}":\\s*B\\(\\{`,
+    "g",
+  );
+  const m = re.exec(body);
+  if (!m) return null;
+  const relOpen = m.index + m[0].length - 1; // the `{` in `B({`
+  const relClose = findMatchingClose(body, relOpen);
+  if (relClose < 0) {
+    throw new Error(
+      `Unbalanced braces inside BUCKETS entry "${parentKey}" — refusing to edit.`,
+    );
+  }
+  return {
+    openBrace: bucketsBlock.openBrace + 1 + relOpen,
+    closeBrace: bucketsBlock.openBrace + 1 + relClose,
+  };
+}
+
+// Returns true if INSTRUMENTS already has a row for the given ISIN.
+function instrumentRowExists(
+  source: string,
+  instrumentsBlock: { openBrace: number; closeBrace: number },
+  isin: string,
+): boolean {
+  const body = source.slice(
+    instrumentsBlock.openBrace + 1,
+    instrumentsBlock.closeBrace,
+  );
+  const re = new RegExp(`"${escapeRegex(isin)}":\\s*I\\(\\{`);
+  return re.test(body);
+}
+
+// Append a fresh `"<ISIN>": I({ ... }),` row at the end of the
+// INSTRUMENTS literal, preserving the surrounding indentation.
+function appendInstrumentRow(
+  source: string,
+  instrumentsBlock: { openBrace: number; closeBrace: number },
+  entry: NewEtfEntry,
+): string {
+  const block = renderInstrumentRow(entry, "  ");
+  const before = source.slice(0, instrumentsBlock.closeBrace);
+  const after = source.slice(instrumentsBlock.closeBrace);
+  const trimmed = before.replace(/\s*$/, "");
+  return `${trimmed}\n${block}\n${after}`;
+}
+
+// Parse the inner ISIN strings of a bucket's `alternatives: [ ... ]`
+// field. Returns null when the bucket has no `alternatives:` field at
+// depth 0 (defensive — the catalog convention always emits one, even
+// when empty). Otherwise returns the absolute `[` and `]` indices plus
+// the parsed array of trimmed ISIN strings (in source order).
+function findBucketAlternatives(
+  source: string,
+  bucketBody: { openBrace: number; closeBrace: number },
+): {
+  openBracket: number;
+  closeBracket: number;
+  isins: string[];
+} | null {
+  const inner = source.slice(bucketBody.openBrace + 1, bucketBody.closeBrace);
+  const idx = findFieldIndex(inner, "alternatives");
+  if (idx < 0) return null;
+  let cursor = idx + "alternatives:".length;
+  while (cursor < inner.length && /\s/.test(inner[cursor])) cursor++;
+  if (inner[cursor] !== "[") {
+    throw new Error(
+      "`alternatives` field of a BUCKETS entry is not an array literal.",
+    );
+  }
+  const openBracketRel = cursor;
+  const closeBracketRel = findMatchingBracket(inner, openBracketRel);
+  if (closeBracketRel < 0) {
+    throw new Error(
+      "Unbalanced brackets inside `alternatives` array of BUCKETS entry.",
+    );
+  }
+  const arrayBody = inner.slice(openBracketRel + 1, closeBracketRel);
+  const isins: string[] = [];
+  // Walk the array, picking up every quoted string at depth 0. Skips
+  // line/block comments via the same opaque-string-aware scanner used
+  // elsewhere in this module.
+  let i = 0;
+  while (i < arrayBody.length) {
+    const ch = arrayBody[i];
+    if (ch === "/" && arrayBody[i + 1] === "/") {
+      while (i < arrayBody.length && arrayBody[i] !== "\n") i++;
+      continue;
+    }
+    if (ch === "/" && arrayBody[i + 1] === "*") {
+      i += 2;
+      while (
+        i < arrayBody.length - 1 &&
+        !(arrayBody[i] === "*" && arrayBody[i + 1] === "/")
+      ) {
+        i++;
+      }
+      i += 2;
+      continue;
+    }
+    if (ch === '"') {
+      const start = i + 1;
+      i++;
+      while (i < arrayBody.length) {
+        const c = arrayBody[i];
+        if (c === "\\") {
+          i += 2;
+          continue;
+        }
+        if (c === '"') {
+          isins.push(arrayBody.slice(start, i));
+          i++;
+          break;
+        }
+        i++;
+      }
+      continue;
+    }
+    i++;
+  }
+  return {
+    openBracket: bucketBody.openBrace + 1 + openBracketRel,
+    closeBracket: bucketBody.openBrace + 1 + closeBracketRel,
+    isins,
+  };
+}
 
 export interface PrCreationContext {
   policyFit: { aumOk: boolean; terOk: boolean; notes: string[] };
@@ -673,40 +851,36 @@ export function injectEntry(
   source: string,
   entry: NewEtfEntry,
 ): { content: string; alreadyPresent: boolean } {
-  // Pre-flight: refuse if the key is already in the catalog. Cheap to
-  // check via simple string contains because catalog keys are unique
-  // identifiers like "Equity-Global".
-  const keyLine = new RegExp(`^\\s*"${escapeRegex(entry.key)}":\\s*E\\(`, "m");
+  // Pre-flight: refuse if the bucket key is already in BUCKETS. The
+  // INSTRUMENTS row may already exist (the ISIN could be referenced by
+  // another bucket); we tolerate that and just append the BUCKETS row.
+  const keyLine = new RegExp(
+    `^\\s*"${escapeRegex(entry.key)}":\\s*B\\(`,
+    "m",
+  );
   if (keyLine.test(source)) {
     return { content: source, alreadyPresent: true };
   }
 
-  const catalogStart = source.indexOf(
-    "const CATALOG: Record<string, ETFRecord> = {",
-  );
-  if (catalogStart < 0) {
-    throw new Error(
-      "Could not locate `const CATALOG: Record<string, ETFRecord> = {` in etfs.ts.",
-    );
-  }
-  // Find the matching closing brace using the string- and comment-aware
-  // walker so a comment field containing literal `{`/`}` (which JSON
-  // doesn't escape) can't truncate the catalog and corrupt the diff.
-  const openBrace = source.indexOf("{", catalogStart);
-  const close = findMatchingClose(source, openBrace);
-  if (close < 0) {
-    throw new Error("Unbalanced braces in etfs.ts — refusing to edit.");
+  // Step 1: ensure the INSTRUMENTS row exists. Append a fresh I({...})
+  // entry only when the ISIN isn't already in the master table — the
+  // operator may be reusing an existing instrument under a new bucket
+  // (e.g. CHF vs EUR sleeves of the same fund).
+  let next = source;
+  let instrumentsBlock = findLiteralBlock(next, INSTRUMENTS_HEADER);
+  if (!instrumentRowExists(next, instrumentsBlock, entry.isin)) {
+    next = appendInstrumentRow(next, instrumentsBlock, entry);
+    // BUCKETS literal moved when INSTRUMENTS grew; recompute below.
   }
 
-  const indent = "  ";
-  const block = renderEntryBlock(entry, indent);
-  // Insert just before the closing brace (which is on its own line as `};`).
-  const before = source.slice(0, close);
-  const after = source.slice(close);
-  // Ensure there's exactly one trailing newline on the previous entry
-  // (catalog uses `}),\n` then optional comment line then next entry).
+  // Step 2: append the BUCKETS row. Recompute the block bounds because
+  // step 1 may have shifted them.
+  const bucketsBlock = findLiteralBlock(next, BUCKETS_HEADER);
+  const bucketRow = renderBucketRow(entry.key, entry.isin, [], "  ");
+  const before = next.slice(0, bucketsBlock.closeBrace);
+  const after = next.slice(bucketsBlock.closeBrace);
   const trimmed = before.replace(/\s*$/, "");
-  const content = `${trimmed}\n${block}\n${after}`;
+  const content = `${trimmed}\n${bucketRow}\n${after}`;
   return { content, alreadyPresent: false };
 }
 
@@ -787,20 +961,17 @@ export function injectAlternative(
   parentKey: string,
   entry: NewAlternativeEntry,
 ): InjectAlternativeResult {
-  // Pre-flight #1: parent must exist. Use the same single-line regex as
-  // injectEntry's key check — cheap and unambiguous.
-  const parentLine = new RegExp(
-    `^(\\s*)"${escapeRegex(parentKey)}":\\s*E\\(\\{`,
-    "m",
-  );
-  const parentMatch = parentLine.exec(source);
-  if (!parentMatch) {
+  // Pre-flight #1: parent bucket must exist in BUCKETS.
+  const bucketsBlock = findLiteralBlock(source, BUCKETS_HEADER);
+  const bucketBody = findBucketEntry(source, bucketsBlock, parentKey);
+  if (!bucketBody) {
     return { content: source, status: "parent_missing" };
   }
 
-  // Pre-flight #2: ISIN must be globally unique vs every default AND
-  // every existing alternative. Reuse parseCatalogFromSource so the check
-  // walks the same brace-aware tree the runtime catalog reads from.
+  // Pre-flight #2: ISIN must be globally unique across every bucket
+  // (default OR alternative). The joined parser is the single source of
+  // truth for that invariant — it walks the same INSTRUMENTS+BUCKETS
+  // tree the runtime engine reads from.
   const normIsin = entry.isin.trim().toUpperCase();
   if (normIsin) {
     const summary = parseCatalogFromSource(source);
@@ -822,79 +993,57 @@ export function injectAlternative(
     }
   }
 
-  // Locate the parent's record body: `{` of the `E({` we matched, walked
-  // to its matching `}`. The `})` that closes the parent always follows.
-  const eOpenIdx = parentMatch.index + parentMatch[0].length - 1; // the `{`
-  const eCloseIdx = findMatchingClose(source, eOpenIdx);
-  if (eCloseIdx < 0) {
+  // Pre-flight #3: cap. Read existing alternatives ISINs in the bucket.
+  const altsField = findBucketAlternatives(source, bucketBody);
+  if (!altsField) {
     throw new Error(
-      `Unbalanced braces inside catalog entry "${parentKey}" — refusing to edit.`,
+      `BUCKETS["${parentKey}"] has no \`alternatives:\` field — refusing to edit. The catalog convention requires every bucket to declare an empty array.`,
     );
   }
-  const recordBody = source.slice(eOpenIdx + 1, eCloseIdx);
-
-  // Does the parent already have an `alternatives:` array?
-  const altsIdx = findFieldIndex(recordBody, "alternatives");
-  if (altsIdx >= 0) {
-    // Find the `[` that starts the array, then its matching `]`.
-    let openBracketRel = altsIdx + "alternatives:".length;
-    while (
-      openBracketRel < recordBody.length &&
-      /\s/.test(recordBody[openBracketRel])
-    ) {
-      openBracketRel++;
-    }
-    if (recordBody[openBracketRel] !== "[") {
-      throw new Error(
-        `\`alternatives\` field of "${parentKey}" is not an array literal — refusing to edit.`,
-      );
-    }
-    const closeBracketRel = findMatchingBracket(recordBody, openBracketRel);
-    if (closeBracketRel < 0) {
-      throw new Error(
-        `Unbalanced brackets in \`alternatives\` array of "${parentKey}".`,
-      );
-    }
-
-    // Pre-flight #3: cap. Count existing alternatives by counting top-level
-    // `{` braces inside the array body.
-    const arrayBody = recordBody.slice(openBracketRel + 1, closeBracketRel);
-    const existingCount = countTopLevelObjects(arrayBody);
-    if (existingCount >= MAX_ALTERNATIVES_PER_BUCKET) {
-      return { content: source, status: "cap_exceeded" };
-    }
-
-    // Insert just before the closing `]`. The catalog's hand-written style
-    // indents alternative bodies at "      " (6 spaces) and uses trailing
-    // commas after each `}`. Match it.
-    const indent = "      ";
-    const block = renderAlternativeBlock(entry, indent);
-    const absoluteCloseBracket = eOpenIdx + 1 + closeBracketRel;
-    const before = source.slice(0, absoluteCloseBracket);
-    const after = source.slice(absoluteCloseBracket);
-    // Trim trailing whitespace on the line preceding `]` so the insertion
-    // doesn't double-blank-line. Then re-insert the indent the closing
-    // bracket sat on.
-    const trimmed = before.replace(/[ \t]*$/, "");
-    const content = `${trimmed}\n${block}\n    ${after}`;
-    return { content, status: "ok" };
+  if (altsField.isins.length >= MAX_ALTERNATIVES_PER_BUCKET) {
+    return { content: source, status: "cap_exceeded" };
   }
 
-  // Parent has no alternatives field — insert one just before the parent's
-  // closing `})`. The closing brace of the record is at eCloseIdx; we want
-  // to insert before it but on its own indentation level, matching the
-  // hand-written style (alternatives field at indent "    ", 4 spaces, to
-  // align with the other top-level fields of the record body).
-  const indent = "      "; // alternative-object indent inside the array
-  const block = renderAlternativeBlock(entry, indent);
-  const before = source.slice(0, eCloseIdx);
-  const after = source.slice(eCloseIdx); // starts with `})`
-  // Strip any trailing whitespace before `})`, then add a newline and the
-  // new field. The catalog convention puts a newline before `})`.
-  const trimmed = before.replace(/[ \t]*$/, "").replace(/\n+$/, "");
-  const insertion = `\n    alternatives: [\n${block}\n    ],\n  `;
-  const content = `${trimmed}${insertion}${after}`;
-  return { content, status: "ok" };
+  // Step A: insert the new ISIN string into BUCKETS[parentKey].
+  // alternatives. Single-line array style — append `, "ISIN"` before `]`
+  // when non-empty, or replace `[]` with `["ISIN"]` when empty.
+  const newIsins = [...altsField.isins, entry.isin];
+  const newArrayLiteral = `[${newIsins.map((s) => JSON.stringify(s)).join(", ")}]`;
+  let next =
+    source.slice(0, altsField.openBracket) +
+    newArrayLiteral +
+    source.slice(altsField.closeBracket + 1);
+
+  // Step B: ensure INSTRUMENTS has a row for this ISIN. Indices in the
+  // INSTRUMENTS literal shifted by `next`'s length change vs `source`,
+  // so we re-locate the literal in the mutated buffer.
+  const instrumentsBlock = findLiteralBlock(next, INSTRUMENTS_HEADER);
+  if (!instrumentRowExists(next, instrumentsBlock, entry.isin)) {
+    // Reuse renderInstrumentRow via NewEtfEntry shape — alternatives
+    // carry the same per-fund metadata (no `key`), so we synthesise a
+    // throwaway key field from the ISIN. The renderer ignores `key`
+    // (it emits the ISIN as the row literal key).
+    const instrumentEntry: NewEtfEntry = {
+      key: entry.isin,
+      name: entry.name,
+      isin: entry.isin,
+      terBps: entry.terBps,
+      domicile: entry.domicile,
+      replication: entry.replication,
+      distribution: entry.distribution,
+      currency: entry.currency,
+      comment: entry.comment,
+      defaultExchange: entry.defaultExchange,
+      listings: entry.listings,
+      ...(entry.aumMillionsEUR !== undefined
+        ? { aumMillionsEUR: entry.aumMillionsEUR }
+        : {}),
+      ...(entry.inceptionDate ? { inceptionDate: entry.inceptionDate } : {}),
+    };
+    next = appendInstrumentRow(next, instrumentsBlock, instrumentEntry);
+  }
+
+  return { content: next, status: "ok" };
 }
 
 // Find the byte index of `<name>:` at the top level of `body`. Skips
@@ -1357,144 +1506,107 @@ export interface RemoveAlternativeResult {
   status: RemoveAlternativeStatus;
 }
 
+// Task #111: replace the `default` ISIN of a bucket. Used by the future
+// "set Default" picker in the tree-row UI. Returns `parent_missing`
+// when the bucket key is not in BUCKETS, `default_unchanged` when the
+// new ISIN is identical to the current default (idempotent no-op), or
+// `ok` with the mutated source.
+//
+// We do NOT validate that the new ISIN exists in INSTRUMENTS — the
+// caller is expected to chain this with a separate "ensure instrument"
+// step (admin Instruments sub-tab CRUD). The runtime catalog joiner
+// throws if a bucket points at a missing instrument, so the operator
+// would see the error on the next reload.
+export type SetBucketDefaultStatus =
+  | "ok"
+  | "parent_missing"
+  | "default_unchanged";
+export interface SetBucketDefaultResult {
+  content: string;
+  status: SetBucketDefaultStatus;
+}
+export function setBucketDefault(
+  source: string,
+  parentKey: string,
+  newDefaultIsin: string,
+): SetBucketDefaultResult {
+  const bucketsBlock = findLiteralBlock(source, BUCKETS_HEADER);
+  const bucketBody = findBucketEntry(source, bucketsBlock, parentKey);
+  if (!bucketBody) {
+    return { content: source, status: "parent_missing" };
+  }
+  const inner = source.slice(bucketBody.openBrace + 1, bucketBody.closeBrace);
+  // Find `default:` at depth 0 within the bucket body. The catalog's
+  // hand-written shape always has it as the first field.
+  const defIdx = findFieldIndex(inner, "default");
+  if (defIdx < 0) {
+    throw new Error(
+      `BUCKETS["${parentKey}"] has no \`default:\` field — refusing to edit.`,
+    );
+  }
+  // Locate the quoted string value after `default:`.
+  let cursor = defIdx + "default:".length;
+  while (cursor < inner.length && /\s/.test(inner[cursor])) cursor++;
+  if (inner[cursor] !== '"') {
+    throw new Error(
+      `BUCKETS["${parentKey}"].default is not a string literal — refusing to edit.`,
+    );
+  }
+  const valStart = cursor + 1;
+  let i = valStart;
+  while (i < inner.length && inner[i] !== '"') {
+    if (inner[i] === "\\") {
+      i += 2;
+      continue;
+    }
+    i++;
+  }
+  const currentDefault = inner.slice(valStart, i);
+  if (currentDefault.toUpperCase() === newDefaultIsin.trim().toUpperCase()) {
+    return { content: source, status: "default_unchanged" };
+  }
+  const absStart = bucketBody.openBrace + 1 + valStart;
+  const absEnd = bucketBody.openBrace + 1 + i;
+  const content =
+    source.slice(0, absStart) + newDefaultIsin + source.slice(absEnd);
+  return { content, status: "ok" };
+}
+
 export function removeAlternative(
   source: string,
   parentKey: string,
   isin: string,
 ): RemoveAlternativeResult {
-  const parentLine = new RegExp(
-    `^(\\s*)"${escapeRegex(parentKey)}":\\s*E\\(\\{`,
-    "m",
-  );
-  const parentMatch = parentLine.exec(source);
-  if (!parentMatch) {
+  const bucketsBlock = findLiteralBlock(source, BUCKETS_HEADER);
+  const bucketBody = findBucketEntry(source, bucketsBlock, parentKey);
+  if (!bucketBody) {
     return { content: source, status: "parent_missing" };
   }
-
-  const eOpenIdx = parentMatch.index + parentMatch[0].length - 1;
-  const eCloseIdx = findMatchingClose(source, eOpenIdx);
-  if (eCloseIdx < 0) {
-    throw new Error(
-      `Unbalanced braces inside catalog entry "${parentKey}" — refusing to edit.`,
-    );
-  }
-  const recordBody = source.slice(eOpenIdx + 1, eCloseIdx);
-
-  const altsIdx = findFieldIndex(recordBody, "alternatives");
-  if (altsIdx < 0) {
+  const altsField = findBucketAlternatives(source, bucketBody);
+  if (!altsField) {
     return { content: source, status: "isin_not_found" };
   }
-
-  let openBracketRel = altsIdx + "alternatives:".length;
-  while (
-    openBracketRel < recordBody.length &&
-    /\s/.test(recordBody[openBracketRel])
-  ) {
-    openBracketRel++;
-  }
-  if (recordBody[openBracketRel] !== "[") {
-    throw new Error(
-      `\`alternatives\` field of "${parentKey}" is not an array literal — refusing to edit.`,
-    );
-  }
-  const closeBracketRel = findMatchingBracket(recordBody, openBracketRel);
-  if (closeBracketRel < 0) {
-    throw new Error(
-      `Unbalanced brackets in \`alternatives\` array of "${parentKey}".`,
-    );
-  }
-
-  // Walk the array body looking for the `{ ... }` whose body has
-  // `isin: "<TARGET>"`. Use the same string/comment-aware scanner used by
-  // countTopLevelObjects so a comment containing the target ISIN can't
-  // fool us into deleting the wrong block.
-  const arrayBodyStart = openBracketRel + 1;
-  const arrayBodyEnd = closeBracketRel;
-  const arrayBody = recordBody.slice(arrayBodyStart, arrayBodyEnd);
   const target = isin.trim().toUpperCase();
-  const isinNeedle = new RegExp(
-    `isin:\\s*"${escapeRegex(target)}"`,
-    "i",
+  const remaining = altsField.isins.filter(
+    (s) => s.toUpperCase() !== target,
   );
-
-  let i = 0;
-  while (i < arrayBody.length) {
-    const ch = arrayBody[i];
-    // Skip strings/comments at depth 0 so we don't open a brace mid-token.
-    if (ch === '"') {
-      i++;
-      while (i < arrayBody.length) {
-        const c = arrayBody[i];
-        if (c === "\\") {
-          i += 2;
-          continue;
-        }
-        if (c === '"') {
-          i++;
-          break;
-        }
-        i++;
-      }
-      continue;
-    }
-    if (ch === "/" && arrayBody[i + 1] === "/") {
-      while (i < arrayBody.length && arrayBody[i] !== "\n") i++;
-      continue;
-    }
-    if (ch === "/" && arrayBody[i + 1] === "*") {
-      i += 2;
-      while (
-        i < arrayBody.length - 1 &&
-        !(arrayBody[i] === "*" && arrayBody[i + 1] === "/")
-      ) {
-        i++;
-      }
-      i += 2;
-      continue;
-    }
-    if (ch === "{") {
-      const close = findMatchingClose(arrayBody, i);
-      if (close < 0) break;
-      const block = arrayBody.slice(i, close + 1);
-      if (isinNeedle.test(block)) {
-        // Found it. Now compute the delete range, including the trailing
-        // comma + newline (or the leading comma + newline if this is the
-        // last entry) so we don't leave orphan punctuation behind.
-        let delStart = i;
-        let delEnd = close + 1;
-
-        // Eat trailing comma.
-        let j = delEnd;
-        while (j < arrayBody.length && /[ \t]/.test(arrayBody[j])) j++;
-        if (arrayBody[j] === ",") {
-          delEnd = j + 1;
-        }
-        // Eat trailing newline.
-        if (arrayBody[delEnd] === "\n") delEnd++;
-
-        // Eat leading whitespace on the same line as the `{`. The catalog
-        // convention indents alts at "      " (6 spaces). Removing the
-        // indent keeps the surrounding lines clean.
-        let k = delStart - 1;
-        while (k >= 0 && /[ \t]/.test(arrayBody[k])) k--;
-        if (k >= 0 && arrayBody[k] === "\n") {
-          delStart = k + 1;
-        }
-
-        const newArrayBody =
-          arrayBody.slice(0, delStart) + arrayBody.slice(delEnd);
-        const absStart = eOpenIdx + 1 + arrayBodyStart;
-        const absEnd = eOpenIdx + 1 + arrayBodyEnd;
-        const content =
-          source.slice(0, absStart) + newArrayBody + source.slice(absEnd);
-        return { content, status: "ok" };
-      }
-      i = close + 1;
-      continue;
-    }
-    i++;
+  if (remaining.length === altsField.isins.length) {
+    return { content: source, status: "isin_not_found" };
   }
-  return { content: source, status: "isin_not_found" };
+  // Rebuild the array literal in the catalog's single-line style.
+  const newArrayLiteral =
+    remaining.length === 0
+      ? "[]"
+      : `[${remaining.map((s) => JSON.stringify(s)).join(", ")}]`;
+  const content =
+    source.slice(0, altsField.openBracket) +
+    newArrayLiteral +
+    source.slice(altsField.closeBracket + 1);
+  // INSTRUMENTS table is intentionally left untouched — an instrument
+  // may be referenced by another bucket, and even when orphaned, deleting
+  // the row is a separate explicit operation (see future Instruments
+  // sub-tab DELETE flow).
+  return { content, status: "ok" };
 }
 
 // ---------------------------------------------------------------------------

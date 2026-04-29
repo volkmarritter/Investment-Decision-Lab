@@ -1,18 +1,22 @@
 // ----------------------------------------------------------------------------
 // inject-alternative.test.ts
 // ----------------------------------------------------------------------------
-// Verifies the string-level catalog mutation that adds a curated
-// alternative under an existing bucket. Covers all 4 status outcomes
-// the route handler maps to user-facing errors:
-//   - "ok"               → injection succeeds, parser sees the new alt
-//   - "parent_missing"   → caller passed a bucket key that doesn't exist
-//   - "isin_present"     → ISIN already used by some default OR alt
-//   - "cap_exceeded"     → parent already has
-//                          MAX_ALTERNATIVES_PER_BUCKET alts (the catalog cap)
+// Verifies the string-level mutation of the new INSTRUMENTS+BUCKETS
+// catalog model (Task #111). The four status outcomes the route handler
+// maps to user-facing errors are:
+//   - "ok"             → injection succeeds, parser sees the new alt
+//   - "parent_missing" → caller passed a bucket key that doesn't exist
+//   - "isin_present"   → ISIN already used by some default OR alt
+//   - "cap_exceeded"   → parent already has MAX_ALTERNATIVES_PER_BUCKET alts
 //
-// Plus the two structurally distinct injection paths:
-//   - Append to an existing `alternatives: [...]` array
-//   - Create a new `alternatives: [...]` field on a bucket that has none
+// Two structurally distinct injection paths:
+//   - Append to an existing non-empty alternatives array
+//   - Insert into an empty alternatives array (`[]` → `["NEW"]`)
+//
+// In the new model alternatives in BUCKETS are bare ISIN strings; the
+// metadata (name, listings, terBps, …) lives once in INSTRUMENTS. The
+// injector therefore ALSO appends a fresh INSTRUMENTS row when the ISIN
+// isn't yet in the registry.
 // ----------------------------------------------------------------------------
 
 import { describe, it, expect } from "vitest";
@@ -24,47 +28,91 @@ import {
 import { parseCatalogFromSource } from "../../api-server/src/lib/catalog-parser";
 import { MAX_ALTERNATIVES_PER_BUCKET } from "../../api-server/src/lib/limits";
 
-const FIXTURE_WITH_ALTS = `const CATALOG: Record<string, ETFRecord> = {
-  "Equity-Global": E({
-    name: "SPDR MSCI ACWI IMI UCITS",
-    isin: "IE00B3YLTY66",
-    terBps: 17,
-    domicile: "Ireland",
-    replication: "Physical (sampled)",
-    distribution: "Accumulating",
-    currency: "USD",
-    comment: "Single-fund global equity.",
-    listings: { LSE: { ticker: "SPYI" } },
-    defaultExchange: "LSE",
-    alternatives: [
-      {
-        name: "Vanguard FTSE All-World UCITS",
-        isin: "IE00BK5BQT80",
-        terBps: 22,
-        domicile: "Ireland",
-        replication: "Physical (sampled)",
-        distribution: "Accumulating",
-        currency: "USD",
-        comment: "Vanguard.",
-        listings: { LSE: { ticker: "VWRA" } },
-        defaultExchange: "LSE",
-      },
-    ],
-  }),
-  "Equity-USA": E({
-    name: "iShares Core S&P 500 UCITS",
-    isin: "IE00B5BMR087",
-    terBps: 7,
+// Compose a minimal but realistic INSTRUMENTS+BUCKETS source. Exposed as a
+// helper so the cap-exceeded test can synthesise a wider INSTRUMENTS table
+// without copy-pasting the catalog headers each time.
+function buildSource(opts: {
+  instruments: Array<{
+    isin: string;
+    name: string;
+    terBps?: number;
+    ticker?: string;
+    comment?: string;
+  }>;
+  buckets: Array<{ key: string; default: string; alternatives: string[] }>;
+}): string {
+  const instrumentRows = opts.instruments
+    .map(
+      (i) => `  "${i.isin}": I({
+    name: ${JSON.stringify(i.name)},
+    isin: "${i.isin}",
+    terBps: ${i.terBps ?? 10},
     domicile: "Ireland",
     replication: "Physical",
     distribution: "Accumulating",
     currency: "USD",
-    comment: "Largest S&P 500 UCITS.",
-    listings: { LSE: { ticker: "CSPX" } },
+    comment: ${JSON.stringify(i.comment ?? "Test instrument.")},
+    listings: { LSE: { ticker: ${JSON.stringify(i.ticker ?? "TST")} } },
     defaultExchange: "LSE",
-  }),
+  }),`,
+    )
+    .join("\n");
+  const bucketRows = opts.buckets
+    .map(
+      (b) =>
+        `  "${b.key}": B({
+    default: "${b.default}",
+    alternatives: [${b.alternatives.map((s) => `"${s}"`).join(", ")}],
+  }),`,
+    )
+    .join("\n");
+  return `import { foo } from "./bar";
+const I = (x: any) => x;
+const B = (x: any) => x;
+
+const INSTRUMENTS: Record<string, InstrumentRecord> = {
+${instrumentRows}
+};
+
+const BUCKETS: Record<string, BucketAssignment> = {
+${bucketRows}
 };
 `;
+}
+
+const FIXTURE_WITH_ALTS = buildSource({
+  instruments: [
+    {
+      isin: "IE00B3YLTY66",
+      name: "SPDR MSCI ACWI IMI UCITS",
+      terBps: 17,
+      ticker: "SPYI",
+      comment: "Single-fund global equity.",
+    },
+    {
+      isin: "IE00BK5BQT80",
+      name: "Vanguard FTSE All-World UCITS",
+      terBps: 22,
+      ticker: "VWRA",
+      comment: "Vanguard.",
+    },
+    {
+      isin: "IE00B5BMR087",
+      name: "iShares Core S&P 500 UCITS",
+      terBps: 7,
+      ticker: "CSPX",
+      comment: "Largest S&P 500 UCITS.",
+    },
+  ],
+  buckets: [
+    {
+      key: "Equity-Global",
+      default: "IE00B3YLTY66",
+      alternatives: ["IE00BK5BQT80"],
+    },
+    { key: "Equity-USA", default: "IE00B5BMR087", alternatives: [] },
+  ],
+});
 
 const NEW_ALT: NewAlternativeEntry = {
   name: "iShares MSCI ACWI UCITS",
@@ -88,17 +136,22 @@ describe("injectAlternative", () => {
     expect(parsed["Equity-Global"].alternatives?.[1].isin).toBe(
       "IE00B6R52259",
     );
-    // The pre-existing alternative must not be disturbed.
+    // Existing alt must not be disturbed.
     expect(parsed["Equity-Global"].alternatives?.[0].isin).toBe(
       "IE00BK5BQT80",
     );
-    // The parent's own ISIN/name must not be disturbed.
+    // Parent's own ISIN/name must not be disturbed.
     expect(parsed["Equity-Global"].isin).toBe("IE00B3YLTY66");
-    // Sibling buckets must not be disturbed.
+    // Sibling bucket must not be disturbed.
     expect(parsed["Equity-USA"].isin).toBe("IE00B5BMR087");
+    // The newly inserted alternative resolves to its INSTRUMENTS row, so
+    // the joined view carries the full metadata (not just the bare ISIN).
+    expect(parsed["Equity-Global"].alternatives?.[1].name).toBe(
+      "iShares MSCI ACWI UCITS",
+    );
   });
 
-  it("creates a new alternatives field on a bucket that has none", () => {
+  it("inserts into an empty alternatives array (`[]` → `[\"NEW\"]`)", () => {
     const r = injectAlternative(FIXTURE_WITH_ALTS, "Equity-USA", {
       ...NEW_ALT,
       name: "Vanguard S&P 500 UCITS",
@@ -109,7 +162,7 @@ describe("injectAlternative", () => {
     const parsed = parseCatalogFromSource(r.content);
     expect(parsed["Equity-USA"].alternatives?.length).toBe(1);
     expect(parsed["Equity-USA"].alternatives?.[0].isin).toBe("IE00BFMXXD54");
-    // The parent's own fields stay intact.
+    // Parent's own fields stay intact.
     expect(parsed["Equity-USA"].isin).toBe("IE00B5BMR087");
     expect(parsed["Equity-USA"].name).toBe("iShares Core S&P 500 UCITS");
   });
@@ -139,34 +192,41 @@ describe("injectAlternative", () => {
   });
 
   it(`returns cap_exceeded when parent already has ${MAX_ALTERNATIVES_PER_BUCKET} alternatives`, () => {
-    // Synthetic fixture filled to the cap under Equity-Global. The base
-    // FIXTURE_WITH_ALTS already carries 1 alternative; we synthesize
-    // (MAX − 1) more filler blocks to reach the limit before injecting.
-    const fillerBlocks = Array.from(
-      { length: MAX_ALTERNATIVES_PER_BUCKET - 1 },
-      (_, i) => {
-        const seq = String(i + 1).padStart(2, "0");
-        return `      {
-        name: "Filler Alt ${seq}",
-        isin: "IE00FFFFFF${seq}",
-        terBps: 25,
-        domicile: "Ireland",
-        replication: "Physical",
-        distribution: "Accumulating",
-        currency: "USD",
-        comment: "Filler.",
-        listings: { LSE: { ticker: "FIL${seq}" } },
-        defaultExchange: "LSE",
-      },`;
-      },
-    ).join("\n");
-    const fixtureFull = FIXTURE_WITH_ALTS.replace(
-      "    ],\n  }),\n  \"Equity-USA\":",
-      `${fillerBlocks}
-    ],
-  }),
-  "Equity-USA":`,
+    // Synthesise a fixture where Equity-Global is filled to the cap. The
+    // INSTRUMENTS table must carry rows for every referenced ISIN so the
+    // global-uniqueness pre-flight (which parses INSTRUMENTS+BUCKETS) sees
+    // them as legitimate prior assignments.
+    const fillerIsins = Array.from(
+      { length: MAX_ALTERNATIVES_PER_BUCKET },
+      (_, i) => `IE00FFFFFF${String(i + 1).padStart(2, "0")}`,
     );
+    const fixtureFull = buildSource({
+      instruments: [
+        {
+          isin: "IE00B3YLTY66",
+          name: "Default Global",
+          ticker: "SPYI",
+        },
+        {
+          isin: "IE00B5BMR087",
+          name: "iShares Core S&P 500 UCITS",
+          ticker: "CSPX",
+        },
+        ...fillerIsins.map((isin, i) => ({
+          isin,
+          name: `Filler Alt ${i + 1}`,
+          ticker: `F${String(i + 1).padStart(2, "0")}`,
+        })),
+      ],
+      buckets: [
+        {
+          key: "Equity-Global",
+          default: "IE00B3YLTY66",
+          alternatives: fillerIsins,
+        },
+        { key: "Equity-USA", default: "IE00B5BMR087", alternatives: [] },
+      ],
+    });
     const r = injectAlternative(fixtureFull, "Equity-Global", {
       ...NEW_ALT,
       isin: "IE00BNEW1234", // unique so we hit cap, not isin_present
@@ -185,9 +245,9 @@ describe("injectAlternative", () => {
   });
 
   it("produces output that round-trips through the parser cleanly", () => {
-    // A successful inject must produce source that the parser can fully
-    // re-read — otherwise the next admin reload would show a corrupted
-    // catalog and block further editing.
+    // A successful inject must produce source the parser can fully re-read
+    // — otherwise the next admin reload would show a corrupted catalog
+    // and block further editing.
     const r = injectAlternative(FIXTURE_WITH_ALTS, "Equity-USA", {
       ...NEW_ALT,
       isin: "IE00BFMXXD54",
@@ -195,29 +255,57 @@ describe("injectAlternative", () => {
     expect(r.status).toBe("ok");
     expect(() => parseCatalogFromSource(r.content)).not.toThrow();
   });
+
+  it("appends a fresh INSTRUMENTS row when the ISIN isn't in the registry yet", () => {
+    // Task #111 invariant: INSTRUMENTS owns the per-fund metadata and
+    // every alternative ISIN string in BUCKETS must resolve to a row.
+    // The injector creates that row from the entry's metadata when needed.
+    const r = injectAlternative(FIXTURE_WITH_ALTS, "Equity-Global", NEW_ALT);
+    expect(r.status).toBe("ok");
+    expect(r.content).toContain(`"${NEW_ALT.isin}": I({`);
+    expect(r.content).toContain(`name: ${JSON.stringify(NEW_ALT.name)}`);
+  });
 });
 
 describe("removeAlternative", () => {
   // Two-alt fixture so we can prove we cleanly remove the first vs the
-  // last vs the middle without disturbing siblings.
-  const TWO_ALTS = FIXTURE_WITH_ALTS.replace(
-    "    ],\n  }),\n  \"Equity-USA\":",
-    `      {
-        name: "Filler Alt",
+  // last without disturbing siblings.
+  const TWO_ALTS = buildSource({
+    instruments: [
+      {
+        isin: "IE00B3YLTY66",
+        name: "SPDR MSCI ACWI IMI UCITS",
+        terBps: 17,
+        ticker: "SPYI",
+      },
+      {
+        isin: "IE00BK5BQT80",
+        name: "Vanguard FTSE All-World UCITS",
+        terBps: 22,
+        ticker: "VWRA",
+      },
+      {
         isin: "IE00FFFFFFF1",
+        name: "Filler Alt",
         terBps: 25,
-        domicile: "Ireland",
-        replication: "Physical",
-        distribution: "Accumulating",
-        currency: "USD",
-        comment: "Filler.",
-        listings: { LSE: { ticker: "FILL" } },
-        defaultExchange: "LSE",
+        ticker: "FILL",
+      },
+      {
+        isin: "IE00B5BMR087",
+        name: "iShares Core S&P 500 UCITS",
+        terBps: 7,
+        ticker: "CSPX",
       },
     ],
-  }),
-  "Equity-USA":`,
-  );
+    buckets: [
+      {
+        key: "Equity-Global",
+        default: "IE00B3YLTY66",
+        alternatives: ["IE00BK5BQT80", "IE00FFFFFFF1"],
+      },
+      { key: "Equity-USA", default: "IE00B5BMR087", alternatives: [] },
+    ],
+  });
 
   it("removes the only alternative from a single-alt bucket", () => {
     const r = removeAlternative(
@@ -276,7 +364,8 @@ describe("removeAlternative", () => {
     expect(r.content).toBe(FIXTURE_WITH_ALTS);
   });
 
-  it("returns isin_not_found when the bucket has no alternatives field", () => {
+  it("returns isin_not_found when the bucket has no matching alternative", () => {
+    // Equity-USA has alternatives: [] — the ISIN simply isn't there.
     const r = removeAlternative(
       FIXTURE_WITH_ALTS,
       "Equity-USA",
@@ -296,18 +385,13 @@ describe("removeAlternative", () => {
     expect(r.content).toBe(FIXTURE_WITH_ALTS);
   });
 
-  it("does not match an ISIN that appears only inside a comment", () => {
-    // A comment containing the target ISIN must not trick the walker
-    // into picking the wrong block. Without the string/comment-aware
-    // skipping in the array walker this test would silently delete the
-    // first alt instead of refusing to find a match.
-    const tricky = FIXTURE_WITH_ALTS.replace(
-      `comment: "Vanguard.",`,
-      `comment: "see also IE00BTRICKY01 in docs",`,
-    );
-    const r = removeAlternative(tricky, "Equity-Global", "IE00BTRICKY01");
-    expect(r.status).toBe("isin_not_found");
-    expect(r.content).toBe(tricky);
+  it("leaves the INSTRUMENTS row intact (deletion is a separate operation)", () => {
+    // Removing an alternative slot must NOT touch the master INSTRUMENTS
+    // table — an instrument may be referenced by another bucket, and
+    // even when orphaned, its deletion is an explicit operator action.
+    const r = removeAlternative(TWO_ALTS, "Equity-Global", "IE00BK5BQT80");
+    expect(r.status).toBe("ok");
+    expect(r.content).toContain(`"IE00BK5BQT80": I({`);
   });
 
   it("produces output that round-trips through the parser cleanly", () => {
