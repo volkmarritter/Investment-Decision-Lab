@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
-import { AlertCircle, CheckCircle2, Info, Target, ShieldAlert, BookOpen, ArrowRight, Download, Loader2, RotateCcw, ClipboardCopy, X, Minus, Plus, Search } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronDown, Info, Target, ShieldAlert, BookOpen, ArrowRight, Download, Loader2, RotateCcw, ClipboardCopy, X, Minus, Plus, Search } from "lucide-react";
 import {
   loadManualWeights,
   setManualWeight,
@@ -26,6 +26,7 @@ import { motion, AnimatePresence } from "framer-motion";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -1106,6 +1107,50 @@ export function BuildPortfolio() {
                   </CardContent>
                 </Card>
 
+                {/* Sections 4 + 6: Construction Rationale + Key Risks (collapsible, open by default) */}
+                <Collapsible defaultOpen className="space-y-3">
+                  <CollapsibleTrigger
+                    type="button"
+                    className="group flex w-full items-center justify-between gap-2 text-left"
+                  >
+                    <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                      <Info className="h-4 w-4" /> {t("build.rationaleRisks.title")}
+                    </h3>
+                    <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform duration-200 group-data-[state=closed]:-rotate-90" />
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* Section 4: Portfolio Rationale */}
+                      <Card>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <Info className="h-4 w-4" /> {t("build.rationale.title")}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3 text-sm">
+                          {output.rationale.map((r, i) => (
+                            <p key={i} className="leading-relaxed text-muted-foreground">{r}</p>
+                          ))}
+                        </CardContent>
+                      </Card>
+
+                      {/* Section 6: Key Risks */}
+                      <Card>
+                        <CardHeader className="pb-3">
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <ShieldAlert className="h-4 w-4" /> {t("build.risks.title")}
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent className="space-y-3 text-sm">
+                          {output.risks.map((r, i) => (
+                            <p key={i} className="leading-relaxed text-muted-foreground">{r}</p>
+                          ))}
+                        </CardContent>
+                      </Card>
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+
                 {/* Section 5: ETF Implementation */}
                 {(() => {
                   const renderBanner = () => {
@@ -1450,39 +1495,6 @@ export function BuildPortfolio() {
 
                 {/* Scenario Stress Test */}
                 <StressTest allocation={output.allocation} baseCurrency={watchedBaseCcy} />
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  {/* Section 4: Portfolio Rationale */}
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <Info className="h-4 w-4" /> {t("build.rationale.title")}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-3 text-sm">
-                      {output.rationale.map((r, i) => (
-                        <p key={i} className="leading-relaxed text-muted-foreground">{r}</p>
-                      ))}
-                    </CardContent>
-                  </Card>
-
-                  {/* Section 6: Key Risks */}
-                  <Card>
-                    <CardHeader className="pb-3">
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <ShieldAlert className="h-4 w-4" /> {t("build.risks.title")}
-                      </CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <ul className="space-y-2 text-sm text-muted-foreground list-disc list-inside pl-1">
-                        {output.risks.map((r, i) => (
-                          <li key={i}>{r}</li>
-                        ))}
-                      </ul>
-                    </CardContent>
-                  </Card>
-
-                </div>
 
                 {/* Section 6b: Home Bias Analysis (non-USD bases only, full width, collapsed by default) */}
                 {form.getValues().baseCurrency !== "USD" && (
