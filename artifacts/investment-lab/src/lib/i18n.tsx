@@ -218,6 +218,10 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "build.learning.desc": "Educational notes on these constraints",
     "build.implementation.title": "ETF Implementation",
     "build.implementation.desc": "Example instruments to execute this allocation",
+    "build.implementation.maximise": "Maximise",
+    "build.implementation.maximiseHint": "Open this table in a screen-filling overlay so all rows and columns fit at once",
+    "build.implementation.minimise": "Close",
+    "build.implementation.dialogTitle": "ETF Implementation — maximised view",
 
     // ExplainPortfolio
     "explain.current.title": "Current Portfolio",
@@ -694,6 +698,10 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "build.learning.desc": "Pädagogische Anmerkungen zu diesen Einschränkungen",
     "build.implementation.title": "ETF-Umsetzung",
     "build.implementation.desc": "Beispielinstrumente zur Umsetzung dieser Allokation",
+    "build.implementation.maximise": "Maximieren",
+    "build.implementation.maximiseHint": "Tabelle in einer bildschirmfüllenden Ansicht öffnen, damit alle Zeilen und Spalten auf einmal sichtbar sind",
+    "build.implementation.minimise": "Schliessen",
+    "build.implementation.dialogTitle": "ETF-Umsetzung — vergrösserte Ansicht",
 
     // ExplainPortfolio
     "explain.current.title": "Aktuelles Portfolio",

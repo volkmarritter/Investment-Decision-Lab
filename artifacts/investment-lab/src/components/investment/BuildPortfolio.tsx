@@ -36,6 +36,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
+import { MaximisableSection } from "./MaximisableSection";
+import { cn } from "@/lib/utils";
 
 import { PortfolioInput, PortfolioOutput, ValidationResult } from "@/lib/types";
 import { runValidation } from "@/lib/validation";
@@ -1036,69 +1038,71 @@ export function BuildPortfolio() {
                 </Card>
 
                 {/* Section 5: ETF Implementation */}
-                <Card>
-                  <CardHeader>
-                    <CardTitle>{t("build.implementation.title")}</CardTitle>
-                    <CardDescription>{t("build.implementation.desc")}</CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    {(() => {
-                      const presentBuckets = new Set(output.etfImplementation.map(e => e.bucket));
-                      const activeOverrides = Object.entries(manualWeights).filter(([k]) => presentBuckets.has(k));
-                      const activeCount = activeOverrides.length;
-                      const pinnedSum = activeOverrides.reduce((s, [, v]) => s + v, 0);
-                      // Only flag as "over" — the destructive scale-down case — when the
-                      // pinned sum is *strictly above* 100 (within float tolerance from
-                      // accumulated 0.1-step inputs). Exactly 100% is benign: pinned rows
-                      // stay as typed and non-pinned rows simply go to 0; no warning needed.
-                      const over = activeCount > 0 && pinnedSum > 100 + MANUAL_WEIGHTS_SUM_EPSILON;
-                      const staleCount = Object.keys(manualWeights).length - activeCount;
-                      if (activeCount === 0 && staleCount === 0) return null;
-                      return (
-                        <div className="mb-3 space-y-2" data-testid="manual-weights-banner">
-                          {activeCount > 0 && (
-                            <Alert>
-                              <Info className="h-4 w-4" />
-                              <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                <span>
-                                  {activeCount === 1
-                                    ? t("build.impl.manual.bannerOne")
-                                    : t("build.impl.manual.bannerMany").replace("{n}", String(activeCount))}
-                                </span>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => clearAllManualWeights()}
-                                  data-testid="manual-weights-reset-all"
-                                >
-                                  <RotateCcw className="h-3 w-3 mr-1" />
-                                  {t("build.impl.manual.resetAll")}
-                                </Button>
-                              </AlertDescription>
-                            </Alert>
-                          )}
-                          {over && (
-                            <Alert variant="destructive">
-                              <AlertCircle className="h-4 w-4" />
-                              <AlertDescription>
-                                {t("build.impl.manual.warnSaturated").replace("{sum}", pinnedSum.toFixed(1))}
-                              </AlertDescription>
-                            </Alert>
-                          )}
-                          {staleCount > 0 && (
-                            <Alert>
-                              <Info className="h-4 w-4" />
-                              <AlertDescription>
-                                {t("build.impl.manual.warnStale").replace("{n}", String(staleCount))}
-                              </AlertDescription>
-                            </Alert>
-                          )}
-                        </div>
-                      );
-                    })()}
-                    <div className="rounded-md border overflow-x-auto">
-                      <Table className="text-xs">
+                {(() => {
+                  const renderBanner = () => {
+                    const presentBuckets = new Set(output.etfImplementation.map(e => e.bucket));
+                    const activeOverrides = Object.entries(manualWeights).filter(([k]) => presentBuckets.has(k));
+                    const activeCount = activeOverrides.length;
+                    const pinnedSum = activeOverrides.reduce((s, [, v]) => s + v, 0);
+                    // Only flag as "over" — the destructive scale-down case — when the
+                    // pinned sum is *strictly above* 100 (within float tolerance from
+                    // accumulated 0.1-step inputs). Exactly 100% is benign: pinned rows
+                    // stay as typed and non-pinned rows simply go to 0; no warning needed.
+                    const over = activeCount > 0 && pinnedSum > 100 + MANUAL_WEIGHTS_SUM_EPSILON;
+                    const staleCount = Object.keys(manualWeights).length - activeCount;
+                    if (activeCount === 0 && staleCount === 0) return null;
+                    return (
+                      <div className="mb-3 space-y-2" data-testid="manual-weights-banner">
+                        {activeCount > 0 && (
+                          <Alert>
+                            <Info className="h-4 w-4" />
+                            <AlertDescription className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                              <span>
+                                {activeCount === 1
+                                  ? t("build.impl.manual.bannerOne")
+                                  : t("build.impl.manual.bannerMany").replace("{n}", String(activeCount))}
+                              </span>
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => clearAllManualWeights()}
+                                data-testid="manual-weights-reset-all"
+                              >
+                                <RotateCcw className="h-3 w-3 mr-1" />
+                                {t("build.impl.manual.resetAll")}
+                              </Button>
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                        {over && (
+                          <Alert variant="destructive">
+                            <AlertCircle className="h-4 w-4" />
+                            <AlertDescription>
+                              {t("build.impl.manual.warnSaturated").replace("{sum}", pinnedSum.toFixed(1))}
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                        {staleCount > 0 && (
+                          <Alert>
+                            <Info className="h-4 w-4" />
+                            <AlertDescription>
+                              {t("build.impl.manual.warnStale").replace("{n}", String(staleCount))}
+                            </AlertDescription>
+                          </Alert>
+                        )}
+                      </div>
+                    );
+                  };
+
+                  const renderTable = (compact: boolean) => (
+                    <div
+                      className={cn(
+                        "rounded-md border overflow-x-auto",
+                        compact && "[&_td]:py-1 [&_td]:px-1.5 [&_th]:h-8 [&_th]:px-1.5"
+                      )}
+                    >
+                      <Table className={compact ? "text-[11px]" : "text-xs"}>
                         <TableHeader>
                           <TableRow>
                             <TableHead className="whitespace-nowrap">{t("build.impl.col.assetClass")}</TableHead>
@@ -1111,7 +1115,9 @@ export function BuildPortfolio() {
                             <TableHead className="whitespace-nowrap">{t("build.impl.col.replication")}</TableHead>
                             <TableHead className="whitespace-nowrap">{t("build.impl.col.distribution")}</TableHead>
                             <TableHead className="whitespace-nowrap">{t("build.impl.col.currency")}</TableHead>
-                            <TableHead className="min-w-[220px]">{t("build.impl.col.comment")}</TableHead>
+                            <TableHead className={compact ? "min-w-[180px]" : "min-w-[220px]"}>
+                              {t("build.impl.col.comment")}
+                            </TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1217,18 +1223,50 @@ export function BuildPortfolio() {
                                   : t("build.impl.dist.dist")}
                               </TableCell>
                               <TableCell className="font-mono">{etf.currency}</TableCell>
-                              <TableCell className="text-muted-foreground min-w-[220px] max-w-[320px]">{etf.comment}</TableCell>
+                              <TableCell
+                                className={cn(
+                                  "text-muted-foreground",
+                                  compact ? "min-w-[180px] max-w-[280px]" : "min-w-[220px] max-w-[320px]"
+                                )}
+                              >
+                                {etf.comment}
+                              </TableCell>
                             </TableRow>
                           ))}
                         </TableBody>
                       </Table>
                     </div>
-                    <p className="text-[10px] text-muted-foreground mt-2 italic">
-                      {t("build.impl.disclaimer")}
-                    </p>
-                    <ETFSnapshotFreshness />
-                  </CardContent>
-                </Card>
+                  );
+
+                  const renderFooter = () => (
+                    <>
+                      <p className="text-[10px] text-muted-foreground mt-2 italic">
+                        {t("build.impl.disclaimer")}
+                      </p>
+                      <ETFSnapshotFreshness />
+                    </>
+                  );
+
+                  return (
+                    <MaximisableSection
+                      title={t("build.implementation.title")}
+                      description={t("build.implementation.desc")}
+                      maximiseLabel={t("build.implementation.maximise")}
+                      maximiseHint={t("build.implementation.maximiseHint")}
+                      closeLabel={t("build.implementation.minimise")}
+                      dialogTitle={t("build.implementation.dialogTitle")}
+                      dialogDescription={t("build.implementation.desc")}
+                      testIdPrefix="etf-implementation"
+                      renderContent={({ compact }) => (
+                        <>
+                          {renderBanner()}
+                          {renderTable(compact)}
+                        </>
+                      )}
+                      renderFooter={renderFooter}
+                    />
+                  );
+                })()}
 
                 <ETFDetailsDialog
                   etf={detailsEtf}
