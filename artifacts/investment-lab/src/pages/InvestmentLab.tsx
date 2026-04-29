@@ -108,7 +108,7 @@ export default function InvestmentLab() {
               asChild
               variant="outline"
               size="sm"
-              className="h-8 px-2.5 sm:px-3 text-xs gap-1.5"
+              className="hidden sm:flex h-8 px-2.5 sm:px-3 text-xs gap-1.5"
               data-testid="bicon-cta-header"
             >
               <a
