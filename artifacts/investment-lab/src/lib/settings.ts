@@ -534,3 +534,35 @@ export function subscribeLastBuildManualWeights(
   window.addEventListener(LAST_BUILD_MANUAL_WEIGHTS_EVENT, handler);
   return () => window.removeEventListener(LAST_BUILD_MANUAL_WEIGHTS_EVENT, handler);
 }
+
+// ----------------------------------------------------------------------------
+// UI preference: Build tab "Rationale & Key Risks" collapsible open/closed.
+// ----------------------------------------------------------------------------
+// Persisted in localStorage so a user who collapses the explainer once does
+// not have to collapse it again on every rebuild or reload (Task #85).
+// Default for first-time users is OPEN — only an explicit collapse flips the
+// stored value to false. Stored as the literal strings "true"/"false" rather
+// than JSON to keep it trivial and avoid parse failures from older values.
+const RATIONALE_RISKS_OPEN_KEY = "idl.buildRationaleRisksOpen";
+
+export function getBuildRationaleRisksOpen(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    const raw = window.localStorage.getItem(RATIONALE_RISKS_OPEN_KEY);
+    if (raw === null) return true;
+    // Anything other than the explicit "false" sentinel resolves to open so
+    // a corrupted/legacy value doesn't surprise the user with a hidden block.
+    return raw !== "false";
+  } catch {
+    return true;
+  }
+}
+
+export function setBuildRationaleRisksOpen(open: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(RATIONALE_RISKS_OPEN_KEY, open ? "true" : "false");
+  } catch {
+    /* ignore quota / disabled storage */
+  }
+}

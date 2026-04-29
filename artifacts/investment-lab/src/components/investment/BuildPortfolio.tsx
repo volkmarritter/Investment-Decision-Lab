@@ -53,6 +53,8 @@ import {
   setLastEtfImplementation,
   setLastBuildInput,
   setLastBuildManualWeights,
+  getBuildRationaleRisksOpen,
+  setBuildRationaleRisksOpen,
 } from "@/lib/settings";
 import { StressTest } from "./StressTest";
 import { FeeEstimator } from "./FeeEstimator";
@@ -101,6 +103,13 @@ export function BuildPortfolio() {
   const [isExportingDetailed, setIsExportingDetailed] = useState(false);
   const [numETFsMode, setNumETFsMode] = useState<"auto" | "manual">("auto");
   const [detailsEtf, setDetailsEtf] = useState<import("@/lib/types").ETFImplementation | null>(null);
+  // Persisted open/closed state for the "Rationale & Key Risks" collapsible
+  // (Task #85). Hydrated synchronously from localStorage so the first render
+  // already reflects the user's last choice — no flash of the default-open
+  // state before a useEffect could close it.
+  const [rationaleRisksOpen, setRationaleRisksOpenState] = useState<boolean>(
+    () => getBuildRationaleRisksOpen(),
+  );
   const resultsRef = useRef<HTMLDivElement>(null);
   const pdfRef = useRef<HTMLDivElement>(null);
   const pdfDetailedRef = useRef<HTMLDivElement>(null);
@@ -1107,8 +1116,18 @@ export function BuildPortfolio() {
                   </CardContent>
                 </Card>
 
-                {/* Sections 4 + 6: Construction Rationale + Key Risks (collapsible, open by default) */}
-                <Collapsible defaultOpen className="space-y-3">
+                {/* Sections 4 + 6: Construction Rationale + Key Risks
+                    (collapsible, open by default for first-time users; the
+                    user's last open/closed choice is persisted in localStorage
+                    via setBuildRationaleRisksOpen — Task #85). */}
+                <Collapsible
+                  open={rationaleRisksOpen}
+                  onOpenChange={(open) => {
+                    setRationaleRisksOpenState(open);
+                    setBuildRationaleRisksOpen(open);
+                  }}
+                  className="space-y-3"
+                >
                   <CollapsibleTrigger
                     type="button"
                     className="group flex w-full items-center justify-between gap-2 text-left"
