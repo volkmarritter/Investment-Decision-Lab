@@ -752,6 +752,19 @@ const CATALOG: Record<string, ETFRecord> = {
         listings: { "LSE": { ticker: "CNDX1" }, "XETRA": { ticker: "SXRV" }, "SIX": { ticker: "CSNDX" } },
         defaultExchange: "LSE",
       },
+
+      {
+        name: "Xtrackers MSCI World Information Technology UCITS ETF 1C",
+        isin: "IE00BM67HT60",
+        terBps: 25,
+        domicile: "Ireland",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment: "",
+        listings: { "LSE": { ticker: "XDWT" }, "XETRA": { ticker: "XDWT" }, "SIX": { ticker: "XDWT" } },
+        defaultExchange: "LSE",
+      },
     ],
   }),
   "Equity-Healthcare": E({
