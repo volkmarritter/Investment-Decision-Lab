@@ -56,6 +56,78 @@ export function githubConfigured(): boolean {
 }
 
 // ---------------------------------------------------------------------------
+// ensureFreshBranch — auto-clean stale admin-flow branches (Task #48, 2026-04-29)
+// ---------------------------------------------------------------------------
+// Tries to create `refs/heads/<branch>` from `baseSha`. If GitHub answers 422
+// (branch already exists), we don't want to dump a confusing "delete it on
+// GitHub or rename" message on the operator the way we used to — that came
+// up every time someone re-tried an admin action whose previous PR had been
+// merged or closed (the branch lingers around because GitHub doesn't delete
+// closed-PR head branches automatically when the merge happened outside
+// auto-merge, e.g. operator merged manually or merged via the website).
+//
+// Recovery rule:
+//   - If there's an OPEN PR with this branch as head, refuse with a 409-style
+//     error pointing at that PR — the operator must close/merge it first
+//     instead of us silently force-pushing over their pending review.
+//   - Otherwise the branch is leftover from a closed/merged PR (or an
+//     abandoned attempt). Force-update the ref to baseSha so the upcoming
+//     commit lands cleanly on a fresh, base-aligned branch.
+//
+// We keep the phrase "already exists" in the open-PR error so the existing
+// admin.ts catches that turn it into HTTP 409 (`pr_already_open`) keep
+// working unchanged.
+// ---------------------------------------------------------------------------
+export async function ensureFreshBranch(args: {
+  octokit: Octokit;
+  owner: string;
+  repo: string;
+  branch: string;
+  baseSha: string;
+}): Promise<{ created: boolean; reset: boolean }> {
+  const { octokit, owner, repo, branch, baseSha } = args;
+  try {
+    await octokit.git.createRef({
+      owner,
+      repo,
+      ref: `refs/heads/${branch}`,
+      sha: baseSha,
+    });
+    return { created: true, reset: false };
+  } catch (err: unknown) {
+    if ((err as { status?: number }).status !== 422) throw err;
+  }
+
+  // Branch exists. Check for an open PR before clobbering history.
+  const { data: openPrs } = await octokit.pulls.list({
+    owner,
+    repo,
+    head: `${owner}:${branch}`,
+    state: "open",
+    per_page: 5,
+  });
+  if (openPrs.length > 0) {
+    const urls = openPrs.map((p) => p.html_url).join(", ");
+    throw new Error(
+      `Branch ${branch} already exists with an open PR: ${urls}. ` +
+        `Merge or close the PR before retrying.`,
+    );
+  }
+
+  // Stale leftover from a closed/merged PR. Force-reset to baseSha so the
+  // upcoming commit produces a clean, single-commit branch identical to
+  // the freshly-created case.
+  await octokit.git.updateRef({
+    owner,
+    repo,
+    ref: `heads/${branch}`,
+    sha: baseSha,
+    force: true,
+  });
+  return { created: false, reset: true };
+}
+
+// ---------------------------------------------------------------------------
 // openUpdateAppDefaultsPr — global defaults editor (Task #35, 2026-04-27)
 // ---------------------------------------------------------------------------
 // Replaces `artifacts/investment-lab/src/data/app-defaults.json` wholesale
