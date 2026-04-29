@@ -654,9 +654,17 @@ function parseListings(body: string): Record<string, { ticker: string }> {
 }
 
 // Pure helper used by both the admin UI's classifier and the server-side
-// `/admin/add-isin` guard. Returns the catalog key whose ISIN collides
-// with `draftIsin` under a key OTHER than `draftKey`, or null. Case- and
-// whitespace-insensitive on the ISIN.
+// `/admin/add-isin` guard. Returns a string identifying WHERE the
+// `draftIsin` already lives — either a bare bucket key (when it's the
+// default of that bucket) or `"<bucket> alt N"` (when it's the N-th
+// alternative, 1-based) — under any bucket OTHER than `draftKey`.
+// Returns null when the ISIN is unique. Case- and whitespace-insensitive.
+//
+// Strict global uniqueness (Task #111 Phase 2): an ISIN may appear in
+// at most one bucket slot across the whole catalog, default OR
+// alternative. The preview classifier uses this to flag duplicates
+// before the operator opens a Pull Request — so this MUST scan
+// alternatives too, not just defaults.
 export function findDuplicateIsinKey(
   catalog: CatalogSummary,
   draftKey: string,
@@ -667,6 +675,13 @@ export function findDuplicateIsinKey(
   for (const [k, entry] of Object.entries(catalog)) {
     if (k === draftKey) continue;
     if (entry.isin.toUpperCase() === norm) return k;
+    if (entry.alternatives) {
+      for (let i = 0; i < entry.alternatives.length; i++) {
+        if (entry.alternatives[i].isin.toUpperCase() === norm) {
+          return `${k} alt ${i + 1}`;
+        }
+      }
+    }
   }
   return null;
 }

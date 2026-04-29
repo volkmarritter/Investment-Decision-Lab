@@ -265,6 +265,45 @@ describe("parseCatalogFromSource", () => {
         null,
       );
     });
+
+    // Strict global uniqueness (Task #111 Phase 2) — duplicates must be
+    // detected against ALTERNATIVE slots too, not just bucket defaults.
+    // The collision string carries `<bucket> alt N` so the operator can
+    // see exactly where the ISIN already lives.
+    it("returns `<bucket> alt N` when the ISIN is an alternative of another bucket", () => {
+      const catalogWithAlts = {
+        "Equity-Global": {
+          key: "Equity-Global",
+          name: "ACWI",
+          isin: "IE00B3YLTY66",
+          terBps: 17,
+          domicile: "Ireland",
+          replication: "Physical",
+          distribution: "Accumulating",
+          currency: "USD",
+          comment: "",
+          listings: { LSE: { ticker: "SPYI" } },
+          defaultExchange: "LSE",
+          alternatives: [
+            {
+              name: "VWRA",
+              isin: "IE00BK5BQT80",
+              terBps: 22,
+              domicile: "Ireland",
+              replication: "Physical",
+              distribution: "Accumulating",
+              currency: "USD",
+              comment: "",
+              listings: { LSE: { ticker: "VWRA" } },
+              defaultExchange: "LSE",
+            },
+          ],
+        },
+      };
+      expect(
+        findDuplicateIsinKey(catalogWithAlts, "Equity-USA", "IE00BK5BQT80"),
+      ).toBe("Equity-Global alt 1");
+    });
   });
 
   it("resolves bucket alternatives (ISIN strings) to their INSTRUMENTS rows", () => {

@@ -10,21 +10,62 @@
 //   - filtering OUT instruments already in use somewhere (mode="default";
 //     same rule because a default counts as a usage)
 //
-// The picker NEVER opens a PR by itself — the parent calls the relevant
-// `adminApi.attachAlternativeIsin` / `setBucketDefaultIsin` and feeds the
-// result back via `onSubmitted`.
+// The picker NEVER opens a PR by itself in step 1. After the operator
+// picks an instrument, a step-2 REPLACE-style confirmation panel renders
+// the side-by-side instrument metadata (current default vs. picked, OR
+// just the picked instrument for the alternative mode) so the operator
+// reviews the change BEFORE the PR is created — same UX guarantee as
+// the SuggestIsinPanel DiffPanel REPLACE flow. Only the "Bestätigen und
+// Pull Request öffnen" button on the confirmation panel actually fires
+// `adminApi.setBucketDefaultIsin` / `adminApi.attachAlternativeIsin`.
 // ----------------------------------------------------------------------------
 
 import { useEffect, useMemo, useState } from "react";
 import { adminApi, type InstrumentRow } from "@/lib/admin-api";
 import { useAdminT } from "@/lib/admin-i18n";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { RefreshCw } from "lucide-react";
+import { ChevronLeft, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
 export type InstrumentPickerMode = "default" | "alternative";
+
+// Render one row of the side-by-side preview. Kept inline to avoid
+// pulling in the full SuggestIsinPanel DiffPanel just for a 6-field
+// comparison.
+function MetadataRow({
+  label,
+  before,
+  after,
+  changed,
+}: {
+  label: string;
+  before?: string;
+  after: string;
+  changed: boolean;
+}) {
+  return (
+    <div className="grid grid-cols-[120px_1fr_1fr] gap-2 text-xs">
+      <div className="text-muted-foreground">{label}</div>
+      <div
+        className={`font-mono ${
+          before === undefined
+            ? "text-muted-foreground italic"
+            : changed
+              ? "line-through opacity-60"
+              : ""
+        }`}
+      >
+        {before ?? "—"}
+      </div>
+      <div className={`font-mono ${changed ? "text-amber-700 dark:text-amber-400 font-medium" : ""}`}>
+        {after}
+      </div>
+    </div>
+  );
+}
 
 export function InstrumentPicker({
   parentKey,
@@ -43,6 +84,7 @@ export function InstrumentPicker({
   const [reloadKey, setReloadKey] = useState(0);
   const [query, setQuery] = useState("");
   const [pickedIsin, setPickedIsin] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitErr, setSubmitErr] = useState<string | null>(null);
 
@@ -81,7 +123,28 @@ export function InstrumentPicker({
       .sort((a, b) => a.name.localeCompare(b.name));
   }, [instruments, query]);
 
-  async function handleSubmit() {
+  // For mode="default", surface the bucket's current default so the
+  // confirmation panel can render an A→B side-by-side. The picker only
+  // shows UNASSIGNED instruments, so the current default lives in a
+  // SEPARATE row of the same instruments[] list (its `usage` includes
+  // this `parentKey` with role "default").
+  const currentDefault = useMemo<InstrumentRow | null>(() => {
+    if (!instruments || mode !== "default") return null;
+    return (
+      instruments.find((i) =>
+        i.usage.some(
+          (u) => u.bucket === parentKey && u.role === "default",
+        ),
+      ) ?? null
+    );
+  }, [instruments, mode, parentKey]);
+
+  const pickedInstrument = useMemo<InstrumentRow | null>(() => {
+    if (!instruments || !pickedIsin) return null;
+    return instruments.find((i) => i.isin === pickedIsin) ?? null;
+  }, [instruments, pickedIsin]);
+
+  async function handleConfirmedSubmit() {
     if (!pickedIsin) return;
     setSubmitting(true);
     setSubmitErr(null);
@@ -109,6 +172,153 @@ export function InstrumentPicker({
     }
   }
 
+  // ─── Step 2: REPLACE-style review ─────────────────────────────────────
+  if (confirming && pickedInstrument) {
+    const isReplace = mode === "default" && currentDefault !== null;
+    return (
+      <div
+        className="rounded-md border border-amber-500/50 bg-amber-500/10 p-3 space-y-3"
+        data-testid={`instrument-picker-${parentKey}-${mode}-confirm`}
+      >
+        <div className="flex items-center gap-2">
+          <Badge className="bg-amber-600 hover:bg-amber-600">
+            {mode === "default"
+              ? isReplace
+                ? t({
+                    de: "Default ersetzen",
+                    en: "Replace default",
+                  })
+                : t({
+                    de: "Default festlegen",
+                    en: "Set default",
+                  })
+              : t({
+                  de: "Alternative anhängen",
+                  en: "Attach alternative",
+                })}
+          </Badge>
+          <span className="text-xs">
+            {t({ de: "Bucket", en: "Bucket" })}:{" "}
+            <code className="font-mono">{parentKey}</code>
+          </span>
+        </div>
+        <div className="grid grid-cols-[120px_1fr_1fr] gap-2 text-[11px] text-muted-foreground uppercase tracking-wide">
+          <div></div>
+          <div>
+            {isReplace
+              ? t({ de: "Bisher (Default)", en: "Before (default)" })
+              : mode === "alternative"
+                ? t({ de: "—", en: "—" })
+                : t({ de: "Bisher", en: "Before" })}
+          </div>
+          <div>
+            {mode === "default"
+              ? t({ de: "Neu (Default)", en: "After (default)" })
+              : t({ de: "Neue Alternative", en: "New alternative" })}
+          </div>
+        </div>
+        <div className="space-y-1.5 rounded border bg-background p-2">
+          <MetadataRow
+            label={t({ de: "Name", en: "Name" })}
+            before={isReplace ? currentDefault!.name : undefined}
+            after={pickedInstrument.name}
+            changed={isReplace && currentDefault!.name !== pickedInstrument.name}
+          />
+          <MetadataRow
+            label="ISIN"
+            before={isReplace ? currentDefault!.isin : undefined}
+            after={pickedInstrument.isin}
+            changed={isReplace && currentDefault!.isin !== pickedInstrument.isin}
+          />
+          <MetadataRow
+            label="TER"
+            before={
+              isReplace ? `${(currentDefault!.terBps / 100).toFixed(2)}%` : undefined
+            }
+            after={`${(pickedInstrument.terBps / 100).toFixed(2)}%`}
+            changed={
+              isReplace && currentDefault!.terBps !== pickedInstrument.terBps
+            }
+          />
+          <MetadataRow
+            label={t({ de: "Währung", en: "Currency" })}
+            before={isReplace ? currentDefault!.currency : undefined}
+            after={pickedInstrument.currency}
+            changed={
+              isReplace && currentDefault!.currency !== pickedInstrument.currency
+            }
+          />
+          <MetadataRow
+            label={t({ de: "Domizil", en: "Domicile" })}
+            before={isReplace ? currentDefault!.domicile : undefined}
+            after={pickedInstrument.domicile}
+            changed={
+              isReplace && currentDefault!.domicile !== pickedInstrument.domicile
+            }
+          />
+          <MetadataRow
+            label={t({ de: "Replikation", en: "Replication" })}
+            before={isReplace ? currentDefault!.replication : undefined}
+            after={pickedInstrument.replication}
+            changed={
+              isReplace &&
+              currentDefault!.replication !== pickedInstrument.replication
+            }
+          />
+        </div>
+        {mode === "default" && !isReplace && (
+          <p className="text-[11px] text-muted-foreground italic">
+            {t({
+              de: "Hinweis: Dieser Bucket hat aktuell keinen Default — die alte Spalte ist deshalb leer.",
+              en: "Note: this bucket has no current default — the 'before' column is intentionally empty.",
+            })}
+          </p>
+        )}
+        {submitErr && (
+          <Alert variant="destructive">
+            <AlertTitle className="text-xs">
+              {t({
+                de: "Pull Request konnte nicht geöffnet werden",
+                en: "Could not open Pull Request",
+              })}
+            </AlertTitle>
+            <AlertDescription className="text-xs">{submitErr}</AlertDescription>
+          </Alert>
+        )}
+        <div className="flex items-center justify-between gap-2 pt-1">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={() => {
+              setConfirming(false);
+              setSubmitErr(null);
+            }}
+            disabled={submitting}
+            data-testid={`button-instrument-picker-back-${parentKey}`}
+          >
+            <ChevronLeft className="h-3 w-3 mr-1" />
+            {t({ de: "Zurück zur Auswahl", en: "Back to selection" })}
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            onClick={() => void handleConfirmedSubmit()}
+            disabled={submitting}
+            data-testid={`button-instrument-picker-confirm-${parentKey}-${mode}`}
+          >
+            {submitting && <RefreshCw className="h-3 w-3 animate-spin mr-1" />}
+            {t({
+              de: "Bestätigen und Pull Request öffnen",
+              en: "Confirm and open Pull Request",
+            })}
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── Step 1: pick an instrument ───────────────────────────────────────
   return (
     <div
       className="rounded-md border bg-background p-3 space-y-2"
@@ -213,17 +423,6 @@ export function InstrumentPicker({
           })}
         </div>
       )}
-      {submitErr && (
-        <Alert variant="destructive">
-          <AlertTitle className="text-xs">
-            {t({
-              de: "Pull Request konnte nicht geöffnet werden",
-              en: "Could not open Pull Request",
-            })}
-          </AlertTitle>
-          <AlertDescription className="text-xs">{submitErr}</AlertDescription>
-        </Alert>
-      )}
       <div className="flex items-center justify-end gap-2 pt-1">
         {onCancel && (
           <Button
@@ -231,7 +430,6 @@ export function InstrumentPicker({
             variant="ghost"
             size="sm"
             onClick={onCancel}
-            disabled={submitting}
             data-testid={`button-instrument-picker-cancel-${parentKey}`}
           >
             {t({ de: "Abbrechen", en: "Cancel" })}
@@ -240,20 +438,11 @@ export function InstrumentPicker({
         <Button
           type="button"
           size="sm"
-          onClick={() => void handleSubmit()}
-          disabled={!pickedIsin || submitting}
-          data-testid={`button-instrument-picker-submit-${parentKey}-${mode}`}
+          onClick={() => setConfirming(true)}
+          disabled={!pickedIsin}
+          data-testid={`button-instrument-picker-review-${parentKey}-${mode}`}
         >
-          {submitting && <RefreshCw className="h-3 w-3 animate-spin mr-1" />}
-          {mode === "default"
-            ? t({
-                de: "Als Default vorschlagen",
-                en: "Propose as default",
-              })
-            : t({
-                de: "Als Alternative vorschlagen",
-                en: "Propose as alternative",
-              })}
+          {t({ de: "Weiter zur Vorschau", en: "Continue to review" })}
         </Button>
       </div>
     </div>
