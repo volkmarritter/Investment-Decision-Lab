@@ -221,12 +221,13 @@ export interface AddInstrumentRequest {
 }
 
 // One element of the InstrumentRow.usage array. `role: "default"` means
-// the instrument is the bucket's primary; `role: "alternative"` means
-// it is at index `index` (1-based) inside that bucket's alternatives.
+// the instrument is the bucket's primary (in which case `index` is
+// omitted by the server); `role: "alternative"` means it is at index
+// `index` (1-based) inside that bucket's alternatives.
 export interface InstrumentUsageEntry {
   bucket: string;
   role: "default" | "alternative";
-  index: number;
+  index?: number;
 }
 
 // One row of the /admin/instruments response. Combines the parsed
