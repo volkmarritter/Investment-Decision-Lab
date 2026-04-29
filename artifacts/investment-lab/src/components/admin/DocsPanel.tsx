@@ -1,38 +1,12 @@
-// ----------------------------------------------------------------------------
 // DocsPanel — operator-facing documentation of the admin update flows.
-// ----------------------------------------------------------------------------
-// Single source of truth for "where do my edits actually go and when are they
-// visible to other users?". Five flows are described, each in EN + DE:
-//   1. ETF catalog PR  — "ISIN vorschlagen" → opens PR to src/lib/etfs.ts
-//   2. Look-through pool PR — adds an ISIN to lookthrough.overrides.json
-//   3. App-defaults PR — RF / Home-Bias / CMA written to app-defaults.json
-//   4. Personal Methodology overrides — per-user localStorage, no PR
-//   5. Monthly refresh job — cron-driven re-scrape of pool entries
-//
-// In addition, a short "After-merge republish" insight section captures the
-// gotcha discovered on 2026-04-27: after a PR is merged on GitHub, the deploy
-// snapshot served to end users is built from whatever workspace state Replit
-// has at that moment. If the Republish click happens before the GitHub merge
-// has synced into the workspace, the snapshot will still be pre-merge — the
-// fix is to click Republish *after* the merge has landed in main.
-//
-// Each flow gets two GitHub deep links when the api-server is configured with
-// GITHUB_OWNER + GITHUB_REPO: "View file" (the file on the base branch) and
-// "Open PRs" (filter by branch-name prefix so only this flow's PRs are shown).
-// The owner/repo come through the `github` prop sourced from /admin/whoami so
-// the values stay in sync with the api-server's environment.
-//
-// Implemented as a collapsible Card to mirror BrowseBucketsPanel's pattern so
-// the operator can keep it folded once familiar but always one click away.
-// ----------------------------------------------------------------------------
 
 import { useEffect, useState } from "react";
 import {
-  ChevronDown,
-  ChevronRight,
-  BookOpen,
-  ExternalLink,
-  AlertTriangle,
+ChevronDown,
+ChevronRight,
+BookOpen,
+ExternalLink,
+AlertTriangle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -65,11 +39,11 @@ function fileUrl(github: DocsPanelGithub | undefined, path: string): string | nu
   return `https://github.com/${github.owner}/${github.repo}/blob/${encodeURIComponent(github.baseBranch)}/${encoded}`;
 }
 
-// Filter the repo's PR list to a single flow by matching the branch prefix
+// Filter the repo's Pull Request list to a single flow by matching the branch prefix
 // used by `openAddEtfPr` / `openAddLookthroughPoolPr` / `openUpdateAppDefaultsPr`.
-// `is:pr head:add-etf/` returns every PR (open + closed) whose branch starts
+// `is:pr head:add-etf/` returns every Pull Request (open + closed) whose branch starts
 // with that prefix, which is exactly the operator's mental model of "all the
-// PRs this flow has produced".
+// Pull Requests this flow has produced".
 function prListUrl(
   github: DocsPanelGithub | undefined,
   branchPrefix: string,
@@ -84,84 +58,47 @@ function repoUrl(github: DocsPanelGithub | undefined): string | null {
   return `https://github.com/${github.owner}/${github.repo}`;
 }
 
-export function DocsPanel({ github }: DocsPanelProps) {
-  const { lang, t } = useAdminT();
-  const [open, setOpen] = useState<boolean>(() => {
-    try {
-      return sessionStorage.getItem(STORAGE_KEY) === "1";
-    } catch {
-      return false;
-    }
-  });
 
-  useEffect(() => {
-    try {
-      sessionStorage.setItem(STORAGE_KEY, open ? "1" : "0");
-    } catch {
-      // sessionStorage may be unavailable; preference simply doesn't persist.
-    }
-  }, [open]);
+import {
+    AfterMergeCallout,
+    FlowSection,
+    ExternalAnchor,
+  } from "./DocsPanel.parts";
 
-  const repo = repoUrl(github);
-  const allPrsUrl = github?.owner && github?.repo
-    ? `https://github.com/${github.owner}/${github.repo}/pulls`
-    : null;
-  const actionsUrl = github?.owner && github?.repo
-    ? `https://github.com/${github.owner}/${github.repo}/actions`
-    : null;
-  const autoMergeRunsUrl = github?.owner && github?.repo
-    ? `https://github.com/${github.owner}/${github.repo}/actions/workflows/admin-auto-merge.yml`
-    : null;
+  export function DocsPanel({ github }: DocsPanelProps) {
+    const { lang, t } = useAdminT();
 
-  return (
-    <Card data-testid="card-docs-panel">
-      <CardHeader className="py-3">
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          aria-expanded={open}
-          className="flex w-full items-center justify-between gap-2 text-left"
-          data-testid="button-toggle-docs"
-        >
-          <CardTitle className="text-base flex items-center gap-2">
-            {open ? (
-              <ChevronDown className="h-4 w-4" />
-            ) : (
-              <ChevronRight className="h-4 w-4" />
-            )}
-            <BookOpen className="h-4 w-4" />
-            {t({
-              de: "So funktionieren die Update-Flows",
-              en: "How the update flows work",
-            })}
-          </CardTitle>
-          <span className="text-xs text-muted-foreground">
-            {open
-              ? t({ de: "Verbergen", en: "Hide" })
-              : t({ de: "Anzeigen", en: "Show" })}
-          </span>
-        </button>
-      </CardHeader>
-      {open && (
-        <CardContent className="pt-0 space-y-5 text-sm">
-          <p className="text-muted-foreground">
-            {t({
-              de: 'Diese Seite kennt sieben verschiedene Wege, Daten zu ändern. Jeder hat ein anderes Ziel, einen anderen Sichtbarkeitsbereich und eine andere Latenz, bis Endnutzer die Änderung sehen. Vor dem Klick auf „PR öffnen" lohnt sich ein Blick darauf, welcher Flow gerade läuft.',
-              en: "This page exposes seven distinct ways to change data. Each one has a different target, scope of visibility, and latency before end users see the change. Worth a glance before clicking 'Open PR' to confirm which flow is running.",
-            })}
-          </p>
+    const repo = repoUrl(github);
+    const allPrsUrl = github?.owner && github?.repo
+      ? `https://github.com/${github.owner}/${github.repo}/pulls`
+      : null;
+    const actionsUrl = github?.owner && github?.repo
+      ? `https://github.com/${github.owner}/${github.repo}/actions`
+      : null;
+    const autoMergeRunsUrl = github?.owner && github?.repo
+      ? `https://github.com/${github.owner}/${github.repo}/actions/workflows/admin-auto-merge.yml`
+      : null;
 
-          <AfterMergeCallout
-            autoMergeRunsUrl={autoMergeRunsUrl}
-            allPrsUrl={allPrsUrl}
-          />
+    return (
+      <div data-testid="card-docs-panel" className="space-y-5 text-sm">
+        <p className="text-muted-foreground">
+          {t({
+            de: 'Diese Seite kennt sieben verschiedene Wege, Daten zu ändern. Jeder hat ein anderes Ziel, einen anderen Sichtbarkeitsbereich und eine andere Latenz, bis Endnutzer die Änderung sehen. Vor dem Klick auf „Pull request öffnen" lohnt sich ein Blick darauf, welcher Flow gerade läuft.',
+            en: "This page exposes seven distinct ways to change data. Each one has a different target, scope of visibility, and latency before end users see the change. Worth a glance before clicking 'Open pull request' to confirm which flow is running.",
+          })}
+        </p>
 
-          <FlowSection
+        <AfterMergeCallout
+          autoMergeRunsUrl={autoMergeRunsUrl}
+          allPrsUrl={allPrsUrl}
+        />
+  
+      <FlowSection
             number={1}
             testid="docs-flow-etf-catalog"
             title={t({
-              de: "ETF-Katalog (PR auf src/lib/etfs.ts)",
-              en: "ETF catalog (PR to src/lib/etfs.ts)",
+              de: "ETF-Katalog (Pull Request auf src/lib/etfs.ts)",
+              en: "ETF catalog (Pull Request to src/lib/etfs.ts)",
             })}
             tone="emerald"
             scope={t({
@@ -169,8 +106,8 @@ export function DocsPanel({ github }: DocsPanelProps) {
               en: "All users after merge + redeploy",
             })}
             trigger={t({
-              de: '„ISIN vorschlagen" → Vorschau → „PR öffnen"',
-              en: "'Suggest ISIN' → Preview → 'Open PR'",
+              de: '„ISIN vorschlagen" → Vorschau → „Pull Request öffnen"',
+              en: "'Suggest ISIN' → Preview → 'Open Pull Request'",
             })}
             file="artifacts/investment-lab/src/lib/etfs.ts"
             fileLink={fileUrl(
@@ -187,13 +124,13 @@ export function DocsPanel({ github }: DocsPanelProps) {
                     <strong>bestehenden Eintrag zu ersetzen</strong> (z. B.
                     Replikation gewechselt, neue ISIN nach Verschmelzung). Die
                     Felder werden aus justETF gescraped, du kannst sie vor dem
-                    PR noch editieren. Der Replace-vs-Add-Entscheidung wird
+                    Pull Request noch editieren. Der Replace-vs-Add-Entscheidung wird
                     automatisch anhand des Katalog-Keys getroffen — bei
                     Doppel-ISIN wird der Submit blockiert.
                   </p>
                   <p>
                     Sichtbar ist die Änderung erst nach{" "}
-                    <strong>PR-Review, Merge und Redeploy</strong> — der Bundle
+                    <strong>Pull Request-Review, Merge und Redeploy</strong> — der Bundle
                     wird beim Build statisch eingelesen.
                   </p>
                 </>
@@ -204,13 +141,13 @@ export function DocsPanel({ github }: DocsPanelProps) {
                     static catalog or <strong>replacing an existing entry</strong>{" "}
                     (e.g. replication switched, new ISIN after a merger).
                     Fields are scraped from justETF and you can edit them
-                    before opening the PR. The replace-vs-add decision is made
+                    before opening the Pull Request. The replace-vs-add decision is made
                     automatically from the catalog key — duplicate ISINs block
                     submit.
                   </p>
                   <p>
                     The change becomes visible only after{" "}
-                    <strong>PR review, merge and redeploy</strong> — the bundle
+                    <strong>Pull Request review, merge and redeploy</strong> — the bundle
                     is read in statically at build time.
                   </p>
                 </>
@@ -225,8 +162,8 @@ export function DocsPanel({ github }: DocsPanelProps) {
             number="1b"
             testid="docs-flow-batch-alternatives"
             title={t({
-              de: "Alternativen sammelweise (ein PR statt vieler)",
-              en: "Batch alternatives (one PR instead of many)",
+              de: "Alternativen sammelweise (ein Pull Request statt vieler)",
+              en: "Batch alternatives (one Pull Request instead of many)",
             })}
             tone="emerald"
             scope={t({
@@ -234,8 +171,8 @@ export function DocsPanel({ github }: DocsPanelProps) {
               en: "All users after merge + redeploy",
             })}
             trigger={t({
-              de: '„Alternativen sammelweise hinzufügen" → Zeilen einfügen → „Vorab prüfen" → „Alle als ein PR öffnen"',
-              en: "'Add alternatives in batch' → paste rows → 'Preview' → 'Submit all as one PR'",
+              de: '„Alternativen sammelweise hinzufügen" → Zeilen einfügen → „Vorab prüfen" → „Alle als ein Pull Request öffnen"',
+              en: "'Add alternatives in batch' → paste rows → 'Preview' → 'Submit all as one Pull Request'",
             })}
             file="artifacts/investment-lab/src/lib/etfs.ts"
             fileLink={fileUrl(
@@ -249,7 +186,7 @@ export function DocsPanel({ github }: DocsPanelProps) {
                   <p>
                     Wenn mehrere kuratierte Alternativen auf einmal anstehen,
                     nutzt diese Sammel-Variante <strong>genau einen
-                    Katalog-PR</strong> für alle Zeilen statt einen pro ISIN.
+                    Katalog-Pull Request</strong> für alle Zeilen statt einen pro ISIN.
                     Verhindert die typischen Folge-Konflikte (mehrere
                     add-alt-Branches greifen auf dieselbe Zeile in
                     <code>etfs.ts</code> zu) und macht das Review angenehmer
@@ -268,10 +205,10 @@ export function DocsPanel({ github }: DocsPanelProps) {
                     <strong>grün/rot eingefärbte Diff</strong> sowohl für{" "}
                     <code>etfs.ts</code> als auch für{" "}
                     <code>lookthrough.overrides.json</code> — du siehst also
-                    den exakten Änderungsumfang vor dem PR. Erst bei{" "}
-                    <strong>Alle als ein PR öffnen</strong> wird tatsächlich
-                    ein PR erzeugt — zusätzlich öffnet der Server
-                    best-effort einen einzelnen Look-through-PR für die
+                    den exakten Änderungsumfang vor dem Pull Request. Erst bei{" "}
+                    <strong>Alle als ein Pull Request öffnen</strong> wird tatsächlich
+                    ein Pull Request erzeugt — zusätzlich öffnet der Server
+                    best-effort einen einzelnen Look-through-Pull Request für die
                     ISINs, die noch keine Pool-Daten haben.
                   </p>
                 </>
@@ -280,7 +217,7 @@ export function DocsPanel({ github }: DocsPanelProps) {
                   <p>
                     When several curated alternatives are pending at once,
                     this batch variant ships <strong>exactly one catalog
-                    PR</strong> for every row instead of one PR per ISIN.
+                    Pull Request</strong> for every row instead of one Pull Request per ISIN.
                     Avoids the typical follow-on conflicts (multiple
                     add-alt branches racing for the same line in{" "}
                     <code>etfs.ts</code>) and makes review pleasant — one
@@ -299,10 +236,10 @@ export function DocsPanel({ github }: DocsPanelProps) {
                     <strong>green/red unified diff</strong> for both{" "}
                     <code>etfs.ts</code> and{" "}
                     <code>lookthrough.overrides.json</code> — you see the
-                    exact change set before opening the PR. Only{" "}
-                    <strong>Submit all as one PR</strong> actually opens
-                    a PR — and the server best-effort opens one
-                    accompanying look-through PR for the ISINs that don't
+                    exact change set before opening the Pull Request. Only{" "}
+                    <strong>Submit all as one Pull Request</strong> actually opens
+                    a Pull Request — and the server best-effort opens one
+                    accompanying look-through Pull Request for the ISINs that don't
                     yet have pool data.
                   </p>
                 </>
@@ -316,8 +253,8 @@ export function DocsPanel({ github }: DocsPanelProps) {
             number={2}
             testid="docs-flow-lookthrough-pool"
             title={t({
-              de: "Look-through-Datenpool (PR auf lookthrough.overrides.json)",
-              en: "Look-through data pool (PR to lookthrough.overrides.json)",
+              de: "Look-through-Datenpool (Pull Request auf lookthrough.overrides.json)",
+              en: "Look-through data pool (Pull Request to lookthrough.overrides.json)",
             })}
             tone="sky"
             scope={t({
@@ -342,7 +279,7 @@ export function DocsPanel({ github }: DocsPanelProps) {
                     <strong>Methodology-Tausch-Ansicht</strong> verfügbar
                     (Top-10-Holdings, Länder- und Sektor-Aufteilung), auch
                     wenn der ETF gar nicht im Katalog steht. Beim Hinzufügen
-                    werden die Daten einmal von justETF gescraped, der PR
+                    werden die Daten einmal von justETF gescraped, der Pull Request
                     öffnet die Eintragung in der <code>pool</code>-Sektion.
                     Erst nach Merge + Redeploy ist die ISIN sowohl in der
                     Tabelle (Quelle „Auto-Refresh") als auch im
@@ -361,7 +298,7 @@ export function DocsPanel({ github }: DocsPanelProps) {
                     <strong>Methodology swap view</strong> (top-10 holdings,
                     country &amp; sector breakdowns) even when the ETF is not
                     in the catalog. When you add it, the data is scraped from
-                    justETF once and the PR adds it to the <code>pool</code>{" "}
+                    justETF once and the Pull Request adds it to the <code>pool</code>{" "}
                     section. After merge + redeploy the ISIN appears in the
                     table (source 'Auto-Refresh') and in the Methodology swap
                     view without the 'No look-through data' warning.
@@ -381,8 +318,8 @@ export function DocsPanel({ github }: DocsPanelProps) {
             number={3}
             testid="docs-flow-app-defaults"
             title={t({
-              de: "Globale Defaults (PR auf app-defaults.json)",
-              en: "Global defaults (PR to app-defaults.json)",
+              de: "Globale Defaults (Pull Request auf app-defaults.json)",
+              en: "Global defaults (Pull Request to app-defaults.json)",
             })}
             tone="violet"
             scope={t({
@@ -390,8 +327,8 @@ export function DocsPanel({ github }: DocsPanelProps) {
               en: "All users after merge + redeploy",
             })}
             trigger={t({
-              de: '„Globale Defaults" → Werte eingeben (oder Vorlage) → „PR öffnen"',
-              en: "'Global defaults' → enter values (or apply preset) → 'Open PR'",
+              de: '„Globale Defaults" → Werte eingeben (oder Vorlage) → „Pull Request öffnen"',
+              en: "'Global defaults' → enter values (or apply preset) → 'Open Pull Request'",
             })}
             file="artifacts/investment-lab/src/data/app-defaults.json"
             fileLink={fileUrl(
@@ -408,7 +345,7 @@ export function DocsPanel({ github }: DocsPanelProps) {
                     <strong>neuen Default für alle Nutzer</strong>. Leere
                     Felder = Built-in-Default greift. Das Backend validiert
                     Bereiche serverseitig (gleiche Grenzen wie der
-                    Methodology-Editor), bevor der PR geöffnet wird.
+                    Methodology-Editor), bevor der Pull Request geöffnet wird.
                   </p>
                   <p>
                     Wichtig: persönliche Methodology-Overrides aus dem
@@ -427,7 +364,7 @@ export function DocsPanel({ github }: DocsPanelProps) {
                     <strong>new default for all users</strong>. Empty fields =
                     built-in default applies. The backend validates ranges
                     server-side (same bounds as the Methodology editor) before
-                    opening the PR.
+                    opening the Pull Request.
                   </p>
                   <p>
                     Important: per-user Methodology overrides from the
@@ -452,8 +389,8 @@ export function DocsPanel({ github }: DocsPanelProps) {
             })}
             tone="amber"
             scope={t({
-              de: "Nur der eigene Browser, sofort wirksam, kein PR",
-              en: "Own browser only, instant effect, no PR",
+              de: "Nur der eigene Browser, sofort wirksam, kein Pull Request",
+              en: "Own browser only, instant effect, no Pull Request",
             })}
             trigger={t({
               de: 'Tab „Methodology" auf der Hauptseite → Werte ändern',
@@ -466,7 +403,7 @@ export function DocsPanel({ github }: DocsPanelProps) {
               lang === "de" ? (
                 <>
                   <p>
-                    Reine Client-Persistenz. Nichts geht zum Server, kein PR
+                    Reine Client-Persistenz. Nichts geht zum Server, kein Pull Request
                     wird geöffnet, niemand außer dir sieht die Werte. Ideal,
                     um Szenarien durchzuspielen („was, wenn die EZB-Zinsen 1 %
                     höher liegen?") oder eine Annahme nur lokal zu setzen,
@@ -484,7 +421,7 @@ export function DocsPanel({ github }: DocsPanelProps) {
                 <>
                   <p>
                     Pure client-side persistence. Nothing goes to the server,
-                    no PR is opened, nobody but you sees the values. Useful
+                    no Pull Request is opened, nobody but you sees the values. Useful
                     for running 'what if the ECB raises rates by 1%?' style
                     scenarios, or for parking an assumption locally before
                     promoting it to the global default.
@@ -597,7 +534,7 @@ export function DocsPanel({ github }: DocsPanelProps) {
               lang === "de" ? (
                 <>
                   <p>
-                    Nach jedem Merge eines Katalog- oder Pool-PRs zeigt der
+                    Nach jedem Merge eines Katalog- oder Pool-Pull Requests zeigt der
                     Admin-Pane <strong>kurzzeitig veraltete Daten</strong>{" "}
                     an, weil die laufende Server-Kopie noch auf dem alten
                     Commit sitzt. Ohne Sync schlagen Folge-Aktionen
@@ -624,7 +561,7 @@ export function DocsPanel({ github }: DocsPanelProps) {
               ) : (
                 <>
                   <p>
-                    After each catalog or pool PR is merged, the admin pane{" "}
+                    After each catalog or pool Pull Request is merged, the admin pane{" "}
                     <strong>briefly shows stale data</strong> because the
                     running server's local checkout still points at the old
                     commit. Without sync, follow-up actions may fail
@@ -654,8 +591,8 @@ export function DocsPanel({ github }: DocsPanelProps) {
 
           <p className="text-xs text-muted-foreground">
             {t({
-              de: 'Reihenfolge in der Praxis: Flow 1 + 1b + 2 öffnen PRs (review, merge, redeploy); 1b spart einen PR pro Alternative ein. Flow 3 öffnet einen PR für Default-Werte. Flow 4 ist eine reine Browser-Einstellung. Flow 5 läuft automatisch. Flow 6 (Workspace-Sync) hilft direkt nach einem Merge, damit der Server die neuen Daten sieht.',
-              en: "Practical order: flows 1 + 1b + 2 open PRs (review, merge, redeploy); 1b saves one PR per alternative. Flow 3 opens a PR for default values. Flow 4 is a pure browser-only setting. Flow 5 runs on its own. Flow 6 (workspace sync) helps right after a merge so the server sees the new data.",
+              de: 'Reihenfolge in der Praxis: Flow 1 + 1b + 2 öffnen Pull Requests (review, merge, redeploy); 1b spart einen Pull Request pro Alternative ein. Flow 3 öffnet einen Pull Request für Default-Werte. Flow 4 ist eine reine Browser-Einstellung. Flow 5 läuft automatisch. Flow 6 (Workspace-Sync) hilft direkt nach einem Merge, damit der Server die neuen Daten sieht.',
+              en: "Practical order: flows 1 + 1b + 2 open Pull Requests (review, merge, redeploy); 1b saves one Pull Request per alternative. Flow 3 opens a Pull Request for default values. Flow 4 is a pure browser-only setting. Flow 5 runs on its own. Flow 6 (workspace sync) helps right after a merge so the server sees the new data.",
             })}
           </p>
 
@@ -703,354 +640,6 @@ export function DocsPanel({ github }: DocsPanelProps) {
               </section>
             </>
           )}
-        </CardContent>
-      )}
-    </Card>
-  );
-}
-
-// ----------------------------------------------------------------------------
-// AfterMergeCallout — pipeline explainer, "from admin click to live app".
-// ----------------------------------------------------------------------------
-// Originally the operator manually merged each admin PR on github.com and
-// then clicked Republish in Replit, racing the GitHub→workspace sync (a
-// pre-merge snapshot would deploy if Republish ran first). The 2026-04-27
-// auto-merge GitHub Action removes the merge step (admin-prefixed PRs are
-// squash-merged automatically once mergeable). The remaining manual step is
-// "wait for the workspace to pull the merge, then Republish" — or one-time
-// enable Replit's "Redeploy on commit" toggle to remove that step too.
-// This callout walks through all three pipeline stages so a non-developer
-// operator understands which step is automatic, which they still own, and
-// what to check when an expected change hasn't appeared on the live app.
-// ----------------------------------------------------------------------------
-interface AfterMergeCalloutProps {
-  autoMergeRunsUrl: string | null;
-  allPrsUrl: string | null;
-}
-
-function AfterMergeCallout({
-  autoMergeRunsUrl,
-  allPrsUrl,
-}: AfterMergeCalloutProps) {
-  const { lang, t } = useAdminT();
-  return (
-    <section
-      className="rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 p-3 space-y-3"
-      data-testid="docs-after-merge-callout"
-    >
-      <div className="flex items-center gap-2 text-amber-800 dark:text-amber-300">
-        <AlertTriangle className="h-4 w-4" />
-        <h3 className="font-semibold text-sm">
-          {t({
-            de: "Vom Klick im Admin bis zur Live-App",
-            en: "From admin click to live app",
-          })}
-        </h3>
-      </div>
-
-      <div className="space-y-3 text-sm text-amber-900 dark:text-amber-100">
-        {lang === "de" ? (
-          <p>
-            Eine Änderung an Pool, ETF-Katalog oder globalen Defaults
-            durchläuft <strong>drei Stationen</strong>. Die ersten zwei sind
-            automatisch, die dritte erfordert (noch) einen Klick.
-          </p>
-        ) : (
-          <p>
-            A change to the pool, ETF catalog or global defaults passes through{" "}
-            <strong>three stages</strong>. The first two are automatic; the
-            third still needs (one) click.
-          </p>
-        )}
-
-        <ol className="space-y-3 list-decimal list-inside">
-          <li>
-            <strong>
-              {t({ de: "PR öffnen (du)", en: "Open PR (you)" })}
-            </strong>
-            <div className="mt-1 ml-1">
-              {lang === "de" ? (
-                <>
-                  Klick auf „PR öffnen" / „Aufnehmen" im Admin schickt eine
-                  Pull-Request-Anfrage an GitHub. Sie taucht oben in der Karte{" "}
-                  „Offene Pull Requests" auf.
-                </>
-              ) : (
-                <>
-                  Clicking "Open PR" / "Add" in the admin sends a pull-request
-                  to GitHub. It appears at the top in the "Open pull requests"
-                  card.
-                </>
-              )}
-              {allPrsUrl && (
-                <>
-                  {" "}
-                  <ExternalAnchor
-                    href={allPrsUrl}
-                    testid="callout-link-all-prs"
-                    label={t({
-                      de: "PR-Liste auf GitHub",
-                      en: "PR list on GitHub",
-                    })}
-                  />
-                </>
-              )}
-            </div>
-          </li>
-
-          <li>
-            <strong>
-              {t({
-                de: "Auto-Merge (~30 Sekunden, automatisch)",
-                en: "Auto-merge (~30 seconds, automatic)",
-              })}
-            </strong>
-            <div className="mt-1 ml-1">
-              {lang === "de" ? (
-                <>
-                  Eine GitHub-Action erkennt Admin-PRs an ihrem Branch-Namen
-                  (<code>add-etf/</code>, <code>add-lookthrough-pool/</code>,{" "}
-                  <code>update-app-defaults/</code>, <code>backfill-</code>) und mergt sie automatisch,
-                  sobald sie konfliktfrei sind. Der Branch wird danach
-                  gelöscht. Wenn du einen PR <em>vor</em> dem Merge selbst
-                  prüfen willst, konvertiere ihn auf GitHub in einen{" "}
-                  <strong>Draft</strong> — die Action lässt Drafts in Ruhe.
-                </>
-              ) : (
-                <>
-                  A GitHub Action recognizes admin PRs by their branch name
-                  (<code>add-etf/</code>, <code>add-lookthrough-pool/</code>,{" "}
-                  <code>update-app-defaults/</code>, <code>backfill-</code>) and squash-merges them as
-                  soon as they are conflict-free. The branch is deleted
-                  afterwards. If you want to review a PR <em>before</em> it
-                  merges, convert it to a <strong>Draft</strong> on GitHub —
-                  the action skips drafts.
-                </>
-              )}
-              {autoMergeRunsUrl && (
-                <>
-                  {" "}
-                  <ExternalAnchor
-                    href={autoMergeRunsUrl}
-                    testid="callout-link-auto-merge-runs"
-                    label={t({
-                      de: "Live-Status der Action",
-                      en: "Live status of the action",
-                    })}
-                  />
-                </>
-              )}
-            </div>
-          </li>
-
-          <li>
-            <strong>
-              {t({
-                de: "Workspace-Sync + Republish (du, einmalig pro Merge)",
-                en: "Workspace sync + Republish (you, once per merge)",
-              })}
-            </strong>
-            <div className="mt-1 ml-1 space-y-2">
-              {lang === "de" ? (
-                <>
-                  <p>
-                    Replit zieht den Merge <strong>nicht</strong> von selbst in
-                    den Workspace — du musst ihn aktiv abholen. Dafür ist die
-                    Karte <strong>„Workspace-Synchronisation"</strong> (Flow 6)
-                    da:
-                    {" "}
-                    <strong>„Aus Origin aktualisieren"</strong> klicken,
-                    danach — falls „Hinter Origin" {">"} 0 — auf{" "}
-                    <strong>„Commits ziehen"</strong>. Im{" "}
-                    <strong>Files-Tab</strong> links kannst du gegenchecken,
-                    ob die geänderte Datei (z. B.{" "}
-                    <code>lookthrough.overrides.json</code>) tatsächlich den
-                    neuen Stand zeigt. <strong>Erst dann</strong> oben rechts
-                    auf <strong>„Republish"</strong> klicken — der neue
-                    Live-Snapshot ist nach 1–3 Min draußen.
-                  </p>
-                  <p>
-                    <strong>Optional, einmal einrichten:</strong> Im{" "}
-                    Deployments-Tab den Schalter „Redeploy on commit"
-                    einschalten. Dann macht Replit den Republish automatisch
-                    nach jedem Auto-Merge. Den Workspace-Sync musst du in
-                    diesem Tab trotzdem nicht selbst machen, weil das Deployment
-                    seinen eigenen frischen Checkout zieht.
-                  </p>
-                </>
-              ) : (
-                <>
-                  <p>
-                    Replit does <strong>not</strong> pull the merge into the
-                    workspace on its own — you have to fetch it. That is what
-                    the <strong>"Workspace sync"</strong> card (Flow 6) is for:
-                    click <strong>"Refresh from origin"</strong>, then — if
-                    "Behind origin" {">"} 0 — click <strong>"Pull commits"</strong>.
-                    In the <strong>Files tab</strong> on the left you can
-                    double-check that the changed file (e.g.{" "}
-                    <code>lookthrough.overrides.json</code>) actually reflects
-                    the new state. <strong>Only then</strong> click{" "}
-                    <strong>"Republish"</strong> at the top right — the new
-                    live snapshot is out in 1–3 minutes.
-                  </p>
-                  <p>
-                    <strong>Optional, one-time setup:</strong> In the
-                    Deployments tab toggle "Redeploy on commit" on. Then Replit
-                    Republishes automatically after every auto-merge. You still
-                    don't need a manual workspace-sync for that path, because
-                    the deployment pulls its own fresh checkout.
-                  </p>
-                </>
-              )}
-            </div>
-          </li>
-        </ol>
-
-        <div className="rounded border border-amber-400 bg-amber-100 dark:bg-amber-900/40 px-2 py-1.5 text-xs">
-          {lang === "de" ? (
-            <>
-              <strong>Häufiger Fehler:</strong> „Republish" klicken,{" "}
-              <em>ohne vorher den Workspace zu syncen</em>. Folge: alter
-              Stand wird ausgeliefert, obwohl der PR gemergt ist. Reihenfolge
-              ist also: <strong>1.</strong> Workspace-Sync (Flow 6),{" "}
-              <strong>2.</strong> Files-Tab kurz prüfen, <strong>3.</strong>
-              {" "}Republish.
-            </>
-          ) : (
-            <>
-              <strong>Common mistake:</strong> Clicking "Republish"{" "}
-              <em>without syncing the workspace first</em>. Result: the old
-              state ships even though the PR is merged. Order is:{" "}
-              <strong>1.</strong> Workspace sync (Flow 6),{" "}
-              <strong>2.</strong> quick check in the Files tab,{" "}
-              <strong>3.</strong> Republish.
-            </>
-          )}
-        </div>
-
-        {lang === "de" ? (
-          <p className="text-xs">
-            Betrifft alle bundle-getragenen Daten (Flows 1, 2, 3 unten). Flow 5
-            (monatlicher Job) ist davon unberührt — die Override-Layer-Dateien
-            werden zur Laufzeit gelesen, kein Republish nötig.
-          </p>
-        ) : (
-          <p className="text-xs">
-            Applies to every bundle-carried payload (flows 1, 2, 3 below). Flow
-            5 (monthly job) is unaffected — its override-layer files are read
-            at runtime, no republish needed.
-          </p>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function FlowSection({
-  number,
-  testid,
-  title,
-  tone,
-  scope,
-  trigger,
-  file,
-  fileLink,
-  prListLink,
-  prListLabel,
-  body,
-}: {
-  number: number | string;
-  testid: string;
-  title: string;
-  tone: "emerald" | "sky" | "violet" | "amber" | "slate";
-  scope: string;
-  trigger: string;
-  file: string;
-  fileLink: string | null;
-  prListLink: string | null;
-  // Optional override label for the second link — flow 5 uses "Open GitHub
-  // Actions" instead of "Open PRs" because there are no PRs for the cron job.
-  prListLabel?: { de: string; en: string };
-  body: React.ReactNode;
-}) {
-  const { t } = useAdminT();
-  const toneClass = {
-    emerald: "border-emerald-600 text-emerald-700 dark:text-emerald-400",
-    sky: "border-sky-600 text-sky-700 dark:text-sky-400",
-    violet: "border-violet-600 text-violet-700 dark:text-violet-400",
-    amber: "border-amber-600 text-amber-700 dark:text-amber-400",
-    slate: "border-slate-500 text-slate-700 dark:text-slate-400",
-  }[tone];
-
-  return (
-    <section className="space-y-2" data-testid={testid}>
-      <div className="flex items-center gap-2">
-        <Badge variant="outline" className={toneClass}>
-          {number}
-        </Badge>
-        <h3 className="font-semibold">{title}</h3>
-      </div>
-      <dl className="grid grid-cols-1 sm:grid-cols-[max-content_1fr] gap-x-3 gap-y-1 text-xs">
-        <dt className="text-muted-foreground">
-          {t({ de: "Sichtbarkeit", en: "Scope" })}:
-        </dt>
-        <dd>{scope}</dd>
-        <dt className="text-muted-foreground">
-          {t({ de: "Auslöser", en: "Trigger" })}:
-        </dt>
-        <dd>{trigger}</dd>
-        <dt className="text-muted-foreground">
-          {t({ de: "Datei", en: "File" })}:
-        </dt>
-        <dd className="font-mono break-all">{file}</dd>
-      </dl>
-      {(fileLink || prListLink) && (
-        <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-          {fileLink && (
-            <ExternalAnchor
-              href={fileLink}
-              testid={`${testid}-link-file`}
-              label={t({ de: "Datei auf GitHub", en: "View file on GitHub" })}
-            />
-          )}
-          {prListLink && (
-            <ExternalAnchor
-              href={prListLink}
-              testid={`${testid}-link-prs`}
-              label={t(
-                prListLabel ?? {
-                  de: "PRs dieses Flows",
-                  en: "PRs from this flow",
-                },
-              )}
-            />
-          )}
-        </div>
-      )}
-      <div className="space-y-2 text-sm">{body}</div>
-    </section>
-  );
-}
-
-function ExternalAnchor({
-  href,
-  testid,
-  label,
-}: {
-  href: string;
-  testid: string;
-  label: string;
-}) {
-  return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noopener noreferrer"
-      data-testid={testid}
-      className="inline-flex items-center gap-1 text-primary hover:underline"
-    >
-      {label}
-      <ExternalLink className="h-3 w-3" />
-    </a>
+    </div>
   );
 }

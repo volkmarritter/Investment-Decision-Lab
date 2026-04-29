@@ -456,17 +456,10 @@ export interface BulkBucketAlternativeOutcome {
   message?: string;
 }
 
-export interface BulkBucketAlternativesResponse {
-  ok: true;
-  prUrl: string;
-  prNumber: number;
-  rows: BulkBucketAlternativeOutcome[];
-  lookthroughPrUrl?: string;
-  lookthroughPrNumber?: number;
-  lookthroughAdded?: string[];
-  lookthroughSkipped?: Array<{ isin: string; reason: string }>;
-  lookthroughError?: string;
-}
+// (Older narrower BulkBucketAlternativesResponse declaration removed —
+// the canonical shape lives further down in this file and is the one the
+// API actually returns. Kept this comment as a breadcrumb for anyone
+// looking for the old `rows` field on git blame.)
 
 export interface WorkspaceStatusResponse {
   ok: true;
