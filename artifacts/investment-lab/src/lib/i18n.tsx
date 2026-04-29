@@ -271,6 +271,10 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "compare.allocB.title": "Portfolio B Allocation",
     "compare.slotA.linked": "Linked to Build",
     "compare.slotA.linkedHint": "Slot A mirrors the portfolio currently configured on the Build tab. Click the pin to freeze Slot A so further Build changes don't overwrite it.",
+    "compare.slotA.linkedStatement": "Portfolio A is your Build portfolio with all its current settings (inputs, weights, picked ETFs).",
+    "compare.implementation.title": "ETF Implementation",
+    "compare.implementation.desc": "The ETFs picked for each portfolio side-by-side, including ISIN, ticker, TER, domicile, replication and currency.",
+    "compare.implementation.empty": "No ETFs to display.",
     "compare.slotA.unlinkToast": "Slot A unlinked from Build",
     "compare.slotA.relink": "Re-link to Build",
 
@@ -759,6 +763,10 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "compare.allocB.title": "Portfolio B Allokation",
     "compare.slotA.linked": "Aus Build übernommen",
     "compare.slotA.linkedHint": "Slot A spiegelt das aktuell im Build-Tab konfigurierte Portfolio. Mit dem Pin lässt sich Slot A einfrieren, sodass weitere Änderungen in Build den Slot nicht mehr überschreiben.",
+    "compare.slotA.linkedStatement": "Portfolio A ist dein Build-Portfolio mit allen aktuellen Einstellungen (Inputs, Gewichte, ausgewählte ETFs).",
+    "compare.implementation.title": "ETF-Umsetzung",
+    "compare.implementation.desc": "Die für jedes Portfolio gewählten ETFs im direkten Vergleich, inkl. ISIN, Ticker, TER, Domizil, Replikation und Währung.",
+    "compare.implementation.empty": "Keine ETFs anzuzeigen.",
     "compare.slotA.unlinkToast": "Slot A entkoppelt",
     "compare.slotA.relink": "Erneut mit Build verknüpfen",
 

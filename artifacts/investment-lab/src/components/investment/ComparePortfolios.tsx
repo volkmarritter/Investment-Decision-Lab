@@ -45,6 +45,9 @@ import { FeeEstimator, formatThousandsLive } from "./FeeEstimator";
 import { CurrencyOverview } from "./CurrencyOverview";
 import { LookThroughAnalysis } from "./LookThroughAnalysis";
 import { TopHoldings } from "./TopHoldings";
+import { EtfImplementationReadOnly } from "./EtfImplementationReadOnly";
+import { ETFDetailsDialog } from "./ETFDetailsDialog";
+import type { ETFImplementation } from "@/lib/types";
 import { estimateFees } from "@/lib/fees";
 import { parseDecimalInput } from "@/lib/manualWeights";
 import { useT } from "@/lib/i18n";
@@ -266,6 +269,11 @@ export function ComparePortfolios() {
   const [portAFeeAmountDraft, setPortAFeeAmountDraft] = useState<string>(() =>
     formatThousandsLive("100000"),
   );
+
+  // ETFDetailsDialog state for the read-only ETF Implementation table on
+  // Compare. Both Slot A and Slot B share a single dialog instance — only
+  // one row can be inspected at a time.
+  const [detailsEtf, setDetailsEtf] = useState<ETFImplementation | null>(null);
   // Numeric value for the delta calc. Strip thousand separators (commas,
   // spaces, Swiss apostrophes) before parseDecimalInput, same convention as
   // FeeEstimator's own derivation.
@@ -397,6 +405,14 @@ export function ComparePortfolios() {
             </div>
           )}
         </div>
+        {prefix === "portA" && hasBuildPublished && linked && (
+          <p
+            className="mt-2 text-xs text-muted-foreground italic"
+            data-testid="compare-slot-a-linked-statement"
+          >
+            {t("compare.slotA.linkedStatement")}
+          </p>
+        )}
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid grid-cols-2 gap-4">
@@ -1167,6 +1183,60 @@ export function ComparePortfolios() {
                   );
                 })()}
 
+                {/* ETF Implementation (read-only) — full Build-style table per side. */}
+                {inputA && inputB && outputA && outputB && (
+                  <Card data-testid="compare-etf-implementation-card">
+                    <CardHeader>
+                      <CardTitle>{t("compare.implementation.title")}</CardTitle>
+                      <CardDescription>{t("compare.implementation.desc")}</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      {/* Mobile: A/B toggle */}
+                      <div className="md:hidden">
+                        <Tabs defaultValue="A" className="w-full" data-testid="compare-etf-mobile-toggle">
+                          <TabsList className="grid w-full max-w-xs grid-cols-2">
+                            <TabsTrigger value="A">Portfolio A</TabsTrigger>
+                            <TabsTrigger value="B">Portfolio B</TabsTrigger>
+                          </TabsList>
+                          <TabsContent value="A" className="mt-4 min-w-0">
+                            <EtfImplementationReadOnly
+                              etfs={outputA.etfImplementation}
+                              testIdPrefix="compare-etf-a"
+                              onIsinClick={setDetailsEtf}
+                            />
+                          </TabsContent>
+                          <TabsContent value="B" className="mt-4 min-w-0">
+                            <EtfImplementationReadOnly
+                              etfs={outputB.etfImplementation}
+                              testIdPrefix="compare-etf-b"
+                              onIsinClick={setDetailsEtf}
+                            />
+                          </TabsContent>
+                        </Tabs>
+                      </div>
+                      {/* Desktop: side-by-side */}
+                      <div className="hidden md:grid md:grid-cols-2 md:gap-6">
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio A</h3>
+                          <EtfImplementationReadOnly
+                            etfs={outputA.etfImplementation}
+                            testIdPrefix="compare-etf-a"
+                            onIsinClick={setDetailsEtf}
+                          />
+                        </div>
+                        <div className="min-w-0">
+                          <h3 className="text-sm font-semibold mb-2 text-muted-foreground uppercase tracking-wide">Portfolio B</h3>
+                          <EtfImplementationReadOnly
+                            etfs={outputB.etfImplementation}
+                            testIdPrefix="compare-etf-b"
+                            onIsinClick={setDetailsEtf}
+                          />
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
                 {/* Consolidated Currency Overview (Post-Hedge) — always visible for both. */}
                 {inputA && inputB && outputA && outputB && (
                   <Card>
@@ -1365,6 +1435,13 @@ export function ComparePortfolios() {
           </div>
         )}
       </div>
+      <ETFDetailsDialog
+        etf={detailsEtf}
+        open={!!detailsEtf}
+        onOpenChange={(o) => {
+          if (!o) setDetailsEtf(null);
+        }}
+      />
     </div>
   );
 }
