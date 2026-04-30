@@ -13,6 +13,7 @@ import { getETFDetails, getCatalogEntry } from "../src/lib/etfs";
 import { runStressTest, runReverseStressTest, SCENARIOS } from "../src/lib/scenarios";
 import { estimateFees, getETFTer } from "../src/lib/fees";
 import { buildAiPrompt } from "../src/lib/aiPrompt";
+import { summarizeAllocationByGroup } from "../src/lib/allocationGroups";
 import {
   mapAllocationToAssets,
   mapAllocationToAssetsLookthrough,
