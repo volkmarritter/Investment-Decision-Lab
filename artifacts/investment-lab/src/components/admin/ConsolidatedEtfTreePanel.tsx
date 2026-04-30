@@ -334,17 +334,41 @@ export function ConsolidatedEtfTreePanel({
       <CardContent className="space-y-4">
         {/* Header bar: pool-level bulk backfill. The legacy "Add to
             look-through pool only" form was retired with Task #122 — every
-            pool ISIN must now also exist in INSTRUMENTS, so new ISINs are
-            added via the "Add ISIN" tab (which writes both files in one
-            PR). "Fetch missing data" still belongs here because it only
+            pool ISIN must now also exist in INSTRUMENTS. Two routes for
+            new ISINs:
+              • should be a bucket default → "Add ISIN" tab (writes
+                INSTRUMENTS + BUCKETS + look-through in one PR);
+              • unassigned (pool only, future alternative) → "Instruments"
+                tab → "New instrument" (writes INSTRUMENTS only).
+            "Fetch missing data" still belongs here because it only
             scrapes look-through data for ISINs that already are in
             INSTRUMENTS. */}
         <div className="rounded-md border bg-muted/30 p-3 space-y-3">
           <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
             <div className="text-xs text-muted-foreground sm:flex-1">
-              {lang === "de"
-                ? "Look-through-Daten für bereits registrierte Katalog-ISINs nachziehen. Neue ISINs bitte über den Tab „ISIN hinzufügen“ aufnehmen — dort werden Katalogeintrag und Look-through-Daten in einem gemeinsamen Pull Request angelegt."
-                : "Refresh look-through data for ISINs already registered in the catalog. To add a new ISIN, use the “Add ISIN” tab — that flow writes the catalog row and the look-through data in a single Pull Request."}
+              {lang === "de" ? (
+                <>
+                  Look-through-Daten für bereits registrierte Katalog-ISINs
+                  nachziehen. Neue ISINs:
+                  {" "}
+                  <strong>als Bucket-Default</strong> über den Tab „ISIN
+                  hinzufügen" (Katalog + Look-through in einem Pull Request);
+                  {" "}
+                  <strong>ohne Bucket-Zuordnung</strong> (Pool-only, spätere
+                  Alternative) über den Tab „Instrumente" → „Neues Instrument".
+                </>
+              ) : (
+                <>
+                  Refresh look-through data for ISINs already registered in
+                  the catalog. New ISINs:
+                  {" "}
+                  <strong>as a bucket default</strong> via the “Add ISIN” tab
+                  (catalog row + look-through in one Pull Request);
+                  {" "}
+                  <strong>without a bucket</strong> (pool-only, future
+                  alternative) via the “Instruments” tab → “New instrument”.
+                </>
+              )}
             </div>
             <div className="flex gap-2">
               <Button
