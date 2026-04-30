@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { format } from "date-fns";
-import { Save, Bookmark, Trash2, Play, Pencil } from "lucide-react";
+import { Save, Bookmark, Trash2, Play, Pencil, Download, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -8,10 +8,17 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { PortfolioInput } from "@/lib/types";
-import { useSavedScenarios, saveScenario, deleteScenario, renameScenario, SavedScenario } from "@/lib/savedScenarios";
+import { useSavedScenarios, saveScenario, deleteScenario, renameScenario, listSaved, SavedScenario } from "@/lib/savedScenarios";
 import type { ManualWeights } from "@/lib/manualWeights";
 import type { ETFSlot } from "@/lib/etfSelection";
 import { useT } from "@/lib/i18n";
+import {
+  buildScenarioForExport,
+  downloadScenarioAsFile,
+  parsePortfolioFile,
+  readFileAsText,
+  type ImportError,
+} from "@/lib/portfolioFile";
 
 export interface CompareSlots {
   getInputA: () => PortfolioInput;
@@ -28,6 +35,28 @@ export interface CompareSlots {
   onLoadB: (scenario: SavedScenario) => void;
   hasGeneratedA: boolean;
   hasGeneratedB: boolean;
+}
+
+// Append "(imported)" to a name if it collides with an existing saved
+// scenario, so re-importing the same file twice doesn't silently overwrite.
+function uniqueImportedName(name: string, existing: SavedScenario[]): string {
+  const taken = new Set(existing.map((s) => s.name));
+  if (!taken.has(name)) return name;
+  const tagged = `${name} (imported)`;
+  if (!taken.has(tagged)) return tagged;
+  let n = 2;
+  while (taken.has(`${tagged} ${n}`)) n++;
+  return `${tagged} ${n}`;
+}
+
+function importErrorMessage(
+  err: ImportError,
+  t: (key: string) => string,
+): string {
+  if (err.reason === "invalid-input" && err.detail) {
+    return t("saved.file.toast.error.engine").replace("{detail}", err.detail);
+  }
+  return t("saved.file.toast.error.invalid");
 }
 
 export function SavedScenariosUI({
@@ -53,6 +82,10 @@ export function SavedScenariosUI({
   const [saveName, setSaveName] = useState("");
 
   const [isListOpen, setIsListOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  // When in Compare context, an imported scenario needs to be routed into A
+  // or B. We hold it in state and ask the user which slot to load it into.
+  const [pendingImport, setPendingImport] = useState<SavedScenario | null>(null);
 
   const openSaveDialog = (mode: "single" | "A" | "B") => {
     const suffix = mode === "A" ? " A" : mode === "B" ? " B" : "";
@@ -85,6 +118,85 @@ export function SavedScenariosUI({
     setSaveName("");
   };
 
+  // Build a SavedScenario from the *current* state and download it.
+  const handleSaveToFile = (mode: "single" | "A" | "B") => {
+    let input: PortfolioInput | undefined;
+    let manualWeights: ManualWeights | undefined;
+    let etfSelections: Record<string, ETFSlot> | undefined;
+    let nameSuffix = "";
+    if (mode === "single" && getCurrentInput) {
+      input = getCurrentInput();
+      manualWeights = getCurrentManualWeights?.();
+      etfSelections = getCurrentETFSelections?.();
+    } else if (mode === "A" && compareSlots) {
+      input = compareSlots.getInputA();
+      manualWeights = compareSlots.getSnapshotA?.();
+      etfSelections = compareSlots.getEtfSelectionsA?.();
+      nameSuffix = " A";
+    } else if (mode === "B" && compareSlots) {
+      input = compareSlots.getInputB();
+      manualWeights = compareSlots.getSnapshotB?.();
+      etfSelections = compareSlots.getEtfSelectionsB?.();
+      nameSuffix = " B";
+    }
+    if (!input) return;
+    const defaultName = `${t("saved.save.placeholder")} ${new Date()
+      .toISOString()
+      .slice(0, 10)}${nameSuffix}`;
+    const scenario = buildScenarioForExport(defaultName, input, manualWeights, etfSelections);
+    try {
+      downloadScenarioAsFile(scenario);
+      toast.success(t("saved.file.toast.exported"));
+    } catch (e) {
+      console.error(e);
+      toast.error(t("saved.file.toast.error.read"));
+    }
+  };
+
+  // The user picked a file in the native picker. Parse, validate, persist
+  // to localStorage, and route into the appropriate slot.
+  const handleFileChosen = async (file: File) => {
+    let raw: string;
+    try {
+      raw = await readFileAsText(file);
+    } catch {
+      toast.error(t("saved.file.toast.error.read"));
+      return;
+    }
+    const result = parsePortfolioFile(raw);
+    if (!result.ok) {
+      toast.error(importErrorMessage(result.error, t));
+      return;
+    }
+    const finalName = uniqueImportedName(result.scenario.name, listSaved());
+    // Persist to the in-browser saved list so it shows up next time.
+    const saved = saveScenario(
+      finalName,
+      result.scenario.input,
+      result.scenario.manualWeights,
+      result.scenario.etfSelections,
+    );
+
+    if (compareSlots) {
+      // In Compare context, ask the user which slot to load into.
+      setPendingImport(saved);
+    } else if (onLoadScenario) {
+      onLoadScenario(saved);
+      toast.success(t("saved.file.toast.imported"));
+    } else {
+      toast.success(t("saved.file.toast.imported"));
+    }
+  };
+
+  const onFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Reset so the same file can be re-chosen later (browsers suppress the
+    // change event for an identical re-selection otherwise).
+    e.target.value = "";
+    if (!file) return;
+    void handleFileChosen(file);
+  };
+
   const labelA = lang === "de" ? "Portfolio A speichern" : "Save Portfolio A";
   const labelB = lang === "de" ? "Portfolio B speichern" : "Save Portfolio B";
 
@@ -111,17 +223,49 @@ export function SavedScenariosUI({
             <Save className="h-4 w-4 mr-2" />
             {labelB}
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!compareSlots.hasGeneratedA}
+            onClick={() => handleSaveToFile("A")}
+            title={t("saved.file.btn.saveA")}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            {t("saved.file.btn.saveA")}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!compareSlots.hasGeneratedB}
+            onClick={() => handleSaveToFile("B")}
+            title={t("saved.file.btn.saveB")}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            {t("saved.file.btn.saveB")}
+          </Button>
         </>
       ) : (
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!hasGenerated}
-          onClick={() => openSaveDialog("single")}
-        >
-          <Save className="h-4 w-4 mr-2" />
-          {t("saved.btn.save")}
-        </Button>
+        <>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!hasGenerated}
+            onClick={() => openSaveDialog("single")}
+          >
+            <Save className="h-4 w-4 mr-2" />
+            {t("saved.btn.save")}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!hasGenerated}
+            onClick={() => handleSaveToFile("single")}
+            title={t("saved.file.btn.save")}
+          >
+            <Download className="h-4 w-4 mr-2" />
+            {t("saved.file.btn.save")}
+          </Button>
+        </>
       )}
 
       {/* Save dialog (shared across modes) */}
@@ -202,6 +346,71 @@ export function SavedScenariosUI({
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Load-from-file button + native file picker */}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => fileInputRef.current?.click()}
+        title={t("saved.file.btn.load")}
+      >
+        <Upload className="h-4 w-4 mr-2" />
+        {t("saved.file.btn.load")}
+      </Button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        onChange={onFileInputChange}
+      />
+
+      {/* Compare-context A/B picker shown after a successful import */}
+      {compareSlots && (
+        <Dialog
+          open={pendingImport !== null}
+          onOpenChange={(open) => !open && setPendingImport(null)}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>{t("saved.file.target.title")}</DialogTitle>
+              <DialogDescription>{t("saved.file.target.desc")}</DialogDescription>
+            </DialogHeader>
+            <div className="py-2">
+              {pendingImport && (
+                <div className="text-sm font-medium truncate">{pendingImport.name}</div>
+              )}
+            </div>
+            <DialogFooter className="flex-col sm:flex-row gap-2">
+              <Button variant="outline" onClick={() => setPendingImport(null)}>
+                {t("saved.file.target.cancel")}
+              </Button>
+              <Button
+                onClick={() => {
+                  if (pendingImport) {
+                    compareSlots.onLoadA(pendingImport);
+                    toast.success(t("saved.file.toast.imported"));
+                  }
+                  setPendingImport(null);
+                }}
+              >
+                {t("saved.file.target.A")}
+              </Button>
+              <Button
+                onClick={() => {
+                  if (pendingImport) {
+                    compareSlots.onLoadB(pendingImport);
+                    toast.success(t("saved.file.toast.imported"));
+                  }
+                  setPendingImport(null);
+                }}
+              >
+                {t("saved.file.target.B")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }
@@ -228,6 +437,16 @@ function ScenarioItem({
       toast.success(t("saved.toast.renamed"));
     }
     setIsEditing(false);
+  };
+
+  const handleDownload = () => {
+    try {
+      downloadScenarioAsFile(scenario);
+      toast.success(t("saved.file.toast.exported"));
+    } catch (e) {
+      console.error(e);
+      toast.error(t("saved.file.toast.error.read"));
+    }
   };
 
   const loadIntoLabel = lang === "de" ? "Laden in" : "Load into";
@@ -291,6 +510,14 @@ function ScenarioItem({
             <Play className="h-3 w-3" />B
           </Button>
         )}
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleDownload}
+          title={t("saved.file.row.download")}
+        >
+          <Download className="h-4 w-4" />
+        </Button>
         <AlertDialog open={isDeleteAlertOpen} onOpenChange={setIsDeleteAlertOpen}>
           <AlertDialogTrigger asChild>
             <Button variant="ghost" size="icon" title={t("saved.delete.submit")}>
