@@ -57,13 +57,14 @@ describe("validateCatalog() — look-through ⊆ INSTRUMENTS invariant", () => {
   });
 
   it("does NOT flag a pool ISIN that is registered in INSTRUMENTS", () => {
-    // IE00B4L5Y983 is the iShares Core MSCI World UCITS ETF — included
-    // in the mocked pool list above and known to be a registered
-    // INSTRUMENTS row, so it must NOT show up as an orphan.
+    // IE00B4L5YX21 is the Vanguard FTSE All-World UCITS ETF (USD,
+    // accumulating) — it appears in the mocked pool list above AND is a
+    // registered INSTRUMENTS row, so the validator must NOT flag it as
+    // an orphan. This is the false-positive guard for the strict check.
     const issues = validateCatalog();
     const falsePositive = issues.find(
       (i) =>
-        i.bucket.startsWith("lookthrough.") && i.message.includes("IE00B4L5Y983"),
+        i.bucket.startsWith("lookthrough.") && i.message.includes("IE00B4L5YX21"),
     );
     expect(falsePositive, JSON.stringify(issues, null, 2)).toBeUndefined();
   });

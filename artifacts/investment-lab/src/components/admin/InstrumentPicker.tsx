@@ -21,13 +21,14 @@
 // ----------------------------------------------------------------------------
 
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "wouter";
 import { adminApi, type InstrumentRow } from "@/lib/admin-api";
 import { useAdminT } from "@/lib/admin-i18n";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ChevronLeft, RefreshCw } from "lucide-react";
+import { ChevronLeft, ExternalLink, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 // Task #122 (T006) — defence-in-depth: when the picker's empty state
 // is reached because the operator typed an ISIN that is "known to
@@ -415,11 +416,30 @@ export function InstrumentPicker({
                   en: "Known to look-through but not registered",
                 })}
               </AlertTitle>
-              <AlertDescription className="text-xs">
-                {t({
-                  de: `Für die ISIN ${trimmedQuery} existieren bereits Look-through-Daten, aber sie ist nicht in INSTRUMENTS eingetragen. Lege sie zuerst im Tab „Instrumente“ an, dann steht sie hier zur Auswahl.`,
-                  en: `Look-through data already exists for ISIN ${trimmedQuery}, but it is not registered in INSTRUMENTS. Register it first in the “Instruments” tab and it will appear here.`,
-                })}
+              <AlertDescription className="text-xs space-y-2">
+                <p>
+                  {t({
+                    de: `Für die ISIN ${trimmedQuery} existieren bereits Look-through-Daten, aber sie ist nicht in INSTRUMENTS eingetragen. Lege sie zuerst im Tab „Instrumente“ an, dann steht sie hier zur Auswahl.`,
+                    en: `Look-through data already exists for ISIN ${trimmedQuery}, but it is not registered in INSTRUMENTS. Register it first in the “Instruments” tab and it will appear here.`,
+                  })}
+                </p>
+                {/* Task #122 (T006): one-click jump into the
+                    Instruments tab with the ISIN pre-filled in the
+                    create form. Catalog.tsx parses ?prefillIsin= and
+                    forwards it to InstrumentsPanel which seeds the
+                    ISIN field of the create form. */}
+                <Link
+                  href={`/admin/catalog/instruments?prefillIsin=${encodeURIComponent(trimmedQuery)}`}
+                  data-testid={`link-register-orphan-${parentKey}-${trimmedQuery}`}
+                >
+                  <Button type="button" size="sm" variant="outline">
+                    <ExternalLink className="h-3 w-3 mr-1" />
+                    {t({
+                      de: `Jetzt im Tab „Instrumente“ anlegen (${trimmedQuery})`,
+                      en: `Register now in “Instruments” tab (${trimmedQuery})`,
+                    })}
+                  </Button>
+                </Link>
               </AlertDescription>
             </Alert>
           );

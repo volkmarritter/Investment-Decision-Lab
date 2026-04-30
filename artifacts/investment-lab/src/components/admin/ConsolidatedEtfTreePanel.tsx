@@ -1,18 +1,19 @@
 // ConsolidatedEtfTreePanel — single tree view replacing three legacy panels
 
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "wouter";
 import {
     adminApi,
   type CatalogSummary,
   type LookthroughPoolEntry,
 } from "@/lib/admin-api";
-import { MAX_ALTERNATIVES_PER_BUCKET } from "@/lib/etfs";
+import { MAX_ALTERNATIVES_PER_BUCKET, validateCatalog } from "@/lib/etfs";
 import { useAdminT } from "@/lib/admin-i18n";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ChevronDown, ChevronRight, RefreshCw } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, ExternalLink, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { PendingPrsCard } from "./PendingPrsCard";
 import { AddAlternativeForm } from "./AddAlternativeForm";
@@ -103,6 +104,35 @@ export function ConsolidatedEtfTreePanel({
     parentKey: string;
     mode: "default" | "alternative";
   } | null>(null);
+
+  // ─── Task #122 (T006/T007): referential-integrity surface ─────────────
+  // validateCatalog() runs the same look-through ⊆ INSTRUMENTS check the
+  // build-time CI test runs (catalog-validate-lookthrough-orphans). If
+  // an orphan slips through (e.g. someone hand-edited the JSON without
+  // registering the ISIN, or the migration left a stale row), surface
+  // it inline with a one-click jump into the Instruments tab pre-filled
+  // with the missing ISIN so the operator can fix it without leaving
+  // the admin. The list is recomputed on every render — cheap because
+  // CATALOG / INSTRUMENTS / look-through getters are all in-memory.
+  const integrityIssues = useMemo(() => {
+    const all = validateCatalog();
+    return all
+      .filter(
+        (i) =>
+          i.bucket === "lookthrough.pool" || i.bucket === "lookthrough.overrides",
+      )
+      .map((i) => {
+        // Pull the ISIN out of the message for the prefill link. Both
+        // messages start with "<Pool|Override> ISIN <ISIN> is …".
+        const m = /\b([A-Z]{2}[A-Z0-9]{9}\d)\b/.exec(i.message);
+        return {
+          severity: i.severity,
+          bucket: i.bucket as "lookthrough.pool" | "lookthrough.overrides",
+          message: i.message,
+          isin: m?.[1] ?? null,
+        };
+      });
+  }, []);
 
   // Load both data sources in parallel. Re-runs whenever a Pull Request succeeds
   // (prsRefreshKey bump) so the post-merge state surfaces quickly.
@@ -545,6 +575,67 @@ export function ConsolidatedEtfTreePanel({
                   {poolLoadError}
                 </div>
               )}
+            </AlertDescription>
+          </Alert>
+        )}
+
+        {/* Task #122 (T006/T007): referential-integrity warning row.
+            Surfaces look-through orphans (ISINs in lookthrough.overrides.json
+            that have no matching INSTRUMENTS entry) inline in the Browse
+            tab so the operator can fix them without leaving the admin.
+            Each issue gets a one-click jump into the Instruments tab
+            with the missing ISIN pre-filled in the create form. The
+            companion build-time test (catalog-validate-lookthrough-orphans)
+            also blocks CI on the same condition. */}
+        {integrityIssues.length > 0 && (
+          <Alert
+            variant="destructive"
+            data-testid="alert-catalog-integrity-issues"
+          >
+            <AlertTriangle className="h-4 w-4" />
+            <AlertTitle>
+              {t({
+                de: `Referenzintegrität: ${integrityIssues.length} Look-through-Eintrag${integrityIssues.length === 1 ? "" : "e"} ohne INSTRUMENTS-Zeile`,
+                en: `Referential integrity: ${integrityIssues.length} look-through entr${integrityIssues.length === 1 ? "y" : "ies"} without an INSTRUMENTS row`,
+              })}
+            </AlertTitle>
+            <AlertDescription className="text-xs space-y-2">
+              <p>
+                {t({
+                  de: "Diese ISINs sind in src/data/lookthrough.overrides.json eingetragen, aber nicht in INSTRUMENTS registriert. Lege sie im Tab „Instrumente“ an, danach verschwindet die Warnung automatisch.",
+                  en: "These ISINs are listed in src/data/lookthrough.overrides.json but are not registered in INSTRUMENTS. Register each one in the “Instruments” tab and the warning will clear automatically.",
+                })}
+              </p>
+              <ul className="space-y-1.5">
+                {integrityIssues.map((iss, idx) => (
+                  <li
+                    key={`${iss.bucket}-${iss.isin ?? idx}`}
+                    className="flex flex-wrap items-start gap-2"
+                    data-testid={`row-integrity-${iss.bucket}-${iss.isin ?? idx}`}
+                  >
+                    <code className="font-mono text-[11px] px-1 rounded bg-background/50">
+                      {iss.bucket === "lookthrough.pool"
+                        ? t({ de: "Pool", en: "Pool" })
+                        : t({ de: "Override", en: "Override" })}
+                    </code>
+                    <span className="flex-1 min-w-[12rem]">{iss.message}</span>
+                    {iss.isin && (
+                      <Link
+                        href={`/admin/catalog/instruments?prefillIsin=${encodeURIComponent(iss.isin)}`}
+                        data-testid={`link-fix-integrity-${iss.isin}`}
+                      >
+                        <Button type="button" size="sm" variant="outline">
+                          <ExternalLink className="h-3 w-3 mr-1" />
+                          {t({
+                            de: `Im Tab „Instrumente“ anlegen`,
+                            en: `Register in “Instruments”`,
+                          })}
+                        </Button>
+                      </Link>
+                    )}
+                  </li>
+                ))}
+              </ul>
             </AlertDescription>
           </Alert>
         )}

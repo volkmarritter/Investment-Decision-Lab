@@ -13,7 +13,7 @@
 // detach from every bucket first).
 // ----------------------------------------------------------------------------
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   adminApi,
   type AddInstrumentRequest,
@@ -53,15 +53,26 @@ type Mode =
 
 export function InstrumentsPanel({
   githubConfigured,
+  prefillIsin,
 }: {
   githubConfigured: boolean;
+  // Task #122 (T006): when the picker's empty-state hint links the
+  // operator here with `?prefillIsin=<ISIN>`, switch straight into
+  // create mode and seed the ISIN field so the operator only has to
+  // fill in name/TER/etc. The query param is consumed once on mount —
+  // subsequent re-renders ignore it so navigating back to the list
+  // doesn't keep reopening the form.
+  prefillIsin?: string | null;
 }) {
   const { t, lang } = useAdminT();
   const [rows, setRows] = useState<InstrumentRow[] | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
-  const [mode, setMode] = useState<Mode>({ kind: "list" });
+  const [mode, setMode] = useState<Mode>(() =>
+    prefillIsin ? { kind: "create" } : { kind: "list" },
+  );
   const [query, setQuery] = useState("");
+  const initialPrefillIsin = useRef<string | null>(prefillIsin ?? null);
 
   useEffect(() => {
     let cancelled = false;
@@ -188,6 +199,7 @@ export function InstrumentsPanel({
         {mode.kind === "create" && (
           <InstrumentForm
             initial={null}
+            prefillIsin={initialPrefillIsin.current}
             onCancel={() => setMode({ kind: "list" })}
             onCreated={handlePrCreated}
             githubConfigured={githubConfigured}
@@ -361,11 +373,15 @@ export function InstrumentsPanel({
 // ----------------------------------------------------------------------------
 function InstrumentForm({
   initial,
+  prefillIsin,
   onCancel,
   onCreated,
   githubConfigured,
 }: {
   initial: InstrumentRow | null;
+  // Task #122 (T006): only consulted in create mode (initial === null);
+  // edit mode always uses initial.isin and locks the field.
+  prefillIsin?: string | null;
   onCancel: () => void;
   onCreated: () => void;
   githubConfigured: boolean;
@@ -392,7 +408,11 @@ function InstrumentForm({
           : {}),
       };
     }
-    return blankAlternativeDraft();
+    const seed = blankAlternativeDraft();
+    if (prefillIsin) {
+      seed.isin = prefillIsin.toUpperCase();
+    }
+    return seed;
   });
   const [submitting, setSubmitting] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);

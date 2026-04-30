@@ -1,4 +1,4 @@
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAdminT } from "@/lib/admin-i18n";
@@ -13,6 +13,19 @@ import { InstrumentsPanel } from "@/components/admin/InstrumentsPanel";
 export default function Catalog() {
   const { t } = useAdminT();
   const [location] = useLocation();
+  // Task #122 (T006): the picker's empty-state hint links here with
+  // `?prefillIsin=<ISIN>` so the operator can register the missing
+  // ISIN in one click. We forward it to InstrumentsPanel which seeds
+  // the create-form ISIN field.
+  const search = useSearch();
+  const prefillIsin = (() => {
+    try {
+      const v = new URLSearchParams(search).get("prefillIsin")?.trim().toUpperCase();
+      return v && /^[A-Z]{2}[A-Z0-9]{9}\d$/.test(v) ? v : null;
+    } catch {
+      return null;
+    }
+  })();
   const { catalog, catalogError, githubConfigured } = useAdminContext();
 
   const tabs: SubTab[] = [
@@ -109,7 +122,10 @@ export default function Catalog() {
           <BatchAddAlternativesPanel githubConfigured={githubConfigured} />
         )}
         {active === "instruments" && (
-          <InstrumentsPanel githubConfigured={githubConfigured} />
+          <InstrumentsPanel
+            githubConfigured={githubConfigured}
+            prefillIsin={prefillIsin}
+          />
         )}
       </div>
     </section>
