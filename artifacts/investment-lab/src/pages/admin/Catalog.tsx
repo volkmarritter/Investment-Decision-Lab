@@ -66,12 +66,12 @@ export default function Catalog() {
       en: "Every bucket with its default ETF, alternatives, and look-through status in a single tree.",
     }),
     instruments: t({
-      de: "Master-Liste aller ETF-Instrumente. Hier werden Instrumente registriert, bearbeitet oder entfernt — die Bucket-Zuordnung passiert separat im Browse-Tab.",
-      en: "Master list of every ETF instrument. Register, edit or retire instruments here — bucket assignment happens separately in the Browse tab.",
+      de: "Master-Liste aller ETF-Instrumente. Hier werden Instrumente registriert, bearbeitet oder entfernt. Bucket-Zuordnung läuft separat: neue Defaults über „ISIN hinzufügen“, neue Alternativen über die Zeilen-Buttons im Browse-Tab. Instrumente ohne Bucket-Zuordnung bilden den Look-through-Pool.",
+      en: "Master list of every ETF instrument. Register, edit or retire instruments here. Bucket assignment runs separately: new defaults via the 'Add ISIN' tab, new alternatives via the per-row buttons in the Browse tab. Instruments with no bucket assignment make up the look-through pool.",
     }),
     "add-isin": t({
-      de: "Eine ISIN scrapen, Felder prüfen und einen einzelnen Pull Request für den ETF-Katalog öffnen.",
-      en: "Scrape one ISIN, review the fields, and open a single pull request for the ETF catalog.",
+      de: "Eine ISIN scrapen, Felder prüfen und einen einzelnen Pull Request öffnen, der das Instrument registriert und gleich als Bucket-Default einträgt.",
+      en: "Scrape one ISIN, review the fields, and open a single pull request that registers the instrument and assigns it as a bucket default in one go.",
     }),
     batch: t({
       de: "Mehrere kuratierte Alternativen zusammenstellen und alle in einem Pull Request öffnen.",
