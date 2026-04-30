@@ -3078,6 +3078,80 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BF20LF40",
       "_addedAt": "2026-04-29T09:18:35.215Z",
       "_addedVia": "admin/lookthrough-pool"
+    },
+    "IE00B88DZ566": {
+      "name": "iShares S&P 500 CHF Hedged UCITS ETF (Acc)",
+      "topHoldings": [
+        {
+          "name": "NVIDIA Corp.",
+          "pct": 7.55
+        },
+        {
+          "name": "Apple",
+          "pct": 6.63
+        },
+        {
+          "name": "Microsoft",
+          "pct": 4.89
+        },
+        {
+          "name": "Amazon.com, Inc.",
+          "pct": 3.62
+        },
+        {
+          "name": "Alphabet, Inc. A",
+          "pct": 2.98
+        },
+        {
+          "name": "Broadcom Inc.",
+          "pct": 2.61
+        },
+        {
+          "name": "Alphabet, Inc. C",
+          "pct": 2.39
+        },
+        {
+          "name": "Meta Platforms",
+          "pct": 2.23
+        },
+        {
+          "name": "Tesla",
+          "pct": 1.86
+        },
+        {
+          "name": "Berkshire Hathaway, Inc.",
+          "pct": 1.56
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-30T05:14:43.212Z",
+      "geo": {
+        "United States": 94.87,
+        "Ireland": 1.43,
+        "Other": 3.7
+      },
+      "sector": {
+        "Technology": 33.81,
+        "Financials": 10.33,
+        "Telecommunication": 10.19,
+        "Consumer Discretionary": 9.96,
+        "Health Care": 9.28,
+        "Industrials": 8.3,
+        "Consumer Staples": 4.97,
+        "Energy": 3.99,
+        "Utilities": 2.53,
+        "Real Estate": 1.92,
+        "Basic Materials": 1.61,
+        "Other": 3.11
+      },
+      "currency": {
+        "USD": 94.87,
+        "EUR": 1.43,
+        "Other": 3.7
+      },
+      "breakdownsAsOf": "2026-04-30T05:14:43.212Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B88DZ566",
+      "_addedAt": "2026-04-30T05:14:43.212Z",
+      "_addedVia": "admin/lookthrough-pool/backfill"
     }
   }
 }
