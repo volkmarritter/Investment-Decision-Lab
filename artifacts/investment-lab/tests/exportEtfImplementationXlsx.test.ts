@@ -395,6 +395,85 @@ describe("buildEtfImplementationWorkbook", () => {
       TRANSLATIONS.de["build.impl.disclaimer"],
     );
   });
+
+  // --------------------------------------------------------------------
+  // Full 7-section legal disclaimer (Task #126) — same copy the PDF
+  // report carries, appended below the ETF-table disclaimer with a
+  // blank spacer row in between. Text is verbatim from the shared
+  // `disclaimer.sN.title` / `disclaimer.sN.body` keys.
+  // --------------------------------------------------------------------
+
+  it("appends the first PDF legal-disclaimer section (title + body) below the ETF disclaimer (EN)", () => {
+    // Two fixture rows → header row 1, data rows 2–3, spacer row 4,
+    // ETF-table disclaimer row 5, blank spacer row 6, then the 7 legal
+    // sections start at row 7 with the s1 title and row 8 with s1 body.
+    const wb = buildEtfImplementationWorkbook(
+      [curatedRow(), fallbackRow()],
+      (key) => TRANSLATIONS.en[key] ?? key,
+      "en",
+    );
+    const sheet = roundTrip(wb);
+
+    // Blank spacer between the ETF disclaimer and the legal sections.
+    expect(cellAt(sheet, "A", 6)).toBeUndefined();
+
+    // s1 title and body cells, verbatim from the EN bundle.
+    const s1Title = cellAt(sheet, "A", 7);
+    expect(s1Title?.t).toBe("s");
+    expect(s1Title?.v).toBe(TRANSLATIONS.en["disclaimer.s1.title"]);
+
+    const s1Body = cellAt(sheet, "A", 8);
+    expect(s1Body?.t).toBe("s");
+    expect(s1Body?.v).toBe(TRANSLATIONS.en["disclaimer.s1.body"]);
+
+    // Both new rows must be merged across all 11 data columns so the
+    // long sentences wrap cleanly, mirroring the existing disclaimer.
+    const merges = sheet["!merges"] ?? [];
+    expect(merges).toEqual(
+      expect.arrayContaining([
+        { s: { r: 6, c: 0 }, e: { r: 6, c: 10 } }, // row 7 in 1-based = r:6
+        { s: { r: 7, c: 0 }, e: { r: 7, c: 10 } }, // row 8 in 1-based = r:7
+      ]),
+    );
+  });
+
+  it("appends the first PDF legal-disclaimer section (title + body) below the ETF disclaimer (DE)", () => {
+    // One data row → header row 1, data row 2, spacer row 3, ETF-table
+    // disclaimer row 4, blank spacer row 5, s1 title row 6, s1 body row 7.
+    const wb = buildEtfImplementationWorkbook(
+      [curatedRow()],
+      (key) => TRANSLATIONS.de[key] ?? key,
+      "de",
+    );
+    const sheet = roundTrip(wb);
+
+    expect(cellAt(sheet, "A", 5)).toBeUndefined();
+
+    const s1Title = cellAt(sheet, "A", 6);
+    expect(s1Title?.t).toBe("s");
+    expect(s1Title?.v).toBe(TRANSLATIONS.de["disclaimer.s1.title"]);
+
+    const s1Body = cellAt(sheet, "A", 7);
+    expect(s1Body?.t).toBe("s");
+    expect(s1Body?.v).toBe(TRANSLATIONS.de["disclaimer.s1.body"]);
+
+    // Sanity: the EN and DE legal-section copy is genuinely different,
+    // so the language-specific assertions above are meaningful.
+    expect(TRANSLATIONS.en["disclaimer.s1.title"]).not.toBe(
+      TRANSLATIONS.de["disclaimer.s1.title"],
+    );
+    expect(TRANSLATIONS.en["disclaimer.s1.body"]).not.toBe(
+      TRANSLATIONS.de["disclaimer.s1.body"],
+    );
+
+    const merges = sheet["!merges"] ?? [];
+    expect(merges).toEqual(
+      expect.arrayContaining([
+        { s: { r: 5, c: 0 }, e: { r: 5, c: 10 } }, // row 6 in 1-based = r:5
+        { s: { r: 6, c: 0 }, e: { r: 6, c: 10 } }, // row 7 in 1-based = r:6
+      ]),
+    );
+  });
 });
 
 describe("buildEtfImplementationFilename", () => {

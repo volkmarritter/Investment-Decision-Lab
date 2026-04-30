@@ -194,11 +194,27 @@ export function buildEtfImplementationWorkbook(
   const disclaimerRow: XLSX.CellObject[] = [
     { t: "s", v: t("build.impl.disclaimer") },
   ];
+
+  // Full 7-section legal disclaimer (same copy the PDF report carries),
+  // appended after the ETF-table disclaimer with a blank spacer row in
+  // between. Pulls verbatim text from the shared `disclaimer.sN.title`
+  // / `disclaimer.sN.body` i18n keys so EN / DE exports stay in sync
+  // with the PDF wording byte-for-byte.
+  const SECTION_COUNT = 7;
+  const legalSectionRows: XLSX.CellObject[][] = [];
+  for (let i = 1; i <= SECTION_COUNT; i++) {
+    legalSectionRows.push([{ t: "s", v: t(`disclaimer.s${i}.title`) }]);
+    legalSectionRows.push([{ t: "s", v: t(`disclaimer.s${i}.body`) }]);
+  }
+  const legalSpacerRow: XLSX.CellObject[] = [];
+
   const sheet = XLSX.utils.aoa_to_sheet([
     headerRow,
     ...dataRows,
     spacerRow,
     disclaimerRow,
+    legalSpacerRow,
+    ...legalSectionRows,
   ]);
 
   // Merge the disclaimer cell across all data columns so the long warning
@@ -208,12 +224,21 @@ export function buildEtfImplementationWorkbook(
   // sits at `1 + rows.length + 1` (header + data rows + spacer).
   const disclaimerRowIdx = 1 + rows.length + 1;
   const lastColIdx = COLUMNS.length - 1;
-  sheet["!merges"] = [
+  const merges: XLSX.Range[] = [
     {
       s: { r: disclaimerRowIdx, c: 0 },
       e: { r: disclaimerRowIdx, c: lastColIdx },
     },
   ];
+
+  // Merge every legal-section row across all data columns too. The
+  // first title row sits at `disclaimerRowIdx + 2` (the +2 skips the
+  // blank spacer between the ETF disclaimer and section 1).
+  for (let n = 0; n < legalSectionRows.length; n++) {
+    const r = disclaimerRowIdx + 2 + n;
+    merges.push({ s: { r, c: 0 }, e: { r, c: lastColIdx } });
+  }
+  sheet["!merges"] = merges;
 
   // Mild column widths so the file opens with sensible column sizing
   // instead of every column collapsed to its header width. Values are
