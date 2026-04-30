@@ -930,7 +930,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
   }),
   "Equity-Europe": B({
     default: "IE00B4K48X80",
-    alternatives: ["IE00B945VV12", "FR0007054358"],
+    alternatives: ["IE00B945VV12", "FR0007054358", "IE0008471009"],
   }),
   "Equity-Switzerland": B({
     default: "CH0237935652",
