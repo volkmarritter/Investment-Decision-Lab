@@ -925,16 +925,16 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     listings: { "LSE": { ticker: "VWRD" }, "XETRA": { ticker: "VGWL" }, "SIX": { ticker: "VWRL" }, "Euronext": { ticker: "VWRL" } },
     defaultExchange: "LSE",
   }),
-  "IE00BF20LF40": I({
-    name: "iShares MSCI Europe Mid Cap UCITS ETF EUR (Acc)",
-    isin: "IE00BF20LF40",
-    terBps: 15,
-    domicile: "Ireland",
+  "LU0292100046": I({
+    name: "Xtrackers MSCI Korea UCITS ETF 1C",
+    isin: "LU0292100046",
+    terBps: 45,
+    domicile: "Luxembourg",
     replication: "Physical",
     distribution: "Accumulating",
-    currency: "EUR",
+    currency: "USD",
     comment: "",
-    listings: { "LSE": { ticker: "EUMD" } },
+    listings: { "LSE": { ticker: "XKSD" }, "XETRA": { ticker: "DBX8" } },
     defaultExchange: "LSE",
   }),
 };
