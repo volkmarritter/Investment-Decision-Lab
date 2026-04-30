@@ -913,6 +913,18 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     listings: { "LSE": { ticker: "EUE" }, "XETRA": { ticker: "EUN2" }, "SIX": { ticker: "EUNE" }, "Euronext": { ticker: "EUEA" } },
     defaultExchange: "LSE",
   }),
+  "IE000U58J0M1": I({
+    name: "iShares Global Clean Energy Transition UCITS ETF USD (Acc)",
+    isin: "IE000U58J0M1",
+    terBps: 65,
+    domicile: "Ireland",
+    replication: "Physical",
+    distribution: "Accumulating",
+    currency: "USD",
+    comment: "",
+    listings: { "LSE": { ticker: "INRA" }, "XETRA": { ticker: "Q8Y0" }, "Euronext": { ticker: "INRA" } },
+    defaultExchange: "LSE",
+  }),
 };
 
 const BUCKETS: Record<string, BucketAssignment> = {
