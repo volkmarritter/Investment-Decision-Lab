@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
-import { AlertCircle, CheckCircle2, Scale, ShieldAlert, Target, Link2, PinOff } from "lucide-react";
+import { AlertCircle, CheckCircle2, Scale, ShieldAlert, Target, Link2, PinOff, Sparkles, Unlink } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { SavedScenariosUI } from "./SavedScenariosUI";
@@ -38,6 +38,16 @@ import {
   subscribeLastBuildInput,
   subscribeLastBuildManualWeights,
 } from "@/lib/settings";
+import {
+  type CompareSlotName,
+  explainWorkspaceHasContent,
+  explainWorkspaceToSlotPortfolio,
+  getLastExplainWorkspace,
+  subscribeCompareLoadRequests,
+  subscribeLastExplainWorkspace,
+  takePendingCompareLoadRequest,
+} from "@/lib/explainCompare";
+import type { ExplainWorkspace } from "@/lib/savedExplainPortfolios";
 import { PortfolioMetrics } from "./PortfolioMetrics";
 import { StressTest } from "./StressTest";
 import { MonteCarloSimulation } from "./MonteCarloSimulation";
@@ -116,6 +126,20 @@ export function ComparePortfolios() {
   const [hasBuildPublished, setHasBuildPublished] = useState<boolean>(
     () => getLastBuildInput() !== null,
   );
+  // Per-slot Explain workspace source. When set, the slot's form column is
+  // replaced by a compact "From Explain" summary card and the slot's
+  // input/output is synthesized directly from the user's real holdings on
+  // the Explain tab. Detaching (or loading a saved Build scenario into the
+  // slot, or re-linking Slot A to Build) clears this back to null.
+  // Declared here (above the Build-link sync effect) so that effect can
+  // skip overwriting Slot A while it carries an Explain personal portfolio.
+  const [explainSourceA, setExplainSourceA] = useState<ExplainWorkspace | null>(null);
+  const [explainSourceB, setExplainSourceB] = useState<ExplainWorkspace | null>(null);
+  // Tracks whether the Explain tab has any usable workspace right now —
+  // drives the enabled state of each slot's "Load from Explain" button.
+  const [hasExplainContent, setHasExplainContent] = useState<boolean>(() =>
+    explainWorkspaceHasContent(getLastExplainWorkspace()),
+  );
   // Ref flag set to true during programmatic setValue calls driven by the
   // linked-sync effect, so the auto-pin watcher can distinguish user-driven
   // edits from our own mirror updates. Synchronous toggle is sufficient
@@ -183,13 +207,15 @@ export function ComparePortfolios() {
         setHasBuildPublished(true);
         // Honour "default-on" if Build publishes for the first time AFTER
         // we mounted (rather than before): auto-link Slot A exactly once,
-        // unless the user has already touched the pin / re-link controls.
-        if (initialLinkPendingRef.current) {
+        // unless the user has already touched the pin / re-link controls
+        // and unless Slot A is currently sourced from Explain (a Build
+        // publication should not surprise-replace the personal portfolio).
+        if (initialLinkPendingRef.current && !explainSourceA) {
           initialLinkPendingRef.current = false;
           setLinked(true);
         }
       }
-      if (!linked || !input) return;
+      if (!linked || !input || explainSourceA) return;
       syncingRef.current = true;
       const safe = input as unknown as PortfolioInput;
       form.setValue(
@@ -207,7 +233,7 @@ export function ComparePortfolios() {
       unsubInput();
       unsubMW();
     };
-  }, [linked, form]);
+  }, [linked, form, explainSourceA]);
 
   // Auto-pin / auto-detach on first user edit to portA. Loading a saved
   // scenario into Slot A also detaches, but does so explicitly in the
@@ -216,6 +242,11 @@ export function ComparePortfolios() {
     const sub = form.watch((_value, info) => {
       if (!linked) return;
       if (syncingRef.current) return;
+      // When Slot A is currently displaying an Explain workspace, the
+      // form column is hidden so user-driven edits to portA fields
+      // shouldn't be possible — but be defensive against stale watcher
+      // events firing during the transition.
+      if (explainSourceA) return;
       const name = info?.name;
       if (!name || !name.startsWith("portA.")) return;
       initialLinkPendingRef.current = false;
@@ -223,7 +254,7 @@ export function ComparePortfolios() {
       toast.info(t("compare.slotA.unlinkToast"));
     });
     return () => sub.unsubscribe();
-  }, [linked, form, t]);
+  }, [linked, form, t, explainSourceA]);
 
   // Auto-sync preferred exchange to base currency for both portfolios.
   const watchedA = form.watch("portA.baseCurrency");
@@ -322,12 +353,109 @@ export function ComparePortfolios() {
     ),
   });
 
+  // ---------------------------------------------------------------------
+  // Explain → Compare loading
+  // ---------------------------------------------------------------------
+  //
+  // Installs the user's Explain-tab workspace into the requested Compare
+  // slot. Replaces the slot's form column with a "From Explain" summary
+  // card and seeds inputX/outputX directly from the synthesized real-
+  // holdings portfolio so all downstream Compare cards (PortfolioMetrics,
+  // MonteCarloSimulation, FeeEstimator, GeoExposureMap, …) render against
+  // the personal portfolio without an extra "Compare" button press.
+  //
+  // For Slot A also detaches the Build link so the next Build publication
+  // doesn't immediately overwrite the loaded portfolio. For both slots
+  // we clear the per-slot manual weights / picker snapshot so the
+  // Build-engine machinery doesn't try to re-resolve picks for buckets
+  // that don't apply to the personal portfolio.
+  const loadFromExplain = (slot: CompareSlotName, ws: ExplainWorkspace) => {
+    if (!explainWorkspaceHasContent(ws)) return;
+    const { input, output } = explainWorkspaceToSlotPortfolio(ws, lang);
+    if (slot === "A") {
+      initialLinkPendingRef.current = false;
+      if (linked) setLinked(false);
+      setExplainSourceA(ws);
+      setManualWeightsA(undefined);
+      // Empty map = "use defaults for every bucket" — prevents Build's
+      // global picker store from leaking into the synthesized output if
+      // the user later detaches and presses Compare.
+      setEtfSelectionsA({});
+      setOutputA(output);
+      setInputA(input);
+      setValidationA({ isValid: true, errors: [], warnings: [] });
+    } else {
+      setExplainSourceB(ws);
+      setManualWeightsB(undefined);
+      setEtfSelectionsB({});
+      setOutputB(output);
+      setInputB(input);
+      setValidationB({ isValid: true, errors: [], warnings: [] });
+    }
+    setHasGenerated(true);
+    toast.success(t("compare.slot.explainLoadedToast", { slot }));
+    setTimeout(() => {
+      resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+  };
+
+  // Subscribe to "Send to Compare" requests dispatched from the Explain
+  // tab. Drains any request that arrived before this component mounted
+  // (one-shot — see `takePendingCompareLoadRequest`), then keeps the
+  // subscription alive for in-session sends. Also tracks Explain-tab
+  // workspace availability so each slot's "Load from Explain" button can
+  // disable itself when there's nothing to load. Re-subscribing on `lang`
+  // change keeps the synthesized output in sync with the active language.
+  useEffect(() => {
+    const pending = takePendingCompareLoadRequest();
+    if (pending) loadFromExplain(pending.slot, pending.workspace);
+    const unsubReq = subscribeCompareLoadRequests((req) => {
+      loadFromExplain(req.slot, req.workspace);
+    });
+    const unsubWs = subscribeLastExplainWorkspace((ws) => {
+      setHasExplainContent(explainWorkspaceHasContent(ws));
+    });
+    setHasExplainContent(explainWorkspaceHasContent(getLastExplainWorkspace()));
+    return () => {
+      unsubReq();
+      unsubWs();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang]);
+
+  // "Load from Explain" handler bound to per-slot buttons in the slot
+  // header. Pulls the latest published Explain workspace and routes it
+  // through the same loader the request channel uses.
+  const handleSlotLoadFromExplain = (slot: CompareSlotName) => {
+    const ws = getLastExplainWorkspace();
+    if (!ws || !explainWorkspaceHasContent(ws)) return;
+    loadFromExplain(slot, ws);
+  };
+
+  // Detach an Explain-sourced slot back to its Build form column. The
+  // form values for that prefix are untouched, so the user picks up
+  // exactly where the form was when they loaded from Explain (or at
+  // defaults if they never edited the form before loading). The
+  // synthesized output stays visible until the user presses "Compare
+  // Portfolios" again — feels less destructive than wiping the whole
+  // results section.
+  const detachExplainSource = (slot: CompareSlotName) => {
+    if (slot === "A") setExplainSourceA(null);
+    else setExplainSourceB(null);
+  };
+
   // Per-side rebuild used by the Look-Through toggle so toggling that
   // side's switch immediately re-runs that side's portfolio (refreshing
   // the captured `inputA`/`inputB` value the gating predicates read)
   // without re-running the other slot or re-scrolling the page.
   // Only re-runs if the side has already been generated at least once.
   const rebuildSide = (prefix: "portA" | "portB") => {
+    // Explain-sourced slots are not driven by the Build form — the
+    // look-through toggle on the form column is hidden when the summary
+    // card is showing, so this path never fires for an explain slot. Be
+    // defensive anyway and skip.
+    if (prefix === "portA" && explainSourceA) return;
+    if (prefix === "portB" && explainSourceB) return;
     const v = form.getValues()[prefix];
     const parsed = parseSide(v);
     const val = runValidation(parsed);
@@ -359,29 +487,59 @@ export function ComparePortfolios() {
   };
 
   const onSubmit = (data: CompareFormValues) => {
-    const parsedA = parseSide(data.portA);
-    const parsedB = parseSide(data.portB);
+    // For Explain-sourced slots, ignore the (hidden) Build form and
+    // re-synthesize directly from the latest published Explain workspace
+    // (or the snapshot the slot was loaded from, if Explain has been
+    // cleared since). This lets the user press "Compare Portfolios"
+    // safely with a personal-portfolio slot in play without snapping
+    // back to default form values.
+    if (explainSourceA) {
+      const ws = getLastExplainWorkspace() ?? explainSourceA;
+      const { input, output } = explainWorkspaceToSlotPortfolio(ws, lang);
+      setOutputA(output);
+      setInputA(input);
+      setValidationA({ isValid: true, errors: [], warnings: [] });
+    } else {
+      const parsedA = parseSide(data.portA);
+      const valA = runValidation(parsedA);
+      setValidationA(stripComplexity(valA));
+      if (valA.isValid) {
+        setOutputA(buildPortfolio(parsedA, "en", manualWeightsA, etfSelectionsA));
+        setInputA(parsedA);
+      } else {
+        setOutputA(null);
+        setInputA(null);
+      }
+    }
 
-    const valA = runValidation(parsedA);
-    const valB = runValidation(parsedB);
-    setValidationA(stripComplexity(valA));
-    setValidationB(stripComplexity(valB));
-
-    if (valA.isValid) { setOutputA(buildPortfolio(parsedA, "en", manualWeightsA, etfSelectionsA)); setInputA(parsedA); }
-    else { setOutputA(null); setInputA(null); }
-
-    // Slot B contract (Task #78): Portfolio B is a clean default-only
-    // baseline unless a saved scenario has explicitly been loaded into
-    // it. When `etfSelectionsB` is undefined (no scenario loaded), pass
-    // an empty map instead of letting the engine fall back to the
-    // global ETF picker store the Build tab writes to — otherwise
-    // Build's per-bucket picks would silently leak into Slot B. The
-    // saved-scenario load path (onLoadB below) already installs a
-    // concrete map (or `{}` for older saves), so this fallback only
-    // affects the never-loaded case.
-    const etfSelectionsBForBuild = etfSelectionsB ?? {};
-    if (valB.isValid) { setOutputB(buildPortfolio(parsedB, "en", manualWeightsB, etfSelectionsBForBuild)); setInputB(parsedB); }
-    else { setOutputB(null); setInputB(null); }
+    if (explainSourceB) {
+      const ws = getLastExplainWorkspace() ?? explainSourceB;
+      const { input, output } = explainWorkspaceToSlotPortfolio(ws, lang);
+      setOutputB(output);
+      setInputB(input);
+      setValidationB({ isValid: true, errors: [], warnings: [] });
+    } else {
+      const parsedB = parseSide(data.portB);
+      const valB = runValidation(parsedB);
+      setValidationB(stripComplexity(valB));
+      // Slot B contract (Task #78): Portfolio B is a clean default-only
+      // baseline unless a saved scenario has explicitly been loaded into
+      // it. When `etfSelectionsB` is undefined (no scenario loaded), pass
+      // an empty map instead of letting the engine fall back to the
+      // global ETF picker store the Build tab writes to — otherwise
+      // Build's per-bucket picks would silently leak into Slot B. The
+      // saved-scenario load path (onLoadB below) already installs a
+      // concrete map (or `{}` for older saves), so this fallback only
+      // affects the never-loaded case.
+      const etfSelectionsBForBuild = etfSelectionsB ?? {};
+      if (valB.isValid) {
+        setOutputB(buildPortfolio(parsedB, "en", manualWeightsB, etfSelectionsBForBuild));
+        setInputB(parsedB);
+      } else {
+        setOutputB(null);
+        setInputB(null);
+      }
+    }
 
     setHasGenerated(true);
 
@@ -420,60 +578,122 @@ export function ComparePortfolios() {
 
   const diff = (outputA && outputB) ? diffPortfolios(outputA, outputB) : null;
 
-  const renderFormColumn = (prefix: "portA" | "portB", title: string) => (
+  const renderFormColumn = (prefix: "portA" | "portB", title: string) => {
+    const slot: CompareSlotName = prefix === "portA" ? "A" : "B";
+    const explainSource = slot === "A" ? explainSourceA : explainSourceB;
+    const slotTestPrefix = `compare-slot-${slot.toLowerCase()}`;
+    return (
     <Card>
       <CardHeader>
         <div className="flex items-center justify-between gap-2 flex-wrap">
-          <CardTitle className="text-xl">{title}</CardTitle>
-          {prefix === "portA" && hasBuildPublished && (
-            <div className="flex items-center gap-1.5" data-testid="compare-slot-a-link-controls">
-              {linked ? (
-                <>
-                  <Badge variant="secondary" className="gap-1 h-6 font-normal" data-testid="compare-slot-a-linked-badge">
+          <div className="flex items-center gap-2 flex-wrap">
+            <CardTitle className="text-xl">{title}</CardTitle>
+            {/* Source badge: makes it explicit whether the slot is
+             *  showing the live Build portfolio, an Explain personal
+             *  portfolio, or a one-off Build configuration. The link
+             *  badge / re-link control beside it is Slot A specific. */}
+            {explainSource ? (
+              <Badge
+                variant="secondary"
+                className="gap-1 h-6 font-normal"
+                data-testid={`${slotTestPrefix}-source-badge`}
+              >
+                <Sparkles className="h-3 w-3" />
+                {t("compare.source.fromExplain")}
+              </Badge>
+            ) : prefix === "portA" && hasBuildPublished && linked ? null : (
+              <Badge
+                variant="outline"
+                className="gap-1 h-6 font-normal"
+                data-testid={`${slotTestPrefix}-source-badge`}
+              >
+                {t("compare.source.fromBuild")}
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {prefix === "portA" && hasBuildPublished && (
+              <div className="flex items-center gap-1.5" data-testid="compare-slot-a-link-controls">
+                {linked ? (
+                  <>
+                    <Badge variant="secondary" className="gap-1 h-6 font-normal" data-testid="compare-slot-a-linked-badge">
+                      <Link2 className="h-3 w-3" />
+                      {t("compare.slotA.linked")}
+                    </Badge>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => {
+                            initialLinkPendingRef.current = false;
+                            setLinked(false);
+                            toast.info(t("compare.slotA.unlinkToast"));
+                          }}
+                          aria-label={t("compare.slotA.linkedHint")}
+                          data-testid="compare-slot-a-unpin-button"
+                        >
+                          <PinOff className="h-3.5 w-3.5" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">{t("compare.slotA.linkedHint")}</TooltipContent>
+                    </Tooltip>
+                  </>
+                ) : (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 gap-1 text-xs"
+                    onClick={() => {
+                      initialLinkPendingRef.current = false;
+                      // Re-linking to Build always supersedes an Explain
+                      // source — the user is asking for the live Build
+                      // portfolio in this slot.
+                      if (explainSourceA) setExplainSourceA(null);
+                      setLinked(true);
+                    }}
+                    data-testid="compare-slot-a-relink-button"
+                  >
                     <Link2 className="h-3 w-3" />
-                    {t("compare.slotA.linked")}
-                  </Badge>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => {
-                          initialLinkPendingRef.current = false;
-                          setLinked(false);
-                          toast.info(t("compare.slotA.unlinkToast"));
-                        }}
-                        aria-label={t("compare.slotA.linkedHint")}
-                        data-testid="compare-slot-a-unpin-button"
-                      >
-                        <PinOff className="h-3.5 w-3.5" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">{t("compare.slotA.linkedHint")}</TooltipContent>
-                  </Tooltip>
-                </>
-              ) : (
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="h-7 gap-1 text-xs"
-                  onClick={() => {
-                    initialLinkPendingRef.current = false;
-                    setLinked(true);
-                  }}
-                  data-testid="compare-slot-a-relink-button"
-                >
-                  <Link2 className="h-3 w-3" />
-                  {t("compare.slotA.relink")}
-                </Button>
-              )}
-            </div>
-          )}
+                    {t("compare.slotA.relink")}
+                  </Button>
+                )}
+              </div>
+            )}
+            {/* Per-slot "Load from Explain" — only shown when the slot is
+             *  not already explain-sourced. Disabled (with tooltip) when
+             *  the Explain tab has no usable workspace yet. */}
+            {!explainSource && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 gap-1 text-xs"
+                      disabled={!hasExplainContent}
+                      onClick={() => handleSlotLoadFromExplain(slot)}
+                      data-testid={`${slotTestPrefix}-load-from-explain-button`}
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      {t("compare.slot.loadFromExplain")}
+                    </Button>
+                  </span>
+                </TooltipTrigger>
+                {!hasExplainContent && (
+                  <TooltipContent className="max-w-xs">
+                    {t("compare.slot.loadFromExplain.empty")}
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            )}
+          </div>
         </div>
-        {prefix === "portA" && hasBuildPublished && linked && (
+        {prefix === "portA" && hasBuildPublished && linked && !explainSource && (
           <p
             className="mt-2 text-xs text-muted-foreground italic"
             data-testid="compare-slot-a-linked-statement"
@@ -487,7 +707,7 @@ export function ComparePortfolios() {
             the two sentences appear as a paired explanation of the
             Compare layout. The check `hasBuildPublished && linked`
             matches Slot A's render condition above. */}
-        {prefix === "portB" && hasBuildPublished && linked && (
+        {prefix === "portB" && hasBuildPublished && linked && !explainSourceA && !explainSource && (
           <p
             className="mt-2 text-xs text-muted-foreground italic"
             data-testid="compare-slot-b-defaults-statement"
@@ -495,7 +715,70 @@ export function ComparePortfolios() {
             {t("compare.slotB.defaultsStatement")}
           </p>
         )}
+        {explainSource && (
+          <p
+            className="mt-2 text-xs text-muted-foreground italic"
+            data-testid={`${slotTestPrefix}-explain-helper`}
+          >
+            {t("compare.slot.explainHelper")}
+          </p>
+        )}
       </CardHeader>
+      {explainSource ? (
+        <CardContent className="space-y-4">
+          {/* Compact summary card for Explain-sourced slots — replaces
+           *  the full Build form column. The synthesized output is
+           *  already wired into outputA/B & inputA/B at load time, so
+           *  this is purely informational. */}
+          <div
+            className="rounded-md border bg-muted/40 p-3 text-sm space-y-2"
+            data-testid={`${slotTestPrefix}-explain-summary`}
+          >
+            <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              <Sparkles className="h-3.5 w-3.5" />
+              <span>{t("compare.source.fromExplain")}</span>
+            </div>
+            <div className="text-sm">
+              {t("compare.slot.explainSummary", {
+                count: explainSource.positions.filter(
+                  (p) => !!p.isin && p.weight > 0,
+                ).length,
+                ccy: explainSource.baseCurrency,
+                risk: explainSource.riskAppetite,
+                horizon: explainSource.horizon,
+                hedged: explainSource.hedged
+                  ? t("compare.slot.explainSummary.hedged")
+                  : "",
+              })}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1 text-xs"
+              onClick={() => detachExplainSource(slot)}
+              data-testid={`${slotTestPrefix}-detach-explain-button`}
+            >
+              <Unlink className="h-3 w-3" />
+              {t("compare.slot.detachExplain")}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-8 gap-1 text-xs"
+              disabled={!hasExplainContent}
+              onClick={() => handleSlotLoadFromExplain(slot)}
+              data-testid={`${slotTestPrefix}-reload-from-explain-button`}
+            >
+              <Sparkles className="h-3 w-3" />
+              {t("compare.slot.loadFromExplain")}
+            </Button>
+          </div>
+        </CardContent>
+      ) : (
       <CardContent className="space-y-6">
         <div className="grid grid-cols-2 gap-4">
           <FormField
@@ -729,8 +1012,10 @@ export function ComparePortfolios() {
           />
         </div>
       </CardContent>
+      )}
     </Card>
-  );
+    );
+  };
 
   // Reusable per-side gating for look-through-derived panels
   // (Geographic Exposure, Look-Through Analysis, Top 10 Holdings).
@@ -861,6 +1146,9 @@ export function ComparePortfolios() {
                   if (linked) {
                     setLinked(false);
                   }
+                  // Saved scenarios are Build-shape strategies — loading
+                  // one supersedes any active Explain source for this slot.
+                  if (explainSourceA) setExplainSourceA(null);
                   // Use syncingRef so the auto-pin watcher doesn't fire a
                   // second toast on top of the load toast (defensive — we
                   // already set linked=false above, but a stale watcher
@@ -897,6 +1185,9 @@ export function ComparePortfolios() {
                   toast.success(lang === "de" ? "In Portfolio A geladen" : "Loaded into Portfolio A");
                 },
                 onLoadB: (scenario) => {
+                  // Saved scenarios are Build-shape strategies — loading
+                  // one supersedes any active Explain source for this slot.
+                  if (explainSourceB) setExplainSourceB(null);
                   // Backfill `lookThroughView` to `true` for older saved
                   // scenarios that don't carry the field — the per-slot
                   // toggle in Compare must default ON.
@@ -915,8 +1206,11 @@ export function ComparePortfolios() {
                   );
                   toast.success(lang === "de" ? "In Portfolio B geladen" : "Loaded into Portfolio B");
                 },
-                hasGeneratedA: !!outputA,
-                hasGeneratedB: !!outputB,
+                // Disable "Save Slot X" while a slot is explain-sourced —
+                // the form values that the saver would persist don't
+                // reflect the personal portfolio that's currently shown.
+                hasGeneratedA: !!outputA && !explainSourceA,
+                hasGeneratedB: !!outputB && !explainSourceB,
               }}
             />
           </div>

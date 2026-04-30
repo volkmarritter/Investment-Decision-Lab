@@ -19,6 +19,7 @@ import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useT } from "@/lib/i18n";
 import { DisclaimerFooter } from "@/components/investment/Disclaimer";
 import { biconContactMailto } from "@/lib/brand";
+import { subscribeNavigateTab } from "@/lib/explainCompare";
 
 // Tab values used by the URL `?tab=` query parameter (Task #43). The default
 // is "build", so a missing or unknown tab parameter falls back to it and the
@@ -60,6 +61,17 @@ export default function InvestmentLab() {
     const onPop = () => setTab(readTabFromUrl());
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
+  // Cross-component navigation: ExplainPortfolio's "Send to Compare"
+  // button (and any future similar shortcut) calls `navigateToTab` from
+  // `lib/explainCompare`, which pushes the URL and emits this event so
+  // the controlled tab state stays in sync without threading callbacks
+  // down through every tab panel.
+  useEffect(() => {
+    return subscribeNavigateTab((next) => {
+      setTab(next);
+    });
   }, []);
 
   // Welcome dialog (Task #96). Opens shortly after the app shell mounts so

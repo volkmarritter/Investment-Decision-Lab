@@ -11,7 +11,9 @@ import {
   XCircle,
   Search,
   RotateCcw,
+  Scale,
 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -77,6 +79,19 @@ import { StressTest } from "./StressTest";
 import { HomeBiasAnalysis } from "./HomeBiasAnalysis";
 import { SavedExplainPortfoliosUI } from "./SavedExplainPortfoliosUI";
 import type { ExplainWorkspace } from "@/lib/savedExplainPortfolios";
+import {
+  explainWorkspaceHasContent,
+  navigateToTab,
+  requestCompareLoadFromExplain,
+  setLastExplainWorkspace,
+  type CompareSlotName,
+} from "@/lib/explainCompare";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const STORAGE_KEY = "investment-lab.explainPortfolio.v1";
 
@@ -424,6 +439,23 @@ export function ExplainPortfolio() {
     saveState(state);
   }, [state]);
 
+  // Publish the current Explain workspace on a tiny in-memory channel so
+  // the Compare tab can offer a "Load from Explain" affordance per slot
+  // and gate it on whether there is anything to load. Mirrors the same
+  // pattern Build uses via `setLastBuildInput`. Fresh on full reload.
+  useEffect(() => {
+    setLastExplainWorkspace(state);
+  }, [state]);
+  useEffect(() => {
+    // Clear on true unmount only — running this in the [state] effect's
+    // cleanup would publish null on every keystroke before republishing
+    // the new state, briefly flickering availability-gated controls
+    // (e.g. Compare's "Load from Explain" buttons).
+    return () => {
+      setLastExplainWorkspace(null);
+    };
+  }, []);
+
   function parseDraft(s: string): number {
     if (!s.trim()) return 0;
     const parsed = parseDecimalInput(s, { min: 0, max: 100, decimals: 2 });
@@ -556,6 +588,24 @@ export function ExplainPortfolio() {
   );
 
   const showAnalysis = validation.isValid && portfolio.allocation.length > 0;
+
+  // Gate the "Send to Compare" button on the workspace actually carrying
+  // at least one fully-specified position. Validation may flag warnings
+  // (e.g. weights not summing to 100%) but Compare can still render the
+  // synthesized portfolio in that state — the user wants to see the
+  // delta exactly as their workspace stands.
+  const canSendToCompare = explainWorkspaceHasContent(state);
+
+  function sendToCompare(slot: CompareSlotName) {
+    if (!canSendToCompare) return;
+    requestCompareLoadFromExplain(slot, state);
+    navigateToTab("compare");
+    toast.success(
+      lang === "de"
+        ? `In Portfolio ${slot} (Vergleichen) geladen`
+        : `Loaded into Portfolio ${slot} on Compare`,
+    );
+  }
 
 
 
@@ -736,6 +786,41 @@ export function ExplainPortfolio() {
                   getCurrentWorkspace={() => state}
                   onLoadPortfolio={(p) => loadWorkspace(p.workspace)}
                 />
+              </div>
+              {/* "Send to Compare" — drops the current Explain workspace
+               *  into one of the Compare-tab slots and switches the tab.
+               *  Disabled until at least one fully-specified position
+               *  carries weight (otherwise there's nothing to compare). */}
+              <div className="pt-2">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs w-full sm:w-auto"
+                      disabled={!canSendToCompare}
+                      data-testid="explain-send-to-compare"
+                    >
+                      <Scale className="mr-1.5 h-3 w-3" />
+                      {t("explain.btn.sendToCompare")}
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start">
+                    <DropdownMenuItem
+                      onSelect={() => sendToCompare("A")}
+                      data-testid="explain-send-to-compare-a"
+                    >
+                      {t("explain.btn.sendToCompare.slotA")}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem
+                      onSelect={() => sendToCompare("B")}
+                      data-testid="explain-send-to-compare-b"
+                    >
+                      {t("explain.btn.sendToCompare.slotB")}
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </CardHeader>
             <CardContent className="space-y-5">
