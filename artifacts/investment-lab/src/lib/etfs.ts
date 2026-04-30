@@ -925,6 +925,18 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     listings: { "LSE": { ticker: "VWRD" }, "XETRA": { ticker: "VGWL" }, "SIX": { ticker: "VWRL" }, "Euronext": { ticker: "VWRL" } },
     defaultExchange: "LSE",
   }),
+  "IE00BF20LF40": I({
+    name: "iShares MSCI Europe Mid Cap UCITS ETF EUR (Acc)",
+    isin: "IE00BF20LF40",
+    terBps: 15,
+    domicile: "Ireland",
+    replication: "Physical",
+    distribution: "Accumulating",
+    currency: "EUR",
+    comment: "",
+    listings: { "LSE": { ticker: "EUMD" } },
+    defaultExchange: "LSE",
+  }),
 };
 
 const BUCKETS: Record<string, BucketAssignment> = {
