@@ -47,6 +47,12 @@ Thumbs.db
 # Replit
 .cache/
 
+# Replit chat-attachment screenshots (auto-saved when images are pasted into the
+# agent chat). They're not part of the project — keep them out of git history.
+attached_assets/image_*.png
+attached_assets/image_*.jpg
+attached_assets/image_*.jpeg
+
 # Playwright
 playwright-report/
 test-results/

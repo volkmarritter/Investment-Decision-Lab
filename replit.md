@@ -68,3 +68,22 @@ within-bucket duplicate). Operator-facing surfaces:
   - **Admin pane (`/admin`):** the in-app operator UI for paste-an-ISIN → preview → open-pull-request plus read-only data update panels. Backed by `/api/admin/*` on the api-server (`artifacts/api-server/src/routes/admin.ts`), gated by `ADMIN_TOKEN`. Pull request creation needs `GITHUB_PAT`/`GITHUB_OWNER`/`GITHUB_REPO`. Per-field diffs are appended to `artifacts/investment-lab/src/data/refresh-changes.log.jsonl` by the scrapers via the helper at `scripts/lib/diff-overrides.mjs`. Full design + auth contract documented in `artifacts/investment-lab/ETF_DATA_CONTROL.md` §12.
     - **Layout (Task #101):** `/admin` is a thin shell (`src/pages/Admin.tsx`, ~115 lines) that owns auth + shared GitHub/catalog state (via `AdminContext`) and renders a sidebar layout with five nested wouter routes — Overview, Catalog, Defaults, Operations, Docs. Section pages live in `src/pages/admin/*`; per-flow panels live in `src/components/admin/*` (each ≤800 lines). Catalog has sub-tabs `browse | add-isin | batch`; Operations has sub-tabs `sync | prs | changes | runs | freshness`.
   - **Scraper helper module:** justETF regex extractors live in the pure ESM module `artifacts/investment-lab/scripts/lib/justetf-extract.mjs`, imported both by `scripts/refresh-justetf.mjs` and the api-server's `/api/admin/preview-isin` route. Do NOT import the CLI entrypoint (`refresh-justetf.mjs`) from server code — esbuild flattens its `import.meta.url === ...` guard and would run the CLI at server boot.
+
+## Publishing the admin app — sync workflow
+
+The admin UI in this workspace and the GitHub `main` branch both write to the same set of "data-as-code" files (`src/lib/etfs.ts`, `src/data/*.overrides.json`, `src/data/refresh-*.log.*`). When admin PRs are merged on github.com between two publishes, the workspace branch and `main` diverge. Clicking Publish then triggers a workspace→main merge that conflicts on those files.
+
+**Bulletproof workflow before clicking Publish:**
+
+1. Glance at the **Git pane**'s Remote Updates card. If the counter shows any incoming commits (`↓ N` with N > 0), or if you know admin PRs were merged on GitHub recently, run the sync script first.
+2. Open the **Shell** tab and run:
+   ```
+   bash bin/sync-with-main.sh
+   ```
+   The script pulls main, auto-resolves conflicts on the known data files (always taking main's version, since main is the canonical source for operator-edited data), and stops with a clear error only if there's a real code-level conflict that needs human judgement.
+3. Once the script reports `✓ Merge complete`, click **Push** in the Git pane (or run `git push <remote> main` — the script prints the exact command).
+4. **Then** click **Publish/Republish**. The deploy will go through cleanly.
+
+If a publish ever drops you into the conflict pane regardless, click **Abort merge** in the Git pane (it's lossless), then run the sync script — that's the universal recovery path.
+
+Chat-attachment screenshots are gitignored (`attached_assets/image_*.png|jpg|jpeg`) so they no longer show up in the Git pane and don't need cleanup commits.
