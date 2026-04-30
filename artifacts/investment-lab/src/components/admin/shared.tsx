@@ -2,6 +2,7 @@ import { Label } from "@/components/ui/label";
 import type {
 AddBucketAlternativeRequest,
 AddEtfRequest,
+AddInstrumentRequest,
 PreviewResponse,
 } from "@/lib/admin-api";
 
@@ -142,6 +143,12 @@ export function mergePreviewIntoAlternativeDraft(
     defaultExchange,
   };
 }
+
+export const mergePreviewIntoInstrumentDraft = (
+  current: AddInstrumentRequest,
+  p: PreviewResponse,
+): AddInstrumentRequest =>
+  mergePreviewIntoAlternativeDraft(current, p) as AddInstrumentRequest;
 
 export function blankAlternativeDraft(): AddBucketAlternativeRequest {
   return {

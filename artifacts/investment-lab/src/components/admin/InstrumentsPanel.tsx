@@ -41,10 +41,13 @@ import {
   Field,
   REPLICATIONS,
   blankAlternativeDraft,
+  mergePreviewIntoInstrumentDraft,
   type Distribution,
   type Exchange,
   type Replication,
 } from "./shared";
+
+const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{9}\d$/;
 
 type Mode =
   | { kind: "list" }
@@ -415,8 +418,36 @@ function InstrumentForm({
     return seed;
   });
   const [submitting, setSubmitting] = useState(false);
+  const [prefilling, setPrefilling] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const isEdit = initial !== null;
+  const canPrefill =
+    !isEdit && !prefilling && !submitting && ISIN_RE.test(draft.isin.trim().toUpperCase());
+
+  async function handlePrefill() {
+    const isin = draft.isin.trim().toUpperCase();
+    if (!ISIN_RE.test(isin)) {
+      setErrMsg(
+        lang === "de" ? "Ungültiges ISIN-Format." : "Invalid ISIN format.",
+      );
+      return;
+    }
+    setPrefilling(true);
+    setErrMsg(null);
+    try {
+      const p = await adminApi.preview(isin);
+      setDraft((d) => mergePreviewIntoInstrumentDraft(d, p));
+      toast.success(
+        lang === "de"
+          ? "Felder aus ISIN befüllt"
+          : "Fields prefilled from ISIN",
+      );
+    } catch (e: unknown) {
+      setErrMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setPrefilling(false);
+    }
+  }
 
   function setListing(ex: Exchange, ticker: string) {
     setDraft((d) => {
@@ -481,14 +512,42 @@ function InstrumentForm({
           />
         </Field>
         <Field label="ISIN">
-          <Input
-            value={draft.isin}
-            onChange={(e) =>
-              setDraft({ ...draft, isin: e.target.value.toUpperCase() })
-            }
-            disabled={isEdit}
-            data-testid="input-instrument-isin"
-          />
+          <div className="flex gap-1">
+            <Input
+              value={draft.isin}
+              onChange={(e) =>
+                setDraft({ ...draft, isin: e.target.value.toUpperCase() })
+              }
+              disabled={isEdit}
+              data-testid="input-instrument-isin"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && canPrefill) {
+                  e.preventDefault();
+                  void handlePrefill();
+                }
+              }}
+            />
+            {!isEdit && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void handlePrefill()}
+                disabled={!canPrefill}
+                data-testid="button-instrument-prefill"
+                title={t({
+                  de: "Felder aus ISIN scrapen (justETF / Issuer)",
+                  en: "Scrape fields from ISIN (justETF / issuer)",
+                })}
+              >
+                {prefilling ? (
+                  <RefreshCw className="h-3 w-3 animate-spin" />
+                ) : (
+                  t({ de: "Vorbelegen", en: "Prefill" })
+                )}
+              </Button>
+            )}
+          </div>
         </Field>
         <Field label={t({ de: "TER (bps)", en: "TER (bps)" })}>
           <Input
