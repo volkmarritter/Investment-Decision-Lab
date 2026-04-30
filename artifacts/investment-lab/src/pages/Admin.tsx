@@ -87,6 +87,7 @@ export default function Admin() {
             <Redirect to="/admin/catalog/browse" />
           </Route>
           <Route path="/admin/catalog/browse" component={Catalog} />
+          <Route path="/admin/catalog/instruments" component={Catalog} />
           <Route path="/admin/catalog/add-isin" component={Catalog} />
           <Route path="/admin/catalog/batch" component={Catalog} />
           <Route path="/admin/defaults" component={Defaults} />
