@@ -881,6 +881,18 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     listings: { "LSE": { ticker: "EDOC" }, "XETRA": { ticker: "DDOC" }, "SIX": { ticker: "EDOC" } },
     defaultExchange: "LSE",
   }),
+  "IE00B3F81R35": I({
+    name: "iShares Core EUR Corporate Bond UCITS ETF (Dist)",
+    isin: "IE00B3F81R35",
+    terBps: 9,
+    domicile: "Ireland",
+    replication: "Physical",
+    distribution: "Distributing",
+    currency: "EUR",
+    comment: "",
+    listings: { "LSE": { ticker: "IEAC" }, "XETRA": { ticker: "EUN5" }, "SIX": { ticker: "IEAC" }, "Euronext": { ticker: "IEAC" } },
+    defaultExchange: "LSE",
+  }),
 };
 
 const BUCKETS: Record<string, BucketAssignment> = {
