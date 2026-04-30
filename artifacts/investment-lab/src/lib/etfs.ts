@@ -881,6 +881,18 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     listings: { "LSE": { ticker: "EDOC" }, "XETRA": { ticker: "DDOC" }, "SIX": { ticker: "EDOC" } },
     defaultExchange: "LSE",
   }),
+  "LU0136234654": I({
+    name: "UBS MSCI USA UCITS ETF USD dis",
+    isin: "LU0136234654",
+    terBps: 14,
+    domicile: "Luxembourg",
+    replication: "Physical",
+    distribution: "Distributing",
+    currency: "USD",
+    comment: "",
+    listings: { "LSE": { ticker: "UC67" }, "XETRA": { ticker: "UIM6" }, "SIX": { ticker: "USAUSA" } },
+    defaultExchange: "LSE",
+  }),
 };
 
 const BUCKETS: Record<string, BucketAssignment> = {
@@ -890,7 +902,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
   }),
   "Equity-USA": B({
     default: "IE00B5BMR087",
-    alternatives: ["IE00BFMXXD54", "IE00B6YX5C33"],
+    alternatives: ["IE00BFMXXD54", "IE00B6YX5C33", "LU0136234654"],
   }),
   "Equity-USA-Synthetic": B({
     default: "IE00B3YCGJ38",
