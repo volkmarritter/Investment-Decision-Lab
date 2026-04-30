@@ -72,18 +72,12 @@ import { FeeEstimator } from "./FeeEstimator";
 import { LookThroughAnalysis } from "./LookThroughAnalysis";
 import { CurrencyOverview } from "./CurrencyOverview";
 import { TopHoldings } from "./TopHoldings";
+import { SavedExplainPortfoliosUI } from "./SavedExplainPortfoliosUI";
+import type { ExplainWorkspace } from "@/lib/savedExplainPortfolios";
 
 const STORAGE_KEY = "investment-lab.explainPortfolio.v1";
 
-interface PersistedState {
-  v: 1;
-  baseCurrency: BaseCurrency;
-  riskAppetite: RiskAppetite;
-  horizon: number;
-  hedged: boolean;
-  lookThroughView: boolean;
-  positions: PersonalPosition[];
-}
+type PersistedState = ExplainWorkspace;
 
 const DEFAULT_STATE: PersistedState = {
   v: 1,
@@ -520,6 +514,15 @@ export function ExplainPortfolio() {
     setWeightDrafts([]);
   }
 
+  function loadWorkspace(workspace: ExplainWorkspace) {
+    // Replace the current Explain workspace with a saved one. The state
+    // sanitizer in savedExplainPortfolios already enforces the shape, so
+    // this is a clean atomic swap. Drafts are re-derived so the input
+    // strings line up with the restored numeric weights.
+    setState({ ...workspace, positions: workspace.positions.map((p) => ({ ...p })) });
+    syncDraftsFromPositions(workspace.positions);
+  }
+
 
 
   const validation = useMemo(
@@ -720,6 +723,16 @@ export function ExplainPortfolio() {
                     {t("explain.btn.addEtf")}
                   </Button>
                 </div>
+              </div>
+              {/* Save/Load slot UI — independent localStorage namespace from
+               *  Build's scenario store so personal-portfolio sessions can be
+               *  kept in parallel without colliding with strategy scenarios. */}
+              <div className="pt-2">
+                <SavedExplainPortfoliosUI
+                  canSave={state.positions.length > 0}
+                  getCurrentWorkspace={() => state}
+                  onLoadPortfolio={(p) => loadWorkspace(p.workspace)}
+                />
               </div>
             </CardHeader>
             <CardContent className="space-y-5">
