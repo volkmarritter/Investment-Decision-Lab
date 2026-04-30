@@ -297,8 +297,8 @@ export function BatchAddAlternativesPanel({
         </CardTitle>
         <p className="text-xs text-muted-foreground">
           {t({
-            de: "Mehrere Alternativen in EINEM Pull Request. Dedup, Cap (≤2 pro Bucket) und Parent-Existenz werden über die ganze Liste geprüft. Look-through-Daten werden für jede neue Alternative best-effort gescraped und in einem zweiten Pull Request gebündelt.",
-            en: "Queue N alternatives into ONE etfs.ts pull request. Dedup, per-bucket cap (≤2) and parent existence are checked across the whole list. Look-through data is best-effort scraped per row and bundled into one companion pull request.",
+            de: "Mehrere Alternativen in EINEM Pull Request. Dedup, Cap (≤2 pro Bucket) und Parent-Existenz werden über die ganze Liste geprüft. Look-through-Daten werden für jede neue Alternative best-effort gescraped und – sofern vorhanden – im selben Pull Request mitgeliefert (eine gemeinsame Änderung an etfs.ts und lookthrough.overrides.json).",
+            en: "Queue N alternatives into ONE pull request. Dedup, per-bucket cap (≤2) and parent existence are checked across the whole list. Look-through data is best-effort scraped per row and — when available — bundled into the SAME pull request (a single commit touching both etfs.ts and lookthrough.overrides.json).",
           })}
         </p>
       </CardHeader>
