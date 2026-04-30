@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, Database, Calculator, AlertTriangle, ExternalLink, RotateCcw, ShieldQuestion, Layers, Activity, GitCompare, Building2, RefreshCw, Pencil, Replace, Coins, Sparkles } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -2031,10 +2031,27 @@ function JumpMenu({
   de: boolean;
   onJump: (value: string) => void;
 }) {
+  const [open, setOpen] = useState(true);
+  const autoCollapsedRef = useRef(false);
+
+  useEffect(() => {
+    if (autoCollapsedRef.current) return;
+    const handleScroll = () => {
+      if (autoCollapsedRef.current) return;
+      autoCollapsedRef.current = true;
+      setOpen(false);
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true, once: true });
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
+
   return (
     <details
       className="rounded-lg border bg-card sticky top-2 z-20 shadow-sm open:shadow-md"
-      open
+      open={open}
+      onToggle={(e) => setOpen((e.currentTarget as HTMLDetailsElement).open)}
       data-testid="methodology-toc"
     >
       <summary className="cursor-pointer list-none px-4 py-3 flex items-center gap-2 text-sm font-semibold select-none">
