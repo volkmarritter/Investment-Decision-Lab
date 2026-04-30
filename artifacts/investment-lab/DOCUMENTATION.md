@@ -16,7 +16,7 @@ The Investment Decision Lab is a **frontend-only** React + Vite web application 
 >
 > 1. A static table of **Capital Market Assumptions** (expected return, volatility, correlations) — see §4.1 and `src/lib/metrics.ts`.
 > 2. **Closed-form formulas and constants** — equity/defensive split from the risk cap, `cashPct` clamp, market-cap regional anchors, Sharpe overlay `(Sharpe / 0.25)^0.4`, home-bias multipliers, the 65% concentration cap.
-> 3. **Hard rules** for satellite sleeves (REIT 6%, Crypto 1–3%, Thematic 3–5%, Gold ≤ 5%) and ETF selection (currency hedging, preferred exchange, synthetic vs physical).
+> 3. **Hard rules** for satellite sleeves (REIT 6%, Crypto 1–3%, Gold ≤ 5%), the thematic tilt within the equity sleeve (3–5%), and ETF selection (currency hedging, preferred exchange, synthetic vs physical).
 >
 > **Identical inputs always produce identical outputs.** No machine learning, no LLM call, no probabilistic optimiser, no training data. Every percentage in a generated portfolio can be re-derived by hand from the Methodology tab. The only stochastic component anywhere in the app is the optional **Monte Carlo projection** on the metrics view, which simulates outcomes for the already-deterministic portfolio — it is not used to construct it.
 
@@ -130,18 +130,23 @@ Why this design:
 - **Avoids extreme concentration** — the 65% cap prevents any single market from running away (USA hits the cap roughly when all tilts align in its favour).
 - **Balance of growth drivers and stabilisers** — the equity/defensive split (risk-cap and `cashPct` formula) plus the satellite carve-outs deliver this at the portfolio level; market-cap anchoring does it inside the equity sleeve.
 
-### 4.3 Satellite sleeves
+### 4.3 Satellite sleeves and the equity thematic tilt
+
+**Satellite sleeves** (REITs, crypto, gold) sit alongside the equity sleeve and reduce `coreEquity`:
 
 - **REIT**: 6% if `includeListedRealEstate`.
 - **Crypto**: 1 / 2 / 3% for Moderate / High / Very High when `includeCrypto`. Disabled for Low.
-- **Thematic**: 3% if `numETFs ≤ 5`, otherwise 5%.
 - **Gold (commodities)**: `min(5%, 15% × bondsPct)` if enabled and risk ≠ Low; carved out of bonds.
 
-Satellites reduce `coreEquity = equityPct − (REIT + Crypto + Thematic)`. Core equity is then split across regional buckets in proportion to their bases.
+**Thematic tilt** is a sub-allocation **inside** the equity sleeve, not a satellite:
+
+- **Thematic**: 3% if `numETFs ≤ 5`, otherwise 5% — only when `thematicPreference !== "None"`.
+- It is a small theme-tilted slice (Technology, Healthcare, Sustainability, or Cybersecurity) **carved out of the equity budget**: the slice counts toward the total equity allocation, not as a separate satellite, and the AllocationGroupSummary tile (Build / Compare panels) groups it under **Equities**.
+- This affects framing and downstream consumers (group tile, AI prompt, methodology copy, validation, charts), but the numeric weights are unchanged: `coreEquity = equityPct − thematicPct − (any other equity carve-outs); satellitesTotal = REIT + Crypto + Gold`. Core equity is then split across regional buckets in proportion to their bases.
 
 ### 4.4 Compaction for low ETF counts
 
-If `numETFs ≤ 5`, the smallest satellite sleeves (REIT, Crypto, Thematic, Commodities) are dropped in ascending order to leave at most `numETFs − 3` of them; their weights are folded back into Equity-USA (equity satellites) or Bonds (commodities).
+If `numETFs ≤ 5`, the smallest **satellite** sleeves (REIT, Crypto, Commodities) are dropped in ascending order to leave at most `numETFs − 3` of them; their weights are folded back into Equity-USA (equity satellites) or Bonds (commodities). The thematic tilt is **not** in this drop list — it is part of the equity sleeve and survives consolidation.
 
 ### 4.5 Global+Home equity fallback
 
@@ -619,6 +624,20 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-04-30 (engine-thematic-tilt-is-equity-not-satellite) — Thematic tilt is part of the equity sleeve, not a satellite
+- **Operator-Wunsch:** „map the thematic tilt not to satellites but equity". Bisher war der kleine 3 – 5 % Themen-Slice (Technology / Healthcare / Sustainability / Cybersecurity) konzeptuell ein **Satellite-Sleeve** auf Augenhöhe mit REITs, Crypto und Gold — er erschien in der Satellite-Drop-Liste, im AI-Prompt unter `Satellites:`, im Group-Summary-Tile (Build/Compare) als Teil von „Satellites", und in der Methodik-Aufzählung der Satellite-Sleeves. Der Slice ist aber rechnerisch immer schon aus dem Equity-Budget abgezogen worden (`equityPct − thematicPct`) — er IST also eine Aktien-Tilt, nicht ein zusätzliches Risikoasset. Die Ausweisung wird jetzt überall an die Mathematik angepasst.
+- **Engine (`src/lib/portfolio.ts`):** `thematicPct` ist nicht mehr Teil von `satellitesTotal`; numerisch identisch (wird weiterhin direkt vom Aktienbudget abgezogen), aber konzeptuell Equity-intern. Thematic ist außerdem aus der Satellite-Drop-Liste entfernt (die bei `numETFs ≤ 5` die kleinsten Satelliten verwirft) — Thematic überlebt jetzt eine enge ETF-Cap, anstatt als „nächstkleinster Satellit" nach Crypto gedroppt zu werden.
+- **Group-Klassifikation (`src/lib/allocationGroups.ts`):** `classifyGroup()` mappt thematische Region-Labels (`Technology` / `Healthcare` / `Sustainability` / `Cybersecurity`) ab sofort auf `"Equities"` statt `"Satellites"`. Das ist die Quelle für das **AllocationGroupSummary-Tile** in den Build- und Compare-Panels — die „Satellites"-Kachel zeigt jetzt nur noch REITs + Crypto + Gold, und der Themen-Slice fließt sichtbar in die „Equities"-Kachel.
+- **Chart-Sortierung (`src/lib/chartColors.ts`):** Thematic-`ORDER_RULES`-Rang von 70 (zwischen Gold und Crypto) auf 30 gesenkt, sodass die Themen-Slice innerhalb des Equity-Blocks nach Gewicht einsortiert wird (in der Praxis als kleinste Equity-Slice am Ende). Die dedizierte Themen-Farbregel (lila Schattierung) bleibt erhalten.
+- **AI Prompt (`src/lib/aiPrompt.ts`, EN+DE):** Thematic ist aus der `Satellites:`-Aufzählung entfernt und stattdessen als zusätzliche Equity-Sub-Zeile beschrieben („Thematic equity tilt within the equity sleeve: <theme> — small theme-tilted slice carved out of equity (counts toward the equity allocation, not as a satellite)" / dt. „Thematischer Aktien-Tilt innerhalb des Aktien-Sleeves: ..."). Der Group-Classification-Hinweis im Output-Block wurde von „commodities, listed real estate, crypto, **and thematic equity** all belong to the Satellites group" auf „commodities, listed real estate, and crypto belong to the Satellites group; **thematic equity belongs to the Equities group**, as it is a tilt within the equity sleeve" geändert.
+- **i18n (`src/lib/i18n.tsx`, EN+DE):** `build.thematicTilt.tooltip` neu formuliert („Carve a small theme-tilted slice out of the equity sleeve. Counts as part of equity, not a separate satellite."). `build.numEtfs.tooltip` listet bei „smallest satellites" jetzt nur noch REITs / Crypto / Gold und ergänzt einen Hinweis, dass die Themen-Tilt durch die Konsolidierung erhalten bleibt.
+- **Validation (`src/lib/validation.ts`, EN+DE):** Komplexitäts-Warnung listet „Crypto, REITs, Gold" als Satelliten und nennt den thematischen Equity-Tilt explizit separat als reduzierbares Element.
+- **Methodology (`Methodology.tsx`, EN+DE):** Satellite-Sleeve-Aufzählung verliert „Thematic 3 – 5 %"; stattdessen neuer Punkt „thematic tilt within the equity sleeve (3 – 5 %)".
+- **Datenhygiene (Bonus, blockierte sonst Validation):** zwei verwaiste Pool-Einträge (`IE000U58J0M1`, `IE00BF20LF40`) aus `src/data/lookthrough.overrides.json` entfernt — sie waren als Look-Through-Pools registriert, aber ihre zugrundeliegenden ISINs fehlten in `INSTRUMENTS` (Altlast aus #131-Merge). Keine sonstige Code-Referenz, sicher zu entfernen; `validateCatalog()` läuft jetzt wieder grün.
+- **Tests:** Neuer Engine-Test „thematic tilt is part of the equity sleeve, not a satellite" (`tests/engine.test.ts`) — `numETFs=5` mit REITs + Crypto + Theme=Technology, prüft (a) Thematic-Equity-Zeile überlebt die Cap, (b) Total-Equity bleibt gegenüber dem No-Theme-Lauf konstant (Equity-Budget-Konservierung), (c) End-to-End: `summarizeAllocationByGroup()` weist denselben Equities-/Satellites-Anteil aus wie ohne Theme. Zwei bestehende AI-Prompt-Tests aktualisiert: thematic erscheint im Equity-Block VOR `Satellites:`, ist nicht mehr im Satellites-Listing, und die neue „thematic equity belongs to the Equities group"-Zeile wird positiv geprüft. `tests/allocationGroups.test.ts` umgestellt: thematic-Equity-Sleeves klassifizieren als `"Equities"`; das Aggregations-Sample-Portfolio prüft jetzt Equities = 58 / Satellites = 7 (vorher 55 / 10).
+- **Verifikation:** Typecheck PASS; **546 / 546 Unit-Tests grün** (vorher 545 / 546 wegen vor-existierendem catalog-validate-Issue, jetzt mitgefixt); 7 / 7 e2e Tests grün. Architect-Review APPROVED_WITH_COMMENTS — die Comments betreffen Legacy-Pool-PR-Helpers aus früheren Merged-Tasks und sind explizit non-blocking. **Keine Änderung der numerischen Gewichte** in irgendeinem Portfolio-Output.
+- **Bekannte Einschränkung (out of scope, als Follow-up vermerkt):** der Endcounts-Cap-Pass in `buildPortfolio()` garantiert in pathologischen Kombinationen (`numETFs = 4` + Theme + REITs + Crypto) nicht streng `allocation.length ≤ numETFs` — Thematic, das nun durchläuft, kann diese vor-existierende Lücke verstärken.
 
 ### 2026-04-29 (build-currency-overview-honours-lookthrough-toggle) — Consolidated Currency Overview reagiert auf Look-Through-Toggle (per Seite)
 - **Operator-Wunsch:** die „Consolidated Currency Overview (Post-Hedge)"-Karte soll dem Look-Through-Toggle gehorchen — wenn das Toggle aus ist, soll keine kuratierte Underlying-Currency-Aufteilung mehr stattfinden, sondern die ungesicherten ETFs sollen ihre volle Position der **Anteilsklassen-Währung** zugeordnet bekommen. Der Modus muss im Header klar erkennbar sein.
