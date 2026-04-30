@@ -869,6 +869,18 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     listings: { "LSE": { ticker: "BOTZ" }, "XETRA": { ticker: "XB0T" }, "SIX": { ticker: "BOTZ" } },
     defaultExchange: "LSE",
   }),
+  "IE00BLR6QB00": I({
+    name: "Global X Telemedicine & Digital Health UCITS ETF Acc USD",
+    isin: "IE00BLR6QB00",
+    terBps: 68,
+    domicile: "Ireland",
+    replication: "Physical",
+    distribution: "Accumulating",
+    currency: "USD",
+    comment: "",
+    listings: { "LSE": { ticker: "EDOC" }, "XETRA": { ticker: "DDOC" }, "SIX": { ticker: "EDOC" } },
+    defaultExchange: "LSE",
+  }),
 };
 
 const BUCKETS: Record<string, BucketAssignment> = {
