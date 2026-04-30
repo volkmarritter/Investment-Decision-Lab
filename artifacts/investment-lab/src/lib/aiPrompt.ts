@@ -92,22 +92,22 @@ function buildPromptEn(input: PortfolioInput): string {
   if (input.includeCommodities) eligibleSatellites.push("- Commodities / Precious Metals");
   if (input.includeListedRealEstate) eligibleSatellites.push("- Listed Real Estate (REITs)");
   if (input.includeCrypto) eligibleSatellites.push("- Crypto Assets");
-  if (input.thematicPreference !== "None") {
-    const desc = THEME_DESCRIPTION.en[input.thematicPreference];
-    eligibleSatellites.push(`- Thematic Equity (${input.thematicPreference} - ${desc})`);
-  }
   const satellitesBlock = eligibleSatellites.length > 0
     ? `Satellites:\n${eligibleSatellites.join("\n")}`
     : "Satellites: none requested by the investor.";
 
+  const equityLine = input.baseCurrency === "CHF"
+    ? "- Equities by region: USA, Europe ex-CH, Switzerland (CH), Japan, and Emerging Markets"
+    : input.baseCurrency === "GBP"
+    ? "- Equities by region: USA, Europe ex-UK, United Kingdom (UK), Japan, and Emerging Markets"
+    : "- Equities by region: USA, Europe, Japan, and Emerging Markets";
+  const thematicEquityLine = input.thematicPreference !== "None"
+    ? `\n- Thematic equity tilt within the equity sleeve: ${input.thematicPreference} (${THEME_DESCRIPTION.en[input.thematicPreference]}) — small theme-tilted slice carved out of equity (counts toward the equity allocation, not as a satellite)`
+    : "";
   const coreLines = [
     "- Cash / Money Market",
     "- Bonds",
-    input.baseCurrency === "CHF"
-      ? "- Equities by region: USA, Europe ex-CH, Switzerland (CH), Japan, and Emerging Markets"
-      : input.baseCurrency === "GBP"
-      ? "- Equities by region: USA, Europe ex-UK, United Kingdom (UK), Japan, and Emerging Markets"
-      : "- Equities by region: USA, Europe, Japan, and Emerging Markets",
+    equityLine + thematicEquityLine,
   ].join("\n");
 
   const hedgingLine = input.includeCurrencyHedging
@@ -171,7 +171,7 @@ ${syntheticLine}
 Output format:
 A) Table 1: Target allocation
 Columns: Group: Cash, Bonds, Equities, Satellites | Asset class | Target weight | Purpose / role in the portfolio (1-2 sentences).
-After Table 1, add a short "Percentage allocation per group" overview that sums the target weights by group: Cash, Bonds, Equities, and Satellites (commodities, listed real estate, crypto, and thematic equity all belong to the Satellites group). Ensure the group totals reconcile with the target allocation and add up to 100%.
+After Table 1, add a short "Percentage allocation per group" overview that sums the target weights by group: Cash, Bonds, Equities, and Satellites (commodities, listed real estate, and crypto belong to the Satellites group; thematic equity belongs to the Equities group, as it is a tilt within the equity sleeve). Ensure the group totals reconcile with the target allocation and add up to 100%.
 
 B) Table 2: ETF implementation (for each position)
 Columns: Asset class | Target weight | ETF name | ISIN | Ticker (exchange) | TER | Domicile | Replication | Distribution / accumulation | Share class currency | Short comment (1 sentence on fit, liquidity, or tracking quality).
@@ -209,22 +209,22 @@ function buildPromptDe(input: PortfolioInput): string {
   if (input.includeCommodities) eligibleSatellites.push("- Rohstoffe / Edelmetalle");
   if (input.includeListedRealEstate) eligibleSatellites.push("- Boersennotierte Immobilien (REITs)");
   if (input.includeCrypto) eligibleSatellites.push("- Krypto-Assets");
-  if (input.thematicPreference !== "None") {
-    const desc = THEME_DESCRIPTION.de[input.thematicPreference];
-    eligibleSatellites.push(`- Thematische Aktien (${input.thematicPreference} - ${desc})`);
-  }
   const satellitesBlock = eligibleSatellites.length > 0
     ? `Satelliten:\n${eligibleSatellites.join("\n")}`
     : "Satelliten: vom Anleger nicht gewuenscht.";
 
+  const equityLine = input.baseCurrency === "CHF"
+    ? "- Aktien nach Region: USA, Europa ex-CH, Schweiz (CH), Japan und Schwellenlaender"
+    : input.baseCurrency === "GBP"
+    ? "- Aktien nach Region: USA, Europa ex-UK, Vereinigtes Koenigreich (UK), Japan und Schwellenlaender"
+    : "- Aktien nach Region: USA, Europa, Japan und Schwellenlaender";
+  const thematicEquityLine = input.thematicPreference !== "None"
+    ? `\n- Thematischer Aktien-Tilt innerhalb des Aktien-Sleeves: ${input.thematicPreference} (${THEME_DESCRIPTION.de[input.thematicPreference]}) — kleiner themenorientierter Anteil aus dem Aktien-Sleeve (zaehlt zur Aktienquote, nicht zu den Satelliten)`
+    : "";
   const coreLines = [
     "- Cash / Geldmarkt",
     "- Anleihen",
-    input.baseCurrency === "CHF"
-      ? "- Aktien nach Region: USA, Europa ex-CH, Schweiz (CH), Japan und Schwellenlaender"
-      : input.baseCurrency === "GBP"
-      ? "- Aktien nach Region: USA, Europa ex-UK, Vereinigtes Koenigreich (UK), Japan und Schwellenlaender"
-      : "- Aktien nach Region: USA, Europa, Japan und Schwellenlaender",
+    equityLine + thematicEquityLine,
   ].join("\n");
 
   const hedgingLine = input.includeCurrencyHedging
@@ -288,7 +288,7 @@ ${syntheticLine}
 Ausgabeformat:
 A) Tabelle 1: Zielallokation
 Spalten: Gruppe: Cash, Anleihen, Aktien, Satelliten | Anlageklasse | Zielgewicht | Zweck / Rolle im Portfolio (1-2 Saetze).
-Ergaenze nach Tabelle 1 eine kurze Uebersicht "Prozentuale Allokation je Gruppe", die die Zielgewichte je Gruppe summiert: Cash, Anleihen, Aktien und Satelliten (Rohstoffe, boersennotierte Immobilien, Krypto und thematische Aktien gehoeren alle zur Satelliten-Gruppe). Stelle sicher, dass die Gruppensummen mit der Zielallokation uebereinstimmen und in Summe 100% ergeben.
+Ergaenze nach Tabelle 1 eine kurze Uebersicht "Prozentuale Allokation je Gruppe", die die Zielgewichte je Gruppe summiert: Cash, Anleihen, Aktien und Satelliten (Rohstoffe, boersennotierte Immobilien und Krypto gehoeren zur Satelliten-Gruppe; thematische Aktien gehoeren zur Aktien-Gruppe, da es sich um einen Tilt innerhalb des Aktien-Sleeves handelt). Stelle sicher, dass die Gruppensummen mit der Zielallokation uebereinstimmen und in Summe 100% ergeben.
 
 B) Tabelle 2: ETF-Umsetzung (je Position)
 Spalten: Anlageklasse | Zielgewicht | ETF-Name | ISIN | Ticker (Boerse) | TER | Domizil | Replikation | Ausschuettung / Thesaurierung | Anteilsklassen-Waehrung | Kurzkommentar (1 Satz zu Eignung, Liquiditaet oder Tracking-Qualitaet).

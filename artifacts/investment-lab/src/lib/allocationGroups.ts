@@ -32,7 +32,9 @@ const REGIONAL_EQUITY_SUBSTRINGS = [
 
 // Thematic preference labels per ThematicPreference type in src/lib/types.ts.
 // Matched as substrings since they appear as the full region label for
-// thematic equity sleeves (e.g. region = "Sustainability").
+// thematic equity sleeves (e.g. region = "Sustainability"). Thematic equity
+// is part of the Equities group — it is a tilt within the equity sleeve,
+// not a satellite.
 const THEMATIC_REGION_TOKENS = [
   "technology",
   "healthcare",
@@ -59,9 +61,10 @@ export function classifyGroup(
     return "Satellites";
   }
   if (ac.includes("equit")) {
-    // Thematic check first so e.g. region="Sustainability" classifies as
-    // Satellite even though it's an equity sleeve.
-    if (THEMATIC_REGION_TOKENS.some((t) => rg.includes(t))) return "Satellites";
+    // Thematic equity (e.g. region="Sustainability") is part of the
+    // Equities group — it is a small theme-tilted slice carved out of the
+    // equity sleeve, not a separate satellite.
+    if (THEMATIC_REGION_TOKENS.some((t) => rg.includes(t))) return "Equities";
     if (REGIONAL_EQUITY_EXACT.has(rg)) return "Equities";
     if (REGIONAL_EQUITY_SUBSTRINGS.some((t) => rg.includes(t))) return "Equities";
     return "Satellites";

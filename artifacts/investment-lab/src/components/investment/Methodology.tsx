@@ -1290,8 +1290,8 @@ export function Methodology() {
           </div>
           <p className="text-xs text-muted-foreground">
             {de
-              ? "Defensiv-Sleeve (Cash & Anleihen), Satelliten-Sleeves (REIT 6 %, Krypto 1–3 %, Thematik 3–5 %, Gold ≤ 5 %) und Risikoobergrenzen sind weiterhin regelbasiert wie im übrigen Methodik-Dokument beschrieben."
-              : "The defensive sleeve (cash & bonds), satellite sleeves (REIT 6%, Crypto 1–3%, Thematic 3–5%, Gold ≤ 5%) and risk caps remain rule-based as documented in the rest of this methodology."}
+              ? "Defensiv-Sleeve (Cash & Anleihen), Satelliten-Sleeves (REIT 6 %, Krypto 1–3 %, Gold ≤ 5 %), der Thematik-Tilt im Aktien-Sleeve (3–5 %) und Risikoobergrenzen sind weiterhin regelbasiert wie im übrigen Methodik-Dokument beschrieben."
+              : "The defensive sleeve (cash & bonds), satellite sleeves (REIT 6%, Crypto 1–3%, Gold ≤ 5%), the thematic tilt within the equity sleeve (3–5%) and risk caps remain rule-based as documented in the rest of this methodology."}
           </p>
 
           {/* ---------- Live home-bias multiplier editor ---------- */}

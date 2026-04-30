@@ -127,8 +127,8 @@ export function runValidation(input: PortfolioInput, lang: Lang = "en"): Validat
         ? "Hohe Komplexität (Komplexitätsrisiko)."
         : "High complexity (Complexity Risk).",
       suggestion: de
-        ? `Ihre Auswahl erzeugt ${effectiveCount} ETFs. Sofern nicht aus steuerlichen oder Faktorgründen erforderlich, reduzieren Sie Satelliten (Krypto, REITs, Thematik) für eine einfachere Verwaltung.`
-        : `Your selections produce ${effectiveCount} ETFs. Unless needed for specific tax or factor reasons, reduce satellites (Crypto, REITs, Thematic) for easier management.`
+        ? `Ihre Auswahl erzeugt ${effectiveCount} ETFs. Sofern nicht aus steuerlichen oder Faktorgründen erforderlich, reduzieren Sie Satelliten (Krypto, REITs, Gold) oder den Thematik-Tilt im Aktien-Sleeve für eine einfachere Verwaltung.`
+        : `Your selections produce ${effectiveCount} ETFs. Unless needed for specific tax or factor reasons, reduce satellites (Crypto, REITs, Gold) or the thematic equity tilt for easier management.`
     });
   }
 

@@ -221,8 +221,14 @@ export function buildPortfolio(
     thematicPct = input.numETFs <= 5 ? 3 : 5;
   }
 
-  const satellitesTotal = reitPct + cryptoPct + thematicPct;
-  const coreEquity = equityPct - satellitesTotal;
+  // The thematic tilt is part of the equity sleeve (a small theme-tilted
+  // slice carved out of equity), NOT a satellite. So it is subtracted from
+  // equityPct here but is excluded from `satellitesTotal` and from the
+  // satellite-drop logic below — it should survive a tight ETF cap the same
+  // way the regional equity buckets do, not be pruned away alongside REITs
+  // / crypto / gold.
+  const satellitesTotal = reitPct + cryptoPct;
+  const coreEquity = equityPct - satellitesTotal - thematicPct;
 
   if (coreEquity > 0) {
     const regionWeights = computeEquityRegionWeights(input);
@@ -246,15 +252,19 @@ export function buildPortfolio(
   weights["Cash"] = cashPct;
 
   if (input.numETFs <= 5) {
+    // Thematic is intentionally excluded from this list — it is part of the
+    // equity sleeve and is preserved here. If the cap is still too tight,
+    // the equity-region collapse below will fold it together with the
+    // regional equity buckets.
     const sorted = Object.entries(weights)
-      .filter(([k, v]) => ["RealEstate", "Crypto", "Thematic", "Commodities"].includes(k) && v > 0)
+      .filter(([k, v]) => ["RealEstate", "Crypto", "Commodities"].includes(k) && v > 0)
       .sort((a, b) => a[1] - b[1]);
     
     let toRemove = sorted.length > (input.numETFs - 3) ? sorted.length - Math.max(0, input.numETFs - 3) : 0;
     for (let i = 0; i < toRemove; i++) {
       const [k, v] = sorted[i];
       delete weights[k];
-      if (["RealEstate", "Crypto", "Thematic"].includes(k)) weights["Equity_USA"] = (weights["Equity_USA"] || 0) + v;
+      if (["RealEstate", "Crypto"].includes(k)) weights["Equity_USA"] = (weights["Equity_USA"] || 0) + v;
       if (k === "Commodities") weights["Bonds"] = (weights["Bonds"] || 0) + v;
     }
   }

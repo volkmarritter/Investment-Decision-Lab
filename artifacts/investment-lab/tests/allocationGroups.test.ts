@@ -35,11 +35,11 @@ describe("classifyGroup", () => {
     expect(classifyGroup("Equity", "Bermuda")).toBe("Satellites");
   });
 
-  it("classifies thematic equity sleeves as Satellites", () => {
-    expect(classifyGroup("Equity", "Sustainability")).toBe("Satellites");
-    expect(classifyGroup("Equity", "Technology")).toBe("Satellites");
-    expect(classifyGroup("Equity", "Healthcare")).toBe("Satellites");
-    expect(classifyGroup("Equity", "Cybersecurity")).toBe("Satellites");
+  it("classifies thematic equity sleeves as Equities (tilt within the equity sleeve, not a satellite)", () => {
+    expect(classifyGroup("Equity", "Sustainability")).toBe("Equities");
+    expect(classifyGroup("Equity", "Technology")).toBe("Equities");
+    expect(classifyGroup("Equity", "Healthcare")).toBe("Equities");
+    expect(classifyGroup("Equity", "Cybersecurity")).toBe("Equities");
   });
 
   it("classifies non-equity satellite sleeves", () => {
@@ -74,8 +74,10 @@ describe("summarizeAllocationByGroup", () => {
     );
     expect(byGroup.Cash).toBeCloseTo(5, 1);
     expect(byGroup.Bonds).toBeCloseTo(30, 1);
-    expect(byGroup.Equities).toBeCloseTo(55, 1);
-    expect(byGroup.Satellites).toBeCloseTo(10, 1);
+    // Thematic Sustainability (3%) is a tilt within the equity sleeve, so
+    // Equities = 35 + 15 + 5 + 3 = 58 and Satellites = 4 + 3 = 7.
+    expect(byGroup.Equities).toBeCloseTo(58, 1);
+    expect(byGroup.Satellites).toBeCloseTo(7, 1);
     const total =
       byGroup.Cash + byGroup.Bonds + byGroup.Equities + byGroup.Satellites;
     expect(total).toBeCloseTo(100, 1);

@@ -591,6 +591,76 @@ describe("buildPortfolio — engine math", () => {
     expect(themaLarge).toBeCloseTo(5, 0);
   });
 
+  it("thematic tilt is part of the equity sleeve, not a satellite", () => {
+    // Regression for the "thematic = equity, not satellite" mapping.
+    //
+    // Setup: numETFs=5 with REITs + Crypto + Theme=Technology enabled, and
+    // a Moderate risk so crypto is a tiny 1% sleeve. Under the old engine
+    // (Thematic in the satellite-drop list, sorted by weight ascending) the
+    // 1% Crypto sleeve would be dropped first to make room, leaving 5
+    // sleeves; if more pruning was needed the next-smallest satellite —
+    // the 3% Thematic — would also be dropped.
+    //
+    // Under the new mapping the satellite-drop list contains only REITs /
+    // Crypto / Commodities, so Thematic always survives this pass and
+    // shows up in the allocation as an equity bucket
+    // (assetClass="Equity", region="Technology").
+    const out = buildPortfolio(
+      baseInput({
+        thematicPreference: "Technology",
+        riskAppetite: "Moderate",
+        includeCrypto: true,
+        includeListedRealEstate: true,
+        numETFs: 5,
+        numETFsMin: 5,
+      })
+    );
+    const thematicRow = out.allocation.find(
+      (a) => a.assetClass === "Equity" && a.region === "Technology"
+    );
+    expect(thematicRow, "Thematic equity row must survive a tight ETF cap").toBeDefined();
+    expect(thematicRow!.weight).toBeGreaterThan(0);
+    // Total equity (incl. thematic) should still match the requested
+    // equity allocation modulo rounding — confirms thematic is sourced
+    // from the equity budget, not invented on top of it.
+    const totalEquity = out.allocation
+      .filter((a) => a.assetClass === "Equity")
+      .reduce((s, a) => s + a.weight, 0);
+    const noTheme = buildPortfolio(
+      baseInput({
+        thematicPreference: "None",
+        riskAppetite: "Moderate",
+        includeCrypto: true,
+        includeListedRealEstate: true,
+        numETFs: 5,
+        numETFsMin: 5,
+      })
+    );
+    const totalEquityNoTheme = noTheme.allocation
+      .filter((a) => a.assetClass === "Equity")
+      .reduce((s, a) => s + a.weight, 0);
+    expect(totalEquity).toBeCloseTo(totalEquityNoTheme, 0);
+
+    // End-to-end check: the AllocationGroupSummary tile (built from
+    // classifyGroup) must put the thematic weight into Equities, not
+    // Satellites. This is the surface the user actually sees in the
+    // Build / Compare panels.
+    const grouped = summarizeAllocationByGroup(out.allocation);
+    const byGroup = Object.fromEntries(
+      grouped.map((g) => [g.group, g.weight])
+    );
+    const groupedNoTheme = summarizeAllocationByGroup(noTheme.allocation);
+    const byGroupNoTheme = Object.fromEntries(
+      groupedNoTheme.map((g) => [g.group, g.weight])
+    );
+    // Same satellites group weight with or without the theme — Thematic
+    // does NOT inflate the Satellites tile.
+    expect(byGroup.Satellites).toBeCloseTo(byGroupNoTheme.Satellites, 0);
+    // Same equities group weight too — confirming Thematic is part of
+    // Equities and the equity budget is conserved.
+    expect(byGroup.Equities).toBeCloseTo(byGroupNoTheme.Equities, 0);
+  });
+
   it("REIT sleeve is 6% when listed real estate is included", () => {
     const out = buildPortfolio(baseInput({ includeListedRealEstate: true, numETFs: 10 }));
     expect(weightOf(out, "Real Estate")).toBeCloseTo(6, 0);
@@ -1995,7 +2065,9 @@ describe("AI Prompt builder (buildAiPrompt)", () => {
     expect(de).toContain("Rohstoffe / Edelmetalle");
     expect(de).toContain("Boersennotierte Immobilien");
     expect(de).toContain("Krypto-Assets");
-    expect(de).toContain("Thematische Aktien (Sustainability");
+    // Thematic lives inside the equity block now, not the satellite block.
+    expect(de).toContain("Thematischer Aktien-Tilt innerhalb des Aktien-Sleeves: Sustainability");
+    expect(de).not.toMatch(/Satelliten:[\s\S]*Thematische Aktien/);
     expect(de).toContain("KEINE breite Waehrungsabsicherung");
     expect(de).toContain("ausschliesslich physische Replikation");
     expect(de).toContain("Verfasse die gesamte Antwort in klarem Deutsch.");
@@ -2041,7 +2113,16 @@ describe("AI Prompt builder (buildAiPrompt)", () => {
     expect(satellitesIdx).toBeGreaterThan(0);
     expect(commoditiesIdx).toBeGreaterThan(satellitesIdx);
     expect(all).toContain("Crypto Assets");
-    expect(all).toContain("Thematic Equity (Sustainability");
+    // Thematic equity is part of the equity sleeve, not a satellite. It must
+    // be described inside the equity description (before the Satellites
+    // block) and must NOT appear inside the Satellites listing.
+    expect(all).toContain("Thematic equity tilt within the equity sleeve: Sustainability");
+    const thematicIdx = all.indexOf("Thematic equity tilt within the equity sleeve");
+    expect(thematicIdx).toBeGreaterThan(0);
+    expect(thematicIdx).toBeLessThan(satellitesIdx);
+    expect(all).not.toMatch(/Satellites:[\s\S]*Thematic equity/);
+    // Group classification inside the Output section also reflects this.
+    expect(all).toContain("thematic equity belongs to the Equities group");
 
     const none = buildAiPrompt(
       baseInput({
@@ -2054,7 +2135,7 @@ describe("AI Prompt builder (buildAiPrompt)", () => {
     expect(none).not.toContain("Commodities / Precious Metals");
     expect(none).not.toContain("Listed Real Estate (REITs)");
     expect(none).not.toContain("Crypto Assets");
-    expect(none).not.toContain("Thematic Equity");
+    expect(none).not.toContain("Thematic equity tilt within the equity sleeve");
     expect(none).toContain("Satellites: none requested");
   });
 
