@@ -865,6 +865,42 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 312,
     inceptionDate: "2021-01-25",
   }),
+  "IE00BLCHJB90": I({
+    name: "Global X Robotics & Artificial Intelligence UCITS ETF USD Accumulating",
+    isin: "IE00BLCHJB90",
+    terBps: 50,
+    domicile: "Ireland",
+    replication: "Physical",
+    distribution: "Accumulating",
+    currency: "USD",
+    comment: "",
+    listings: { "LSE": { ticker: "BOTZ" }, "XETRA": { ticker: "XB0T" }, "SIX": { ticker: "BOTZ" } },
+    defaultExchange: "LSE",
+  }),
+  "IE00BLR6QB00": I({
+    name: "Global X Telemedicine & Digital Health UCITS ETF Acc USD",
+    isin: "IE00BLR6QB00",
+    terBps: 68,
+    domicile: "Ireland",
+    replication: "Physical",
+    distribution: "Accumulating",
+    currency: "USD",
+    comment: "",
+    listings: { "LSE": { ticker: "EDOC" }, "XETRA": { ticker: "DDOC" }, "SIX": { ticker: "EDOC" } },
+    defaultExchange: "LSE",
+  }),
+  "LU0136234654": I({
+    name: "UBS MSCI USA UCITS ETF USD dis",
+    isin: "LU0136234654",
+    terBps: 14,
+    domicile: "Luxembourg",
+    replication: "Physical",
+    distribution: "Distributing",
+    currency: "USD",
+    comment: "",
+    listings: { "LSE": { ticker: "UC67" }, "XETRA": { ticker: "UIM6" }, "SIX": { ticker: "USAUSA" } },
+    defaultExchange: "LSE",
+  }),
 };
 
 const BUCKETS: Record<string, BucketAssignment> = {
@@ -874,7 +910,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
   }),
   "Equity-USA": B({
     default: "IE00B5BMR087",
-    alternatives: ["IE00BFMXXD54", "IE00B6YX5C33"],
+    alternatives: ["IE00BFMXXD54", "IE00B6YX5C33", "LU0136234654"],
   }),
   "Equity-USA-Synthetic": B({
     default: "IE00B3YCGJ38",
