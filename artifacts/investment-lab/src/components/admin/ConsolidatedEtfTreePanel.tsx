@@ -12,7 +12,6 @@ import { useAdminT } from "@/lib/admin-i18n";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { AlertTriangle, ChevronDown, ChevronRight, ExternalLink, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { PendingPrsCard } from "./PendingPrsCard";
@@ -38,14 +37,7 @@ export function ConsolidatedEtfTreePanel({
   const [poolLoadError, setPoolLoadError] = useState<string | null>(null);
   const [prsRefreshKey, setPrsRefreshKey] = useState(0);
 
-  const [poolIsin, setPoolIsin] = useState("");
-  const [submittingPoolAdd, setSubmittingPoolAdd] = useState(false);
   const [headerErrMsg, setHeaderErrMsg] = useState<string | null>(null);
-  const [lastPoolPr, setLastPoolPr] = useState<{
-    url: string;
-    number: number;
-    isin: string;
-  } | null>(null);
   const [backfilling, setBackfilling] = useState(false);
   const [backfillResult, setBackfillResult] = useState<{
     scanned: number;
@@ -227,40 +219,6 @@ export function ConsolidatedEtfTreePanel({
     setUnclassifiedOpen(false);
   }
 
-  async function addToPool() {
-    const trimmed = poolIsin.trim().toUpperCase();
-    if (!trimmed) return;
-    setSubmittingPoolAdd(true);
-    setHeaderErrMsg(null);
-    setLastPoolPr(null);
-    try {
-      const r = await adminApi.addLookthroughPoolIsin(trimmed);
-      setLastPoolPr({ url: r.prUrl, number: r.prNumber, isin: r.isin });
-      toast.success(
-        lang === "de"
-          ? `Pull Request #${r.prNumber} geöffnet für ${r.isin}`
-          : `Pull Request #${r.prNumber} opened for ${r.isin}`,
-        {
-          description:
-            lang === "de"
-              ? `${r.topHoldingCount} Holdings · ${r.geoCount} Länder · ${r.sectorCount} Sektoren — Review + merge erforderlich, dann redeploy.`
-              : `${r.topHoldingCount} holdings · ${r.geoCount} countries · ${r.sectorCount} sectors — review + merge required, then redeploy.`,
-          action: {
-            label: t({ de: "Öffnen", en: "Open" }),
-            onClick: () => window.open(r.prUrl, "_blank"),
-          },
-        },
-      );
-      setPoolIsin("");
-      setPrsRefreshKey((k) => k + 1);
-    } catch (e: unknown) {
-      setHeaderErrMsg(e instanceof Error ? e.message : String(e));
-      setPrsRefreshKey((k) => k + 1);
-    } finally {
-      setSubmittingPoolAdd(false);
-    }
-  }
-
   // Bulk backfill (header bar). Same endpoint introduced 2026-04-28.
   async function runBackfill() {
     setBackfilling(true);
@@ -374,51 +332,21 @@ export function ConsolidatedEtfTreePanel({
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Header bar: pool-level operator levers (single add + bulk backfill).
-            Kept separate from the per-row tree actions so the two flows don't
-            visually interfere. */}
+        {/* Header bar: pool-level bulk backfill. The legacy "Add to
+            look-through pool only" form was retired with Task #122 — every
+            pool ISIN must now also exist in INSTRUMENTS, so new ISINs are
+            added via the "Add ISIN" tab (which writes both files in one
+            PR). "Fetch missing data" still belongs here because it only
+            scrapes look-through data for ISINs that already are in
+            INSTRUMENTS. */}
         <div className="rounded-md border bg-muted/30 p-3 space-y-3">
           <div className="flex flex-col sm:flex-row gap-2 sm:items-center">
             <div className="text-xs text-muted-foreground sm:flex-1">
               {lang === "de"
-                ? "Nur Look-through-Daten: ISIN in den Datenpool aufnehmen, damit Holdings/Region/Sektoren für Lookups verfügbar werden — kein ETF-Katalogeintrag, keine Bucket-Zuordnung. Für die Aufnahme als auswählbarer ETF (Default oder Alternative) den Tab „ISIN hinzufügen“ verwenden."
-                : "Look-through data only: append the ISIN to the data pool so its holdings/region/sector breakdown is available for lookups — does not add it to the ETF catalog and does not attach it to a bucket. To make the ISIN selectable as a Default or Alternative, use the “Add ISIN” tab instead."}
+                ? "Look-through-Daten für bereits registrierte Katalog-ISINs nachziehen. Neue ISINs bitte über den Tab „ISIN hinzufügen“ aufnehmen — dort werden Katalogeintrag und Look-through-Daten in einem gemeinsamen Pull Request angelegt."
+                : "Refresh look-through data for ISINs already registered in the catalog. To add a new ISIN, use the “Add ISIN” tab — that flow writes the catalog row and the look-through data in a single Pull Request."}
             </div>
             <div className="flex gap-2">
-              <Input
-                placeholder={t({
-                  de: "z. B. IE00B5BMR087",
-                  en: "e.g. IE00B5BMR087",
-                })}
-                value={poolIsin}
-                onChange={(e) => setPoolIsin(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && poolIsin.trim()) void addToPool();
-                }}
-                disabled={submittingPoolAdd || !githubConfigured}
-                className="w-48"
-                data-testid="input-tree-pool-isin"
-              />
-              <Button
-                onClick={() => void addToPool()}
-                disabled={
-                  submittingPoolAdd || !poolIsin.trim() || !githubConfigured
-                }
-                data-testid="button-tree-pool-add"
-                title={t({
-                  de: "Nur in den Look-through-Datenpool aufnehmen — kein Katalog-ETF, keine Bucket-Zuordnung.",
-                  en: "Add to the look-through data pool only — does not become a catalog ETF and is not attached to a bucket.",
-                })}
-              >
-                {submittingPoolAdd ? (
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                ) : (
-                  t({
-                    de: "Nur zum Look-through-Pool",
-                    en: "Add to look-through pool only",
-                  })
-                )}
-              </Button>
               <Button
                 variant="outline"
                 onClick={() => void runBackfill()}
@@ -448,25 +376,6 @@ export function ConsolidatedEtfTreePanel({
               <AlertTitle>{t({ de: "Fehler", en: "Error" })}</AlertTitle>
               <AlertDescription className="text-xs">
                 {headerErrMsg}
-              </AlertDescription>
-            </Alert>
-          )}
-          {lastPoolPr && (
-            <Alert className="border-emerald-600/40 text-emerald-900 dark:text-emerald-200">
-              <AlertTitle className="text-xs">
-                {lang === "de"
-                  ? `Pool-Pull Request #${lastPoolPr.number} für ${lastPoolPr.isin} geöffnet`
-                  : `Pool Pull Request #${lastPoolPr.number} for ${lastPoolPr.isin} opened`}
-              </AlertTitle>
-              <AlertDescription className="text-xs">
-                <a
-                  href={lastPoolPr.url}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                  className="underline"
-                >
-                  {t({ de: "Pull Request auf GitHub →", en: "Pull Request on GitHub →" })}
-                </a>
               </AlertDescription>
             </Alert>
           )}
