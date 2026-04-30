@@ -913,6 +913,18 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     listings: { "LSE": { ticker: "EUE" }, "XETRA": { ticker: "EUN2" }, "SIX": { ticker: "EUNE" }, "Euronext": { ticker: "EUEA" } },
     defaultExchange: "LSE",
   }),
+  "IE00B3RBWM25": I({
+    name: "Vanguard FTSE All-World UCITS ETF (USD) Distributing",
+    isin: "IE00B3RBWM25",
+    terBps: 19,
+    domicile: "Ireland",
+    replication: "Physical",
+    distribution: "Distributing",
+    currency: "USD",
+    comment: "",
+    listings: { "LSE": { ticker: "VWRD" }, "XETRA": { ticker: "VGWL" }, "SIX": { ticker: "VWRL" }, "Euronext": { ticker: "VWRL" } },
+    defaultExchange: "LSE",
+  }),
 };
 
 const BUCKETS: Record<string, BucketAssignment> = {
