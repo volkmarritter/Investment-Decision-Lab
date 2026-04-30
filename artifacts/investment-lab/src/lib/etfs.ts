@@ -925,6 +925,18 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     listings: { "LSE": { ticker: "VWRD" }, "XETRA": { ticker: "VGWL" }, "SIX": { ticker: "VWRL" }, "Euronext": { ticker: "VWRL" } },
     defaultExchange: "LSE",
   }),
+  "LU0292100046": I({
+    name: "Xtrackers MSCI Korea UCITS ETF 1C",
+    isin: "LU0292100046",
+    terBps: 45,
+    domicile: "Luxembourg",
+    replication: "Physical",
+    distribution: "Accumulating",
+    currency: "USD",
+    comment: "",
+    listings: { "LSE": { ticker: "XKSD" }, "XETRA": { ticker: "DBX8" } },
+    defaultExchange: "LSE",
+  }),
 };
 
 const BUCKETS: Record<string, BucketAssignment> = {
