@@ -918,7 +918,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
 const BUCKETS: Record<string, BucketAssignment> = {
   "Equity-Global": B({
     default: "IE00B3YLTY66",
-    alternatives: ["IE00BK5BQT80", "IE00B6R52259", "IE0008471009"],
+    alternatives: ["IE00BK5BQT80", "IE00B6R52259"],
   }),
   "Equity-USA": B({
     default: "IE00B5BMR087",
