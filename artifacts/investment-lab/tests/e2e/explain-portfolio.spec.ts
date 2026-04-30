@@ -93,6 +93,16 @@ test.describe("ExplainPortfolio · bring-your-own-ETFs (mobile)", () => {
     // actually computed (not just chrome).
     await expect(analysis.getByTestId("mc-mdd-p50")).toContainText(/-?\d/);
 
+    // Stress Test, Geo Exposure Map, and Home Bias were added in Task #136 to
+    // mirror Build's analysis stack. StressTest always renders; the reverse
+    // stress sub-table is the only stable testid below the fold. Geo renders
+    // when lookThrough is on (default), and Home Bias renders for non-USD
+    // bases only — default state here is USD + lookThrough on, so we assert
+    // geo + stress are visible and trust Build's coverage for the home-bias
+    // gating itself (HomeBiasAnalysis is shared, not forked).
+    await expect(analysis.getByTestId("reverse-stress")).toBeVisible();
+    await expect(analysis.getByText(/effective geographic|effektive geografische/i).first()).toBeVisible();
+
     const stored = await page.evaluate(() =>
       window.localStorage.getItem("investment-lab.explainPortfolio.v1"),
     );

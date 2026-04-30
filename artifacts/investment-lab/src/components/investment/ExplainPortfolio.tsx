@@ -72,6 +72,9 @@ import { FeeEstimator } from "./FeeEstimator";
 import { LookThroughAnalysis } from "./LookThroughAnalysis";
 import { CurrencyOverview } from "./CurrencyOverview";
 import { TopHoldings } from "./TopHoldings";
+import { GeoExposureMap } from "./GeoExposureMap";
+import { StressTest } from "./StressTest";
+import { HomeBiasAnalysis } from "./HomeBiasAnalysis";
 import { SavedExplainPortfoliosUI } from "./SavedExplainPortfoliosUI";
 import type { ExplainWorkspace } from "@/lib/savedExplainPortfolios";
 
@@ -941,6 +944,10 @@ export function ExplainPortfolio() {
 
           {state.lookThroughView && portfolio.etfImplementation.length > 0 && (
             <>
+              <GeoExposureMap
+                etfs={portfolio.etfImplementation}
+                baseCurrency={state.baseCurrency}
+              />
               <LookThroughAnalysis
                 etfs={portfolio.etfImplementation}
                 baseCurrency={state.baseCurrency}
@@ -971,6 +978,24 @@ export function ExplainPortfolio() {
             riskRegime={riskRegime}
             onRiskRegimeChange={setRiskRegime}
           />
+
+          {/* Scenario Stress Test (deterministic historical-style shocks +
+           *  reverse stress test). Mirrors Build's placement after the
+           *  forward-looking Monte Carlo distribution so the user sees their
+           *  actual ETF mix tested against past crises. */}
+          <StressTest
+            allocation={portfolio.allocation}
+            baseCurrency={state.baseCurrency}
+          />
+
+          {/* Home Bias (non-USD bases only — same gating as Build, since the
+           *  framing of "home" only makes sense outside the global default). */}
+          {state.baseCurrency !== "USD" && (
+            <HomeBiasAnalysis
+              etfs={portfolio.etfImplementation}
+              baseCurrency={state.baseCurrency}
+            />
+          )}
         </div>
       )}
     </div>
