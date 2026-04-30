@@ -901,12 +901,24 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     listings: { "LSE": { ticker: "UC67" }, "XETRA": { ticker: "UIM6" }, "SIX": { ticker: "USAUSA" } },
     defaultExchange: "LSE",
   }),
+  "IE0008471009": I({
+    name: "iShares Core EURO STOXX 50 UCITS ETF EUR (Dist)",
+    isin: "IE0008471009",
+    terBps: 10,
+    domicile: "Ireland",
+    replication: "Physical",
+    distribution: "Distributing",
+    currency: "EUR",
+    comment: "",
+    listings: { "LSE": { ticker: "EUE" }, "XETRA": { ticker: "EUN2" }, "SIX": { ticker: "EUNE" }, "Euronext": { ticker: "EUEA" } },
+    defaultExchange: "LSE",
+  }),
 };
 
 const BUCKETS: Record<string, BucketAssignment> = {
   "Equity-Global": B({
     default: "IE00B3YLTY66",
-    alternatives: ["IE00BK5BQT80", "IE00B6R52259"],
+    alternatives: ["IE00BK5BQT80", "IE00B6R52259", "IE0008471009"],
   }),
   "Equity-USA": B({
     default: "IE00B5BMR087",

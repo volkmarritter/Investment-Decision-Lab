@@ -3226,6 +3226,83 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=LU0136234654",
       "_addedAt": "2026-04-30T07:00:19.106Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
+    },
+    "IE0008471009": {
+      "name": "iShares Core EURO STOXX 50 UCITS ETF EUR (Dist)",
+      "topHoldings": [
+        {
+          "name": "ASML Holding NV",
+          "pct": 9.74
+        },
+        {
+          "name": "TotalEnergies SE",
+          "pct": 4.43
+        },
+        {
+          "name": "Siemens AG",
+          "pct": 3.87
+        },
+        {
+          "name": "SAP SE",
+          "pct": 3.75
+        },
+        {
+          "name": "Banco Santander SA",
+          "pct": 3.49
+        },
+        {
+          "name": "Allianz SE",
+          "pct": 3.42
+        },
+        {
+          "name": "Schneider Electric SE",
+          "pct": 3.31
+        },
+        {
+          "name": "Iberdrola SA",
+          "pct": 3.06
+        },
+        {
+          "name": "LVMH Moët Hennessy Louis Vuitton SE",
+          "pct": 2.9
+        },
+        {
+          "name": "Deutsche Telekom AG",
+          "pct": 2.81
+        }
+      ],
+      "topHoldingsAsOf": "2026-04-30T07:51:13.682Z",
+      "geo": {
+        "France": 30.87,
+        "Germany": 29.38,
+        "Netherlands": 17.83,
+        "Spain": 10.52,
+        "Italy": 8.17,
+        "Belgium": 1.53,
+        "Finland": 1.26,
+        "Other": 0.44
+      },
+      "sector": {
+        "Financials": 24.62,
+        "Industrials": 20.7,
+        "Technology": 15.41,
+        "Consumer Discretionary": 11.85,
+        "Consumer Staples": 5.64,
+        "Energy": 5.64,
+        "Utilities": 4.88,
+        "Health Care": 4.27,
+        "Basic Materials": 3.75,
+        "Telecommunication": 2.81,
+        "Other": 0.44
+      },
+      "currency": {
+        "EUR": 99.56,
+        "Other": 0.44
+      },
+      "breakdownsAsOf": "2026-04-30T07:51:13.682Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE0008471009",
+      "_addedAt": "2026-04-30T07:51:13.682Z",
+      "_addedVia": "admin/bucket-alternatives (auto)"
     }
   }
 }
