@@ -1336,6 +1336,117 @@ export function getCatalog(): Readonly<Record<string, ETFRecord>> {
   return CATALOG;
 }
 
+// Bring-your-own-ETFs accessors (Task #135).
+
+export interface BucketMeta {
+  key: string;
+  assetClass: string;
+  region: string;
+  hedged: boolean;
+  synthetic: boolean;
+}
+
+const ISIN_TO_BUCKET: Record<string, string> = (() => {
+  const m: Record<string, string> = {};
+  for (const [key, assignment] of Object.entries(BUCKETS)) {
+    m[assignment.default] = key;
+    for (const altIsin of assignment.alternatives) {
+      m[altIsin] = key;
+    }
+  }
+  return m;
+})();
+
+function decodeBucketKey(key: string): BucketMeta {
+  const HEDGE_SUFFIXES = ["-EUR", "-CHF", "-GBP"];
+  let hedged = false;
+  let synthetic = false;
+  let core = key;
+  for (const sfx of HEDGE_SUFFIXES) {
+    if (core.endsWith(sfx)) {
+      hedged = true;
+      core = core.slice(0, -sfx.length);
+      break;
+    }
+  }
+  if (core.endsWith("-Synthetic")) {
+    synthetic = true;
+    core = core.slice(0, -"-Synthetic".length);
+  }
+  const dashAt = core.indexOf("-");
+  if (dashAt < 0) {
+    return { key, assetClass: core, region: "—", hedged, synthetic };
+  }
+  const head = core.slice(0, dashAt);
+  const tail = core.slice(dashAt + 1);
+  let assetClass = head;
+  let region = tail;
+  if (head === "FixedIncome") assetClass = "Fixed Income";
+  else if (head === "RealEstate") {
+    assetClass = "Real Estate";
+    region = tail === "GlobalREITs" ? "Global REITs" : tail;
+  } else if (head === "DigitalAssets") {
+    assetClass = "Digital Assets";
+    region = tail === "BroadCrypto" ? "Broad Crypto" : tail;
+  }
+  return { key, assetClass, region, hedged, synthetic };
+}
+
+const BUCKET_META_CACHE: Record<string, BucketMeta> = (() => {
+  const m: Record<string, BucketMeta> = {};
+  for (const key of Object.keys(BUCKETS)) m[key] = decodeBucketKey(key);
+  return m;
+})();
+
+export const ALL_BUCKET_KEYS: readonly string[] = Object.freeze(
+  Object.keys(BUCKETS),
+);
+
+export function getInstrumentByIsin(
+  isin: string,
+): Readonly<InstrumentRecord> | undefined {
+  return INSTRUMENTS[isin];
+}
+
+export function getBucketKeyForIsin(isin: string): string | undefined {
+  return ISIN_TO_BUCKET[isin];
+}
+
+export function getBucketMeta(bucketKey: string): BucketMeta | undefined {
+  return BUCKET_META_CACHE[bucketKey];
+}
+
+export function listInstruments(): ReadonlyArray<
+  Readonly<InstrumentRecord & { bucketKey: string; bucketMeta: BucketMeta }>
+> {
+  const rows: Array<InstrumentRecord & { bucketKey: string; bucketMeta: BucketMeta }> = [];
+  for (const isin of Object.keys(INSTRUMENTS)) {
+    const bk = ISIN_TO_BUCKET[isin];
+    if (!bk) continue;
+    rows.push({ ...INSTRUMENTS[isin], bucketKey: bk, bucketMeta: BUCKET_META_CACHE[bk] });
+  }
+  rows.sort((a, b) => a.name.localeCompare(b.name));
+  return rows;
+}
+
+export function pickDefaultListing(
+  rec: InstrumentRecord,
+): { ticker: string; exchange: string } {
+  if (rec.defaultExchange !== "Euronext") {
+    const def = rec.listings[rec.defaultExchange];
+    if (def) return { ticker: def.ticker, exchange: rec.defaultExchange };
+  }
+  const fallbackOrder: ExchangeCode[] = ["LSE", "XETRA", "SIX"];
+  for (const ex of fallbackOrder) {
+    const lst = rec.listings[ex];
+    if (lst) return { ticker: lst.ticker, exchange: ex };
+  }
+  if (rec.listings.Euronext) {
+    return { ticker: rec.listings.Euronext.ticker, exchange: "Euronext" };
+  }
+  return { ticker: "—", exchange: "—" };
+}
+
 export function getETFDetails(
   assetClass: string,
   region: string,
