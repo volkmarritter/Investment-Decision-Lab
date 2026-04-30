@@ -1,10 +1,10 @@
 {
   "_meta": {
     "source": "justetf.com",
-    "lastRefreshed": "2026-04-28T17:47:05.204Z",
+    "lastRefreshed": "2026-04-30T05:15:00.822Z",
     "lastRefreshedMode": "listings",
     "lastCoreRefresh": "2026-04-24T08:04:32.368Z",
-    "lastListingsRefresh": "2026-04-28T17:47:05.204Z",
+    "lastListingsRefresh": "2026-04-30T05:15:00.822Z",
     "refreshedBy": "scripts/refresh-justetf.mjs",
     "note": "ISIN -> partial ETFRecord overrides applied on top of the in-code CATALOG in src/lib/etfs.ts. Populated by two CI cadences: weekly (Sundays 03:00 UTC) for core fund metadata and nightly (02:00 UTC) for the per-exchange listings map. Only fields present in this file override the catalog defaults; everything else stays as defined in code."
   },
@@ -691,6 +691,39 @@
         },
         "XETRA": {
           "ticker": "W1TB"
+        }
+      }
+    },
+    "IE00B88DZ566": {
+      "listings": {
+        "SIX": {
+          "ticker": "IUSC"
+        }
+      }
+    },
+    "IE00BM67HT60": {
+      "listings": {
+        "LSE": {
+          "ticker": "XDWT"
+        },
+        "SIX": {
+          "ticker": "XDWT"
+        },
+        "XETRA": {
+          "ticker": "XDWT"
+        }
+      }
+    },
+    "IE00BLRB0242": {
+      "listings": {
+        "LSE": {
+          "ticker": "GCLE"
+        },
+        "SIX": {
+          "ticker": "GCLE"
+        },
+        "XETRA": {
+          "ticker": "G1CE"
         }
       }
     }
