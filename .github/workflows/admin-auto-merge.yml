@@ -6,7 +6,8 @@ name: Auto-merge admin PRs
 #
 # Scope is intentionally narrow: only branches whose name starts with one
 # of the admin-flow prefixes (`add-etf/`, `add-alt/`, `rm-alt/`,
-# `add-lookthrough-pool/`, `update-app-defaults/`, `backfill-`) are touched.
+# `add-lookthrough-pool/`, `update-app-defaults/`, `backfill-`,
+# `instr-add/`, `instr-edit/`, `instr-rm/`) are touched.
 # Anything human-authored (manual hotfixes, refactors, dependency bumps)
 # merges the normal way. Draft PRs are also skipped, so the operator can
 # still "convert to draft" on a PR they want to inspect first.
@@ -36,7 +37,10 @@ jobs:
         startsWith(github.event.pull_request.head.ref, 'rm-alt/') ||
         startsWith(github.event.pull_request.head.ref, 'add-lookthrough-pool/') ||
         startsWith(github.event.pull_request.head.ref, 'update-app-defaults/') ||
-        startsWith(github.event.pull_request.head.ref, 'backfill-')
+        startsWith(github.event.pull_request.head.ref, 'backfill-') ||
+        startsWith(github.event.pull_request.head.ref, 'instr-add/') ||
+        startsWith(github.event.pull_request.head.ref, 'instr-edit/') ||
+        startsWith(github.event.pull_request.head.ref, 'instr-rm/')
       )
     runs-on: ubuntu-latest
     steps:

@@ -275,6 +275,27 @@ function OperationsPrsTab() {
       }),
     },
     {
+      prefix: "instr-add/",
+      title: t({
+        de: "Instrumente — neu (instr-add/)",
+        en: "Instruments — new (instr-add/)",
+      }),
+    },
+    {
+      prefix: "instr-edit/",
+      title: t({
+        de: "Instrumente — bearbeiten (instr-edit/)",
+        en: "Instruments — edit (instr-edit/)",
+      }),
+    },
+    {
+      prefix: "instr-rm/",
+      title: t({
+        de: "Instrumente — entfernen (instr-rm/)",
+        en: "Instruments — remove (instr-rm/)",
+      }),
+    },
+    {
       prefix: "add-lookthrough-pool/",
       title: t({
         de: "Look-through-Pool (add-lookthrough-pool/)",
