@@ -63,6 +63,8 @@ import {
     AfterMergeCallout,
     FlowSection,
     ExternalAnchor,
+    FileInventorySection,
+    type FileInventoryGroup,
   } from "./DocsPanel.parts";
 
   export function DocsPanel({ github }: DocsPanelProps) {
@@ -596,6 +598,23 @@ import {
             })}
           </p>
 
+          <Separator />
+
+          <FileInventorySection
+            testid="docs-file-inventory"
+            heading={t({
+              de: "Datei-Referenz: ETF-Pflege",
+              en: "File reference: ETF maintenance",
+            })}
+            intro={t({
+              de: "Vollständige Liste der Dateien, die ein Operator (oder Pull-Request-Reviewer) für die Pflege des Katalogs, des Look-through-Pools und der Refresh-Jobs anfasst. Die Pfade sind GitHub-relativ; pro Zeile gibt es einen Direktlink, sobald GITHUB_OWNER/REPO am api-server gesetzt sind.",
+              en: "Full list of files an operator (or pull-request reviewer) touches when maintaining the catalog, look-through pool and refresh jobs. Paths are GitHub-relative; each row links straight to GitHub once GITHUB_OWNER/REPO is set on the api-server.",
+            })}
+            groups={buildEtfMaintenanceFileGroups(t)}
+            buildFileUrl={(path) => fileUrl(github, path)}
+            githubLabel={t({ de: "Auf GitHub öffnen", en: "Open on GitHub" })}
+          />
+
           {(repo || allPrsUrl || actionsUrl) && (
             <>
               <Separator />
@@ -642,4 +661,259 @@ import {
           )}
     </div>
   );
+}
+
+// ---------------------------------------------------------------------------
+// buildEtfMaintenanceFileGroups — data for the FileInventorySection above.
+//
+// Kept as a factory rather than a top-level constant so each entry's
+// description picks up the active language via the passed-in `t` function
+// (the panel re-renders on language switch). Order inside each group matches
+// the Q&A in the docs: source-of-truth first, auto-maintained second, then
+// the scripts that write them, then the cron workflows that drive them, then
+// the validators that defend them at build time.
+// ---------------------------------------------------------------------------
+function buildEtfMaintenanceFileGroups(
+  t: (s: { de: string; en: string }) => string,
+): FileInventoryGroup[] {
+  return [
+    {
+      title: t({
+        de: "Quelle der Wahrheit (Operator editiert via Pull Request)",
+        en: "Source of truth (operator edits via Pull Request)",
+      }),
+      blurb: t({
+        de: "Statisch im Bundle. Änderungen sind erst nach Pull-Request-Merge + Redeploy für alle Nutzer sichtbar.",
+        en: "Static in the bundle. Changes become visible to all users only after Pull Request merge + redeploy.",
+      }),
+      entries: [
+        {
+          path: "artifacts/investment-lab/src/lib/etfs.ts",
+          hint: "→ INSTRUMENTS (~L157), BUCKETS (~L870), validateCatalog (~L1361)",
+          description: t({
+            de: "Master-ETF-Liste (INSTRUMENTS) und Bucket-Zuordnungen (BUCKETS). Jede ISIN, die irgendwo in der App auftaucht, muss hier stehen — validateCatalog() bricht den Build sonst ab.",
+            en: "Master ETF list (INSTRUMENTS) and bucket assignments (BUCKETS). Every ISIN that appears anywhere in the app must live here — validateCatalog() fails the build otherwise.",
+          }),
+        },
+        {
+          path: "artifacts/investment-lab/src/data/lookthrough.overrides.json",
+          description: t({
+            de: "Look-through-Pool + kuratierte Geo-/Sektor-/Währungs-Overrides. Alle ISINs müssen Teilmenge der INSTRUMENTS-Keys sein (Invariante seit Task #122).",
+            en: "Look-through pool + curated geo/sector/currency overrides. Every ISIN must be a subset of the INSTRUMENTS keys (invariant since Task #122).",
+          }),
+        },
+        {
+          path: "artifacts/investment-lab/src/data/etfs.overrides.json",
+          description: t({
+            de: "Per-ETF-Runtime-Overrides (TER, AUM, Listings, Replikation, Ausschüttung, Auflage). Wird vom Cron-Job aktualisiert, kann aber auch von Hand editiert werden.",
+            en: "Per-ETF runtime overrides (TER, AUM, listings, replication, distribution, inception). Refreshed by cron, also editable by hand.",
+          }),
+        },
+        {
+          path: "artifacts/investment-lab/src/data/app-defaults.json",
+          description: t({
+            de: "Globale Defaults (risikolose Zinssätze, Home-Bias-Multiplikatoren, μ/σ pro Anlageklasse). Beispielportfolio.",
+            en: "Global defaults (risk-free rates, home-bias multipliers, μ/σ per asset class). Example portfolio.",
+          }),
+        },
+        {
+          path: "artifacts/investment-lab/src/data/cmas.consensus.json",
+          description: t({
+            de: "Capital-Market-Assumptions-Konsenswerte (μ/σ).",
+            en: "Capital-market assumptions consensus (μ/σ).",
+          }),
+        },
+        {
+          path: "artifacts/investment-lab/src/lib/types.ts",
+          description: t({
+            de: "Geteilte Typen — wird nur angefasst, wenn neue Felder zum Schema kommen.",
+            en: "Shared types — touched only when adding new fields to the schema.",
+          }),
+        },
+      ],
+    },
+    {
+      title: t({
+        de: "Automatisch gepflegt (NICHT von Hand editieren — Cron schreibt sie)",
+        en: "Auto-maintained (do NOT hand-edit — cron writes them)",
+      }),
+      entries: [
+        {
+          path: "artifacts/investment-lab/src/data/refresh-runs.log.md",
+          description: t({
+            de: "Append-only Lauf-Log (eine Zeile pro Cron-Run, Erfolg oder Fehler).",
+            en: "Append-only run log (one row per scheduled refresh, success or failure).",
+          }),
+        },
+        {
+          path: "artifacts/investment-lab/src/data/refresh-changes.log.jsonl",
+          description: t({
+            de: "Per-Field-Change-Log (JSONL, ein Event pro umgeflipptem Feld).",
+            en: "Per-field change log (JSONL, one event per flipped field).",
+          }),
+        },
+      ],
+    },
+    {
+      title: t({
+        de: "Refresh-Scripts (machen das Scraping; lokal vom Operator ausführbar)",
+        en: "Refresh scripts (do the scraping; operator can run them locally)",
+      }),
+      entries: [
+        {
+          path: "artifacts/investment-lab/scripts/refresh-justetf.mjs",
+          description: t({
+            de: "Core-Felder + Listings (justETF). Schreibt etfs.overrides.json + Logs.",
+            en: "Core fields + listings (justETF). Writes etfs.overrides.json + logs.",
+          }),
+        },
+        {
+          path: "artifacts/investment-lab/scripts/refresh-lookthrough.mjs",
+          description: t({
+            de: "Top-Holdings + Geo-/Sektor-Aufteilungen (justETF Look-through). Schreibt lookthrough.overrides.json + Logs. Verweigert seit Task #122 unbekannte ISINs.",
+            en: "Top holdings + geo/sector breakdowns (justETF look-through). Writes lookthrough.overrides.json + logs. Refuses unknown ISINs since Task #122.",
+          }),
+        },
+        {
+          path: "artifacts/investment-lab/scripts/smoke-justetf.mjs",
+          description: t({
+            de: "Täglicher Layout-Smoke-Check (read-only, scheitert nur, wenn die Extractoren brechen).",
+            en: "Daily layout smoke check (read-only — only fails if extractors break).",
+          }),
+        },
+        {
+          path: "artifacts/investment-lab/scripts/lib/justetf-extract.mjs",
+          description: t({
+            de: "Geteilte justETF-HTML-Extractoren (Felder, Holdings, Aufteilungen).",
+            en: "Shared justETF HTML extractors (fields, holdings, breakdowns).",
+          }),
+        },
+        {
+          path: "artifacts/investment-lab/scripts/lib/run-log.mjs",
+          description: t({
+            de: "Append-Helper für refresh-runs.log.md / refresh-changes.log.jsonl.",
+            en: "Append helper for refresh-runs.log.md / refresh-changes.log.jsonl.",
+          }),
+        },
+        {
+          path: "artifacts/investment-lab/scripts/lib/diff-overrides.mjs",
+          description: t({
+            de: "Berechnet Per-Field-Diffs vor und nach einem Refresh-Lauf.",
+            en: "Computes per-field diffs before/after a refresh run.",
+          }),
+        },
+        {
+          path: "artifacts/investment-lab/scripts/README.md",
+          description: t({
+            de: "Operator-Anleitung zum lokalen Ausführen.",
+            en: "Operator instructions for running locally.",
+          }),
+        },
+      ],
+    },
+    {
+      title: t({
+        de: "CI / Cron (GitHub Actions, automatisieren die Daten-Dateien)",
+        en: "CI / cron (GitHub Actions, automate the data files)",
+      }),
+      blurb: t({
+        de: "Alle vier Refresh-Workflows teilen sich die Concurrency-Group etf-overrides-write — sie können sich also nie gegenseitig beim Push überholen.",
+        en: "All four refresh workflows share the etf-overrides-write concurrency group, so they can never push-race each other.",
+      }),
+      entries: [
+        {
+          path: ".github/workflows/refresh-data.yml",
+          description: t({
+            de: "Wöchentlicher Core-Refresh — sonntags 03:00 UTC. Ruft refresh-justetf.mjs --mode=core auf.",
+            en: "Weekly core refresh — Sun 03:00 UTC. Runs refresh-justetf.mjs --mode=core.",
+          }),
+        },
+        {
+          path: ".github/workflows/refresh-listings.yml",
+          description: t({
+            de: "Nächtlicher Listings-Refresh — täglich 02:00 UTC. Ruft refresh-justetf.mjs --mode=listings auf.",
+            en: "Nightly listings refresh — daily 02:00 UTC. Runs refresh-justetf.mjs --mode=listings.",
+          }),
+        },
+        {
+          path: ".github/workflows/refresh-lookthrough.yml",
+          description: t({
+            de: "Monatlicher Look-through-Refresh — am 1. um 04:00 UTC. Ruft refresh-lookthrough.mjs auf.",
+            en: "Monthly look-through refresh — 1st of month 04:00 UTC. Runs refresh-lookthrough.mjs.",
+          }),
+        },
+        {
+          path: ".github/workflows/justetf-smoke.yml",
+          description: t({
+            de: "Täglicher Layout-Smoke — täglich 05:30 UTC. Wird rot, wenn die Extractoren brechen.",
+            en: "Daily layout smoke — daily 05:30 UTC. Goes red if extractors break.",
+          }),
+        },
+        {
+          path: ".github/workflows/admin-auto-merge.yml",
+          description: t({
+            de: "Auto-Merge der Admin-Pull-Requests (Add ISIN / Batch / Look-through-Pool / App-Defaults), nachdem alle Checks grün sind.",
+            en: "Auto-merge of admin Pull Requests (Add ISIN / batch / look-through pool / app defaults) once all checks are green.",
+          }),
+        },
+      ],
+    },
+    {
+      title: t({
+        de: "Validatoren / Build-Time-Guards (keine manuellen Edits — gut zu wissen, dass es sie gibt)",
+        en: "Validators / build-time guards (no manual edits — just good to know they exist)",
+      }),
+      entries: [
+        {
+          path: "artifacts/investment-lab/tests/catalog-validate-lookthrough-orphans.test.ts",
+          description: t({
+            de: "Strikte Referential-Integrity: jeder Pool-/Override-ISIN ⊆ INSTRUMENTS (Task-#122-Guard).",
+            en: "Strict referential integrity: every pool/override ISIN ⊆ INSTRUMENTS (Task #122 guard).",
+          }),
+        },
+        {
+          path: "artifacts/investment-lab/tests/catalog-validate.test.ts",
+          description: t({
+            de: "Allgemeine validateCatalog()-Tests (Duplikate, Bucket-Limits, Pflichtfelder).",
+            en: "General validateCatalog() tests (duplicates, bucket caps, required fields).",
+          }),
+        },
+        {
+          path: "artifacts/investment-lab/tests/catalog-parser.test.ts",
+          description: t({
+            de: "Parser für etfs.ts (Round-Trip durch INSTRUMENTS/BUCKETS).",
+            en: "Parser for etfs.ts (round-trip through INSTRUMENTS/BUCKETS).",
+          }),
+        },
+        {
+          path: "artifacts/investment-lab/tests/lookthrough-overrides.test.ts",
+          description: t({
+            de: "Schema-Validierung für lookthrough.overrides.json.",
+            en: "Schema validation for lookthrough.overrides.json.",
+          }),
+        },
+        {
+          path: "artifacts/investment-lab/tests/refreshLookthroughOrphans.test.ts",
+          description: t({
+            de: "Verweigert das Anlegen verwaister Pool-Einträge im Refresh-Lauf.",
+            en: "Refuses to add orphan pool entries during the refresh run.",
+          }),
+        },
+        {
+          path: "artifacts/investment-lab/tests/diff-overrides.test.ts",
+          description: t({
+            de: "Diff-Helfer für Override-Files (treibt die „Recent data changes“-Karte).",
+            en: "Diff helper for override files (drives the 'Recent data changes' card).",
+          }),
+        },
+        {
+          path: "artifacts/investment-lab/tests/smoke-report.test.ts",
+          description: t({
+            de: "End-to-End-Report-Smoke.",
+            en: "End-to-end report smoke.",
+          }),
+        },
+      ],
+    },
+  ];
 }

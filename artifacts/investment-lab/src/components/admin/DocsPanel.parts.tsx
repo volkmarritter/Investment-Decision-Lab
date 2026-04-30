@@ -317,6 +317,106 @@ export function FlowSection({
   );
 }
 
+// ---------------------------------------------------------------------------
+// FileInventorySection — read-only reference card listing every file an
+// operator (or PR reviewer) might touch when maintaining the ETF catalog,
+// look-through pool, runtime overrides, refresh scripts and CI workflows.
+//
+// Each entry is rendered as `path` + a one-line description. `path` is shown
+// in monospace; when the api-server is configured with owner/repo a clickable
+// "GitHub" link is appended. Paths must be repo-relative POSIX paths.
+// ---------------------------------------------------------------------------
+
+export interface FileInventoryEntry {
+  path: string;
+  // Optional anchor like "#L157" or sub-path like "lib/" appended after path.
+  // Use sparingly — only when the in-file location matters (e.g. the
+  // INSTRUMENTS / BUCKETS / validateCatalog landmarks inside the 1.4k-line
+  // etfs.ts).
+  hint?: string;
+  description: ReactNode;
+}
+
+export interface FileInventoryGroup {
+  title: string;
+  blurb?: ReactNode;
+  entries: FileInventoryEntry[];
+}
+
+export interface FileInventorySectionProps {
+  testid: string;
+  heading: string;
+  intro?: ReactNode;
+  groups: FileInventoryGroup[];
+  // Builds a github.com URL for a repo-relative path. Returning null hides
+  // the per-row "GitHub" link (when GITHUB_OWNER/REPO is unset).
+  buildFileUrl: (path: string) => string | null;
+  githubLabel: string;
+}
+
+export function FileInventorySection({
+  testid,
+  heading,
+  intro,
+  groups,
+  buildFileUrl,
+  githubLabel,
+}: FileInventorySectionProps) {
+  return (
+    <section className="space-y-3" data-testid={testid}>
+      <h3 className="font-semibold">{heading}</h3>
+      {intro ? <div className="text-sm text-muted-foreground">{intro}</div> : null}
+      {groups.map((group, gIdx) => (
+        <div
+          key={gIdx}
+          className="space-y-2"
+          data-testid={`${testid}-group-${gIdx}`}
+        >
+          <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            {group.title}
+          </h4>
+          {group.blurb ? (
+            <p className="text-xs text-muted-foreground">{group.blurb}</p>
+          ) : null}
+          <ul className="space-y-1.5 text-xs">
+            {group.entries.map((entry, eIdx) => {
+              const url = buildFileUrl(entry.path);
+              return (
+                <li
+                  key={eIdx}
+                  className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_max-content] gap-x-3 gap-y-0.5"
+                  data-testid={`${testid}-entry-${gIdx}-${eIdx}`}
+                >
+                  <div className="min-w-0">
+                    <div className="font-mono break-all">
+                      {entry.path}
+                      {entry.hint ? (
+                        <span className="text-muted-foreground"> {entry.hint}</span>
+                      ) : null}
+                    </div>
+                    <div className="text-muted-foreground">
+                      {entry.description}
+                    </div>
+                  </div>
+                  {url ? (
+                    <div className="sm:pt-0.5">
+                      <ExternalAnchor
+                        href={url}
+                        testid={`${testid}-entry-${gIdx}-${eIdx}-link`}
+                        label={githubLabel}
+                      />
+                    </div>
+                  ) : null}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      ))}
+    </section>
+  );
+}
+
 export function ExternalAnchor({
   href,
   testid,
