@@ -433,8 +433,10 @@ export const adminApi = {
       method: "POST",
     }),
   // Lists currently-open PRs on the configured GitHub repo, optionally
-  // scoped to a single admin flow via branch prefix:
-  //   "add-lookthrough-pool/" | "add-etf/" | "update-app-defaults/" | "add-alt/"
+  // scoped to a single admin flow via branch prefix. Recognized prefixes:
+  //   "add-etf/" | "add-alt/" | "rm-alt/" | "add-lookthrough-pool/" |
+  //   "update-app-defaults/" | "backfill-" |
+  //   "instr-add/" | "instr-edit/" | "instr-rm/"
   // Uses the REST list-pulls endpoint server-side (NOT the search API)
   // so it is unaffected by GitHub's occasional search-index lag.
   listOpenPrs: (prefix?: string) => {

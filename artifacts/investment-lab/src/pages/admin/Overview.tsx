@@ -32,10 +32,13 @@ import { useAdminContext } from "@/components/admin/AdminContext";
 const PR_BRANCH_PREFIXES = [
   "add-etf/",
   "add-alt/",
-  "add-bucket-alt/",
+  "rm-alt/",
   "add-lookthrough-pool/",
   "backfill-",
   "update-app-defaults/",
+  "instr-add/",
+  "instr-edit/",
+  "instr-rm/",
 ] as const;
 
 type DashState = {

@@ -85,8 +85,8 @@ import {
       <div data-testid="card-docs-panel" className="space-y-5 text-sm">
         <p className="text-muted-foreground">
           {t({
-            de: 'Diese Seite kennt sieben verschiedene Wege, Daten zu ändern. Jeder hat ein anderes Ziel, einen anderen Sichtbarkeitsbereich und eine andere Latenz, bis Endnutzer die Änderung sehen. Vor dem Klick auf „Pull request öffnen" lohnt sich ein Blick darauf, welcher Flow gerade läuft.',
-            en: "This page exposes seven distinct ways to change data. Each one has a different target, scope of visibility, and latency before end users see the change. Worth a glance before clicking 'Open pull request' to confirm which flow is running.",
+            de: 'Diese Seite kennt mehrere verschiedene Wege, Daten zu ändern. Jeder hat ein anderes Ziel, einen anderen Sichtbarkeitsbereich und eine andere Latenz, bis Endnutzer die Änderung sehen. Vor dem Klick auf „Pull request öffnen" lohnt sich ein Blick darauf, welcher Flow gerade läuft.',
+            en: "This page exposes several distinct ways to change data. Each one has a different target, scope of visibility, and latency before end users see the change. Worth a glance before clicking 'Open pull request' to confirm which flow is running.",
           })}
         </p>
 

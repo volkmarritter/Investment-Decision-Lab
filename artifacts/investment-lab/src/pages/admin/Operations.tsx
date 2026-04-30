@@ -263,15 +263,15 @@ function OperationsPrsTab() {
     {
       prefix: "add-alt/",
       title: t({
-        de: "Alternativen sammelweise (add-alt/)",
-        en: "Batch alternatives (add-alt/)",
+        de: "Alternativen — hinzufügen (add-alt/)",
+        en: "Alternatives — add (add-alt/)",
       }),
     },
     {
-      prefix: "add-bucket-alt/",
+      prefix: "rm-alt/",
       title: t({
-        de: "Bucket-Alternativen (add-bucket-alt/)",
-        en: "Bucket alternatives (add-bucket-alt/)",
+        de: "Alternativen — entfernen (rm-alt/)",
+        en: "Alternatives — remove (rm-alt/)",
       }),
     },
     {

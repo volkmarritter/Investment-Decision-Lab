@@ -94,8 +94,10 @@ export function AfterMergeCallout({
               {lang === "de" ? (
                 <>
                   Eine GitHub-Action erkennt Admin-Pull Requests an ihrem Branch-Namen
-                  (<code>add-etf/</code>, <code>add-lookthrough-pool/</code>,{" "}
-                  <code>update-app-defaults/</code>, <code>backfill-</code>) und mergt sie automatisch,
+                  (<code>add-etf/</code>, <code>add-alt/</code>, <code>rm-alt/</code>,{" "}
+                  <code>add-lookthrough-pool/</code>, <code>update-app-defaults/</code>,{" "}
+                  <code>backfill-</code>, <code>instr-add/</code>, <code>instr-edit/</code>,{" "}
+                  <code>instr-rm/</code>) und mergt sie automatisch,
                   sobald sie konfliktfrei sind. Der Branch wird danach
                   gelöscht. Wenn du einen Pull Request <em>vor</em> dem Merge selbst
                   prüfen willst, konvertiere ihn auf GitHub in einen{" "}
@@ -104,8 +106,10 @@ export function AfterMergeCallout({
               ) : (
                 <>
                   A GitHub Action recognizes admin Pull Requests by their branch name
-                  (<code>add-etf/</code>, <code>add-lookthrough-pool/</code>,{" "}
-                  <code>update-app-defaults/</code>, <code>backfill-</code>) and squash-merges them as
+                  (<code>add-etf/</code>, <code>add-alt/</code>, <code>rm-alt/</code>,{" "}
+                  <code>add-lookthrough-pool/</code>, <code>update-app-defaults/</code>,{" "}
+                  <code>backfill-</code>, <code>instr-add/</code>, <code>instr-edit/</code>,{" "}
+                  <code>instr-rm/</code>) and squash-merges them as
                   soon as they are conflict-free. The branch is deleted
                   afterwards. If you want to review a Pull Request <em>before</em> it
                   merges, convert it to a <strong>Draft</strong> on GitHub —

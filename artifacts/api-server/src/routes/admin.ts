@@ -94,9 +94,15 @@ router.get("/admin/whoami", (_req, res) => {
 // /pulls page render "0 open" while the operator's PR was actually waiting
 // to be merged (real bug 2026-04-27). The optional `prefix` query param
 // scopes the list to a single admin flow:
-//   ?prefix=add-lookthrough-pool/   — pool flow
-//   ?prefix=add-etf/                — catalog flow
+//   ?prefix=add-etf/                — catalog flow (Add ISIN tab)
+//   ?prefix=add-alt/                — add bucket alternative (per-row + batch)
+//   ?prefix=rm-alt/                 — remove bucket alternative
+//   ?prefix=add-lookthrough-pool/   — look-through pool flow
 //   ?prefix=update-app-defaults/    — app-defaults flow
+//   ?prefix=backfill-               — look-through backfill
+//   ?prefix=instr-add/              — Instruments tab: new instrument
+//   ?prefix=instr-edit/             — Instruments tab: edit instrument
+//   ?prefix=instr-rm/               — Instruments tab: remove instrument
 router.get("/admin/github/prs", async (req, res) => {
   const prefixRaw =
     typeof req.query.prefix === "string" ? req.query.prefix : "";

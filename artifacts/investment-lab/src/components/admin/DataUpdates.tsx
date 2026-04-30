@@ -14,6 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { RefreshCw } from "lucide-react";
 import { Row, fmt } from "./shared";
+import { useAdminContext } from "./AdminContext";
 
 export function DataUpdatesColumn() {
   const { t } = useAdminT();
@@ -227,7 +228,6 @@ function formatRunTimestamp(iso: string, lang: "de" | "en"): {
   return { local, relative, utc };
 }
 
-const GITHUB_REPO = "volkmarritter/Investment-Decision-Lab";
 const RUN_LOG_PATH = "artifacts/investment-lab/src/data/refresh-runs.log.md";
 
 interface GithubCommitState {
@@ -239,12 +239,21 @@ interface GithubCommitState {
 }
 
 function useGithubLastCommit(filePath: string): GithubCommitState {
+  const { githubInfo } = useAdminContext();
+  const repoSlug =
+    githubInfo.owner && githubInfo.repo
+      ? `${githubInfo.owner}/${githubInfo.repo}`
+      : null;
   const [state, setState] = useState<GithubCommitState>({ status: "loading" });
   useEffect(() => {
+    if (!repoSlug) {
+      setState({ status: "error", error: "GitHub repo not configured" });
+      return;
+    }
     const ctrl = new AbortController();
     (async () => {
       try {
-        const url = `https://api.github.com/repos/${GITHUB_REPO}/commits?path=${encodeURIComponent(filePath)}&per_page=1`;
+        const url = `https://api.github.com/repos/${repoSlug}/commits?path=${encodeURIComponent(filePath)}&per_page=1`;
         const r = await fetch(url, {
           signal: ctrl.signal,
           headers: { Accept: "application/vnd.github+json" },
@@ -275,7 +284,7 @@ function useGithubLastCommit(filePath: string): GithubCommitState {
       }
     })();
     return () => ctrl.abort();
-  }, [filePath]);
+  }, [filePath, repoSlug]);
   return state;
 }
 
