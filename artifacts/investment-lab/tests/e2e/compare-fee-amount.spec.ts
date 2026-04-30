@@ -11,7 +11,7 @@ import { dismissWelcomeIfPresent } from "./utils";
 // a phone user.
 
 test.describe("ComparePortfolios · Fee Estimator amount (mobile)", () => {
-  test("type '250000', blur, see '250,000' live-formatted and committed", async ({
+  test("type 250000, blur, see 250'000 live-formatted and committed", async ({
     page,
   }) => {
     await page.goto("/?tab=compare");
@@ -37,10 +37,10 @@ test.describe("ComparePortfolios · Fee Estimator amount (mobile)", () => {
     );
     await expect(amountInput).toBeVisible();
 
-    // Initial value is seeded already-formatted as "100,000" so the
+    // Initial value is seeded already-formatted as "100'000" so the
     // first render and the live-formatted state match — see the
     // comment block above `formatThousandsLive` in FeeEstimator.tsx.
-    await expect(amountInput).toHaveValue("100,000");
+    await expect(amountInput).toHaveValue("100'000");
 
     // Type a fresh amount the way a phone user would: tap, fill, blur.
     // formatThousandsLive runs on every onChange, so the display value
@@ -50,12 +50,15 @@ test.describe("ComparePortfolios · Fee Estimator amount (mobile)", () => {
     await amountInput.fill("250000");
     await page.locator("header").first().tap();
 
-    await expect(amountInput).toHaveValue("250,000");
+    await expect(amountInput).toHaveValue("250'000");
 
     // The cross-portfolio delta sentence reads from the same draft via
     // the lifted `portAFeeAmountDraft`. After the commit it must mention
-    // the new reference figure (grouped per `Intl.NumberFormat("en-US")`
-    // so "250,000" appears verbatim regardless of the base currency).
+    // the new reference figure. The delta uses the currency formatter
+    // (`Intl.NumberFormat("en-US", { style: "currency" })`), which is
+    // explicitly out of scope for the apostrophe switch — only the input
+    // itself flips to apostrophes — so the sentence still reads "250,000"
+    // verbatim regardless of the base currency.
     await expect(page.getByTestId("compare-fees-delta")).toContainText(
       "250,000",
     );

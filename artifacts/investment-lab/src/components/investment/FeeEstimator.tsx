@@ -39,16 +39,16 @@ interface FeeEstimatorProps {
   onAmountDraftChange?: (draft: string) => void;
 }
 
-// Format an integer with US-style thousand separators ("100,000"). We use
-// en-US to match the existing currency display below (`Intl.NumberFormat
-// "en-US"` for $100,000 / CHF 100,000 etc.) so the input and the result
-// cards read the same way.
+// Format an integer with Swiss-style thousand separators ("100'000"). The
+// apostrophe is the de-facto convention for CHF amounts in Switzerland,
+// which is what local users expect when typing into this field.
 //
-// In this scheme `,` is ALWAYS the thousand separator and `.` is ALWAYS the
-// decimal separator — same convention as the en-US currency formatter.
-// We strip apostrophes/spaces/commas as group separators, then re-group
-// the integer part. The decimal portion (and partial mid-typing states
-// like "100,000." or "100,000.5") is preserved as-is.
+// In this scheme `'` is ALWAYS the thousand separator and `.` is ALWAYS the
+// decimal separator. We strip apostrophes/spaces/commas as group separators
+// before re-grouping the integer part, so pasting any of "100,000",
+// "100 000", or "100'000" all normalise to the canonical "100'000". The
+// decimal portion (and partial mid-typing states like "100'000." or
+// "100'000.5") is preserved as-is.
 //
 // Trade-off: a user typing the European decimal "100000,50" would have
 // the comma swallowed by the de-grouping pass and end up with 10000050.
@@ -68,11 +68,14 @@ export function formatThousandsLive(raw: string): string {
   const match = stripped.match(/^([+-]?)(\d*)(\.?)(\d*)$/);
   if (!match) return raw;
   const [, sign, intPart, sep, decPart] = match;
+  // Group with en-US first (well-tested ASCII output) then swap the comma
+  // separators for ASCII apostrophes. Avoids any locale-version ambiguity
+  // around whether `de-CH` emits `'` (U+0027) or `’` (U+2019).
   const intFormatted = intPart === ""
     ? ""
-    : new Intl.NumberFormat("en-US", { useGrouping: true }).format(
-        Number(intPart),
-      );
+    : new Intl.NumberFormat("en-US", { useGrouping: true })
+        .format(Number(intPart))
+        .replace(/,/g, "'");
   return `${sign}${intFormatted}${sep}${decPart}`;
 }
 
@@ -90,7 +93,7 @@ export function FeeEstimator({
   // value used by the engine is derived via parseDecimalInput (accepts dot
   // *and* comma decimals, returns null on garbage). See the audit comment in
   // src/lib/manualWeights.ts for the full list of inputs touched by this fix.
-  // Initial value seeded already-formatted ("100,000") to match the live-
+  // Initial value seeded already-formatted ("100'000") to match the live-
   // formatting applied on every keystroke — otherwise the very first render
   // would show a bare "100000" which then jumps when the user starts typing.
   const [internalDraft, setInternalDraft] = useState<string>(() =>
@@ -112,11 +115,13 @@ export function FeeEstimator({
     }
   };
   const investmentAmount = useMemo(() => {
-    // Strip thousand separators (commas, spaces, Swiss apostrophes) before
-    // parsing — parseDecimalInput's whitelist regex only knows digits +
-    // optional dot/comma decimal separator and would otherwise reject the
-    // grouped value "100,000". Same convention as `formatThousandsLive`:
-    // `,` is a thousand separator, `.` is the decimal separator.
+    // Strip thousand separators (Swiss apostrophes, spaces, legacy commas)
+    // before parsing — parseDecimalInput's whitelist regex only knows
+    // digits + optional dot/comma decimal separator and would otherwise
+    // reject the grouped value "100'000". Same convention as
+    // `formatThousandsLive`: `'` is a thousand separator, `.` is the
+    // decimal separator. Commas are still stripped so legacy pasted
+    // values ("100,000") keep working.
     const cleaned = amountDraft.replace(/[\s',’]/g, "");
     return parseDecimalInput(cleaned, { min: 0 }) ?? 0;
   }, [amountDraft]);

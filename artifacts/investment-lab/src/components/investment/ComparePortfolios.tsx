@@ -286,7 +286,7 @@ export function ComparePortfolios() {
   //     cheaper — about CHF Y / year on CHF Z" delta sentence so the
   //     reference figure matches what's typed in Portfolio A's input.
   // Seeded already-formatted to match what FeeEstimator displays on first
-  // render (avoids a 100000 → 100,000 jump on the very first keystroke).
+  // render (avoids a 100000 → 100'000 jump on the very first keystroke).
   const [portAFeeAmountDraft, setPortAFeeAmountDraft] = useState<string>(() =>
     formatThousandsLive("100000"),
   );
@@ -295,9 +295,9 @@ export function ComparePortfolios() {
   // Compare. Both Slot A and Slot B share a single dialog instance — only
   // one row can be inspected at a time.
   const [detailsEtf, setDetailsEtf] = useState<ETFImplementation | null>(null);
-  // Numeric value for the delta calc. Strip thousand separators (commas,
-  // spaces, Swiss apostrophes) before parseDecimalInput, same convention as
-  // FeeEstimator's own derivation.
+  // Numeric value for the delta calc. Strip thousand separators (Swiss
+  // apostrophes, spaces, legacy commas) before parseDecimalInput, same
+  // convention as FeeEstimator's own derivation.
   const portAFeeAmount = (() => {
     const cleaned = portAFeeAmountDraft.replace(/[\s',\u2019]/g, "");
     return parseDecimalInput(cleaned, { min: 0 }) ?? 0;
