@@ -331,6 +331,13 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "explain.saved.row.load": "Load this portfolio",
     "explain.saved.row.rename": "Rename",
     "explain.saved.row.positions": "{n} position(s)",
+    "explain.saved.file.btn.save": "Save to file",
+    "explain.saved.file.btn.load": "Load from file",
+    "explain.saved.file.row.download": "Download to file",
+    "explain.saved.file.toast.exported": "Personal portfolio saved to file",
+    "explain.saved.file.toast.imported": "Personal portfolio loaded from file",
+    "explain.saved.file.toast.error.invalid": "This file is not a valid Investment Decision Lab personal portfolio",
+    "explain.saved.file.toast.error.read": "Could not read file",
 
     // ComparePortfolios
     "compare.portA": "Portfolio A",
@@ -931,6 +938,13 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "explain.saved.row.load": "Dieses Portfolio laden",
     "explain.saved.row.rename": "Umbenennen",
     "explain.saved.row.positions": "{n} Position(en)",
+    "explain.saved.file.btn.save": "In Datei speichern",
+    "explain.saved.file.btn.load": "Aus Datei laden",
+    "explain.saved.file.row.download": "Als Datei herunterladen",
+    "explain.saved.file.toast.exported": "Persönliches Portfolio in Datei gespeichert",
+    "explain.saved.file.toast.imported": "Persönliches Portfolio aus Datei geladen",
+    "explain.saved.file.toast.error.invalid": "Diese Datei ist kein gültiges persönliches Investment-Decision-Lab-Portfolio",
+    "explain.saved.file.toast.error.read": "Datei konnte nicht gelesen werden",
 
     // ComparePortfolios
     "compare.portA": "Portfolio A",

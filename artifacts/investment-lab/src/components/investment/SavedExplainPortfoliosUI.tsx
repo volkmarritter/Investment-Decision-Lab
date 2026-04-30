@@ -1,6 +1,14 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { format } from "date-fns";
-import { Save, Bookmark, Trash2, Play, Pencil } from "lucide-react";
+import {
+  Save,
+  Bookmark,
+  Trash2,
+  Play,
+  Pencil,
+  Download,
+  Upload,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,10 +36,17 @@ import {
   ExplainWorkspace,
   SavedExplainPortfolio,
   deleteSavedExplainPortfolio,
+  listSavedExplainPortfolios,
   renameSavedExplainPortfolio,
   saveExplainPortfolio,
   useSavedExplainPortfolios,
 } from "@/lib/savedExplainPortfolios";
+import {
+  buildPersonalPortfolioForExport,
+  downloadPersonalPortfolioAsFile,
+  parsePersonalPortfolioFile,
+  readPersonalPortfolioFileAsText,
+} from "@/lib/personalPortfolioFile";
 import { useT } from "@/lib/i18n";
 
 export interface SavedExplainPortfoliosUIProps {
@@ -41,6 +56,22 @@ export interface SavedExplainPortfoliosUIProps {
   getCurrentWorkspace: () => ExplainWorkspace;
   /** Called when the user picks a saved portfolio to restore. */
   onLoadPortfolio: (portfolio: SavedExplainPortfolio) => void;
+}
+
+// Append "(imported)" / "(imported) N" to a name if it would collide
+// with an existing saved portfolio so re-importing the same file twice
+// doesn't silently overwrite. Mirrors Build's `uniqueImportedName`.
+function uniqueImportedName(
+  name: string,
+  existing: SavedExplainPortfolio[],
+): string {
+  const taken = new Set(existing.map((s) => s.name));
+  if (!taken.has(name)) return name;
+  const tagged = `${name} (imported)`;
+  if (!taken.has(tagged)) return tagged;
+  let n = 2;
+  while (taken.has(`${tagged} ${n}`)) n++;
+  return `${tagged} ${n}`;
 }
 
 export function SavedExplainPortfoliosUI({
@@ -53,6 +84,7 @@ export function SavedExplainPortfoliosUI({
   const [isSaveOpen, setIsSaveOpen] = useState(false);
   const [saveName, setSaveName] = useState("");
   const [isListOpen, setIsListOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   const openSaveDialog = () => {
     setSaveName(`${t("explain.saved.save.placeholder")} ${portfolios.length + 1}`);
@@ -66,6 +98,59 @@ export function SavedExplainPortfoliosUI({
     toast.success(t("explain.saved.toast.saved"));
     setIsSaveOpen(false);
     setSaveName("");
+  };
+
+  // Build a SavedExplainPortfolio from the current workspace and trigger a
+  // browser download. The default name carries today's date so consecutive
+  // exports don't collide on disk.
+  const handleSaveToFile = () => {
+    const defaultName = `${t("explain.saved.save.placeholder")} ${new Date()
+      .toISOString()
+      .slice(0, 10)}`;
+    const portfolio = buildPersonalPortfolioForExport(
+      defaultName,
+      getCurrentWorkspace(),
+    );
+    try {
+      downloadPersonalPortfolioAsFile(portfolio);
+      toast.success(t("explain.saved.file.toast.exported"));
+    } catch (e) {
+      console.error(e);
+      toast.error(t("explain.saved.file.toast.error.read"));
+    }
+  };
+
+  // The user picked a file in the native picker. Parse, validate, persist
+  // to localStorage, and load the workspace into the live Explain tab.
+  const handleFileChosen = async (file: File) => {
+    let raw: string;
+    try {
+      raw = await readPersonalPortfolioFileAsText(file);
+    } catch {
+      toast.error(t("explain.saved.file.toast.error.read"));
+      return;
+    }
+    const result = parsePersonalPortfolioFile(raw);
+    if (!result.ok) {
+      toast.error(t("explain.saved.file.toast.error.invalid"));
+      return;
+    }
+    const finalName = uniqueImportedName(
+      result.portfolio.name,
+      listSavedExplainPortfolios(),
+    );
+    const saved = saveExplainPortfolio(finalName, result.portfolio.workspace);
+    onLoadPortfolio(saved);
+    toast.success(t("explain.saved.file.toast.imported"));
+  };
+
+  const onFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    // Reset so the same file can be re-chosen later (browsers suppress the
+    // change event for an identical re-selection otherwise).
+    e.target.value = "";
+    if (!file) return;
+    void handleFileChosen(file);
   };
 
   return (
@@ -85,6 +170,41 @@ export function SavedExplainPortfoliosUI({
         <Save className="h-3 w-3 mr-1.5" />
         {t("explain.saved.btn.save")}
       </Button>
+
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        disabled={!canSave}
+        onClick={handleSaveToFile}
+        className="h-8 text-xs"
+        title={t("explain.saved.file.btn.save")}
+        data-testid="explain-saved-save-file"
+      >
+        <Download className="h-3 w-3 mr-1.5" />
+        {t("explain.saved.file.btn.save")}
+      </Button>
+
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        onClick={() => fileInputRef.current?.click()}
+        className="h-8 text-xs"
+        title={t("explain.saved.file.btn.load")}
+        data-testid="explain-saved-load-file"
+      >
+        <Upload className="h-3 w-3 mr-1.5" />
+        {t("explain.saved.file.btn.load")}
+      </Button>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="application/json,.json"
+        className="hidden"
+        onChange={onFileInputChange}
+        data-testid="explain-saved-file-input"
+      />
 
       <Button
         type="button"
@@ -194,6 +314,16 @@ function PortfolioItem({
     setIsEditing(false);
   };
 
+  const handleDownload = () => {
+    try {
+      downloadPersonalPortfolioAsFile(portfolio);
+      toast.success(t("explain.saved.file.toast.exported"));
+    } catch (e) {
+      console.error(e);
+      toast.error(t("explain.saved.file.toast.error.read"));
+    }
+  };
+
   const positionCount = portfolio.workspace.positions.length;
 
   return (
@@ -252,6 +382,15 @@ function PortfolioItem({
           data-testid={`explain-saved-load-${portfolio.id}`}
         >
           <Play className="h-4 w-4 text-primary" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          onClick={handleDownload}
+          title={t("explain.saved.file.row.download")}
+          data-testid={`explain-saved-download-${portfolio.id}`}
+        >
+          <Download className="h-4 w-4" />
         </Button>
         <AlertDialog open={isDeleteOpen} onOpenChange={setIsDeleteOpen}>
           <AlertDialogTrigger asChild>
