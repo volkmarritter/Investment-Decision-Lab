@@ -857,6 +857,18 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 312,
     inceptionDate: "2021-01-25",
   }),
+  "IE00BLCHJB90": I({
+    name: "Global X Robotics & Artificial Intelligence UCITS ETF USD Accumulating",
+    isin: "IE00BLCHJB90",
+    terBps: 50,
+    domicile: "Ireland",
+    replication: "Physical",
+    distribution: "Accumulating",
+    currency: "USD",
+    comment: "",
+    listings: { "LSE": { ticker: "BOTZ" }, "XETRA": { ticker: "XB0T" }, "SIX": { ticker: "BOTZ" } },
+    defaultExchange: "LSE",
+  }),
 };
 
 const BUCKETS: Record<string, BucketAssignment> = {
