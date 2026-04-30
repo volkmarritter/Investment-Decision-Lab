@@ -19,6 +19,7 @@ import {
   readFileAsText,
   type ImportError,
 } from "@/lib/portfolioFile";
+import { mergeETFOverrides } from "@/lib/etfOverrides";
 
 export interface CompareSlots {
   getInputA: () => PortfolioInput;
@@ -84,8 +85,13 @@ export function SavedScenariosUI({
   const [isListOpen, setIsListOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   // When in Compare context, an imported scenario needs to be routed into A
-  // or B. We hold it in state and ask the user which slot to load it into.
-  const [pendingImport, setPendingImport] = useState<SavedScenario | null>(null);
+  // or B. We hold it in state along with the pre-formatted import toast
+  // (which may include the ETF override count) so the toast wording is
+  // computed once at parse time rather than reconstructed at click time.
+  const [pendingImport, setPendingImport] = useState<{
+    scenario: SavedScenario;
+    importedToast: string;
+  } | null>(null);
 
   const openSaveDialog = (mode: "single" | "A" | "B") => {
     const suffix = mode === "A" ? " A" : mode === "B" ? " B" : "";
@@ -154,7 +160,12 @@ export function SavedScenariosUI({
   };
 
   // The user picked a file in the native picker. Parse, validate, persist
-  // to localStorage, and route into the appropriate slot.
+  // to localStorage, and route into the appropriate slot. ETF overrides
+  // carried by the file are merged into the user's existing localStorage
+  // overrides at the same time as the scenario is persisted — they are
+  // global state and applying them before the A/B picker matches the
+  // existing pattern (the saved scenario is also persisted before the
+  // picker fires).
   const handleFileChosen = async (file: File) => {
     let raw: string;
     try {
@@ -176,15 +187,27 @@ export function SavedScenariosUI({
       result.scenario.manualWeights,
       result.scenario.etfSelections,
     );
+    // Apply any ETF overrides the file carried. Merges into existing
+    // overrides (file wins on key collisions); count is used to decide
+    // whether the import toast mentions overrides at all.
+    const overrideCount = mergeETFOverrides(result.etfOverrides);
+
+    const importedToast =
+      overrideCount > 0
+        ? t("saved.file.toast.imported.with.overrides").replace(
+            "{n}",
+            String(overrideCount),
+          )
+        : t("saved.file.toast.imported");
 
     if (compareSlots) {
       // In Compare context, ask the user which slot to load into.
-      setPendingImport(saved);
+      setPendingImport({ scenario: saved, importedToast });
     } else if (onLoadScenario) {
       onLoadScenario(saved);
-      toast.success(t("saved.file.toast.imported"));
+      toast.success(importedToast);
     } else {
-      toast.success(t("saved.file.toast.imported"));
+      toast.success(importedToast);
     }
   };
 
@@ -378,7 +401,7 @@ export function SavedScenariosUI({
             </DialogHeader>
             <div className="py-2">
               {pendingImport && (
-                <div className="text-sm font-medium truncate">{pendingImport.name}</div>
+                <div className="text-sm font-medium truncate">{pendingImport.scenario.name}</div>
               )}
             </div>
             <DialogFooter className="flex-col sm:flex-row gap-2">
@@ -388,8 +411,8 @@ export function SavedScenariosUI({
               <Button
                 onClick={() => {
                   if (pendingImport) {
-                    compareSlots.onLoadA(pendingImport);
-                    toast.success(t("saved.file.toast.imported"));
+                    compareSlots.onLoadA(pendingImport.scenario);
+                    toast.success(pendingImport.importedToast);
                   }
                   setPendingImport(null);
                 }}
@@ -399,8 +422,8 @@ export function SavedScenariosUI({
               <Button
                 onClick={() => {
                   if (pendingImport) {
-                    compareSlots.onLoadB(pendingImport);
-                    toast.success(t("saved.file.toast.imported"));
+                    compareSlots.onLoadB(pendingImport.scenario);
+                    toast.success(pendingImport.importedToast);
                   }
                   setPendingImport(null);
                 }}

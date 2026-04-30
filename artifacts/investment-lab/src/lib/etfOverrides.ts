@@ -31,6 +31,10 @@ const VALID_DISTRIBUTION: ETFRecord["distribution"][] = [
 // Defensive parse: anything that doesn't look like a full ETFRecord is
 // dropped silently rather than crashing the engine. The override layer
 // must NEVER throw — it's read on every recommendation render.
+//
+// Also exported as `sanitizeETFRecord` so the file-import path
+// (`portfolioFile.ts`) can reuse the same validation rules without
+// duplicating the field-by-field guards.
 function sanitize(raw: unknown): ETFRecord | null {
   if (!raw || typeof raw !== "object") return null;
   const r = raw as Record<string, unknown>;
@@ -169,6 +173,40 @@ export function clearETFOverride(key: string): void {
 
 export function clearAllETFOverrides(): void {
   writeAll({});
+}
+
+/**
+ * Re-export of the internal sanitiser so the file-import path
+ * (`portfolioFile.ts`) can validate untrusted ETFRecord payloads using
+ * exactly the same rules the localStorage layer uses.
+ */
+export const sanitizeETFRecord = sanitize;
+
+/**
+ * Merge the given override map into the user's existing localStorage
+ * overrides. Each entry is sanitised individually; invalid entries are
+ * dropped silently. Existing keys are overwritten by incoming values
+ * (file import wins). The change event fires once at the end so
+ * subscribers don't get N re-renders for an N-entry import.
+ *
+ * Returns the number of entries that were actually applied (after
+ * sanitisation), so the caller can show a meaningful toast count.
+ */
+export function mergeETFOverrides(
+  incoming: Record<string, ETFRecord>,
+): number {
+  if (!incoming || typeof incoming !== "object") return 0;
+  const all = readAll();
+  let applied = 0;
+  for (const [key, value] of Object.entries(incoming)) {
+    if (typeof key !== "string" || key.length === 0) continue;
+    const sane = sanitize(value);
+    if (!sane) continue;
+    all[key] = sane;
+    applied += 1;
+  }
+  if (applied > 0) writeAll(all);
+  return applied;
 }
 
 export function subscribeETFOverrides(

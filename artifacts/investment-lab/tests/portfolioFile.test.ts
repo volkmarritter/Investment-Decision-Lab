@@ -18,6 +18,7 @@ import {
   serializePortfolioFile,
 } from "../src/lib/portfolioFile";
 import type { PortfolioInput } from "../src/lib/types";
+import type { ETFRecord } from "../src/lib/etfs";
 
 const baseInput: PortfolioInput = {
   baseCurrency: "CHF",
@@ -63,6 +64,83 @@ describe("portfolioFile", () => {
     if (!result.ok) return;
     expect(result.scenario.manualWeights).toEqual(manualWeights);
     expect(result.scenario.etfSelections).toEqual(etfSelections);
+  });
+
+  describe("etfOverrides", () => {
+    const validOverride: ETFRecord = {
+      name: "Test World ETF",
+      isin: "IE00TEST0001",
+      terBps: 12,
+      domicile: "Ireland",
+      replication: "Physical",
+      distribution: "Accumulating",
+      currency: "USD",
+      comment: "Test entry for portfolio file round-trip",
+      listings: { LSE: { ticker: "TEST" } },
+      defaultExchange: "LSE",
+    };
+
+    it("omits the etfOverrides field when none are passed", () => {
+      const scenario = buildScenarioForExport("Plain", baseInput);
+      const wrapper = serializePortfolioFile(scenario);
+      expect(wrapper.etfOverrides).toBeUndefined();
+      // Round-trip must still succeed and yield an empty overrides map
+      // (always-present in the success branch).
+      const result = parsePortfolioFile(JSON.stringify(wrapper));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.etfOverrides).toEqual({});
+    });
+
+    it("round-trips a non-empty etfOverrides map at the top level", () => {
+      const scenario = buildScenarioForExport("WithOverride", baseInput);
+      const wrapper = serializePortfolioFile(scenario, {
+        "Equity-Global": validOverride,
+      });
+      expect(wrapper.etfOverrides).toBeDefined();
+      expect(wrapper.etfOverrides!["Equity-Global"]).toEqual(validOverride);
+
+      const result = parsePortfolioFile(JSON.stringify(wrapper));
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(Object.keys(result.etfOverrides)).toEqual(["Equity-Global"]);
+      expect(result.etfOverrides["Equity-Global"].isin).toBe("IE00TEST0001");
+    });
+
+    it("drops malformed override entries silently while keeping the rest", () => {
+      // Hand-crafted wrapper: one valid entry, one missing required fields.
+      const result = parsePortfolioFile(
+        JSON.stringify({
+          format: PORTFOLIO_FILE_FORMAT,
+          app: PORTFOLIO_FILE_APP,
+          schemaVersion: PORTFOLIO_FILE_SCHEMA_VERSION,
+          scenario: { name: "x", input: baseInput },
+          etfOverrides: {
+            "Equity-Global": validOverride,
+            "Equity-USA": { name: "broken", isin: "IE00BAD" }, // missing fields
+            "": validOverride, // empty key dropped
+          },
+        }),
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(Object.keys(result.etfOverrides)).toEqual(["Equity-Global"]);
+    });
+
+    it("ignores a non-object etfOverrides field rather than failing the import", () => {
+      const result = parsePortfolioFile(
+        JSON.stringify({
+          format: PORTFOLIO_FILE_FORMAT,
+          app: PORTFOLIO_FILE_APP,
+          schemaVersion: PORTFOLIO_FILE_SCHEMA_VERSION,
+          scenario: { name: "x", input: baseInput },
+          etfOverrides: "not an object",
+        }),
+      );
+      expect(result.ok).toBe(true);
+      if (!result.ok) return;
+      expect(result.etfOverrides).toEqual({});
+    });
   });
 
   it("rejects malformed JSON", () => {

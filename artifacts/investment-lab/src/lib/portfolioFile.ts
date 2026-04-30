@@ -14,13 +14,30 @@
 //     "schemaVersion": 1,
 //     "app": "Investment Decision Lab",
 //     "exportedAt": "2026-04-30T10:00:00.000Z",
-//     "scenario": <SavedScenario>          // same shape as localStorage entries
+//     "scenario": <SavedScenario>,         // same shape as localStorage entries
+//     "etfOverrides": {                     // OPTIONAL — added in May 2026
+//       "<bucketKey>": <ETFRecord>,         // user's per-bucket catalog overrides
+//       ...
+//     }
 //   }
+//
+// `etfOverrides` lives at the top level (sibling of `scenario`) rather than
+// inside `SavedScenario` because:
+//   - they are global, per-browser state — one set applies to every saved
+//     scenario the user generates, not to one particular run.
+//   - the in-browser "saved scenarios" list (localStorage) intentionally
+//     does NOT carry overrides; only file export does, so a teammate
+//     receiving the JSON gets the same custom ETFs as the sender.
+//   - the field is optional and additive — older files without it remain
+//     valid against this same `schemaVersion: 1`, and older parsers
+//     ignore the unknown top-level key.
 //
 // Validation here intentionally re-uses `runValidation` from lib/validation.ts
 // — the engine already runs the same checks on Generate, so an imported file
 // that the engine would reject is rejected up-front instead of producing
-// a half-loaded UI state.
+// a half-loaded UI state. Override entries are sanitised one-by-one via the
+// shared `sanitizeETFRecord` from etfOverrides.ts; invalid entries are
+// dropped silently rather than failing the whole import.
 // ----------------------------------------------------------------------------
 
 import type { PortfolioInput, BaseCurrency, RiskAppetite, PreferredExchange, ThematicPreference } from "./types";
@@ -28,7 +45,8 @@ import type { SavedScenario } from "./savedScenarios";
 import type { ManualWeights } from "./manualWeights";
 import type { ETFSlot } from "./etfSelection";
 import { runValidation } from "./validation";
-import { MAX_ALTERNATIVES_PER_BUCKET } from "./etfs";
+import { MAX_ALTERNATIVES_PER_BUCKET, type ETFRecord } from "./etfs";
+import { getETFOverrides, sanitizeETFRecord } from "./etfOverrides";
 
 export const PORTFOLIO_FILE_FORMAT = "investment-decision-lab.portfolio";
 export const PORTFOLIO_FILE_SCHEMA_VERSION = 1;
@@ -40,6 +58,12 @@ export interface PortfolioFileV1 {
   app: string;
   exportedAt: string;
   scenario: SavedScenario;
+  /**
+   * Optional snapshot of the user's per-bucket ETF catalog overrides at
+   * export time (see `etfOverrides.ts`). Omitted entirely when the user
+   * has no overrides set, so older files round-trip unchanged.
+   */
+  etfOverrides?: Record<string, ETFRecord>;
 }
 
 export type ImportErrorReason =
@@ -56,7 +80,18 @@ export interface ImportError {
 }
 
 export type ImportResult =
-  | { ok: true; scenario: SavedScenario }
+  | {
+      ok: true;
+      scenario: SavedScenario;
+      /**
+       * Sanitised override entries the file carried (post-validation).
+       * Always present in the success branch — empty object if the file
+       * had no `etfOverrides` field or all entries were rejected by the
+       * sanitiser. Caller is expected to pass this to `mergeETFOverrides`
+       * to apply them.
+       */
+      etfOverrides: Record<string, ETFRecord>;
+    }
   | { ok: false; error: ImportError };
 
 const VALID_BASE_CURRENCIES: ReadonlyArray<BaseCurrency> = ["USD", "EUR", "CHF", "GBP"];
@@ -134,8 +169,16 @@ export function buildPortfolioFilename(scenarioName?: string): string {
 /**
  * Serialise a `SavedScenario` into the wrapper format. Used by all three
  * call-sites (Build current state, Compare slot state, existing saved row).
+ *
+ * If `etfOverrides` is provided and non-empty, it is attached to the
+ * top level of the wrapper. Callers (typically `downloadScenarioAsFile`)
+ * pass `getETFOverrides()` so a teammate receiving the file ends up with
+ * the same custom ETFs the sender saw.
  */
-export function serializePortfolioFile(scenario: SavedScenario): PortfolioFileV1 {
+export function serializePortfolioFile(
+  scenario: SavedScenario,
+  etfOverrides?: Record<string, ETFRecord>,
+): PortfolioFileV1 {
   const wrapper: PortfolioFileV1 = {
     format: PORTFOLIO_FILE_FORMAT,
     schemaVersion: PORTFOLIO_FILE_SCHEMA_VERSION,
@@ -153,6 +196,11 @@ export function serializePortfolioFile(scenario: SavedScenario): PortfolioFileV1
   }
   if (scenario.etfSelections && Object.keys(scenario.etfSelections).length > 0) {
     wrapper.scenario.etfSelections = { ...scenario.etfSelections };
+  }
+  if (etfOverrides && Object.keys(etfOverrides).length > 0) {
+    // Shallow copy so a later mutation to the source map can't reach
+    // through into the serialised payload before JSON.stringify runs.
+    wrapper.etfOverrides = { ...etfOverrides };
   }
   return wrapper;
 }
@@ -180,11 +228,23 @@ export function buildScenarioForExport(
 }
 
 /**
- * Trigger a browser download of the given scenario as a JSON file. Returns
- * the filename used so the caller can reference it in a toast if needed.
+ * Trigger a browser download of the given scenario as a JSON file. The
+ * user's current ETF overrides (read from localStorage) are attached
+ * automatically so a teammate opening the file sees the same custom
+ * catalog. An optional explicit `etfOverrides` argument is supported
+ * primarily for tests that don't want to depend on `window.localStorage`.
+ *
+ * Returns the filename used so the caller can reference it in a toast.
  */
-export function downloadScenarioAsFile(scenario: SavedScenario): string {
-  const wrapper = serializePortfolioFile(scenario);
+export function downloadScenarioAsFile(
+  scenario: SavedScenario,
+  etfOverrides?: Record<string, ETFRecord>,
+): string {
+  // `getETFOverrides()` already SSR-guards: it returns {} when window
+  // is undefined, so callers in non-DOM contexts (tests, codegen) just
+  // get an empty map without blowing up.
+  const overrides = etfOverrides ?? getETFOverrides();
+  const wrapper = serializePortfolioFile(scenario, overrides);
   const filename = buildPortfolioFilename(scenario.name);
   const blob = new Blob([JSON.stringify(wrapper, null, 2)], {
     type: "application/json",
@@ -288,7 +348,25 @@ export function parsePortfolioFile(raw: string): ImportResult {
   if (s.etfSelections && Object.keys(s.etfSelections as object).length > 0) {
     scenario.etfSelections = { ...(s.etfSelections as Record<string, ETFSlot>) };
   }
-  return { ok: true, scenario };
+
+  // ETF overrides: optional top-level field. Sanitise per-key with the
+  // shared `sanitizeETFRecord` so a malformed entry can't poison the
+  // import — invalid entries are dropped silently and don't fail the
+  // whole load (consistent with how `etfOverrides.ts` handles its own
+  // localStorage reads). The result map is always present in the success
+  // branch so callers don't need an extra "is this a new-format file?"
+  // check before iterating.
+  const etfOverrides: Record<string, ETFRecord> = {};
+  const rawOverrides = o.etfOverrides;
+  if (rawOverrides && typeof rawOverrides === "object" && !Array.isArray(rawOverrides)) {
+    for (const [key, value] of Object.entries(rawOverrides as Record<string, unknown>)) {
+      if (typeof key !== "string" || key.length === 0) continue;
+      const sane = sanitizeETFRecord(value);
+      if (sane) etfOverrides[key] = sane;
+    }
+  }
+
+  return { ok: true, scenario, etfOverrides };
 }
 
 /** Read a `File` object via the FileReader API. */
