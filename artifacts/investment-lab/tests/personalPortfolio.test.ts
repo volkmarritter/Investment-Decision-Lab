@@ -377,6 +377,51 @@ describe("Manual-entry positions (manualMeta override)", () => {
     expect(v.isValid).toBe(true);
   });
 
+  it("normalises region to 'Global' for region-less manual asset classes (Commodities, Cash, Digital Assets)", () => {
+    // Legacy saved files / pre-UI-change manualMeta blobs may carry a
+    // non-"Global" region value for asset classes where geography
+    // carries no signal. The sleeve resolver must collapse those to
+    // "Global" so sleeve grouping and exports stay consistent —
+    // matching the UI which now hides the Region selector entirely
+    // for these asset classes.
+    const positions: PersonalPosition[] = [
+      { isin: "IE000000GOLD", bucketKey: "", weight: 40,
+        manualMeta: { assetClass: "Commodities", region: "Europe" } },
+      { isin: "IE000000CASH", bucketKey: "", weight: 30,
+        manualMeta: { assetClass: "Cash", region: "USA" } },
+      { isin: "IE0000CRYPTO", bucketKey: "", weight: 30,
+        manualMeta: { assetClass: "Digital Assets", region: "Japan" } },
+    ];
+    const out = synthesizePersonalPortfolio(positions, "USD");
+    const regionsByClass = new Map(
+      out.allocation.map((r) => [r.assetClass, r.region]),
+    );
+    expect(regionsByClass.get("Commodities")).toBe("Global");
+    expect(regionsByClass.get("Cash")).toBe("Global");
+    expect(regionsByClass.get("Digital Assets")).toBe("Global");
+    // Implementation-table buckets must follow the normalised label.
+    const goldImpl = out.etfImplementation.find((r) => r.isin === "IE000000GOLD");
+    expect(goldImpl?.bucket).toBe("Commodities - Global");
+  });
+
+  it("preserves region for region-bearing manual asset classes (Equity, Fixed Income, Real Estate)", () => {
+    const positions: PersonalPosition[] = [
+      { isin: "IE0000EQ_USA", bucketKey: "", weight: 40,
+        manualMeta: { assetClass: "Equity", region: "USA" } },
+      { isin: "IE0000FI_EUR", bucketKey: "", weight: 30,
+        manualMeta: { assetClass: "Fixed Income", region: "Europe" } },
+      { isin: "IE0000RE_JPN", bucketKey: "", weight: 30,
+        manualMeta: { assetClass: "Real Estate", region: "Japan" } },
+    ];
+    const out = synthesizePersonalPortfolio(positions, "USD");
+    const regionsByClass = new Map(
+      out.allocation.map((r) => [r.assetClass, r.region]),
+    );
+    expect(regionsByClass.get("Equity")).toBe("USA");
+    expect(regionsByClass.get("Fixed Income")).toBe("Europe");
+    expect(regionsByClass.get("Real Estate")).toBe("Japan");
+  });
+
   it("validator skips hedging-coherence checks for manual rows", () => {
     const positions: PersonalPosition[] = [
       { isin: ISIN_USA_HEDGED_EUR, bucketKey: "Equity-USA-EUR", weight: 50 },

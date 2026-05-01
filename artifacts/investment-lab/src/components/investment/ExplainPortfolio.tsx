@@ -62,6 +62,7 @@ import {
 } from "@/lib/etfs";
 import {
   PersonalPosition,
+  assetClassNeedsRegion,
   normalizeWeights,
   runExplainValidation,
   synthesizePersonalPortfolio,
@@ -394,46 +395,68 @@ function PositionRow({
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>
-      {isManual && position.manualMeta && (
-        <div className="grid grid-cols-2 gap-2 pl-1">
-          <Select
-            value={position.manualMeta.assetClass}
-            onValueChange={(v) => onManualMetaChange("assetClass", v)}
-          >
-            <SelectTrigger
-              className="h-8 text-xs"
-              data-testid={`explain-manual-asset-${rowIndex}`}
+      {isManual && position.manualMeta && (() => {
+        // The Region selector is only meaningful for asset classes
+        // whose geographic exposure carries analytical signal — Equity,
+        // Fixed Income and Real Estate. For Commodities, Cash and
+        // Digital Assets the field is hidden (and the stored region is
+        // auto-snapped to "Global" both here on the assetClass change
+        // and again as a safety net inside resolveSleeve in
+        // personalPortfolio.ts). See NO_REGION_ASSET_CLASSES there for
+        // the rationale.
+        const showRegion = assetClassNeedsRegion(position.manualMeta.assetClass);
+        return (
+          <div className={showRegion ? "grid grid-cols-2 gap-2 pl-1" : "pl-1"}>
+            <Select
+              value={position.manualMeta.assetClass}
+              onValueChange={(v) => {
+                onManualMetaChange("assetClass", v);
+                // Auto-collapse to "Global" when switching to a
+                // region-less asset class so the hidden field doesn't
+                // silently retain a stale value (e.g. switching an
+                // existing "Equity / USA" row to Commodities).
+                if (!assetClassNeedsRegion(v)) {
+                  onManualMetaChange("region", "Global");
+                }
+              }}
             >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {MANUAL_ASSET_CLASSES.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Select
-            value={position.manualMeta.region}
-            onValueChange={(v) => onManualMetaChange("region", v)}
-          >
-            <SelectTrigger
-              className="h-8 text-xs"
-              data-testid={`explain-manual-region-${rowIndex}`}
-            >
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {MANUAL_REGIONS.map((r) => (
-                <SelectItem key={r} value={r}>
-                  {r}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      )}
+              <SelectTrigger
+                className="h-8 text-xs"
+                data-testid={`explain-manual-asset-${rowIndex}`}
+              >
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {MANUAL_ASSET_CLASSES.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {showRegion && (
+              <Select
+                value={position.manualMeta.region}
+                onValueChange={(v) => onManualMetaChange("region", v)}
+              >
+                <SelectTrigger
+                  className="h-8 text-xs"
+                  data-testid={`explain-manual-region-${rowIndex}`}
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {MANUAL_REGIONS.map((r) => (
+                    <SelectItem key={r} value={r}>
+                      {r}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+          </div>
+        );
+      })()}
       {isManual && position.manualMeta && (
         <EtfInfoPreview
           isin={position.isin}

@@ -49,6 +49,30 @@ function assetClassRank(c: string): number {
   return c in ASSET_CLASS_ORDER ? ASSET_CLASS_ORDER[c] : 99;
 }
 
+// Asset classes for which a geographic region carries no analytical
+// signal:
+//   - Commodities are fungible globally (gold is gold regardless of
+//     where it is custodied).
+//   - Cash is dimensioned by currency, not by geography.
+//   - Digital Assets (crypto) are decentralised by construction.
+// For these we normalise the stored region to "Global" inside the
+// sleeve resolver, and the Explain manual-entry UI hides the Region
+// selector altogether (see ExplainPortfolio.tsx). The normalisation
+// here is the safety net: legacy saved portfolio files (and any old
+// manualMeta blobs) flow through this resolver and end up tagged
+// consistently regardless of what region happened to be stored at the
+// time. We only normalise the manual-entry branch — catalog buckets
+// are curated and trusted, so their declared region is preserved as-is.
+export const NO_REGION_ASSET_CLASSES: ReadonlySet<string> = new Set([
+  "Commodities",
+  "Cash",
+  "Digital Assets",
+]);
+
+export function assetClassNeedsRegion(assetClass: string): boolean {
+  return !NO_REGION_ASSET_CLASSES.has(assetClass);
+}
+
 function round1(n: number): number {
   return Math.round(n * 10) / 10;
 }
@@ -60,8 +84,20 @@ function resolveSleeve(
     const meta = getBucketMeta(p.bucketKey);
     if (meta) return { assetClass: meta.assetClass, region: meta.region };
   }
-  if (p.manualMeta && p.manualMeta.assetClass && p.manualMeta.region) {
-    return { assetClass: p.manualMeta.assetClass, region: p.manualMeta.region };
+  if (p.manualMeta && p.manualMeta.assetClass) {
+    const ac = p.manualMeta.assetClass;
+    // For region-less asset classes (Commodities, Cash, Digital Assets)
+    // we collapse the region to "Global" regardless of what the stored
+    // value happens to be — the Explain UI hides the Region selector
+    // for these classes, so any non-"Global" value here would only
+    // come from a legacy saved file and would otherwise leak into
+    // sleeve grouping ("Gold | Europe") and exports nonsensically.
+    if (!assetClassNeedsRegion(ac)) {
+      return { assetClass: ac, region: "Global" };
+    }
+    if (p.manualMeta.region) {
+      return { assetClass: ac, region: p.manualMeta.region };
+    }
   }
   return undefined;
 }
