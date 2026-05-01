@@ -195,12 +195,16 @@ export function buildEtfImplementationWorkbook(
     { t: "s", v: t("build.impl.disclaimer") },
   ];
 
-  // Full 7-section legal disclaimer (same copy the PDF report carries),
+  // Full 8-section legal disclaimer (same copy the PDF report carries),
   // appended after the ETF-table disclaimer with a blank spacer row in
   // between. Pulls verbatim text from the shared `disclaimer.sN.title`
   // / `disclaimer.sN.body` i18n keys so EN / DE exports stay in sync
-  // with the PDF wording byte-for-byte.
-  const SECTION_COUNT = 7;
+  // with the PDF wording byte-for-byte. Numeric order (s1 → s8) is kept
+  // intentionally — the on-screen dialog and the PDF report instead
+  // lead with s8 (non-commercial / BICon showcase framing) for UX
+  // reasons, but the XLSX appendix preserves the natural section
+  // numbering so spreadsheet readers can locate any section by index.
+  const SECTION_COUNT = 8;
   const legalSectionRows: XLSX.CellObject[][] = [];
   for (let i = 1; i <= SECTION_COUNT; i++) {
     legalSectionRows.push([{ t: "s", v: t(`disclaimer.s${i}.title`) }]);

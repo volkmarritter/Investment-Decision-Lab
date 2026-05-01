@@ -603,7 +603,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
 
     // Disclaimer
     "disclaimer.short.title": "Important notice.",
-    "disclaimer.short.body": "This tool is provided for educational and illustrative purposes only and does not constitute investment, legal, or tax advice. All outputs are model results based on user inputs and simplified assumptions, not recommendations to buy, sell, or hold any security.",
+    "disclaimer.short.body": "This tool is a non-commercial experiment and BICon technology showcase, with no commercial intent and no business interest behind it. It is provided for educational and illustrative purposes only and does not constitute investment, legal, or tax advice. All outputs are model results based on user inputs and simplified assumptions, not recommendations to buy, sell, or hold any security.",
     "disclaimer.readFull": "Read full disclaimer",
     "disclaimer.full.title": "Important Disclaimer & Risk Warning",
     "disclaimer.full.subtitle": "Please read this disclaimer carefully before relying on any output of the Investment Decision Lab.",
@@ -620,7 +620,9 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "disclaimer.s6.title": "Third-Party Instruments",
     "disclaimer.s6.body": "Any ETF tickers, issuers, or product names shown are examples only and are not endorsements. We do not guarantee the accuracy, completeness, or current availability of any instrument. Always read the relevant Key Information Document (KID/KIID), prospectus, and factsheet before investing.",
     "disclaimer.s7.title": "Seek Professional Advice",
-    "disclaimer.s7.body": "Before making any investment decision, you should obtain independent financial, tax, and legal advice from a duly licensed professional who can take your personal circumstances into account. By using this tool you acknowledge and accept the limitations described above and agree that the operators and authors disclaim, to the fullest extent permitted by law, any liability for losses arising from reliance on its output."
+    "disclaimer.s7.body": "Before making any investment decision, you should obtain independent financial, tax, and legal advice from a duly licensed professional who can take your personal circumstances into account. By using this tool you acknowledge and accept the limitations described above and agree that the operators and authors disclaim, to the fullest extent permitted by law, any liability for losses arising from reliance on its output.",
+    "disclaimer.s8.title": "Non-Commercial Experiment & BICon Showcase",
+    "disclaimer.s8.body": "The Investment Decision Lab is a non-commercial experiment and a public technology showcase of BICon. It is not a product, not a service offering, and is not operated for profit. There is no commercial interest, no client acquisition intent, no revenue model, and no marketing or sales funnel attached to its use. Visitors are not customers, no lead-generation occurs, and no contractual relationship of any kind is created. Its sole purpose is to demonstrate engineering and analytical capabilities and to invite professional dialogue."
   },
   de: {
     "header.title": "Investment Decision Lab",
@@ -1220,7 +1222,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
 
     // Disclaimer
     "disclaimer.short.title": "Wichtiger Hinweis.",
-    "disclaimer.short.body": "Dieses Tool dient ausschließlich zu Bildungs- und Illustrationszwecken und stellt keine Anlage-, Rechts- oder Steuerberatung dar. Alle Ergebnisse sind Modellresultate auf Basis von Nutzereingaben und vereinfachten Annahmen und stellen keine Empfehlung zum Kauf, Verkauf oder Halten eines Finanzinstruments dar.",
+    "disclaimer.short.body": "Dieses Tool ist ein nicht-kommerzielles Experiment und ein Technologie-Showcase von BICon, ohne kommerzielle Absicht und ohne dahinterliegendes Geschäftsinteresse. Es dient ausschließlich zu Bildungs- und Illustrationszwecken und stellt keine Anlage-, Rechts- oder Steuerberatung dar. Alle Ergebnisse sind Modellresultate auf Basis von Nutzereingaben und vereinfachten Annahmen und stellen keine Empfehlung zum Kauf, Verkauf oder Halten eines Finanzinstruments dar.",
     "disclaimer.readFull": "Vollständigen Hinweis lesen",
     "disclaimer.full.title": "Wichtiger Haftungs- und Risikohinweis",
     "disclaimer.full.subtitle": "Bitte lesen Sie diesen Hinweis sorgfältig, bevor Sie sich auf Ergebnisse des Investment Decision Lab verlassen.",
@@ -1237,7 +1239,9 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "disclaimer.s6.title": "Drittanbieter-Instrumente",
     "disclaimer.s6.body": "Genannte ETF-Ticker, Emittenten oder Produktnamen sind reine Beispiele und keine Empfehlungen. Wir übernehmen keine Gewähr für die Richtigkeit, Vollständigkeit oder aktuelle Verfügbarkeit eines Instruments. Lesen Sie vor einer Anlage stets das jeweilige Basisinformationsblatt (KID/KIID), den Prospekt und das Factsheet.",
     "disclaimer.s7.title": "Holen Sie professionellen Rat ein",
-    "disclaimer.s7.body": "Vor jeder Anlageentscheidung sollten Sie unabhängige Finanz-, Steuer- und Rechtsberatung von einer ordnungsgemäß zugelassenen Fachperson einholen, die Ihre persönlichen Umstände berücksichtigt. Durch die Nutzung dieses Tools erkennen Sie die oben genannten Einschränkungen an und akzeptieren, dass die Betreiber und Autoren – soweit gesetzlich zulässig – jegliche Haftung für Verluste aus der Verwendung der Ergebnisse ausschließen."
+    "disclaimer.s7.body": "Vor jeder Anlageentscheidung sollten Sie unabhängige Finanz-, Steuer- und Rechtsberatung von einer ordnungsgemäß zugelassenen Fachperson einholen, die Ihre persönlichen Umstände berücksichtigt. Durch die Nutzung dieses Tools erkennen Sie die oben genannten Einschränkungen an und akzeptieren, dass die Betreiber und Autoren – soweit gesetzlich zulässig – jegliche Haftung für Verluste aus der Verwendung der Ergebnisse ausschließen.",
+    "disclaimer.s8.title": "Nicht-kommerzielles Experiment & BICon-Showcase",
+    "disclaimer.s8.body": "Das Investment Decision Lab ist ein nicht-kommerzielles Experiment und ein öffentlicher Technologie-Showcase von BICon. Es ist weder ein Produkt noch ein Dienstleistungsangebot und wird nicht mit Gewinnerzielungsabsicht betrieben. Es bestehen kein kommerzielles Interesse, keine Kundenakquise-Absicht, kein Erlösmodell und keinerlei Marketing- oder Vertriebs-Funnel im Zusammenhang mit der Nutzung. Besucherinnen und Besucher sind keine Kundinnen und Kunden, es findet keine Lead-Generierung statt und es entsteht keinerlei Vertragsverhältnis. Der alleinige Zweck besteht darin, Engineering- und Analyse-Kompetenzen zu demonstrieren und zu fachlichem Austausch einzuladen."
   }
 };
 

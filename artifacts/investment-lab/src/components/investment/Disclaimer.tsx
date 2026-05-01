@@ -110,7 +110,11 @@ export function DisclaimerFooter() {
 
 export function DisclaimerBody() {
   const { t } = useT();
+  // Section order is meaningful: s8 (non-commercial / BICon-showcase
+  // notice) is rendered first so visitors see the framing before the
+  // legal-style sections that follow.
   const sections: { title: string; body: string }[] = [
+    { title: t("disclaimer.s8.title"), body: t("disclaimer.s8.body") },
     { title: t("disclaimer.s1.title"), body: t("disclaimer.s1.body") },
     { title: t("disclaimer.s2.title"), body: t("disclaimer.s2.body") },
     { title: t("disclaimer.s3.title"), body: t("disclaimer.s3.body") },
@@ -140,7 +144,7 @@ export function DisclaimerPdfBlock() {
         {t("disclaimer.full.title")}
       </h3>
       <p className="italic">{t("disclaimer.full.subtitle")}</p>
-      {[1, 2, 3, 4, 5, 6, 7].map((i) => (
+      {[8, 1, 2, 3, 4, 5, 6, 7].map((i) => (
         <div key={i}>
           <span className="font-semibold text-foreground">
             {t(`disclaimer.s${i}.title`)}.
