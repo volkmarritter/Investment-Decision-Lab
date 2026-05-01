@@ -44,6 +44,7 @@ const SECTION_VERSIONS: Record<string, { version: string; month: string }> = {
   wht: { version: "v1.5", month: "Apr 2026" },
   "tail-realism": { version: "v1.6", month: "Apr 2026" },
   mc: { version: "v1.7", month: "Apr 2026" },
+  "manual-isin": { version: "v1.8", month: "May 2026" },
 };
 const sectionVersionShort = (id: string): string | undefined =>
   SECTION_VERSIONS[id]?.version;
@@ -72,6 +73,7 @@ export const VALID_SECTION_IDS = new Set<string>([
   // How results are calculated
   "corr",
   "lookthrough",
+  "manual-isin",
   "hedging",
   "wht",
   "mc",
@@ -364,6 +366,7 @@ export function Methodology() {
       items: [
         { value: "corr", label: de ? "Korrelationsmatrix" : "Correlation Matrix" },
         { value: "lookthrough", label: de ? "Look-Through-Routing" : "Look-Through Routing" },
+        { value: "manual-isin", label: de ? "Manuelle ETF-Eingabe" : "Manual ETF Entry", version: sectionVersionShort("manual-isin") },
         { value: "hedging", label: de ? "Währungs-Hedging" : "FX Hedging" },
         { value: "wht", label: de ? "Quellensteuer-Drag" : "Withholding-Tax Drag", version: sectionVersionShort("wht") },
         { value: "mc", label: de ? "Monte-Carlo-Simulation" : "Monte Carlo Simulation" },
@@ -512,6 +515,9 @@ export function Methodology() {
           map["mc"] = de
             ? "Monte-Carlo-Simulation mit Look-Through"
             : "Monte Carlo simulation with look-through";
+          map["manual-isin"] = de
+            ? "Live-Vorschau & Pool-Look-Through für manuell erfasste ISINs"
+            : "Live preview & pool look-through for manually-entered ISINs";
           return map;
         })()}
         de={de}
@@ -1507,6 +1513,68 @@ export function Methodology() {
             </p>
           </div>
         </Section>
+
+        <Section
+          value="manual-isin"
+          icon={<Sparkles className="h-4 w-4" />}
+          title={de ? "Manuelle ETF-Eingabe — Live-Vorschau & Look-Through" : "Manual ETF Entry — Live Preview & Look-Through"}
+          version={sectionVersionLong("manual-isin")}
+        >
+          <p className="text-sm text-muted-foreground">
+            {de
+              ? "Im Tab Erklären lassen sich Positionen ausserhalb des kuratierten Katalogs erfassen, indem ISIN, Asset-Klasse, Region und Gewicht direkt eingegeben werden. Sobald die ISIN dem Format /^[A-Z]{2}[A-Z0-9]{9}\\d$/ entspricht, blendet die App eine kompakte Live-Vorschau direkt unter den Eingabefeldern ein — bevor die Position überhaupt gespeichert wird."
+              : "In the Explain tab, positions outside the curated catalog can be added by typing ISIN, asset class, region and weight directly. The moment the ISIN matches the format /^[A-Z]{2}[A-Z0-9]{9}\\d$/, the app shows a compact live preview right below the input fields — before the position is even committed."}
+          </p>
+
+          <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+            <p className="text-xs font-semibold">{de ? "Datenquellen (Reihenfolge)" : "Data sources (priority order)"}</p>
+            <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+              <li>{de
+                ? "Katalog (synchron, lokal): falls die ISIN bereits in src/lib/etfs.ts kuratiert ist, gelten die kuratierten Felder (Name, Währung, TER, Domizil, Replikation, Ausschüttung, AUM, Auflagedatum) in der Vorschau als Wahrheit."
+                : "Catalog (synchronous, local): if the ISIN is already curated in src/lib/etfs.ts, the curated fields (name, currency, TER, domicile, replication, distribution, AUM, inception) are treated as truth in the preview."}</li>
+              <li>{de
+                ? "Look-Through-Pool (synchron, lokal): profileFor(isin) aus src/lib/lookthrough.ts liest die Index-Geo-/Sektor-/Top-Holdings-Profile aus dem Pool und zeigt deren Stand-Datum (breakdownsAsOf, topHoldingsAsOf) an."
+                : "Look-through pool (synchronous, local): profileFor(isin) in src/lib/lookthrough.ts reads the index geo / sector / top-holdings profile from the pool and surfaces its as-of dates (breakdownsAsOf, topHoldingsAsOf)."}</li>
+              <li>{de
+                ? "justETF-Vorschau (asynchron, debounced 500 ms): GET /api/etf-preview/:isin liefert Master-Daten direkt aus dem öffentlichen justETF-Profil. Antworten werden 10 Minuten lang im Browser-Speicher zwischengespeichert; das Endpoint ist auf 10 Anfragen pro Minute pro IP rate-limitiert."
+                : "justETF preview (async, debounced 500 ms): GET /api/etf-preview/:isin scrapes master data straight from the public justETF profile. Responses are cached in browser memory for 10 minutes; the endpoint is rate-limited to 10 requests per minute per IP."}</li>
+            </ul>
+          </div>
+
+          <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+            <p className="text-xs font-semibold">{de ? "Was die Vorschau zeigt" : "What the preview shows"}</p>
+            <ul className="text-xs text-muted-foreground space-y-1 list-disc list-inside">
+              <li>{de
+                ? "Stammdaten: Name · Fondswährung · TER · AUM · Auflagedatum · Replikation · Ausschüttung · Domizil. Katalog-Werte überschreiben Scrape-Werte; Scrape füllt nur Lücken."
+                : "Master data: name · fund currency · TER · AUM · inception · replication · distribution · domicile. Catalog values override scrape values; scrape only fills gaps."}</li>
+              <li>{de
+                ? "Pool-Look-Through: grünes Banner mit Anzahl Regionen / Sektoren / Top-Holdings + Stand-Datum, falls Pool-Daten zur ISIN existieren — sonst eine bernsteinfarbene Warnung, dass die Position 0 % zu den Look-Through-Karten beitragen würde."
+                : "Pool look-through: green banner with region / sector / top-holding counts + as-of date when pool data exists for the ISIN — otherwise an amber warning that the position would contribute 0 % to the look-through cards."}</li>
+              <li>{de
+                ? "Schaltfläche „Werte übernehmen“: füllt Name, Währung und TER in die Eingabefelder ein — aber nur dort, wo der Nutzer noch nichts eingetragen hat. Bestehende Eingaben werden nie überschrieben (zweifach abgesichert: in der Komponente und im State-Setter)."
+                : "“Use these values” button: copies name, currency and TER into the input fields — but only into fields the user hasn’t set. Existing inputs are never overwritten (double-gated in the component and the state setter)."}</li>
+            </ul>
+          </div>
+
+          <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+            <p className="text-xs font-semibold">{de ? "Konsequenzen für die Berechnung" : "Consequences for the calculation"}</p>
+            <p className="text-xs text-muted-foreground">
+              {de
+                ? "Sobald die manuelle Position im Portfolio steht, läuft sie durch synthesizePersonalPortfolio (src/lib/personalPortfolio.ts). In dieser Synthese sind die Vorschau und die Implementation-Tabelle bewusst entkoppelt: TER und Währung werden aus den manuellen Eingaben übernommen (Quick-Fill in der Vorschau befüllt diese Felder vor dem Speichern), Replikation und Domizil bleiben leer und Distribution wird auf „Accumulating“ gesetzt — diese drei Felder kommen nicht aus einem zweiten Server-Lookup, weil das in der Synthese teuer und redundant wäre. Pool-Daten werden im Synthesizer ausschließlich für die Sichtbarkeit verwendet: ist profileFor(isin) bekannt, wird der Kommentar zu „Manuell erfasst — Pool-Look-Through aus justETF (Stand: YYYY-MM-DD).“ (DE) bzw. „Manually entered — pool look-through from justETF (as of YYYY-MM-DD).“ (EN); andernfalls bleibt der Hinweis „Manuell erfasst — keine Katalog-Look-Through-Daten verfügbar.“ Wichtig: die eigentliche Look-Through-Berechnung (Geo, Sektoren, Top-Holdings, Home-Bias) läuft unabhängig davon weiter über profileFor(isin) in metrics.ts — der Pool-Treffer ist also bereits aktiv, der Kommentar macht ihn nur sichtbar."
+                : "Once the manual position is in the portfolio, it flows through synthesizePersonalPortfolio (src/lib/personalPortfolio.ts). In that synthesis the preview and the implementation table are intentionally decoupled: TER and currency are taken from the manual inputs (the preview’s quick-fill button populates them before saving), replication and domicile are left blank, and distribution is set to “Accumulating” — these three fields are not re-fetched at synthesis time because that would be expensive and redundant. Pool data is used in the synthesizer for visibility only: when profileFor(isin) hits, the comment becomes “Manually entered — pool look-through from justETF (as of YYYY-MM-DD).” (or its German equivalent); otherwise the comment stays at “Manually entered — no catalog look-through data available.” Important: the actual look-through math (geo, sectors, top-holdings, home-bias) runs independently via profileFor(isin) in metrics.ts — the pool hit is already active, the comment just makes it visible."}
+            </p>
+          </div>
+
+          <div className="rounded-md border bg-muted/30 p-3 space-y-2">
+            <p className="text-xs font-semibold">{de ? "Robustheit beim Tippen" : "Robustness while typing"}</p>
+            <p className="text-xs text-muted-foreground">
+              {de
+                ? "Der zugrunde liegende Hook (useEtfInfo) verwendet einen Per-Effect-Epoch-Token plus AbortController, sodass eine späte Antwort von einer vorherigen ISIN niemals in eine Zeile geschrieben wird, deren ISIN inzwischen geändert wurde. Strukturell fehlerhafte Vorschau-Antworten werden über einen lokalisierten Sentinel (ETF_PREVIEW_MALFORMED) in der Sprache des Bedieners gemeldet; sonstige Netzwerk- und HTTP-Fehler (429 Rate-Limit, 504 Timeout, 4xx/5xx) werden mit der ursprünglichen, vom Server gelieferten Meldung inline angezeigt — diese ist kompakt genug, um zu erkennen, ob es sich um ein Rate-Limit, ein Timeout oder ein echtes Datenproblem handelt."
+                : "The underlying hook (useEtfInfo) uses a per-effect epoch token plus AbortController so that a late response from a previous ISIN can never be written onto a row whose ISIN has since changed. Structurally malformed preview responses are reported via a localized sentinel (ETF_PREVIEW_MALFORMED) in the operator’s chosen language; other network and HTTP errors (429 rate-limit, 504 timeout, 4xx/5xx) are surfaced inline using the original server-provided message — short enough to tell rate-limit, timeout and a genuine data problem apart."}
+            </p>
+          </div>
+        </Section>
+
         <Section value="hedging" icon={<Coins className="h-4 w-4" />} title={de ? "Währungs-Hedging — was der Schalter wirklich tut" : "Currency Hedging — what the toggle actually does"}>
           <p className="text-sm text-muted-foreground">
             {de
