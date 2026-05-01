@@ -67,6 +67,7 @@ import {
   synthesizePersonalPortfolio,
 } from "@/lib/personalPortfolio";
 import { parseDecimalInput } from "@/lib/manualWeights";
+import { EtfInfoPreview, type QuickFillValues } from "@/components/explain/EtfInfoPreview";
 import type { RiskRegime } from "@/lib/metrics";
 import { useT } from "@/lib/i18n";
 
@@ -302,6 +303,12 @@ interface PositionRowProps {
   onRemove: () => void;
   onManualIsinChange: (isin: string) => void;
   onManualMetaChange: (field: "assetClass" | "region", value: string) => void;
+  // Atomic multi-field setter used by the EtfInfoPreview's "use these
+  // values" quick-fill button. Kept separate from `onManualMetaChange`
+  // so the existing field-setter contract stays narrow (the preview
+  // never overwrites operator input — see EtfInfoPreview for the gating
+  // logic).
+  onManualMetaQuickFill: (values: QuickFillValues) => void;
   rowIndex: number;
 }
 
@@ -332,6 +339,7 @@ function PositionRow({
   onRemove,
   onManualIsinChange,
   onManualMetaChange,
+  onManualMetaQuickFill,
   rowIndex,
 }: PositionRowProps) {
   const isManual = !!position.manualMeta;
@@ -425,6 +433,16 @@ function PositionRow({
             </SelectContent>
           </Select>
         </div>
+      )}
+      {isManual && position.manualMeta && (
+        <EtfInfoPreview
+          isin={position.isin}
+          rowIndex={rowIndex}
+          currentName={position.manualMeta.name}
+          currentCurrency={position.manualMeta.currency}
+          currentTerBps={position.manualMeta.terBps}
+          onQuickFill={onManualMetaQuickFill}
+        />
       )}
     </div>
   );
@@ -562,6 +580,28 @@ export function ExplainPortfolio() {
         if (i !== index) return p;
         const cur = p.manualMeta ?? { assetClass: "Equity", region: "Global" };
         return { ...p, manualMeta: { ...cur, [field]: value } };
+      }),
+    }));
+  }
+
+  // Atomic merge of metadata fields supplied by the EtfInfoPreview's
+  // quick-fill button. Only fills empty fields — the preview already
+  // gates this client-side (it only emits the keys that are still
+  // undefined on the row), but we re-check here so a race with concurrent
+  // edits can't clobber operator input.
+  function quickFillManualMeta(index: number, values: QuickFillValues) {
+    setState((s) => ({
+      ...s,
+      positions: s.positions.map((p, i) => {
+        if (i !== index) return p;
+        const cur = p.manualMeta ?? { assetClass: "Equity", region: "Global" };
+        const next = { ...cur };
+        if (values.name && !cur.name) next.name = values.name;
+        if (values.currency && !cur.currency) next.currency = values.currency;
+        if (typeof values.terBps === "number" && cur.terBps === undefined) {
+          next.terBps = values.terBps;
+        }
+        return { ...p, manualMeta: next };
       }),
     }));
   }
@@ -1066,6 +1106,9 @@ export function ExplainPortfolio() {
                                         onManualMetaChange={(field, value) =>
                                           setManualMetaField(i, field, value)
                                         }
+                                        onManualMetaQuickFill={(values) =>
+                                          quickFillManualMeta(i, values)
+                                        }
                                       />
                                     ))}
                                   </div>
@@ -1109,6 +1152,9 @@ export function ExplainPortfolio() {
                         onManualMetaChange={(field, value) =>
                           setManualMetaField(i, field, value)
                         }
+                        onManualMetaQuickFill={(values) =>
+                          quickFillManualMeta(i, values)
+                        }
                       />
                     ))}
                   </div>
@@ -1144,6 +1190,9 @@ export function ExplainPortfolio() {
                         onManualIsinChange={(isin) => setManualIsin(i, isin)}
                         onManualMetaChange={(field, value) =>
                           setManualMetaField(i, field, value)
+                        }
+                        onManualMetaQuickFill={(values) =>
+                          quickFillManualMeta(i, values)
                         }
                       />
                     ))}

@@ -6,6 +6,7 @@ import {
   getInstrumentByIsin,
   pickDefaultListing,
 } from "./etfs";
+import { profileFor } from "./lookthrough";
 import {
   AssetAllocation,
   BaseCurrency,
@@ -132,6 +133,29 @@ export function synthesizePersonalPortfolio(
       });
     } else if (p.manualMeta) {
       const mm = p.manualMeta;
+      // Off-catalog manual entry: opportunistically pull metadata from
+      // the same sources the live preview uses so the ETF Implementation
+      // table reflects what we know rather than the bare manualMeta. The
+      // catalog lookup above (`inst`) returned undefined for this branch,
+      // so it's redundant here — we only need the pool. The pool gives
+      // us a freshness stamp (`breakdownsAsOf` / `topHoldingsAsOf`)
+      // which we surface in the comment so the operator can tell at a
+      // glance whether the look-through cards downstream are using
+      // up-to-date data for this position.
+      const pool = profileFor(p.isin);
+      const poolStamp =
+        pool?.breakdownsAsOf ?? pool?.topHoldingsAsOf ?? null;
+      const comment = pool
+        ? de
+          ? `Manuell erfasst — Pool-Look-Through aus justETF${
+              poolStamp ? ` (Stand: ${poolStamp.slice(0, 10)})` : ""
+            }.`
+          : `Manually entered — pool look-through from justETF${
+              poolStamp ? ` (as of ${poolStamp.slice(0, 10)})` : ""
+            }.`
+        : de
+          ? "Manuell erfasst — keine Katalog-Look-Through-Daten verfügbar."
+          : "Manually entered — no catalog look-through data available.";
       etfImplementation.push({
         bucket: `${sleeve.assetClass} - ${sleeve.region}`,
         assetClass: sleeve.assetClass,
@@ -151,9 +175,7 @@ export function synthesizePersonalPortfolio(
         replication: "",
         distribution: "Accumulating",
         currency: mm.currency ?? baseCurrency,
-        comment: de
-          ? "Manuell erfasst — keine Katalog-Look-Through-Daten verfügbar."
-          : "Manually entered — no catalog look-through data available.",
+        comment,
         catalogKey: "",
         selectedSlot: 0,
         selectableOptions: [],
