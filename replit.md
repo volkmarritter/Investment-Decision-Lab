@@ -59,6 +59,16 @@ within-bucket duplicate). Operator-facing surfaces:
 - **Glossary** (`src/components/admin/Glossary.tsx`) — added plain-language entries explaining "Instrument" vs "Bucket-Zuordnung" (DE+EN).
 - New backend routes: `GET/POST/PATCH/DELETE /admin/instruments`, `POST /admin/buckets/:key/alternatives`, `PUT /admin/buckets/:key/default` (all PR-only writes).
 
+## Explain My Portfolio editor — tree of buckets (Task #148 — 2026-05)
+
+The Explain tab's position editor (`artifacts/investment-lab/src/components/investment/ExplainPortfolio.tsx`) is a tree of catalog buckets, not a flat list with toolbar shortcuts. Every catalog asset class (Equity, Fixed Income, Real Estate, Commodities, Digital Assets, Cash) renders as a collapsible chevron header. Inside an expanded group, every bucket — populated or empty — shows its own header + per-bucket [+] button (`explain-add-in-bucket-${bucketKey}`) that opens a scoped IsinPicker pre-filtered to that bucket. The legacy "Add ETF" and "By bucket" toolbar buttons are removed; "Add manual ISIN" stays for off-catalog instruments.
+
+Smart-default expand rule: `assetClassSummary(buckets).hasAnyRow` — a group is open by default iff any of its catalog buckets has at least one row (even an unselected/zero-weight one). The user's explicit chevron toggle is stored in component-local `expandedGroups: Record<assetClass, boolean>` and wins for the rest of the session (per-tab, not persisted).
+
+Tail pseudo-groups: manual entries land in a "Manual entries" group, and any non-manual row whose `bucketKey` is missing or no longer in `ALL_BUCKET_KEYS` (catalog evolved) lands in an "Unassigned" group — both keep stale rows visible/removable.
+
+E2E hooks (`tests/e2e/explain-portfolio.spec.ts`, `…file-roundtrip.spec.ts`): the `addCatalogRow(page, rowIndex, isin, bucketKey, groupSlug)` helper expands the group via `ensureGroupExpanded` (idempotent against the smart-default), taps `explain-add-in-bucket-${bucketKey}`, picks the ISIN, then waits ≤1s for Radix's `data-scroll-locked` overlay to release before returning. Per-test timeout in `playwright.config.ts` is 60s to absorb the extra chevron+overlay steps in the heavy "add three ETFs" test.
+
 ## Project Documentation
 
 - **Investment Decision Lab** functional & logic documentation: `artifacts/investment-lab/DOCUMENTATION.md`.

@@ -1,9 +1,20 @@
 import { test, expect } from "@playwright/test";
 import { dismissWelcomeIfPresent } from "./utils";
 
+// Test ISINs and the catalog buckets they live in. The Explain editor is now
+// a tree-of-buckets: every catalog asset class is a collapsible chevron and
+// every bucket inside it has its own scoped picker. So adding a known ISIN
+// goes through (asset-class chevron) → (bucket [+]) → (scoped picker pick).
 const ISIN_USA = "IE00B5BMR087";
 const ISIN_FI = "IE00B3F81409";
 const ISIN_EUROPE = "IE00B4K48X80";
+
+const BUCKET_USA = "Equity-USA";
+const BUCKET_EUROPE = "Equity-Europe";
+const BUCKET_FI = "FixedIncome-Global";
+
+const GROUP_EQUITY = "equity"; // asset-class slug → testid suffix
+const GROUP_FI = "fixed-income";
 
 async function openExplainTab(page: import("@playwright/test").Page) {
   await page.goto("/");
@@ -13,20 +24,69 @@ async function openExplainTab(page: import("@playwright/test").Page) {
   await explainTab.tap();
 }
 
+// Idempotent expand of an asset-class chevron. Smart default opens groups
+// that already carry a position, but the first add inside a group has the
+// chevron closed — flip it once if needed and skip otherwise so subsequent
+// adds in the same group don't accidentally collapse it again.
+async function ensureGroupExpanded(
+  page: import("@playwright/test").Page,
+  groupSlug: string,
+) {
+  const toggle = page.getByTestId(`explain-group-${groupSlug}`);
+  await expect(toggle).toBeVisible();
+  await toggle.scrollIntoViewIfNeeded();
+  const state = await toggle.getAttribute("data-state");
+  if (state === "closed") await toggle.tap();
+}
+
+// Wait for Radix's scroll-lock + pointer-events overlay to fully release
+// after a Popover/Select closes. The IsinPicker uses Radix Popover, and on
+// mobile the close animation can leave `data-scroll-locked` on <body> for
+// ~150ms which makes the very next `tap()` get intercepted by the html
+// element. Polling on the attribute is more deterministic than a fixed
+// sleep and only adds latency when Radix is actually still locking.
+async function waitForRadixOverlayRelease(
+  page: import("@playwright/test").Page,
+) {
+  // 1s ceiling: Radix's close animation is ~150ms; anything longer almost
+  // certainly means a real bug (e.g. an overlay that never closes), not a
+  // slow animation. Keep the wait tight so the chained-add path through
+  // `addCatalogRow` doesn't compound 2s waits across three catalog rows.
+  await page.waitForFunction(
+    () =>
+      !document.body.hasAttribute("data-scroll-locked") &&
+      getComputedStyle(document.documentElement).pointerEvents !== "none" &&
+      getComputedStyle(document.body).pointerEvents !== "none",
+    null,
+    { timeout: 1000 },
+  );
+}
+
 async function addCatalogRow(
   page: import("@playwright/test").Page,
   rowIndex: number,
   isin: string,
+  bucketKey: string,
+  groupSlug: string,
 ) {
-  await page.getByTestId("explain-add-row").tap();
+  await ensureGroupExpanded(page, groupSlug);
+  const addBtn = page.getByTestId(`explain-add-in-bucket-${bucketKey}`);
+  await expect(addBtn).toBeVisible();
+  await addBtn.scrollIntoViewIfNeeded();
+  await addBtn.tap();
   const picker = page.getByTestId(`explain-picker-${rowIndex}`);
   await expect(picker).toBeVisible();
   await picker.scrollIntoViewIfNeeded();
   await picker.tap();
   const option = page.getByTestId(`isin-option-${isin}`);
   await expect(option).toBeVisible();
-  await option.tap();
+  // The cmdk group heading (`<div cmdk-group-heading aria-hidden>`) can
+  // overlay the option's hit-rect on the iphone-13 viewport once the user
+  // scrolls within the popover. Force-click bypasses the interceptor —
+  // the option's click handler still fires and the popover closes.
+  await option.click({ force: true });
   await expect(option).toBeHidden();
+  await waitForRadixOverlayRelease(page);
 }
 
 async function setRowWeight(
@@ -57,9 +117,9 @@ test.describe("ExplainPortfolio · bring-your-own-ETFs (mobile)", () => {
       page.getByText(/no positions yet|noch keine positionen/i).first(),
     ).toBeVisible();
 
-    await addCatalogRow(page, 0, ISIN_USA);
-    await addCatalogRow(page, 1, ISIN_EUROPE);
-    await addCatalogRow(page, 2, ISIN_FI);
+    await addCatalogRow(page, 0, ISIN_USA, BUCKET_USA, GROUP_EQUITY);
+    await addCatalogRow(page, 1, ISIN_EUROPE, BUCKET_EUROPE, GROUP_EQUITY);
+    await addCatalogRow(page, 2, ISIN_FI, BUCKET_FI, GROUP_FI);
 
     const total = page.getByTestId("explain-total");
     await expect(total).toContainText(/0(\.0)?\s*%/);
@@ -134,7 +194,7 @@ test.describe("ExplainPortfolio · bring-your-own-ETFs (mobile)", () => {
     await dismissWelcomeIfPresent(page);
     await page.getByRole("tab", { name: /explain my portfolio/i }).tap();
 
-    await addCatalogRow(page, 0, ISIN_USA);
+    await addCatalogRow(page, 0, ISIN_USA, BUCKET_USA, GROUP_EQUITY);
     await page.getByTestId("explain-add-manual").tap();
 
     const manualIsin = page.getByTestId("explain-manual-isin-1");
@@ -144,7 +204,15 @@ test.describe("ExplainPortfolio · bring-your-own-ETFs (mobile)", () => {
     const assetSelect = page.getByTestId("explain-manual-asset-1");
     await expect(assetSelect).toBeVisible();
     await assetSelect.tap();
-    await page.getByRole("option", { name: /^Fixed Income$/ }).tap();
+    // Radix Select's overlay briefly puts `pointer-events: none` on <html>
+    // while the listbox animates open, so a normal mobile tap gets blocked
+    // by html intercepting pointer events. Force the click through — same
+    // workaround the non-USD home-bias tests below use for `explain-base-
+    // currency`. The chained Radix Popover (IsinPicker) opened/closed by
+    // `addCatalogRow` above makes this race more likely on iphone-13.
+    const fiOption = page.getByRole("option", { name: /^Fixed Income$/ });
+    await expect(fiOption).toBeVisible();
+    await fiOption.click({ force: true });
 
     await setRowWeight(page, 0, "60");
     await setRowWeight(page, 1, "40");
@@ -209,9 +277,9 @@ test.describe("ExplainPortfolio · bring-your-own-ETFs (mobile)", () => {
       // renders — Home Bias only mounts inside `explain-analysis`. We mix in
       // a fixed-income sleeve so the default Moderate risk profile's equity
       // cap doesn't trip validation and suppress the analysis cards.
-      await addCatalogRow(page, 0, ISIN_USA);
-      await addCatalogRow(page, 1, ISIN_EUROPE);
-      await addCatalogRow(page, 2, ISIN_FI);
+      await addCatalogRow(page, 0, ISIN_USA, BUCKET_USA, GROUP_EQUITY);
+      await addCatalogRow(page, 1, ISIN_EUROPE, BUCKET_EUROPE, GROUP_EQUITY);
+      await addCatalogRow(page, 2, ISIN_FI, BUCKET_FI, GROUP_FI);
       await setRowWeight(page, 0, "30");
       await setRowWeight(page, 1, "30");
       await setRowWeight(page, 2, "40");

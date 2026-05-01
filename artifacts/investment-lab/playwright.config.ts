@@ -20,7 +20,16 @@ const replitChromium = process.env.REPLIT_PLAYWRIGHT_CHROMIUM_EXECUTABLE;
 export default defineConfig({
   testDir: "./tests/e2e",
   testMatch: /.*\.spec\.ts$/,
-  timeout: 30_000,
+  // 60s per test. The explain-portfolio tree-of-buckets editor (Task #148)
+  // adds extra chevron-expand + per-bucket [+] steps to each `addCatalogRow`
+  // helper call, plus a short Radix scroll-lock release wait between Radix
+  // Popover/Select interactions on mobile. The heaviest test (`add three
+  // ETFs … persists across reload`) does 3 catalog adds, weight edits,
+  // a Monte Carlo + analysis assertion sweep, a localStorage round-trip
+  // and a full page reload — comfortably over 30s when the dev server is
+  // also handling other suites' state. 60s gives headroom without masking
+  // genuine hangs.
+  timeout: 60_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,
   workers: 1,

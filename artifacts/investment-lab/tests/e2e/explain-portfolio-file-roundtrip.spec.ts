@@ -17,6 +17,13 @@ import { dismissWelcomeIfPresent } from "./utils";
 const ISIN_USA = "IE00B5BMR087";
 const ISIN_EUROPE = "IE00B4K48X80";
 
+// Catalog buckets these ISINs live in. The Explain editor adds rows via
+// per-bucket [+] buttons inside collapsible asset-class chevrons, so the
+// test helper needs to know both the bucket key and the chevron slug.
+const BUCKET_USA = "Equity-USA";
+const BUCKET_EUROPE = "Equity-Europe";
+const GROUP_EQUITY = "equity";
+
 const EXPLAIN_WORKSPACE_KEY = "investment-lab.explainPortfolio.v1";
 const SAVED_PORTFOLIOS_KEY = "investment-lab.savedExplainPortfolios.v1";
 
@@ -28,20 +35,62 @@ async function openExplainTab(page: import("@playwright/test").Page) {
   await explainTab.tap();
 }
 
+// Idempotent expand of an asset-class chevron — see notes in
+// explain-portfolio.spec.ts. Smart default opens groups that already have
+// a position, so subsequent adds in the same group skip the toggle.
+async function ensureGroupExpanded(
+  page: import("@playwright/test").Page,
+  groupSlug: string,
+) {
+  const toggle = page.getByTestId(`explain-group-${groupSlug}`);
+  await expect(toggle).toBeVisible();
+  await toggle.scrollIntoViewIfNeeded();
+  const state = await toggle.getAttribute("data-state");
+  if (state === "closed") await toggle.tap();
+}
+
+// Wait for Radix Popover/Select scroll-lock + pointer-events overlay to
+// fully release after closing — see explain-portfolio.spec.ts for full
+// rationale. Without this, the next mobile tap can be intercepted by the
+// html element while Radix is still in its close animation.
+async function waitForRadixOverlayRelease(
+  page: import("@playwright/test").Page,
+) {
+  await page.waitForFunction(
+    () =>
+      !document.body.hasAttribute("data-scroll-locked") &&
+      getComputedStyle(document.documentElement).pointerEvents !== "none" &&
+      getComputedStyle(document.body).pointerEvents !== "none",
+    null,
+    { timeout: 1000 },
+  );
+}
+
 async function addCatalogRow(
   page: import("@playwright/test").Page,
   rowIndex: number,
   isin: string,
+  bucketKey: string,
+  groupSlug: string,
 ) {
-  await page.getByTestId("explain-add-row").tap();
+  await ensureGroupExpanded(page, groupSlug);
+  const addBtn = page.getByTestId(`explain-add-in-bucket-${bucketKey}`);
+  await expect(addBtn).toBeVisible();
+  await addBtn.scrollIntoViewIfNeeded();
+  await addBtn.tap();
   const picker = page.getByTestId(`explain-picker-${rowIndex}`);
   await expect(picker).toBeVisible();
   await picker.scrollIntoViewIfNeeded();
   await picker.tap();
   const option = page.getByTestId(`isin-option-${isin}`);
   await expect(option).toBeVisible();
-  await option.tap();
+  // The cmdk group heading (`<div cmdk-group-heading aria-hidden>`) can
+  // overlay the option's hit-rect on the iphone-13 viewport once the user
+  // scrolls within the popover. Force-click bypasses the interceptor —
+  // the option's click handler still fires and the popover closes.
+  await option.click({ force: true });
   await expect(option).toBeHidden();
+  await waitForRadixOverlayRelease(page);
 }
 
 async function setRowWeight(
@@ -78,8 +127,8 @@ test.describe("ExplainPortfolio · personal-portfolio file round-trip", () => {
 
     // Build a tiny two-position portfolio so the file we save has
     // something concrete to verify on re-import.
-    await addCatalogRow(page, 0, ISIN_USA);
-    await addCatalogRow(page, 1, ISIN_EUROPE);
+    await addCatalogRow(page, 0, ISIN_USA, BUCKET_USA, GROUP_EQUITY);
+    await addCatalogRow(page, 1, ISIN_EUROPE, BUCKET_EUROPE, GROUP_EQUITY);
     await setRowWeight(page, 0, "60");
     await setRowWeight(page, 1, "40");
     await expect(page.getByTestId("explain-total")).toContainText(

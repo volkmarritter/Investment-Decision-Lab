@@ -12,7 +12,7 @@ import {
   Search,
   RotateCcw,
   Scale,
-  Layers,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -443,6 +443,20 @@ export function ExplainPortfolio() {
 
   const [riskRegime, setRiskRegime] = useState<RiskRegime>("normal");
 
+  // Per-asset-class expand override. `undefined` for an asset class means
+  // "use the smart default" (open iff any bucket inside it has a position).
+  // Once the user clicks the chevron the explicit boolean sticks for the
+  // session, so adding/removing a position later doesn't reflow the tree
+  // out from under them.
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+
+  function toggleGroup(assetClass: string, smartDefault: boolean) {
+    setExpandedGroups((prev) => {
+      const current = prev[assetClass] ?? smartDefault;
+      return { ...prev, [assetClass]: !current };
+    });
+  }
+
   useEffect(() => {
     saveState(state);
   }, [state]);
@@ -489,11 +503,6 @@ export function ExplainPortfolio() {
     const normalized = normalizeWeights(state.positions);
     setState((s) => ({ ...s, positions: normalized }));
     syncDraftsFromPositions(normalized);
-  }
-
-  function addPosition() {
-    setState((s) => ({ ...s, positions: [...s.positions, { isin: "", bucketKey: "", weight: 0 }] }));
-    setWeightDrafts((d) => [...d, ""]);
   }
 
   function addPositionInBucket(bucketKey: string) {
@@ -622,28 +631,11 @@ export function ExplainPortfolio() {
 
 
 
-  const groupedRowIndices = useMemo(() => {
-    const m = new Map<string, number[]>();
-    state.positions.forEach((p, i) => {
-      let key: string;
-      if (p.manualMeta) key = "(manual)";
-      else if (p.bucketKey) key = p.bucketKey;
-      else key = "(unassigned)";
-      const arr = m.get(key) ?? [];
-      arr.push(i);
-      m.set(key, arr);
-    });
-    const ordered: Array<[string, number[]]> = [];
-    for (const k of ALL_BUCKET_KEYS) if (m.has(k)) ordered.push([k, m.get(k)!]);
-    if (m.has("(manual)")) ordered.push(["(manual)", m.get("(manual)")!]);
-    if (m.has("(unassigned)")) ordered.push(["(unassigned)", m.get("(unassigned)")!]);
-    return ordered;
-  }, [state.positions]);
-
-  // Catalog buckets grouped by asset class for the "Add by bucket" popover.
-  // Iteration order of ALL_BUCKET_KEYS preserves the catalog's intended
-  // ordering (Equity → Fixed Income → … → Cash), and within each asset
-  // class the regional order is whatever the catalog ships with.
+  // Tree-of-buckets data. The editor renders every catalog asset class as
+  // a collapsible group, and every bucket inside it as an always-visible
+  // sub-row with its own scoped picker — no toolbar shortcut needed.
+  // Manual positions and any legacy unbucketed rows tail the tree as
+  // pseudo-groups so the user can still see them.
   const bucketsByAssetClass = useMemo(() => {
     const m = new Map<string, BucketMeta[]>();
     for (const k of ALL_BUCKET_KEYS) {
@@ -656,10 +648,132 @@ export function ExplainPortfolio() {
     return Array.from(m.entries());
   }, []);
 
-  function bucketSum(indices: number[]): number {
+  // Catalog buckets currently in the master list. Used to route any
+  // legacy/stale row whose `bucketKey` no longer matches a real catalog
+  // bucket into the tail "Unassigned" pseudo-group, so the user can still
+  // see and remove it instead of having it silently disappear from the
+  // editor when the catalog evolves.
+  const validBucketKeys = useMemo(
+    () => new Set<string>(ALL_BUCKET_KEYS),
+    [],
+  );
+
+  const positionsByBucket = useMemo(() => {
+    const m = new Map<string, number[]>();
+    state.positions.forEach((p, i) => {
+      if (p.manualMeta) return;
+      if (!p.bucketKey || !validBucketKeys.has(p.bucketKey)) return;
+      const arr = m.get(p.bucketKey) ?? [];
+      arr.push(i);
+      m.set(p.bucketKey, arr);
+    });
+    return m;
+  }, [state.positions, validBucketKeys]);
+
+  const manualRowIndices = useMemo(
+    () =>
+      state.positions
+        .map((p, i) => (p.manualMeta ? i : -1))
+        .filter((i) => i >= 0),
+    [state.positions],
+  );
+
+  // Unassigned tail-group: non-manual rows whose `bucketKey` is empty OR
+  // points at a bucket the catalog has since dropped/renamed. Both must
+  // surface so the user can re-bucket or delete them; otherwise persisted
+  // workspaces silently lose visibility on those positions across catalog
+  // updates.
+  const unassignedRowIndices = useMemo(
+    () =>
+      state.positions
+        .map((p, i) =>
+          !p.manualMeta && (!p.bucketKey || !validBucketKeys.has(p.bucketKey))
+            ? i
+            : -1,
+        )
+        .filter((i) => i >= 0),
+    [state.positions, validBucketKeys],
+  );
+
+  // Sum of weights inside one bucket, rounded to 1dp for display only.
+  function bucketWeight(bucketKey: string): number {
+    const idx = positionsByBucket.get(bucketKey);
+    if (!idx) return 0;
+    let s = 0;
+    for (const i of idx) s += state.positions[i].weight;
+    return Math.round(s * 10) / 10;
+  }
+
+  // Sum of weights across every bucket inside an asset class, the count
+  // of fully-populated ETFs (for the "n ETFs" pill), and a flag for the
+  // smart-default expand rule. The flag is broader than `etfCount`: ANY
+  // row attached to a bucket — even one the user just added with no ISIN
+  // picked yet, or whose weight is still 0 — counts as "this group has a
+  // position" and forces the chevron open. That matches the user-facing
+  // requirement that adding a row to a bucket auto-reveals the surrounding
+  // group on first render.
+  function assetClassSummary(buckets: readonly BucketMeta[]): {
+    weight: number;
+    etfCount: number;
+    hasAnyRow: boolean;
+  } {
+    let w = 0;
+    let n = 0;
+    let hasAnyRow = false;
+    for (const b of buckets) {
+      const idx = positionsByBucket.get(b.key);
+      if (!idx || idx.length === 0) continue;
+      hasAnyRow = true;
+      for (const i of idx) {
+        const p = state.positions[i];
+        if (p.isin && p.weight > 0) n += 1;
+        w += p.weight;
+      }
+    }
+    return { weight: Math.round(w * 10) / 10, etfCount: n, hasAnyRow };
+  }
+
+  // Sum of weights in a free-form list of indices (manual / unassigned).
+  function rowsWeightSum(indices: readonly number[]): number {
     let s = 0;
     for (const i of indices) s += state.positions[i].weight;
     return Math.round(s * 10) / 10;
+  }
+
+  // Localised label for the asset-class chevron headers. Falls back to the
+  // raw English asset class name (the same string the catalog uses inside
+  // bucket section headings) so a missing translation never blanks the row.
+  function assetClassLabel(assetClass: string): string {
+    const key = `explain.assetClass.${assetClass}`;
+    const translated = t(key);
+    return translated === key ? assetClass : translated;
+  }
+
+  // Slug used inside test ids for the asset-class chevron toggle. Keeps the
+  // ids stable + URL-safe ("Fixed Income" → "fixed-income") regardless of
+  // translation or whitespace tweaks in the catalog.
+  function assetClassSlug(assetClass: string): string {
+    return assetClass.toLowerCase().replace(/\s+/g, "-");
+  }
+
+  // Localised "N ETFs" badge inside each chevron header. Pluralisation is
+  // handled inline since the `useT` hook here doesn't ship an ICU plural
+  // helper — count buckets are tiny (0..N) so the cost of two branches is
+  // negligible.
+  function etfCountLabel(n: number): string {
+    if (n === 0) return t("explain.tree.etfCount.zero");
+    if (n === 1) return t("explain.tree.etfCount.one");
+    return t("explain.tree.etfCount.other").replace("{n}", String(n));
+  }
+
+  // Pretty bucket sub-header: region + hedged/synthetic flags. Mirrors the
+  // formatting used inside the IsinPicker grouping headers so the same
+  // bucket reads identically in both places.
+  function bucketHeader(meta: BucketMeta): string {
+    const flags = `${
+      meta.hedged ? (lang === "de" ? " (gehedgt)" : " (hedged)") : ""
+    }${meta.synthetic ? (lang === "de" ? " · synthetisch" : " · synthetic") : ""}`;
+    return `${meta.region}${flags}`;
   }
 
   return (
@@ -793,62 +907,6 @@ export function ExplainPortfolio() {
                     <Plus className="mr-1.5 h-3 w-3" />
                     {t("explain.btn.addManual")}
                   </Button>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        className="h-8 text-xs"
-                        data-testid="explain-add-by-bucket"
-                      >
-                        <Layers className="mr-1.5 h-3 w-3" />
-                        {t("explain.btn.addByBucket")}
-                      </Button>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      className="w-[420px] max-w-[calc(100vw-2rem)] p-0"
-                      align="end"
-                    >
-                      <Command>
-                        <CommandInput placeholder={t("explain.byBucket.search")} />
-                        <CommandList className="max-h-[360px]">
-                          <CommandEmpty>{t("explain.byBucket.empty")}</CommandEmpty>
-                          {bucketsByAssetClass.map(([assetClass, items]) => (
-                            <CommandGroup key={assetClass} heading={assetClass}>
-                              {items.map((b) => {
-                                const flags = `${b.hedged ? (lang === "de" ? " (gehedgt)" : " (hedged)") : ""}${b.synthetic ? (lang === "de" ? " · synthetisch" : " · synthetic") : ""}`;
-                                return (
-                                  <CommandItem
-                                    key={b.key}
-                                    value={`${b.assetClass}|${b.region}|${b.key}`}
-                                    onSelect={() => addPositionInBucket(b.key)}
-                                    data-testid={`explain-by-bucket-${b.key}`}
-                                  >
-                                    <span className="text-xs">
-                                      {b.region}
-                                      {flags}
-                                    </span>
-                                  </CommandItem>
-                                );
-                              })}
-                            </CommandGroup>
-                          ))}
-                        </CommandList>
-                      </Command>
-                    </PopoverContent>
-                  </Popover>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={addPosition}
-                    className="h-8 text-xs"
-                    data-testid="explain-add-row"
-                  >
-                    <Plus className="mr-1.5 h-3 w-3" />
-                    {t("explain.btn.addEtf")}
-                  </Button>
                 </div>
               </div>
               {/* Save/Load slot UI — independent localStorage namespace from
@@ -897,83 +955,196 @@ export function ExplainPortfolio() {
                 </DropdownMenu>
               </div>
             </CardHeader>
-            <CardContent className="space-y-5">
+            <CardContent className="space-y-3">
               {state.positions.length === 0 && (
-                <div className="rounded border border-dashed p-6 text-center text-sm text-muted-foreground">
+                <div className="rounded border border-dashed p-4 text-center text-xs text-muted-foreground">
                   {t("explain.empty.positions")}
                 </div>
               )}
 
-              {groupedRowIndices.map(([bucketKey, indices]) => {
-                const meta = bucketKey === "(unassigned)" || bucketKey === "(manual)" ? null : getBucketMeta(bucketKey);
-                const heading = meta
-                  ? `${meta.assetClass} — ${meta.region}${
-                      meta.hedged
-                        ? lang === "de"
-                          ? " (gehedgt)"
-                          : " (hedged)"
-                        : ""
-                    }${
-                      meta.synthetic
-                        ? lang === "de"
-                          ? " · synthetisch"
-                          : " · synthetic"
-                        : ""
-                    }`
-                  : bucketKey === "(manual)"
-                  ? lang === "de"
-                    ? "Manuell erfasste Positionen"
-                    : "Manually entered positions"
-                  : t("explain.positions.unassigned");
-                const sum = bucketSum(indices);
-                const isCatalogBucket = bucketKey !== "(manual)" && bucketKey !== "(unassigned)";
-                return (
-                  <div key={bucketKey} className="space-y-2">
-                    <div className="flex items-center justify-between gap-2 text-xs">
-                      <span className="font-semibold uppercase tracking-wide text-muted-foreground">
-                        {heading}
-                      </span>
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-muted-foreground">
-                          {sum.toFixed(1)}%
+              {/* Bucket tree. Every catalog asset class is rendered as a
+                  collapsible chevron header; expanded groups list every
+                  bucket inside (populated or empty) with its own scoped
+                  picker via the per-bucket [+] button. */}
+              <div className="space-y-1.5" data-testid="explain-bucket-tree">
+                {bucketsByAssetClass.map(([assetClass, buckets]) => {
+                  const summary = assetClassSummary(buckets);
+                  // Smart-default: a group expands automatically iff at
+                  // least one of its catalog buckets has a row — see the
+                  // `hasAnyRow` doc comment on `assetClassSummary`. The
+                  // user's explicit chevron toggle (stored in
+                  // `expandedGroups`) wins for the rest of the session.
+                  const smartDefault = summary.hasAnyRow;
+                  const isExpanded = expandedGroups[assetClass] ?? smartDefault;
+                  const slug = assetClassSlug(assetClass);
+                  return (
+                    <div key={assetClass} className="rounded border bg-card/40">
+                      <button
+                        type="button"
+                        onClick={() => toggleGroup(assetClass, smartDefault)}
+                        className="w-full flex items-center justify-between gap-2 px-2.5 py-2 text-left hover:bg-muted/40 rounded"
+                        aria-expanded={isExpanded}
+                        data-state={isExpanded ? "open" : "closed"}
+                        data-testid={`explain-group-${slug}`}
+                      >
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <ChevronRight
+                            className={`h-3.5 w-3.5 shrink-0 transition-transform ${
+                              isExpanded ? "rotate-90" : ""
+                            }`}
+                          />
+                          <span className="text-xs font-semibold uppercase tracking-wide truncate">
+                            {assetClassLabel(assetClass)}
+                          </span>
                         </span>
-                        {isCatalogBucket && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-muted-foreground hover:text-primary"
-                            onClick={() => addPositionInBucket(bucketKey)}
-                            aria-label={t("explain.btn.addInThisBucket")}
-                            title={t("explain.btn.addInThisBucket")}
-                            data-testid={`explain-add-in-bucket-${bucketKey}`}
-                          >
-                            <Plus className="h-3.5 w-3.5" />
-                          </Button>
-                        )}
-                      </div>
+                        <span className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+                          <span className="font-mono">
+                            {summary.weight.toFixed(1)}%
+                          </span>
+                          <span className="hidden sm:inline">
+                            {etfCountLabel(summary.etfCount)}
+                          </span>
+                        </span>
+                      </button>
+                      {isExpanded && (
+                        <div className="px-2.5 pb-2 pt-0.5 space-y-2.5">
+                          {buckets.map((b) => {
+                            const idx = positionsByBucket.get(b.key) ?? [];
+                            const sum = bucketWeight(b.key);
+                            return (
+                              <div
+                                key={b.key}
+                                className="space-y-1.5"
+                                data-testid={`explain-bucket-${b.key}`}
+                              >
+                                <div className="flex items-center justify-between gap-2 text-xs pl-4">
+                                  <span className="text-muted-foreground truncate">
+                                    {bucketHeader(b)}
+                                  </span>
+                                  <div className="flex items-center gap-1.5 shrink-0">
+                                    <span
+                                      className={`font-mono text-[11px] ${
+                                        sum > 0 ? "" : "opacity-50"
+                                      }`}
+                                    >
+                                      {sum.toFixed(1)}%
+                                    </span>
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-6 w-6 text-muted-foreground hover:text-primary"
+                                      onClick={() => addPositionInBucket(b.key)}
+                                      aria-label={t("explain.btn.addInThisBucket")}
+                                      title={t("explain.btn.addInThisBucket")}
+                                      data-testid={`explain-add-in-bucket-${b.key}`}
+                                    >
+                                      <Plus className="h-3.5 w-3.5" />
+                                    </Button>
+                                  </div>
+                                </div>
+                                {idx.length > 0 && (
+                                  <div className="space-y-2 pl-4">
+                                    {idx.map((i) => (
+                                      <PositionRow
+                                        key={i}
+                                        rowIndex={i}
+                                        position={state.positions[i]}
+                                        weightDraft={weightDrafts[i] ?? ""}
+                                        excludeIsins={usedIsins}
+                                        onPickIsin={(isin) => pickIsinForRow(i, isin)}
+                                        onWeightChange={(d) => setWeightDraft(i, d)}
+                                        onRemove={() => removePosition(i)}
+                                        onManualIsinChange={(isin) =>
+                                          setManualIsin(i, isin)
+                                        }
+                                        onManualMetaChange={(field, value) =>
+                                          setManualMetaField(i, field, value)
+                                        }
+                                      />
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
-                    <div className="space-y-2">
-                      {indices.map((i) => (
-                        <PositionRow
-                          key={i}
-                          rowIndex={i}
-                          position={state.positions[i]}
-                          weightDraft={weightDrafts[i] ?? ""}
-                          excludeIsins={usedIsins}
-                          onPickIsin={(isin) => pickIsinForRow(i, isin)}
-                          onWeightChange={(d) => setWeightDraft(i, d)}
-                          onRemove={() => removePosition(i)}
-                          onManualIsinChange={(isin) => setManualIsin(i, isin)}
-                          onManualMetaChange={(field, value) =>
-                            setManualMetaField(i, field, value)
-                          }
-                        />
-                      ))}
-                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Manual positions live in their own pseudo-group at the
+                  tail of the tree. Off-catalog ISINs can't slot into a
+                  catalog bucket, so they get a fixed home with the same
+                  visual rhythm as the catalog groups. */}
+              {manualRowIndices.length > 0 && (
+                <div className="rounded border bg-card/40">
+                  <div className="flex items-center justify-between gap-2 px-2.5 py-2">
+                    <span className="text-xs font-semibold uppercase tracking-wide">
+                      {t("explain.tree.manual")}
+                    </span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {rowsWeightSum(manualRowIndices).toFixed(1)}%
+                    </span>
                   </div>
-                );
-              })}
+                  <div className="px-2.5 pb-2 space-y-2 pl-4">
+                    {manualRowIndices.map((i) => (
+                      <PositionRow
+                        key={i}
+                        rowIndex={i}
+                        position={state.positions[i]}
+                        weightDraft={weightDrafts[i] ?? ""}
+                        excludeIsins={usedIsins}
+                        onPickIsin={(isin) => pickIsinForRow(i, isin)}
+                        onWeightChange={(d) => setWeightDraft(i, d)}
+                        onRemove={() => removePosition(i)}
+                        onManualIsinChange={(isin) => setManualIsin(i, isin)}
+                        onManualMetaChange={(field, value) =>
+                          setManualMetaField(i, field, value)
+                        }
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Legacy unbucketed rows. The current editor never produces
+                  one (every entry path now sets either a bucketKey or a
+                  manualMeta), but older persisted localStorage state may
+                  still carry them — render them so the user can fix or
+                  remove them instead of losing data silently. */}
+              {unassignedRowIndices.length > 0 && (
+                <div className="rounded border bg-card/40">
+                  <div className="flex items-center justify-between gap-2 px-2.5 py-2">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                      {t("explain.positions.unassigned")}
+                    </span>
+                    <span className="font-mono text-xs text-muted-foreground">
+                      {rowsWeightSum(unassignedRowIndices).toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="px-2.5 pb-2 space-y-2 pl-4">
+                    {unassignedRowIndices.map((i) => (
+                      <PositionRow
+                        key={i}
+                        rowIndex={i}
+                        position={state.positions[i]}
+                        weightDraft={weightDrafts[i] ?? ""}
+                        excludeIsins={usedIsins}
+                        onPickIsin={(isin) => pickIsinForRow(i, isin)}
+                        onWeightChange={(d) => setWeightDraft(i, d)}
+                        onRemove={() => removePosition(i)}
+                        onManualIsinChange={(isin) => setManualIsin(i, isin)}
+                        onManualMetaChange={(field, value) =>
+                          setManualMetaField(i, field, value)
+                        }
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {state.positions.length > 0 && (
                 <>
