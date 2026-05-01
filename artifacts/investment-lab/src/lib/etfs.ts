@@ -1343,6 +1343,7 @@ export interface BucketMeta {
   assetClass: string;
   region: string;
   hedged: boolean;
+  hedgeCurrency?: "EUR" | "CHF" | "GBP";
   synthetic: boolean;
 }
 
@@ -1358,13 +1359,19 @@ const ISIN_TO_BUCKET: Record<string, string> = (() => {
 })();
 
 function decodeBucketKey(key: string): BucketMeta {
-  const HEDGE_SUFFIXES = ["-EUR", "-CHF", "-GBP"];
+  const HEDGE_SUFFIXES: ReadonlyArray<"-EUR" | "-CHF" | "-GBP"> = [
+    "-EUR",
+    "-CHF",
+    "-GBP",
+  ];
   let hedged = false;
+  let hedgeCurrency: BucketMeta["hedgeCurrency"];
   let synthetic = false;
   let core = key;
   for (const sfx of HEDGE_SUFFIXES) {
     if (core.endsWith(sfx)) {
       hedged = true;
+      hedgeCurrency = sfx.slice(1) as BucketMeta["hedgeCurrency"];
       core = core.slice(0, -sfx.length);
       break;
     }
@@ -1375,7 +1382,7 @@ function decodeBucketKey(key: string): BucketMeta {
   }
   const dashAt = core.indexOf("-");
   if (dashAt < 0) {
-    return { key, assetClass: core, region: "—", hedged, synthetic };
+    return { key, assetClass: core, region: "—", hedged, hedgeCurrency, synthetic };
   }
   const head = core.slice(0, dashAt);
   const tail = core.slice(dashAt + 1);
@@ -1389,7 +1396,7 @@ function decodeBucketKey(key: string): BucketMeta {
     assetClass = "Digital Assets";
     region = tail === "BroadCrypto" ? "Broad Crypto" : tail;
   }
-  return { key, assetClass, region, hedged, synthetic };
+  return { key, assetClass, region, hedged, hedgeCurrency, synthetic };
 }
 
 const BUCKET_META_CACHE: Record<string, BucketMeta> = (() => {

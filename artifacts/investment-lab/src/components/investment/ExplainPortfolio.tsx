@@ -246,8 +246,8 @@ function IsinPicker({ value, onPick, excludeIsins, testId, restrictToBucketKey }
                 ? `${meta.assetClass} — ${meta.region}${
                     meta.hedged
                       ? lang === "de"
-                        ? " (gehedgt)"
-                        : " (hedged)"
+                        ? ` (${meta.hedgeCurrency ?? ""}${meta.hedgeCurrency ? "-" : ""}gehedgt)`
+                        : ` (${meta.hedgeCurrency ?? ""}${meta.hedgeCurrency ? "-" : ""}hedged)`
                       : ""
                   }${
                     meta.synthetic
@@ -770,8 +770,13 @@ export function ExplainPortfolio() {
   // formatting used inside the IsinPicker grouping headers so the same
   // bucket reads identically in both places.
   function bucketHeader(meta: BucketMeta): string {
+    const ccyPrefix = meta.hedgeCurrency ? `${meta.hedgeCurrency}-` : "";
     const flags = `${
-      meta.hedged ? (lang === "de" ? " (gehedgt)" : " (hedged)") : ""
+      meta.hedged
+        ? lang === "de"
+          ? ` (${ccyPrefix}gehedgt)`
+          : ` (${ccyPrefix}hedged)`
+        : ""
     }${meta.synthetic ? (lang === "de" ? " · synthetisch" : " · synthetic") : ""}`;
     return `${meta.region}${flags}`;
   }

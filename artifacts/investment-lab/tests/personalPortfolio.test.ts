@@ -212,11 +212,25 @@ describe("ISIN ↔ bucket inverse map (etfs.ts accessors)", () => {
     expect(usaEur.assetClass).toBe("Equity");
     expect(usaEur.region).toBe("USA");
     expect(usaEur.hedged).toBe(true);
+    expect(usaEur.hedgeCurrency).toBe("EUR");
+
+    // The unhedged base bucket has no hedge currency.
+    expect(usa.hedgeCurrency).toBeUndefined();
+
+    // CHF / GBP variants populate hedgeCurrency too — these are the labels
+    // that disambiguate the three "USA (hedged)" rows in the Explain tree.
+    const usaChf = getBucketMeta("Equity-USA-CHF")!;
+    expect(usaChf.hedged).toBe(true);
+    expect(usaChf.hedgeCurrency).toBe("CHF");
+    const usaGbp = getBucketMeta("Equity-USA-GBP")!;
+    expect(usaGbp.hedged).toBe(true);
+    expect(usaGbp.hedgeCurrency).toBe("GBP");
 
     const usaSyn = getBucketMeta("Equity-USA-Synthetic")!;
     expect(usaSyn.synthetic).toBe(true);
     expect(usaSyn.assetClass).toBe("Equity");
     expect(usaSyn.region).toBe("USA");
+    expect(usaSyn.hedgeCurrency).toBeUndefined();
 
     const fi = getBucketMeta("FixedIncome-Global")!;
     expect(fi.assetClass).toBe("Fixed Income");
