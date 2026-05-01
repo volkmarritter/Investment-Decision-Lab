@@ -1,7 +1,7 @@
 {
   "_meta": {
     "source": "justetf.com",
-    "lastRefreshed": "2026-05-01T11:10:14.994Z",
+    "lastRefreshed": "2026-05-01T11:29:08.195Z",
     "refreshedBy": "scripts/refresh-lookthrough.mjs",
     "note": "ISIN -> partial LookthroughProfile overrides applied on top of the curated PROFILES in src/lib/lookthrough.ts. Populated monthly (1st of month, 04:00 UTC) by the refresh-lookthrough GitHub Action. Refreshed fields: topHoldings (top-10 stocks, per-ISIN topHoldingsAsOf stamp), geo / sector breakdown maps (per-ISIN breakdownsAsOf stamp, scraped from justETF — static profile HTML when complete, Wicket Ajax loadMore endpoint with a session cookie when justETF renders a 'Show more' link), and currency (re-bucketed from the just-refreshed geo map via a country -> local-listing-currency table — justETF doesn't publish a per-ETF currency breakdown directly; skipped for currency-hedged share classes whose curated hedge-currency map remains authoritative). The `pool` map holds bucket-agnostic look-through profiles added via the admin /api/admin/lookthrough-pool endpoint; the same monthly job re-scrapes them so admin-added ISINs stay fresh alongside the catalog."
   },
@@ -7772,7 +7772,8 @@
         "HKD": 17.6,
         "SGD": 16.95,
         "Other": 6.65
-      }
+      },
+      "isEquity": false
     },
     "IE00B3F81G20": {
       "name": "iShares MSCI Emerging Markets Small Cap UCITS ETF",
@@ -7869,7 +7870,362 @@
         "MXN": 1.77,
         "PLN": 1.51,
         "Other": 19.88
-      }
+      },
+      "isEquity": false
+    },
+    "IE00B1FZS798": {
+      "name": "iShares USD Treasury Bond 7-10yr UCITS ETF (Dist)",
+      "geo": {
+        "United States": 45.78,
+        "Other": 54.22
+      },
+      "sector": {
+        "Other": 100
+      },
+      "breakdownsAsOf": "2026-05-01T11:13:13.807Z",
+      "_source": "justetf",
+      "_addedAt": "2026-05-01T11:13:13.807Z",
+      "_addedVia": "scrape-popular-etfs-pool",
+      "currency": {
+        "USD": 45.78,
+        "Other": 54.22
+      },
+      "isEquity": false
+    },
+    "IE00B3VWN518": {
+      "name": "iShares USD Treasury Bond 7-10yr UCITS ETF (Acc)",
+      "geo": {
+        "United States": 44.8,
+        "Ireland": 1.42,
+        "Other": 53.78
+      },
+      "sector": {
+        "Other": 100
+      },
+      "breakdownsAsOf": "2026-05-01T11:13:15.615Z",
+      "_source": "justetf",
+      "_addedAt": "2026-05-01T11:13:15.615Z",
+      "_addedVia": "scrape-popular-etfs-pool",
+      "currency": {
+        "USD": 44.8,
+        "EUR": 1.42,
+        "Other": 53.78
+      },
+      "isEquity": false
+    },
+    "IE00B4WXJJ64": {
+      "name": "iShares Core Euro Government Bond UCITS ETF (Dist)",
+      "geo": {
+        "France": 22.02,
+        "Italy": 17.8,
+        "Germany": 14.42,
+        "Spain": 12.6,
+        "Belgium": 5.13,
+        "Netherlands": 4.07,
+        "Austria": 3.05,
+        "Portugal": 2.12,
+        "Ireland": 1.75,
+        "Finland": 1.25,
+        "Other": 15.79
+      },
+      "sector": {
+        "Other": 100
+      },
+      "breakdownsAsOf": "2026-05-01T11:13:18.276Z",
+      "_source": "justetf",
+      "_addedAt": "2026-05-01T11:13:18.276Z",
+      "_addedVia": "scrape-popular-etfs-pool",
+      "currency": {
+        "EUR": 84.21,
+        "Other": 15.79
+      },
+      "isEquity": false
+    },
+    "IE00B3VWN179": {
+      "name": "iShares USD Treasury Bond 1-3yr UCITS ETF (Acc)",
+      "geo": {
+        "United States": 64.79,
+        "Other": 35.21
+      },
+      "sector": {
+        "Other": 100
+      },
+      "breakdownsAsOf": "2026-05-01T11:13:20.107Z",
+      "_source": "justetf",
+      "_addedAt": "2026-05-01T11:13:20.107Z",
+      "_addedVia": "scrape-popular-etfs-pool",
+      "currency": {
+        "USD": 64.79,
+        "Other": 35.21
+      },
+      "isEquity": false
+    },
+    "IE00BSKRJZ44": {
+      "name": "iShares USD Treasury Bond 20+yr UCITS ETF USD (Dist)",
+      "geo": {
+        "United States": 77.63,
+        "Other": 22.37
+      },
+      "sector": {
+        "Other": 100
+      },
+      "breakdownsAsOf": "2026-05-01T11:13:22.031Z",
+      "_source": "justetf",
+      "_addedAt": "2026-05-01T11:13:22.031Z",
+      "_addedVia": "scrape-popular-etfs-pool",
+      "currency": {
+        "USD": 77.63,
+        "Other": 22.37
+      },
+      "isEquity": false
+    },
+    "IE00B0M62X26": {
+      "name": "iShares Euro Inflation Linked Government Bond UCITS ETF",
+      "geo": {
+        "France": 41.21,
+        "Italy": 27.12,
+        "Spain": 13.43,
+        "Germany": 13.31
+      },
+      "sector": {
+        "Other": 100
+      },
+      "breakdownsAsOf": "2026-05-01T11:13:23.925Z",
+      "_source": "justetf",
+      "_addedAt": "2026-05-01T11:13:23.925Z",
+      "_addedVia": "scrape-popular-etfs-pool",
+      "currency": {
+        "EUR": 95.07
+      },
+      "isEquity": false
+    },
+    "IE00B1FZSC47": {
+      "name": "iShares USD TIPS UCITS ETF USD (Acc)",
+      "geo": {
+        "United States": 83.05,
+        "Other": 16.95
+      },
+      "sector": {
+        "Other": 100
+      },
+      "breakdownsAsOf": "2026-05-01T11:13:25.868Z",
+      "_source": "justetf",
+      "_addedAt": "2026-05-01T11:13:25.868Z",
+      "_addedVia": "scrape-popular-etfs-pool",
+      "currency": {
+        "USD": 83.05,
+        "Other": 16.95
+      },
+      "isEquity": false
+    },
+    "IE00B3F81R35": {
+      "name": "iShares Core EUR Corporate Bond UCITS ETF (Dist)",
+      "geo": {
+        "France": 15.63,
+        "United States": 15.24,
+        "Netherlands": 11.76,
+        "Germany": 6.45,
+        "United Kingdom": 5.61,
+        "Spain": 3.87,
+        "Luxembourg": 3.56,
+        "Italy": 3.18,
+        "Belgium": 1.69,
+        "Sweden": 1.59,
+        "Australia": 1.4,
+        "Ireland": 1.11,
+        "Other": 28.91
+      },
+      "sector": {
+        "Other": 100
+      },
+      "breakdownsAsOf": "2026-05-01T11:13:28.609Z",
+      "_source": "justetf",
+      "_addedAt": "2026-05-01T11:13:28.609Z",
+      "_addedVia": "scrape-popular-etfs-pool",
+      "currency": {
+        "EUR": 47.25,
+        "USD": 15.24,
+        "GBP": 5.61,
+        "SEK": 1.59,
+        "AUD": 1.4,
+        "Other": 28.91
+      },
+      "isEquity": false
+    },
+    "IE00B66F4759": {
+      "name": "iShares EUR High Yield Corporate Bond UCITS ETF EUR (Dist)",
+      "geo": {
+        "Other": 100
+      },
+      "sector": {
+        "Other": 100
+      },
+      "breakdownsAsOf": "2026-05-01T11:13:30.467Z",
+      "_source": "justetf",
+      "_addedAt": "2026-05-01T11:13:30.467Z",
+      "_addedVia": "scrape-popular-etfs-pool",
+      "currency": {
+        "Other": 100
+      },
+      "isEquity": false
+    },
+    "IE00BJK55C48": {
+      "name": "iShares EUR High Yield Corporate Bond ESG SRI UCITS ETF EUR (Acc)",
+      "geo": {
+        "Other": 100
+      },
+      "sector": {
+        "Other": 100
+      },
+      "breakdownsAsOf": "2026-05-01T11:13:32.344Z",
+      "_source": "justetf",
+      "_addedAt": "2026-05-01T11:13:32.344Z",
+      "_addedVia": "scrape-popular-etfs-pool",
+      "currency": {
+        "Other": 100
+      },
+      "isEquity": false
+    },
+    "IE00B2NPKV68": {
+      "name": "iShares J.P. Morgan USD Emerging Markets Bond UCITS ETF (Dist)",
+      "geo": {
+        "Mexico": 4.76,
+        "Indonesia": 4.72,
+        "Saudi Arabia": 4.22,
+        "Turkey": 3.87,
+        "Qatar": 3.74,
+        "Brazil": 3.53,
+        "Philippines": 3.52,
+        "Oman": 3.4,
+        "United Arab Emirates": 2.99,
+        "Colombia": 2.82,
+        "South Africa": 2.78,
+        "Bahrain": 2.75,
+        "Dominican Republic": 2.74,
+        "Peru": 2.63,
+        "Egypt": 2.42,
+        "Panama": 2.4,
+        "Uruguay": 2.33,
+        "Kazakhstan": 2.04,
+        "Malaysia": 2.01,
+        "Chile": 1.98,
+        "British Virgin Islands": 1.6,
+        "China": 1.54,
+        "Cayman Islands": 1.48,
+        "Argentina": 1.26,
+        "Nigeria": 1.25,
+        "Ecuador": 1.25,
+        "Other": 29.97
+      },
+      "sector": {
+        "Other": 100
+      },
+      "breakdownsAsOf": "2026-05-01T11:13:35.063Z",
+      "_source": "justetf",
+      "_addedAt": "2026-05-01T11:13:35.063Z",
+      "_addedVia": "scrape-popular-etfs-pool",
+      "isEquity": false
+    },
+    "IE00B5L65R35": {
+      "name": "iShares GBP Corporate Bond 0-5yr UCITS ETF",
+      "geo": {
+        "United Kingdom": 38,
+        "United States": 12.98,
+        "Netherlands": 7.66,
+        "France": 6.09,
+        "Germany": 3.39,
+        "Spain": 2.5,
+        "Australia": 1.67,
+        "Canada": 1.13,
+        "Other": 26.58
+      },
+      "sector": {
+        "Other": 100
+      },
+      "breakdownsAsOf": "2026-05-01T11:13:37.828Z",
+      "_source": "justetf",
+      "_addedAt": "2026-05-01T11:13:37.828Z",
+      "_addedVia": "scrape-popular-etfs-pool",
+      "currency": {
+        "GBP": 38,
+        "USD": 12.98,
+        "EUR": 19.64,
+        "AUD": 1.67,
+        "CAD": 1.13,
+        "Other": 26.58
+      },
+      "isEquity": false
+    },
+    "IE00B9M6RS56": {
+      "name": "iShares J.P. Morgan USD EM Bond EUR Hedged UCITS ETF (Dist)",
+      "geo": {
+        "Mexico": 4.81,
+        "Indonesia": 4.7,
+        "Saudi Arabia": 4.21,
+        "Turkey": 3.85,
+        "Qatar": 3.74,
+        "Philippines": 3.54,
+        "Brazil": 3.54,
+        "Oman": 3.37,
+        "United Arab Emirates": 2.99,
+        "Colombia": 2.81,
+        "South Africa": 2.74,
+        "Bahrain": 2.73,
+        "Dominican Republic": 2.73,
+        "Peru": 2.64,
+        "Egypt": 2.41,
+        "Panama": 2.39,
+        "Uruguay": 2.3,
+        "Malaysia": 2.03,
+        "Kazakhstan": 2.03,
+        "Chile": 1.97,
+        "British Virgin Islands": 1.59,
+        "China": 1.57,
+        "Cayman Islands": 1.5,
+        "Argentina": 1.26,
+        "Nigeria": 1.25,
+        "Ecuador": 1.25,
+        "Other": 30.05
+      },
+      "sector": {
+        "Other": 100
+      },
+      "breakdownsAsOf": "2026-05-01T11:13:40.476Z",
+      "_source": "justetf",
+      "_addedAt": "2026-05-01T11:13:40.476Z",
+      "_addedVia": "scrape-popular-etfs-pool",
+      "isEquity": false
+    },
+    "IE00BCRY6557": {
+      "name": "iShares EUR Ultrashort Bond UCITS ETF EUR (Dist)",
+      "geo": {
+        "France": 16.92,
+        "United States": 15.65,
+        "Netherlands": 12.91,
+        "Germany": 8.98,
+        "United Kingdom": 8.1,
+        "Spain": 4.8,
+        "Luxembourg": 4.43,
+        "Sweden": 3.43,
+        "Italy": 3.32,
+        "Australia": 1.79,
+        "Denmark": 1.47,
+        "Canada": 1.42,
+        "Norway": 1.4,
+        "Belgium": 1.31,
+        "Japan": 1.3,
+        "Ireland": 1.27,
+        "Finland": 1.02,
+        "Other": 10.48
+      },
+      "sector": {
+        "Other": 100
+      },
+      "breakdownsAsOf": "2026-05-01T11:13:43.275Z",
+      "_source": "justetf",
+      "_addedAt": "2026-05-01T11:13:43.275Z",
+      "_addedVia": "scrape-popular-etfs-pool",
+      "isEquity": false
     }
   }
 }

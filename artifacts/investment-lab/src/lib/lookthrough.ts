@@ -471,6 +471,14 @@ type LookthroughOverride = {
   sector?: ExposureMap;
   currency?: ExposureMap;
   breakdownsAsOf?: string;
+  // Optional asset-class hint. When omitted, the merge step below treats
+  // the entry as equity (isEquity = true) for backward compatibility with
+  // pre-Task-#127 admin-pool entries that were always equity ETFs. Bond /
+  // money-market / inflation-linked ETFs (added in bulk via
+  // scripts/scrape-popular-etfs-pool.mjs) explicitly set isEquity:false
+  // so they route to the fixed-income geo path in `analyzeLookthrough`
+  // instead of polluting the equity geo/sector cards.
+  isEquity?: boolean;
 };
 const RAW_LOOKTHROUGH_OVERRIDES =
   (lookthroughOverridesFile as { overrides?: Record<string, LookthroughOverride> }).overrides ?? {};
@@ -558,32 +566,41 @@ for (const [isin, patch] of Object.entries(RAW_LOOKTHROUGH_OVERRIDES)) {
   }
 }
 
-// Fold pool entries (added via the admin "Look-through data pool" UI)
-// into PROFILES as brand-new entries. We require topHoldings AND geo AND
-// sector to be present, otherwise the look-through math would silently
-// produce zeroed buckets. Currency falls back to deriveCurrencyFromGeo
-// at the source (api-server scrape lib), so it should always be there
-// too — but if a future writer omits it we leave isEquity:true and an
-// empty map rather than crash.
+// Fold pool entries (added via the admin "Look-through data pool" UI
+// AND via scripts/scrape-popular-etfs-pool.mjs for the orphan-instrument
+// bulk-add) into PROFILES as brand-new entries.
 //
-// Pool entries are assumed to be equity (`isEquity:true`) — that matches
-// every Methodology bucket the override dialog operates on today. If a
-// bond ETF is ever added here, the bucket math still works (geo + sector
-// + currency are derived per-asset-class downstream) but the EQUITY flag
-// would mislabel it; revisit when bond bucket overrides are exposed.
+// Minimum required: geo + sector. topHoldings is optional — justETF only
+// publishes a top-holdings table for equity ETFs; bond / commodity /
+// synthetic ETFs return valid geo+sector but no holdings. Without this
+// relaxation the runtime would silently drop ~14 bond ETFs whose pool
+// JSON looks valid but lacks the holdings list. (See
+// scripts/scrape-popular-etfs-pool.mjs `buildPoolEntry` for the
+// matching writer-side gate, and tests/popular-etfs-orphan.test.ts for
+// the regression test that asserts profileFor() returns these entries.)
+//
+// Currency falls back to {} when omitted (rare — derived at the api-server
+// scrape lib via deriveCurrencyFromGeo).
+//
+// `isEquity` defaults to true for backward compatibility with pre-Task-#127
+// admin-pool entries (which were all equity ETFs). Bond / money-market /
+// inflation-linked entries written by the popular-ETFs scraper carry
+// `isEquity:false` so analyzeLookthrough routes them to the fixed-income
+// geo path (line ~849 — gated by `e.assetClass === "Fixed Income"`)
+// rather than polluting equity geo/sector cards. Sector is captured but
+// not currently consumed for fixed income — that's correct, bonds don't
+// have stock sectors.
 for (const [isin, entry] of Object.entries(RAW_LOOKTHROUGH_POOL)) {
   if (!entry) continue;
   if (PROFILES[isin]) continue; // a curated profile takes precedence
   const hasMinimum =
-    entry.topHoldings &&
-    entry.topHoldings.length > 0 &&
     entry.geo &&
     Object.keys(entry.geo).length > 0 &&
     entry.sector &&
     Object.keys(entry.sector).length > 0;
   if (!hasMinimum) continue;
   PROFILES[isin] = {
-    isEquity: true,
+    isEquity: entry.isEquity ?? true,
     geo: entry.geo!,
     sector: entry.sector!,
     currency: entry.currency ?? {},

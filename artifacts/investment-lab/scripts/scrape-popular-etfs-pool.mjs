@@ -65,10 +65,14 @@ const OVERRIDES_JSON = resolve(ROOT, "src/data/lookthrough.overrides.json");
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 function isComplete(entry) {
+  // An entry is "good enough to skip on resume" when it has the minimum
+  // look-through inputs the engine consumes: geo + sector breakdowns.
+  // topHoldings is a nice-to-have preview list (justETF only publishes
+  // it for equity ETFs), so bond / commodity / synthetic ETFs that
+  // expose a holdings-less but valid geo+sector shape are still
+  // considered complete.
   return Boolean(
     entry &&
-      Array.isArray(entry.topHoldings) &&
-      entry.topHoldings.length >= 3 &&
       entry.geo &&
       typeof entry.geo === "object" &&
       Object.keys(entry.geo).length > 0 &&
@@ -130,14 +134,30 @@ async function scrapeOne(isin) {
   return { name, topHoldings, geo, sector, currency };
 }
 
-function buildPoolEntry(isin, scraped) {
+// Categories whose ETFs are fixed-income (bond/money-market). Anything
+// matching this regex gets isEquity:false on the pool entry so the
+// runtime merge in src/lib/lookthrough.ts routes it to the bond geo
+// path in analyzeLookthrough() instead of polluting equity geo/sector
+// cards. Everything else (broad/regional/sector/factor/REIT/commodity
+// equity proxy) defaults to isEquity:true.
+const FIXED_INCOME_CATEGORY_RE =
+  /^(corp bonds|govt bonds|em bonds|us aggregate bond|inflation-linked|money market|fallen angels)/i;
+
+function isFixedIncomeCategory(category) {
+  if (!category || typeof category !== "string") return false;
+  return FIXED_INCOME_CATEGORY_RE.test(category.trim());
+}
+
+function buildPoolEntry(isin, scraped, seedCategory) {
   const stamp = new Date().toISOString();
-  // We require topHoldings AND geo AND sector to consider an entry
-  // "complete enough to write" — matching the isComplete() guard above
-  // and the same minimum the admin pool-add endpoint enforces.
+  // Minimum for a writable entry: a valid geo + sector breakdown. These
+  // are what the look-through engine actually consumes. topHoldings is
+  // a nice-to-have preview only published by justETF for equity ETFs;
+  // bond / commodity / swap ETFs skip the holdings list but still
+  // produce useful breakdowns. (See isComplete() above for the matching
+  // resume-skip predicate, and src/lib/lookthrough.ts ~L596 for the
+  // matching reader-side gate.)
   if (
-    !scraped.topHoldings ||
-    scraped.topHoldings.length < 3 ||
     !scraped.geo ||
     Object.keys(scraped.geo).length === 0 ||
     !scraped.sector ||
@@ -147,8 +167,6 @@ function buildPoolEntry(isin, scraped) {
   }
   const entry = {
     name: scraped.name || isin,
-    topHoldings: scraped.topHoldings,
-    topHoldingsAsOf: stamp,
     geo: scraped.geo,
     sector: scraped.sector,
     breakdownsAsOf: stamp,
@@ -156,6 +174,13 @@ function buildPoolEntry(isin, scraped) {
     _addedAt: stamp,
     _addedVia: "scrape-popular-etfs-pool",
   };
+  if (isFixedIncomeCategory(seedCategory)) {
+    entry.isEquity = false;
+  }
+  if (Array.isArray(scraped.topHoldings) && scraped.topHoldings.length >= 3) {
+    entry.topHoldings = scraped.topHoldings;
+    entry.topHoldingsAsOf = stamp;
+  }
   if (scraped.currency) entry.currency = scraped.currency;
   return entry;
 }
@@ -166,6 +191,14 @@ async function main() {
 
   const staged = JSON.parse(await readFile(STAGED_JSON, "utf8"));
   const stagedIsins = (staged.instruments || []).map((r) => r.isin);
+  // _seedCategory was preserved on each staged instrument by the
+  // enrichment script — we use it here only to derive isEquity. ISIN
+  // not in staged or staged without a category falls back to undefined,
+  // which means buildPoolEntry leaves isEquity unset (defaults to true
+  // at runtime — backward-compatible).
+  const seedCategoryByIsin = new Map(
+    (staged.instruments || []).map((r) => [r.isin, r._seedCategory]),
+  );
   console.log(
     `\n=== scrape-popular-etfs-pool — ${stagedIsins.length} staged ISIN(s) ===\n`
   );
@@ -201,7 +234,7 @@ async function main() {
     process.stdout.write(`  [${i + 1}/${todo.length}] ${isin} ... `);
     try {
       const scraped = await scrapeOne(isin);
-      const entry = buildPoolEntry(isin, scraped);
+      const entry = buildPoolEntry(isin, scraped, seedCategoryByIsin.get(isin));
       if (!entry) {
         const missing = [];
         if (!scraped.topHoldings || scraped.topHoldings.length < 3) missing.push("topHoldings");
@@ -211,8 +244,9 @@ async function main() {
         partial++;
       } else {
         pool[isin] = entry;
+        const topPart = entry.topHoldings ? `top:${entry.topHoldings.length} ` : "";
         process.stdout.write(
-          `OK (top:${entry.topHoldings.length} geo:${Object.keys(entry.geo).length} sector:${Object.keys(entry.sector).length}` +
+          `OK (${topPart}geo:${Object.keys(entry.geo).length} sector:${Object.keys(entry.sector).length}` +
             (entry.currency ? ` ccy:${Object.keys(entry.currency).length}` : "") +
             `)\n`
         );
