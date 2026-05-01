@@ -952,27 +952,32 @@ export function ExplainPortfolio() {
                   <CardTitle>{t("explain.positions.title")}</CardTitle>
                   <CardDescription>{t("explain.positions.desc")}</CardDescription>
                 </div>
-                <div className="flex gap-2 flex-wrap justify-end">
+                <div className="flex gap-2 flex-wrap justify-end items-center">
                   <Button
                     type="button"
-                    variant="outline"
+                    variant="ghost"
                     size="sm"
                     onClick={resetAll}
-                    className="h-8 text-xs"
+                    className="h-8 text-xs text-muted-foreground"
                     data-testid="explain-reset"
                   >
                     <RotateCcw className="mr-1.5 h-3 w-3" />
                     {t("explain.btn.reset")}
                   </Button>
+                  {/* Promoted to filled primary so the manual-entry path is
+                   *  visually peer to (not buried beside) the catalog-pick
+                   *  flow. The catalog sleeves below remain a perfectly
+                   *  valid second path; this button just gives users who
+                   *  already know their ISIN a one-click on-ramp instead
+                   *  of forcing them to expand a sleeve first. */}
                   <Button
                     type="button"
-                    variant="outline"
                     size="sm"
                     onClick={addManualPosition}
-                    className="h-8 text-xs"
+                    className="h-9 text-sm font-medium shadow-sm"
                     data-testid="explain-add-manual"
                   >
-                    <Plus className="mr-1.5 h-3 w-3" />
+                    <Plus className="mr-1.5 h-4 w-4" />
                     {t("explain.btn.addManual")}
                   </Button>
                 </div>
