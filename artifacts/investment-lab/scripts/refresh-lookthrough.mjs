@@ -300,8 +300,23 @@ function extractBreakdown(payload, kind) {
 export {
   extractTopHoldings,
   extractBreakdown,
+  extractEtfName,
+  hasLoadMoreLink,
   parseEquityIsinsFromLookthroughSource,
   parseAllProfileIsinsFromLookthroughSource,
+};
+// Network helpers + constants re-used by the orphan pool-fill script
+// (scripts/scrape-popular-etfs-pool.mjs). Kept side-effect-free at module
+// scope: importing this file does NOT trigger the CLI loop (`isCli`
+// guard at the bottom).
+export {
+  fetchProfile as fetchLookthroughProfile,
+  fetchBreakdownAjax,
+  captureCookies,
+  USER_AGENT as LOOKTHROUGH_USER_AGENT,
+  BREAKDOWN_AJAX_PATHS,
+  REQUEST_DELAY_MS as LOOKTHROUGH_REQUEST_DELAY_MS,
+  BREAKDOWN_DELAY_MS as LOOKTHROUGH_BREAKDOWN_DELAY_MS,
 };
 // Note: deriveCurrencyFromGeo / COUNTRY_TO_CURRENCY / HEDGED_ISINS are
 // re-exported below — once they're declared.
