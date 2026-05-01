@@ -43,12 +43,65 @@ export function biconSiteUrl(lang: Lang): string {
   return lang === "de" ? BRAND.urlDe : BRAND.urlEn;
 }
 
-/** Build a `mailto:` URL for the "Talk to us" CTA. Adds a subject line so
- *  the receiver can immediately see the lead came from the showcase. */
+/** Build a `mailto:` URL for the "Professional dialogue" CTA. Adds a
+ *  subject line plus a pre-filled body so the inbound message arrives
+ *  with the same institutional tone the about.bicon.co marketing site
+ *  uses, and so the receiver immediately sees who it is from, what
+ *  they were doing on the showcase, and which topics interest them.
+ *  The body is intentionally a short structured template — name /
+ *  role / topic / availability — rather than free prose so the sender
+ *  can fill the blanks in seconds and the receiver can triage just as
+ *  fast. Subject and body are fully localised; other surfaces that
+ *  link to the inbox (header CTA, footer attribution row, disclaimer
+ *  contact link) all flow through this single helper so the wording
+ *  stays consistent. */
 export function biconContactMailto(lang: Lang): string {
-  const subject =
-    lang === "de"
-      ? "Investment Decision Lab — Gespräch buchen"
-      : "Investment Decision Lab — Book a call";
-  return `mailto:${BRAND.contactEmail}?subject=${encodeURIComponent(subject)}`;
+  if (lang === "de") {
+    const subject = "Investment Decision Lab — Fachlicher Austausch";
+    const body = [
+      "Hallo BICon-Team,",
+      "",
+      "ich habe das Investment Decision Lab näher angeschaut und möchte gerne einen fachlichen Austausch mit Ihnen starten.",
+      "",
+      "Damit unser Gespräch effizient verläuft, hier kurz zur Einordnung:",
+      "  • Name:",
+      "  • Rolle / Firma:",
+      "  • Thema von Interesse (z. B. Portfoliokonstruktions-Methodik, Look-Through-Analyse, Stresstests, individuelle Integration):",
+      "",
+      "Ein 30-minütiges Erstgespräch passt mir gut. Mögliche Zeitfenster:",
+      "  1)",
+      "  2)",
+      "  3)",
+      "",
+      "Freundliche Grüsse",
+    ].join("\r\n");
+    return (
+      `mailto:${BRAND.contactEmail}` +
+      `?subject=${encodeURIComponent(subject)}` +
+      `&body=${encodeURIComponent(body)}`
+    );
+  }
+  const subject = "Investment Decision Lab — Professional dialogue";
+  const body = [
+    "Hello BICon team,",
+    "",
+    "I have been exploring the Investment Decision Lab and would like to start a professional dialogue with you.",
+    "",
+    "A bit of context to keep our conversation efficient:",
+    "  • Name:",
+    "  • Role / firm:",
+    "  • Topic of interest (e.g. portfolio construction methodology, look-through analysis, stress testing, custom integration):",
+    "",
+    "A 30-minute introductory call works well for me. Possible time windows:",
+    "  1)",
+    "  2)",
+    "  3)",
+    "",
+    "Best regards",
+  ].join("\r\n");
+  return (
+    `mailto:${BRAND.contactEmail}` +
+    `?subject=${encodeURIComponent(subject)}` +
+    `&body=${encodeURIComponent(body)}`
+  );
 }

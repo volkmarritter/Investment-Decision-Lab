@@ -14,7 +14,7 @@ import { BuildPortfolio } from "@/components/investment/BuildPortfolio";
 import { ExplainPortfolio } from "@/components/investment/ExplainPortfolio";
 import { ComparePortfolios } from "@/components/investment/ComparePortfolios";
 import { Methodology, VALID_SECTION_IDS as METHODOLOGY_SECTION_IDS } from "@/components/investment/Methodology";
-import { BookOpen, CalendarClock, Layers, PieChart, Scale } from "lucide-react";
+import { BookOpen, Layers, Phone, PieChart, Scale } from "lucide-react";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useT } from "@/lib/i18n";
 import { DisclaimerFooter } from "@/components/investment/Disclaimer";
@@ -147,7 +147,7 @@ export default function InvestmentLab() {
                 href={biconContactMailto(lang)}
                 aria-label={t("header.bicon.cta.aria")}
               >
-                <CalendarClock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <Phone className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                 <span className="hidden sm:inline whitespace-nowrap">{t("header.bicon.cta")}</span>
                 <span className="sm:hidden whitespace-nowrap">{t("header.bicon.cta.short")}</span>
               </a>

@@ -142,7 +142,7 @@ describe("DisclaimerFooter — BICon attribution row", () => {
       "bicon-footer-mailto",
     ) as HTMLAnchorElement;
     expect(mailto.getAttribute("href")).toContain(`mailto:${BRAND.contactEmail}`);
-    expect(mailto.getAttribute("href")).toContain("Book%20a%20call");
+    expect(mailto.getAttribute("href")).toContain("Professional%20dialogue");
     const link = screen.getByTestId("bicon-link") as HTMLAnchorElement;
     expect(link.getAttribute("href")).toBe(BRAND.urlEn);
     expect(link.getAttribute("target")).toBe("_blank");
@@ -160,7 +160,7 @@ describe("DisclaimerFooter — BICon attribution row", () => {
     const mailto = screen.getByTestId(
       "bicon-footer-mailto",
     ) as HTMLAnchorElement;
-    expect(mailto.getAttribute("href")).toContain("Gespr%C3%A4ch%20buchen");
+    expect(mailto.getAttribute("href")).toContain("Fachlicher%20Austausch");
     // German site URL (root, no /en/ subpath).
     const link = screen.getByTestId("bicon-link") as HTMLAnchorElement;
     expect(link.getAttribute("href")).toBe(BRAND.urlDe);
@@ -212,8 +212,8 @@ describe("InvestmentLab header — BICon brand layer", () => {
     // CTA carries both the long and short labels (responsive tailwind
     // classes hide one or the other depending on viewport — both are in
     // the DOM at all times).
-    expect(link.textContent ?? "").toContain("Book a 30-min call");
-    expect(link.textContent ?? "").toContain("Talk to us");
+    expect(link.textContent ?? "").toContain("Professional dialogue");
+    expect(link.textContent ?? "").toContain("Dialogue");
   });
 });
 
