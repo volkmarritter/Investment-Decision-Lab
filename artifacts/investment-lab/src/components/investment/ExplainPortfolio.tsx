@@ -101,8 +101,8 @@ type PersistedState = ExplainWorkspace;
 
 const DEFAULT_STATE: PersistedState = {
   v: 1,
-  baseCurrency: "USD",
-  riskAppetite: "Moderate",
+  baseCurrency: "CHF",
+  riskAppetite: "High",
   horizon: 10,
   hedged: false,
   lookThroughView: true,

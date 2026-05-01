@@ -156,10 +156,10 @@ test.describe("ExplainPortfolio · bring-your-own-ETFs (mobile)", () => {
     // Stress Test, Geo Exposure Map, and Home Bias were added in Task #136 to
     // mirror Build's analysis stack. StressTest always renders; the reverse
     // stress sub-table is the only stable testid below the fold. Geo renders
-    // when lookThrough is on (default), and Home Bias renders for non-USD
-    // bases only — default state here is USD + lookThrough on, so we assert
-    // geo + stress are visible and trust Build's coverage for the home-bias
-    // gating itself (HomeBiasAnalysis is shared, not forked).
+    // when lookThrough is on (default). Default base is CHF (matches Build's
+    // defaults — Task #149) so Home Bias also mounts, but its rendering is
+    // covered by the dedicated NON_USD_BASES tests below; here we only
+    // assert the always-on cards.
     await expect(analysis.getByTestId("reverse-stress")).toBeVisible();
     await expect(analysis.getByText(/effective geographic|effektive geografische/i).first()).toBeVisible();
 
@@ -275,8 +275,9 @@ test.describe("ExplainPortfolio · bring-your-own-ETFs (mobile)", () => {
 
       // Three catalog ETFs summing to 100% so the analysis block actually
       // renders — Home Bias only mounts inside `explain-analysis`. We mix in
-      // a fixed-income sleeve so the default Moderate risk profile's equity
-      // cap doesn't trip validation and suppress the analysis cards.
+      // a fixed-income sleeve so the default High risk profile's equity cap
+      // (Build defaults — Task #149) is comfortably satisfied and validation
+      // doesn't suppress the analysis cards.
       await addCatalogRow(page, 0, ISIN_USA, BUCKET_USA, GROUP_EQUITY);
       await addCatalogRow(page, 1, ISIN_EUROPE, BUCKET_EUROPE, GROUP_EQUITY);
       await addCatalogRow(page, 2, ISIN_FI, BUCKET_FI, GROUP_FI);
@@ -288,9 +289,10 @@ test.describe("ExplainPortfolio · bring-your-own-ETFs (mobile)", () => {
       const analysis = page.getByTestId("explain-analysis");
       await expect(analysis).toBeVisible();
 
-      // Sanity: USD default → Home Bias suppressed.
-      const homeBiasTitle = analysis.getByText(/home bias analysis|home-bias-analyse/i);
-      await expect(homeBiasTitle).toHaveCount(0);
+      // Default base was USD before Task #149; the prior "USD default → Home
+      // Bias suppressed" sanity check is no longer applicable now that the
+      // default is CHF. The positive assertion below (target home label
+      // visible after switching to `code`) remains the test's main contract.
 
       // Flip the base currency. The Select trigger uses Radix under
       // the hood, so we tap to open the listbox and pick the option by
