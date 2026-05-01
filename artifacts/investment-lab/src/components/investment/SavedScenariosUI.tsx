@@ -223,6 +223,11 @@ export function SavedScenariosUI({
   const labelA = lang === "de" ? "Portfolio A speichern" : "Save Portfolio A";
   const labelB = lang === "de" ? "Portfolio B speichern" : "Save Portfolio B";
 
+  // Tabs render all panels at once (Radix), so testids in this component
+  // would otherwise collide between the Build (single) and Compare mounts.
+  // Prefix per-mode so e2e tests can target the correct instance.
+  const tidPrefix = compareSlots ? "compare-saved" : "build-saved";
+
   return (
     <div className="flex flex-wrap items-center gap-2 mt-2">
       {/* Save button(s) */}
@@ -274,6 +279,7 @@ export function SavedScenariosUI({
             size="sm"
             disabled={!hasGenerated}
             onClick={() => openSaveDialog("single")}
+            data-testid={`${tidPrefix}-save`}
           >
             <Save className="h-4 w-4 mr-2" />
             {t("saved.btn.save")}
@@ -284,6 +290,7 @@ export function SavedScenariosUI({
             disabled={!hasGenerated}
             onClick={() => handleSaveToFile("single")}
             title={t("saved.file.btn.save")}
+            data-testid={`${tidPrefix}-save-file`}
           >
             <Download className="h-4 w-4 mr-2" />
             {t("saved.file.btn.save")}
@@ -318,7 +325,12 @@ export function SavedScenariosUI({
 
       {/* List dialog */}
       <Dialog open={isListOpen} onOpenChange={setIsListOpen}>
-        <Button variant="outline" size="sm" onClick={() => setIsListOpen(true)}>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setIsListOpen(true)}
+          data-testid={`${tidPrefix}-list`}
+        >
           <Bookmark className="h-4 w-4 mr-2" />
           {t("saved.btn.saved").replace("{count}", String(scenarios.length))}
         </Button>
@@ -376,6 +388,7 @@ export function SavedScenariosUI({
         size="sm"
         onClick={() => fileInputRef.current?.click()}
         title={t("saved.file.btn.load")}
+        data-testid={`${tidPrefix}-load-file`}
       >
         <Upload className="h-4 w-4 mr-2" />
         {t("saved.file.btn.load")}
@@ -386,6 +399,7 @@ export function SavedScenariosUI({
         accept="application/json,.json"
         className="hidden"
         onChange={onFileInputChange}
+        data-testid={`${tidPrefix}-file-input`}
       />
 
       {/* Compare-context A/B picker shown after a successful import */}
