@@ -1276,18 +1276,15 @@ export function ExplainPortfolio() {
       </div>
 
       {showAnalysis && (
+        // Analysis-block order mirrors BuildPortfolio.tsx (L1559-L1643) so the
+        // user sees the same narrative flow whether they're picking buckets in
+        // Build or describing their existing portfolio in Explain:
+        //   Currency → (Look-Through block) → MonteCarlo → Metrics → Stress
+        //     → HomeBias → Fees.
+        // The two Build-only cards (ETF Implementation chooser, Learning
+        // Insights) are intentionally absent — Explain doesn't pick ETFs and
+        // doesn't synthesize learning copy.
         <div className="space-y-6" data-testid="explain-analysis">
-          <PortfolioMetrics
-            allocation={portfolio.allocation}
-            baseCurrency={state.baseCurrency}
-            etfImplementation={
-              state.lookThroughView ? portfolio.etfImplementation : undefined
-            }
-            hedged={state.hedged}
-            riskRegime={riskRegime}
-            onRiskRegimeChange={setRiskRegime}
-          />
-
           <CurrencyOverview
             etfs={portfolio.etfImplementation}
             baseCurrency={state.baseCurrency}
@@ -1311,14 +1308,9 @@ export function ExplainPortfolio() {
             </>
           )}
 
-          <FeeEstimator
-            allocation={portfolio.allocation}
-            horizonYears={state.horizon}
-            baseCurrency={state.baseCurrency}
-            hedged={state.hedged}
-            etfImplementations={portfolio.etfImplementation}
-          />
-
+          {/* Monte Carlo Simulation (placed before Risk Metrics so the
+           *  forward-looking distribution frames the backward-looking
+           *  risk/return statistics that follow — same rationale as Build). */}
           <MonteCarloSimulation
             allocation={portfolio.allocation}
             horizonYears={state.horizon}
@@ -1327,6 +1319,19 @@ export function ExplainPortfolio() {
             etfImplementation={
               state.lookThroughView ? portfolio.etfImplementation : undefined
             }
+            riskRegime={riskRegime}
+            onRiskRegimeChange={setRiskRegime}
+          />
+
+          {/* Risk & Performance Metrics (Sharpe, Beta, Alpha, TE, Max DD,
+           *  Frontier, Correlation). */}
+          <PortfolioMetrics
+            allocation={portfolio.allocation}
+            baseCurrency={state.baseCurrency}
+            etfImplementation={
+              state.lookThroughView ? portfolio.etfImplementation : undefined
+            }
+            hedged={state.hedged}
             riskRegime={riskRegime}
             onRiskRegimeChange={setRiskRegime}
           />
@@ -1348,6 +1353,16 @@ export function ExplainPortfolio() {
               baseCurrency={state.baseCurrency}
             />
           )}
+
+          {/* Fee Estimator — last block, mirroring Build's placement after the
+           *  risk/return story so total cost is the closing line. */}
+          <FeeEstimator
+            allocation={portfolio.allocation}
+            horizonYears={state.horizon}
+            baseCurrency={state.baseCurrency}
+            hedged={state.hedged}
+            etfImplementations={portfolio.etfImplementation}
+          />
         </div>
       )}
     </div>
