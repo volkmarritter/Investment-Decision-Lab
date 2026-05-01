@@ -1,856 +1,855 @@
 {
   "_meta": {
     "source": "justetf.com",
-    "lastRefreshed": "2026-04-24T19:43:14.034Z",
+    "lastRefreshed": "2026-05-01T06:30:37.957Z",
     "refreshedBy": "scripts/refresh-lookthrough.mjs",
-    "note": "ISIN -> partial LookthroughProfile overrides applied on top of the curated PROFILES in src/lib/lookthrough.ts. Populated monthly (1st of month, 04:00 UTC) by the refresh-lookthrough GitHub Action. Refreshed fields: topHoldings (top-10 stocks, per-ISIN topHoldingsAsOf stamp), geo / sector breakdown maps (per-ISIN breakdownsAsOf stamp, scraped from justETF — static profile HTML when complete, Wicket Ajax loadMore endpoint with a session cookie when justETF renders a 'Show more' link), and currency (re-bucketed from the just-refreshed geo map via a country -> local-listing-currency table — justETF doesn't publish a per-ETF currency breakdown directly; skipped for currency-hedged share classes whose curated hedge-currency map remains authoritative)."
+    "note": "ISIN -> partial LookthroughProfile overrides applied on top of the curated PROFILES in src/lib/lookthrough.ts. Populated monthly (1st of month, 04:00 UTC) by the refresh-lookthrough GitHub Action. Refreshed fields: topHoldings (top-10 stocks, per-ISIN topHoldingsAsOf stamp), geo / sector breakdown maps (per-ISIN breakdownsAsOf stamp, scraped from justETF — static profile HTML when complete, Wicket Ajax loadMore endpoint with a session cookie when justETF renders a 'Show more' link), and currency (re-bucketed from the just-refreshed geo map via a country -> local-listing-currency table — justETF doesn't publish a per-ETF currency breakdown directly; skipped for currency-hedged share classes whose curated hedge-currency map remains authoritative). The `pool` map holds bucket-agnostic look-through profiles added via the admin /api/admin/lookthrough-pool endpoint; the same monthly job re-scrapes them so admin-added ISINs stay fresh alongside the catalog."
   },
   "overrides": {
     "IE00B3YLTY66": {
       "topHoldings": [
         {
           "name": "NVIDIA Corp.",
-          "pct": 3.93
+          "pct": 4.17
         },
         {
           "name": "Apple",
-          "pct": 3.56
+          "pct": 3.69
         },
         {
           "name": "Microsoft",
-          "pct": 2.51
+          "pct": 2.55
         },
         {
           "name": "Amazon.com, Inc.",
-          "pct": 1.82
+          "pct": 1.95
         },
         {
           "name": "Alphabet, Inc. A",
-          "pct": 1.7
+          "pct": 1.69
         },
         {
           "name": "Taiwan Semiconductor Manufacturing Co., Ltd.",
-          "pct": 1.48
-        },
-        {
-          "name": "Alphabet, Inc. C",
-          "pct": 1.37
+          "pct": 1.38
         },
         {
           "name": "Broadcom Inc.",
-          "pct": 1.3
+          "pct": 1.36
+        },
+        {
+          "name": "Alphabet, Inc. C",
+          "pct": 1.36
         },
         {
           "name": "Meta Platforms",
-          "pct": 1.29
+          "pct": 1.23
         },
         {
           "name": "Tesla",
-          "pct": 1.05
+          "pct": 1.04
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T19:38:21.552Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
-        "United States": 57.04,
-        "Japan": 6.05,
+        "United States": 58.57,
+        "Japan": 5.68,
         "United Kingdom": 3.25,
-        "Canada": 2.87,
-        "Taiwan": 2.73,
-        "China": 2.47,
-        "South Korea": 2.21,
-        "Switzerland": 2.17,
-        "France": 2.13,
-        "Germany": 2.04,
-        "Australia": 1.69,
-        "India": 1.46,
-        "Netherlands": 1.32,
+        "Canada": 2.92,
+        "Taiwan": 2.56,
+        "China": 2.45,
+        "France": 2.05,
+        "Germany": 1.94,
+        "Switzerland": 1.85,
+        "South Korea": 1.77,
+        "Australia": 1.65,
+        "India": 1.35,
+        "Netherlands": 1.24,
         "Ireland": 1.03,
-        "Other": 11.54
+        "Other": 11.69
       },
       "sector": {
-        "Technology": 25.15,
-        "Financials": 14.53,
-        "Industrials": 11.98,
-        "Consumer Discretionary": 9.67,
-        "Health Care": 8.66,
-        "Telecommunication": 7.78,
-        "Consumer Staples": 4.75,
-        "Basic Materials": 4.44,
-        "Energy": 4.02,
-        "Utilities": 2.6,
-        "Real Estate": 2.24,
-        "Other": 4.19
+        "Technology": 25.36,
+        "Financials": 14.57,
+        "Industrials": 11.44,
+        "Consumer Discretionary": 9.53,
+        "Health Care": 8.31,
+        "Telecommunication": 7.79,
+        "Energy": 4.8,
+        "Consumer Staples": 4.71,
+        "Basic Materials": 4.24,
+        "Utilities": 2.68,
+        "Real Estate": 2.2,
+        "Other": 4.37
       },
-      "breakdownsAsOf": "2026-04-24T19:38:21.552Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "currency": {
-        "USD": 57.04,
-        "JPY": 6.05,
+        "USD": 58.57,
+        "JPY": 5.68,
         "GBP": 3.25,
-        "CAD": 2.87,
-        "TWD": 2.73,
-        "CNY": 2.47,
-        "KRW": 2.21,
-        "CHF": 2.17,
-        "EUR": 6.52,
-        "AUD": 1.69,
-        "INR": 1.46,
-        "Other": 11.54
+        "CAD": 2.92,
+        "TWD": 2.56,
+        "CNY": 2.45,
+        "EUR": 6.26,
+        "CHF": 1.85,
+        "KRW": 1.77,
+        "AUD": 1.65,
+        "INR": 1.35,
+        "Other": 11.69
       }
     },
     "IE00B5BMR087": {
       "topHoldings": [
         {
           "name": "NVIDIA Corp.",
-          "pct": 7.6
+          "pct": 7.57
         },
         {
           "name": "Apple",
-          "pct": 6.82
+          "pct": 6.66
         },
         {
           "name": "Microsoft",
-          "pct": 5.05
+          "pct": 4.91
         },
         {
           "name": "Amazon.com, Inc.",
-          "pct": 3.42
+          "pct": 3.63
         },
         {
           "name": "Alphabet, Inc. A",
-          "pct": 3.02
+          "pct": 2.99
         },
         {
           "name": "Broadcom Inc.",
-          "pct": 2.57
-        },
-        {
-          "name": "Meta Platforms",
-          "pct": 2.42
+          "pct": 2.62
         },
         {
           "name": "Alphabet, Inc. C",
-          "pct": 2.41
+          "pct": 2.4
+        },
+        {
+          "name": "Meta Platforms",
+          "pct": 2.24
         },
         {
           "name": "Tesla",
-          "pct": 1.94
+          "pct": 1.87
         },
         {
           "name": "Berkshire Hathaway, Inc.",
-          "pct": 1.56
+          "pct": 1.57
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T19:43:14.034Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
-        "United States": 95.12,
-        "Ireland": 1.47,
-        "Other": 3.41
+        "United States": 95.16,
+        "Ireland": 1.44,
+        "Other": 3.4
       },
       "sector": {
-        "Technology": 33.99,
-        "Financials": 10.49,
-        "Telecommunication": 10.27,
-        "Consumer Discretionary": 10.05,
-        "Health Care": 9.46,
-        "Industrials": 8.47,
-        "Consumer Staples": 5.05,
-        "Energy": 3.4,
-        "Utilities": 2.44,
-        "Real Estate": 1.93,
-        "Basic Materials": 1.64,
+        "Technology": 33.9,
+        "Financials": 10.38,
+        "Telecommunication": 10.22,
+        "Consumer Discretionary": 10.01,
+        "Health Care": 9.31,
+        "Industrials": 8.32,
+        "Consumer Staples": 4.98,
+        "Energy": 4.01,
+        "Utilities": 2.54,
+        "Real Estate": 1.92,
+        "Basic Materials": 1.61,
         "Other": 2.81
       },
-      "breakdownsAsOf": "2026-04-24T19:43:14.034Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "currency": {
-        "USD": 95.12,
-        "EUR": 1.47,
-        "Other": 3.41
+        "USD": 95.16,
+        "EUR": 1.44,
+        "Other": 3.4
       }
     },
     "IE00B4K48X80": {
       "topHoldings": [
         {
           "name": "ASML Holding NV",
-          "pct": 3.83
-        },
-        {
-          "name": "Roche Holding AG",
-          "pct": 2.24
-        },
-        {
-          "name": "HSBC Holdings Plc",
-          "pct": 2.21
+          "pct": 3.78
         },
         {
           "name": "AstraZeneca PLC",
-          "pct": 2.15
+          "pct": 2.27
         },
         {
           "name": "Novartis AG",
-          "pct": 2.13
+          "pct": 2.16
         },
         {
-          "name": "Nestlé SA",
-          "pct": 1.87
+          "name": "HSBC Holdings Plc",
+          "pct": 2.08
+        },
+        {
+          "name": "Roche Holding AG",
+          "pct": 2.08
         },
         {
           "name": "Shell Plc",
-          "pct": 1.61
+          "pct": 2.04
+        },
+        {
+          "name": "Nestlé SA",
+          "pct": 1.9
+        },
+        {
+          "name": "TotalEnergies SE",
+          "pct": 1.4
         },
         {
           "name": "Siemens AG",
-          "pct": 1.51
+          "pct": 1.36
         },
         {
           "name": "SAP SE",
-          "pct": 1.44
-        },
-        {
-          "name": "Banco Santander SA",
-          "pct": 1.32
+          "pct": 1.34
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T19:38:21.552Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
-        "United Kingdom": 19.55,
-        "Switzerland": 14.47,
-        "France": 14.43,
-        "Germany": 13.94,
-        "Netherlands": 8.78,
-        "Spain": 5.41,
-        "Sweden": 4.82,
-        "Italy": 4.52,
-        "Finland": 1.55,
-        "Denmark": 1.51,
-        "Belgium": 1.31,
-        "Ireland": 1.13,
-        "Other": 8.58
+        "United Kingdom": 19.61,
+        "France": 14.17,
+        "Germany": 13.58,
+        "Switzerland": 12.28,
+        "Netherlands": 8.55,
+        "Spain": 5.47,
+        "Italy": 4.63,
+        "Sweden": 4.62,
+        "Finland": 1.62,
+        "Denmark": 1.61,
+        "Belgium": 1.33,
+        "Ireland": 1.07,
+        "Norway": 1.02,
+        "Other": 10.44
       },
       "sector": {
-        "Financials": 22.3,
-        "Industrials": 18.51,
-        "Health Care": 11.3,
-        "Consumer Staples": 8.03,
-        "Technology": 8,
-        "Consumer Discretionary": 7.3,
-        "Utilities": 4.98,
-        "Basic Materials": 4.74,
-        "Energy": 4.28,
-        "Telecommunication": 3.72,
-        "Real Estate": 0.73,
-        "Other": 6.11
+        "Financials": 21.85,
+        "Industrials": 17.44,
+        "Health Care": 9.3,
+        "Consumer Staples": 7.95,
+        "Technology": 7.84,
+        "Consumer Discretionary": 6.44,
+        "Energy": 5.68,
+        "Utilities": 5.28,
+        "Basic Materials": 4.9,
+        "Telecommunication": 3.97,
+        "Real Estate": 0.67,
+        "Other": 8.69
       },
-      "breakdownsAsOf": "2026-04-24T19:38:21.552Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "currency": {
-        "GBP": 19.55,
-        "CHF": 14.47,
-        "EUR": 51.07,
-        "SEK": 4.82,
-        "DKK": 1.51,
-        "Other": 8.58
+        "GBP": 19.61,
+        "EUR": 50.42,
+        "CHF": 12.28,
+        "SEK": 4.62,
+        "DKK": 1.61,
+        "NOK": 1.02,
+        "Other": 10.44
       }
     },
     "CH0237935652": {
       "topHoldings": [
         {
-          "name": "Roche Holding AG",
-          "pct": 13.94
+          "name": "Novartis AG",
+          "pct": 13.95
         },
         {
-          "name": "Novartis AG",
-          "pct": 13.73
+          "name": "Roche Holding AG",
+          "pct": 13
         },
         {
           "name": "Nestlé SA",
-          "pct": 11.63
+          "pct": 11.88
         },
         {
           "name": "ABB Ltd.",
-          "pct": 6.12
+          "pct": 5.87
         },
         {
           "name": "UBS Group AG",
-          "pct": 5.16
-        },
-        {
-          "name": "Compagnie Financière Richemont SA",
-          "pct": 4.77
+          "pct": 5.54
         },
         {
           "name": "Zurich Insurance Group AG",
-          "pct": 4.62
+          "pct": 5.06
+        },
+        {
+          "name": "Compagnie Financière Richemont SA",
+          "pct": 4.38
         },
         {
           "name": "Swiss Re AG",
-          "pct": 2.14
-        },
-        {
-          "name": "Holcim Ltd.",
-          "pct": 2.08
+          "pct": 2.32
         },
         {
           "name": "Lonza Group AG",
+          "pct": 2.08
+        },
+        {
+          "name": "Holcim Ltd.",
           "pct": 2.04
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T19:38:21.552Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
-        "Switzerland": 93.05,
-        "Other": 6.95
+        "Switzerland": 79.59,
+        "Other": 20.41
       },
       "sector": {
-        "Health Care": 34.32,
-        "Financials": 17.77,
-        "Consumer Staples": 13.55,
-        "Industrials": 12.33,
-        "Consumer Discretionary": 5.63,
-        "Basic Materials": 5.46,
-        "Real Estate": 1.72,
+        "Health Care": 20.51,
+        "Financials": 19.14,
+        "Consumer Staples": 13.75,
+        "Industrials": 11.81,
+        "Consumer Discretionary": 5.17,
+        "Basic Materials": 5.13,
+        "Real Estate": 1.77,
         "Technology": 1.21,
-        "Telecommunication": 1.03,
-        "Utilities": 0.16,
-        "Other": 6.82
+        "Telecommunication": 1.04,
+        "Utilities": 0.18,
+        "Other": 20.29
       },
-      "breakdownsAsOf": "2026-04-24T19:38:21.552Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "currency": {
-        "CHF": 93.05,
-        "Other": 6.95
+        "CHF": 79.59,
+        "Other": 20.41
       }
     },
     "IE00B4L5YX21": {
       "topHoldings": [
         {
           "name": "Toyota Motor Corp.",
-          "pct": 3.49
+          "pct": 3.23
         },
         {
           "name": "Mitsubishi UFJ Financial Group, Inc.",
-          "pct": 3.27
+          "pct": 3.16
         },
         {
           "name": "Hitachi Ltd.",
-          "pct": 2.3
-        },
-        {
-          "name": "Sumitomo Mitsui Financial Group, Inc.",
-          "pct": 2.1
-        },
-        {
-          "name": "Advantest",
-          "pct": 2.1
+          "pct": 2.2
         },
         {
           "name": "Sony Group Corp.",
-          "pct": 2.04
+          "pct": 2.13
         },
         {
-          "name": "Tokyo Electron Ltd.",
+          "name": "Sumitomo Mitsui Financial Group, Inc.",
           "pct": 1.98
         },
         {
-          "name": "Mizuho Financial Group, Inc.",
-          "pct": 1.7
-        },
-        {
           "name": "Mitsubishi Corp.",
-          "pct": 1.62
+          "pct": 1.84
         },
         {
-          "name": "SoftBank Group",
-          "pct": 1.57
+          "name": "Tokyo Electron Ltd.",
+          "pct": 1.79
+        },
+        {
+          "name": "Advantest Corp.",
+          "pct": 1.68
+        },
+        {
+          "name": "Mizuho Financial Group, Inc.",
+          "pct": 1.63
+        },
+        {
+          "name": "Mitsui & Co., Ltd.",
+          "pct": 1.59
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T19:38:21.552Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
-        "Japan": 98.13,
-        "Other": 1.87
+        "Japan": 97.09,
+        "Other": 2.91
       },
       "sector": {
-        "Industrials": 26.04,
-        "Consumer Discretionary": 15.7,
-        "Financials": 15.43,
-        "Technology": 13.45,
-        "Health Care": 5.84,
-        "Telecommunication": 5.41,
-        "Basic Materials": 5.24,
-        "Consumer Staples": 4.91,
-        "Real Estate": 3.74,
-        "Utilities": 1.37,
-        "Energy": 1,
-        "Other": 1.87
+        "Industrials": 25.52,
+        "Financials": 15.41,
+        "Consumer Discretionary": 15.38,
+        "Technology": 12.42,
+        "Health Care": 6.1,
+        "Telecommunication": 5.71,
+        "Basic Materials": 5.14,
+        "Consumer Staples": 5.14,
+        "Real Estate": 3.58,
+        "Utilities": 1.47,
+        "Energy": 1.22,
+        "Other": 2.91
       },
-      "breakdownsAsOf": "2026-04-24T19:38:21.552Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "currency": {
-        "JPY": 98.13,
-        "Other": 1.87
+        "JPY": 97.09,
+        "Other": 2.91
       }
     },
     "IE00BKM4GZ66": {
       "topHoldings": [
         {
           "name": "Taiwan Semiconductor Manufacturing Co., Ltd.",
-          "pct": 11.56
+          "pct": 11.48
         },
         {
           "name": "Samsung Electronics Co., Ltd.",
-          "pct": 5.33
-        },
-        {
-          "name": "SK hynix, Inc.",
-          "pct": 3.1
+          "pct": 4.37
         },
         {
           "name": "Tencent Holdings Ltd.",
-          "pct": 3.08
+          "pct": 3.34
+        },
+        {
+          "name": "SK hynix, Inc.",
+          "pct": 2.43
         },
         {
           "name": "Alibaba Group Holding Ltd.",
-          "pct": 2.31
-        },
-        {
-          "name": "HDFC Bank Ltd.",
-          "pct": 0.83
+          "pct": 2.21
         },
         {
           "name": "China Construction Bank Corp.",
-          "pct": 0.72
+          "pct": 0.87
         },
         {
-          "name": "Hon Hai Precision Industry Co., Ltd.",
-          "pct": 0.72
-        },
-        {
-          "name": "MediaTek, Inc.",
-          "pct": 0.7
+          "name": "HDFC Bank Ltd.",
+          "pct": 0.75
         },
         {
           "name": "Reliance Industries Ltd.",
-          "pct": 0.68
+          "pct": 0.72
+        },
+        {
+          "name": "Delta Electronics, Inc.",
+          "pct": 0.71
+        },
+        {
+          "name": "Hon Hai Precision Industry Co., Ltd.",
+          "pct": 0.63
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T19:38:21.552Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
-        "Taiwan": 21.78,
-        "China": 19.52,
-        "South Korea": 17.98,
-        "India": 11.86,
-        "Brazil": 4,
-        "South Africa": 2.99,
-        "Saudi Arabia": 2.54,
-        "Mexico": 1.74,
-        "Malaysia": 1.33,
-        "United Arab Emirates": 1.28,
-        "Hong Kong": 1.16,
-        "Thailand": 1.15,
-        "Poland": 1.07,
-        "Indonesia": 1.01,
-        "Other": 10.59
+        "Taiwan": 21.99,
+        "China": 21,
+        "South Korea": 15.19,
+        "India": 11.53,
+        "Brazil": 4.44,
+        "Saudi Arabia": 3.07,
+        "South Africa": 2.79,
+        "Mexico": 1.84,
+        "Malaysia": 1.42,
+        "Hong Kong": 1.21,
+        "Thailand": 1.17,
+        "United Arab Emirates": 1.15,
+        "Poland": 1.14,
+        "Other": 12.06
       },
       "sector": {
-        "Technology": 31.48,
-        "Financials": 18.22,
-        "Consumer Discretionary": 9.59,
-        "Industrials": 7.32,
-        "Basic Materials": 7.12,
-        "Telecommunication": 6.56,
-        "Energy": 3.43,
-        "Health Care": 3.19,
-        "Consumer Staples": 3.18,
-        "Utilities": 1.98,
-        "Real Estate": 1.76,
-        "Other": 6.18
+        "Technology": 29.92,
+        "Financials": 18.7,
+        "Consumer Discretionary": 9.44,
+        "Industrials": 7.12,
+        "Basic Materials": 7.02,
+        "Telecommunication": 6.83,
+        "Energy": 3.96,
+        "Health Care": 3.37,
+        "Consumer Staples": 3.32,
+        "Utilities": 2.1,
+        "Real Estate": 1.72,
+        "Other": 6.51
       },
-      "breakdownsAsOf": "2026-04-24T19:38:21.552Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "currency": {
-        "TWD": 21.78,
-        "CNY": 19.52,
-        "KRW": 17.98,
-        "INR": 11.86,
-        "BRL": 4,
-        "ZAR": 2.99,
-        "SAR": 2.54,
-        "MXN": 1.74,
-        "MYR": 1.33,
-        "AED": 1.28,
-        "HKD": 1.16,
-        "THB": 1.15,
-        "PLN": 1.07,
-        "IDR": 1.01,
-        "Other": 10.59
+        "TWD": 21.99,
+        "CNY": 21,
+        "KRW": 15.19,
+        "INR": 11.53,
+        "BRL": 4.44,
+        "SAR": 3.07,
+        "ZAR": 2.79,
+        "MXN": 1.84,
+        "MYR": 1.42,
+        "HKD": 1.21,
+        "THB": 1.17,
+        "AED": 1.15,
+        "PLN": 1.14,
+        "Other": 12.06
       }
     },
     "IE00B1FZS350": {
       "topHoldings": [
         {
           "name": "Prologis, Inc.",
-          "pct": 7.39
+          "pct": 7.5
         },
         {
           "name": "Equinix",
-          "pct": 5.17
-        },
-        {
-          "name": "Simon Property Group, Inc.",
-          "pct": 3.67
-        },
-        {
-          "name": "Realty Income",
-          "pct": 3.41
+          "pct": 5.86
         },
         {
           "name": "Digital Realty Trust, Inc.",
-          "pct": 3.39
+          "pct": 3.8
+        },
+        {
+          "name": "Simon Property Group, Inc.",
+          "pct": 3.7
+        },
+        {
+          "name": "Realty Income",
+          "pct": 3.42
         },
         {
           "name": "Public Storage",
-          "pct": 2.68
+          "pct": 2.62
         },
         {
           "name": "Ventas, Inc.",
-          "pct": 2.26
-        },
-        {
-          "name": "Mitsui Fudosan Co., Ltd.",
-          "pct": 1.96
+          "pct": 2.34
         },
         {
           "name": "Iron Mountain, Inc.",
-          "pct": 1.8
+          "pct": 1.84
         },
         {
           "name": "VICI Properties",
-          "pct": 1.78
+          "pct": 1.79
+        },
+        {
+          "name": "Extra Space Storage",
+          "pct": 1.69
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T19:38:21.552Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
-        "United States": 61.4,
-        "Japan": 8.24,
-        "Australia": 3.95,
-        "United Kingdom": 3.68,
-        "Hong Kong": 3.45,
-        "Singapore": 3.28,
-        "France": 2.12,
-        "Canada": 2.02,
-        "Germany": 1.99,
-        "Switzerland": 1.85,
-        "Belgium": 1.22,
-        "Sweden": 1.17,
-        "Other": 5.63
+        "United States": 62.83,
+        "Japan": 7.8,
+        "Australia": 3.73,
+        "Hong Kong": 3.43,
+        "United Kingdom": 3.28,
+        "Singapore": 3.27,
+        "France": 2.04,
+        "Canada": 2.03,
+        "Switzerland": 1.88,
+        "Germany": 1.67,
+        "Belgium": 1.14,
+        "Sweden": 1.1,
+        "Other": 5.8
       },
       "sector": {
-        "Real Estate": 96.68,
-        "Health Care": 0.29,
+        "Real Estate": 96.51,
+        "Health Care": 0.28,
         "Consumer Discretionary": 0.03,
-        "Technology": 0.03,
-        "Other": 2.97
+        "Technology": 0.02,
+        "Other": 3.16
       },
-      "breakdownsAsOf": "2026-04-24T19:38:21.552Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "currency": {
-        "USD": 61.4,
-        "JPY": 8.24,
-        "AUD": 3.95,
-        "GBP": 3.68,
-        "HKD": 3.45,
-        "SGD": 3.28,
-        "EUR": 5.33,
-        "CAD": 2.02,
-        "CHF": 1.85,
-        "SEK": 1.17,
-        "Other": 5.63
+        "USD": 62.83,
+        "JPY": 7.8,
+        "AUD": 3.73,
+        "HKD": 3.43,
+        "GBP": 3.28,
+        "SGD": 3.27,
+        "EUR": 4.85,
+        "CAD": 2.03,
+        "CHF": 1.88,
+        "SEK": 1.1,
+        "Other": 5.8
       }
     },
     "IE00B3WJKG14": {
       "topHoldings": [
         {
           "name": "NVIDIA Corp.",
-          "pct": 23.06
+          "pct": 23.01
         },
         {
           "name": "Apple",
-          "pct": 18.72
+          "pct": 18.53
         },
         {
           "name": "Microsoft",
-          "pct": 15.83
+          "pct": 15.36
         },
         {
           "name": "Broadcom Inc.",
-          "pct": 8.05
+          "pct": 8.2
         },
         {
           "name": "Micron Technology",
-          "pct": 2.48
-        },
-        {
-          "name": "AMD",
-          "pct": 1.76
+          "pct": 2.12
         },
         {
           "name": "Palantir Technologies, Inc.",
-          "pct": 1.65
+          "pct": 1.87
+        },
+        {
+          "name": "AMD",
+          "pct": 1.85
         },
         {
           "name": "Cisco Systems, Inc.",
-          "pct": 1.63
-        },
-        {
-          "name": "Lam Research",
-          "pct": 1.59
+          "pct": 1.71
         },
         {
           "name": "Applied Materials, Inc.",
-          "pct": 1.59
+          "pct": 1.52
+        },
+        {
+          "name": "Lam Research",
+          "pct": 1.49
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T19:38:21.552Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
-        "United States": 94.94,
+        "United States": 94.89,
         "Ireland": 1.16,
-        "Other": 3.9
+        "Other": 3.95
       },
       "sector": {
-        "Technology": 96.41,
-        "Other": 3.59
+        "Technology": 96.32,
+        "Other": 3.68
       },
-      "breakdownsAsOf": "2026-04-24T19:38:21.552Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "currency": {
-        "USD": 94.94,
+        "USD": 94.89,
         "EUR": 1.16,
-        "Other": 3.9
+        "Other": 3.95
       }
     },
     "IE00BYZK4776": {
       "topHoldings": [
         {
           "name": "Moderna, Inc.",
-          "pct": 2.3
-        },
-        {
-          "name": "Exact Sciences",
-          "pct": 2.24
-        },
-        {
-          "name": "Johnson & Johnson",
-          "pct": 2.2
+          "pct": 2.47
         },
         {
           "name": "UCB SA",
-          "pct": 2.2
+          "pct": 2.44
+        },
+        {
+          "name": "Johnson & Johnson",
+          "pct": 2.4
         },
         {
           "name": "Merck & Co., Inc.",
-          "pct": 2.07
+          "pct": 2.28
         },
         {
           "name": "Illumina, Inc.",
-          "pct": 2.05
-        },
-        {
-          "name": "GSK Plc",
-          "pct": 2.03
-        },
-        {
-          "name": "Celltrion, Inc.",
-          "pct": 2.01
-        },
-        {
-          "name": "Novartis AG",
-          "pct": 1.97
+          "pct": 2.16
         },
         {
           "name": "Biogen, Inc.",
+          "pct": 2.09
+        },
+        {
+          "name": "GSK Plc",
+          "pct": 2.06
+        },
+        {
+          "name": "Novartis AG",
           "pct": 1.96
+        },
+        {
+          "name": "Gilead Sciences, Inc.",
+          "pct": 1.95
+        },
+        {
+          "name": "Bristol Myers Squibb Co.",
+          "pct": 1.87
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T19:38:21.552Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
-        "United States": 63.1,
-        "Switzerland": 5.91,
-        "South Korea": 4.89,
-        "Japan": 3.88,
-        "United Kingdom": 2.59,
-        "Denmark": 2.39,
-        "Belgium": 2.34,
-        "Ireland": 2.15,
-        "France": 1.51,
-        "Germany": 1.02,
-        "Other": 10.22
+        "United States": 63.26,
+        "South Korea": 4.2,
+        "Switzerland": 4,
+        "Japan": 3.87,
+        "United Kingdom": 2.61,
+        "Belgium": 2.59,
+        "Denmark": 2.38,
+        "Ireland": 2.25,
+        "France": 1.54,
+        "Other": 13.3
       },
       "sector": {
-        "Health Care": 91.58,
-        "Technology": 1.55,
-        "Other": 6.87
+        "Health Care": 89.71,
+        "Technology": 1.44,
+        "Other": 8.86
       },
-      "breakdownsAsOf": "2026-04-24T19:38:21.552Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "currency": {
-        "USD": 63.1,
-        "CHF": 5.91,
-        "KRW": 4.89,
-        "JPY": 3.88,
-        "GBP": 2.59,
-        "DKK": 2.39,
-        "EUR": 7.02,
-        "Other": 10.22
+        "USD": 63.26,
+        "KRW": 4.2,
+        "CHF": 4,
+        "JPY": 3.87,
+        "GBP": 2.61,
+        "EUR": 6.38,
+        "DKK": 2.38,
+        "Other": 13.3
       }
     },
     "IE00B1XNHC34": {
       "topHoldings": [
         {
-          "name": "Bloom Energy",
-          "pct": 11.3
+          "name": "Nextpower",
+          "pct": 10.18
         },
         {
-          "name": "Nextpower",
-          "pct": 8.71
+          "name": "Bloom Energy",
+          "pct": 9.41
         },
         {
           "name": "First Solar",
-          "pct": 6.01
+          "pct": 6.14
         },
         {
           "name": "Iberdrola SA",
-          "pct": 5.79
+          "pct": 5.76
         },
         {
           "name": "China Yangtze Power Co., Ltd.",
-          "pct": 4.42
-        },
-        {
-          "name": "Enphase Energy",
-          "pct": 3.55
-        },
-        {
-          "name": "Equatorial SA",
-          "pct": 3
+          "pct": 4.71
         },
         {
           "name": "Ormat Technologies",
-          "pct": 2.94
+          "pct": 3.2
+        },
+        {
+          "name": "Enphase Energy",
+          "pct": 3.04
+        },
+        {
+          "name": "Equatorial SA",
+          "pct": 2.91
         },
         {
           "name": "Vestas Wind Systems A/S",
-          "pct": 2.24
+          "pct": 2.69
         },
         {
           "name": "EDP SA",
-          "pct": 2.15
+          "pct": 2.24
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T19:38:21.552Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
-        "United States": 31.66,
-        "China": 16.36,
-        "Brazil": 8.55,
-        "Spain": 8.05,
-        "Denmark": 4.27,
-        "India": 2.96,
-        "South Korea": 2.84,
-        "Israel": 2.23,
-        "Japan": 2.22,
-        "Portugal": 2.15,
-        "Canada": 1.96,
-        "Germany": 1.29,
-        "Other": 15.46
+        "United States": 29.75,
+        "China": 16.65,
+        "Brazil": 8.49,
+        "Spain": 8.21,
+        "Denmark": 4.77,
+        "Israel": 2.66,
+        "India": 2.65,
+        "Japan": 2.27,
+        "South Korea": 2.25,
+        "Portugal": 2.24,
+        "Canada": 2.06,
+        "Germany": 1.48,
+        "Other": 16.52
       },
       "sector": {
-        "Utilities": 42.2,
-        "Industrials": 27.5,
-        "Technology": 14.65,
-        "Basic Materials": 2.14,
-        "Energy": 0.96,
-        "Consumer Discretionary": 0.23,
-        "Real Estate": 0.13,
-        "Other": 12.2
+        "Utilities": 43.48,
+        "Industrials": 25.58,
+        "Technology": 14.43,
+        "Basic Materials": 1.58,
+        "Energy": 1.19,
+        "Consumer Discretionary": 0.24,
+        "Real Estate": 0.15,
+        "Other": 13.35
       },
-      "breakdownsAsOf": "2026-04-24T19:38:21.552Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "currency": {
-        "USD": 31.66,
-        "CNY": 16.36,
-        "BRL": 8.55,
-        "EUR": 11.49,
-        "DKK": 4.27,
-        "INR": 2.96,
-        "KRW": 2.84,
-        "ILS": 2.23,
-        "JPY": 2.22,
-        "CAD": 1.96,
-        "Other": 15.46
+        "USD": 29.75,
+        "CNY": 16.65,
+        "BRL": 8.49,
+        "EUR": 11.93,
+        "DKK": 4.77,
+        "ILS": 2.66,
+        "INR": 2.65,
+        "JPY": 2.27,
+        "KRW": 2.25,
+        "CAD": 2.06,
+        "Other": 16.52
       }
     },
     "IE00BG0J4C88": {
       "topHoldings": [
         {
           "name": "Ciena",
-          "pct": 8.81
+          "pct": 9.63
         },
         {
           "name": "Accton Technology",
-          "pct": 3.19
+          "pct": 3.57
         },
         {
-          "name": "MongoDB",
-          "pct": 2.95
-        },
-        {
-          "name": "InterDigital",
-          "pct": 2.62
+          "name": "Akamai Technologies",
+          "pct": 2.91
         },
         {
           "name": "Arista Networks",
           "pct": 2.6
         },
         {
-          "name": "Akamai Technologies",
-          "pct": 2.39
-        },
-        {
-          "name": "Confluent A",
+          "name": "Cisco Systems, Inc.",
           "pct": 2.37
         },
         {
-          "name": "Cisco Systems, Inc.",
+          "name": "Cloudflare Inc",
+          "pct": 2.29
+        },
+        {
+          "name": "MongoDB",
+          "pct": 2.28
+        },
+        {
+          "name": "InterDigital",
           "pct": 2.24
         },
         {
-          "name": "SECOM Co., Ltd.",
-          "pct": 1.95
+          "name": "Equinix",
+          "pct": 2.14
         },
         {
-          "name": "Equinix",
-          "pct": 1.95
+          "name": "SECOM Co., Ltd.",
+          "pct": 2.05
         }
       ],
-      "topHoldingsAsOf": "2026-04-24T19:38:21.552Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
-        "United States": 65.06,
-        "Japan": 11.43,
-        "Taiwan": 4.27,
-        "Israel": 3.11,
-        "Australia": 1.85,
-        "India": 1.48,
-        "Sweden": 1.34,
-        "Ireland": 1.21,
-        "Other": 10.25
+        "United States": 65.52,
+        "Japan": 11.46,
+        "Taiwan": 4.68,
+        "Israel": 2.97,
+        "Australia": 1.48,
+        "India": 1.41,
+        "Sweden": 1.31,
+        "Ireland": 1.22,
+        "Other": 9.95
       },
       "sector": {
-        "Technology": 80.73,
-        "Industrials": 8.04,
-        "Real Estate": 4.7,
-        "Consumer Discretionary": 0.9,
-        "Other": 5.63
+        "Technology": 80.81,
+        "Industrials": 7.89,
+        "Real Estate": 5.03,
+        "Consumer Discretionary": 0.78,
+        "Other": 5.49
       },
-      "breakdownsAsOf": "2026-04-24T19:38:21.552Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "currency": {
-        "USD": 65.06,
-        "JPY": 11.43,
-        "TWD": 4.27,
-        "ILS": 3.11,
-        "AUD": 1.85,
-        "INR": 1.48,
-        "SEK": 1.34,
-        "EUR": 1.21,
-        "Other": 10.25
+        "USD": 65.52,
+        "JPY": 11.46,
+        "TWD": 4.68,
+        "ILS": 2.97,
+        "AUD": 1.48,
+        "INR": 1.41,
+        "SEK": 1.31,
+        "EUR": 1.22,
+        "Other": 9.95
       }
     }
   },
@@ -859,67 +858,67 @@
       "name": "iShares SLI ETF (CH)",
       "topHoldings": [
         {
+          "name": "UBS Group AG",
+          "pct": 9.23
+        },
+        {
           "name": "Novartis AG",
-          "pct": 10.18
+          "pct": 8.86
         },
         {
           "name": "Roche Holding AG",
-          "pct": 9.64
+          "pct": 8.77
         },
         {
           "name": "Nestlé SA",
-          "pct": 8.94
-        },
-        {
-          "name": "UBS Group AG",
-          "pct": 8.13
-        },
-        {
-          "name": "ABB Ltd.",
-          "pct": 5.11
+          "pct": 8.69
         },
         {
           "name": "Zurich Insurance Group AG",
-          "pct": 4.18
-        },
-        {
-          "name": "Compagnie Financière Richemont SA",
-          "pct": 4.05
+          "pct": 4.66
         },
         {
           "name": "Swiss Re AG",
-          "pct": 3.9
+          "pct": 4.37
         },
         {
-          "name": "Holcim Ltd.",
-          "pct": 3.8
+          "name": "Compagnie Financière Richemont SA",
+          "pct": 4.34
+        },
+        {
+          "name": "ABB Ltd.",
+          "pct": 4.14
         },
         {
           "name": "Lonza Group AG",
-          "pct": 3.73
+          "pct": 3.92
+        },
+        {
+          "name": "Holcim Ltd.",
+          "pct": 3.84
         }
       ],
-      "topHoldingsAsOf": "2026-04-27T11:05:00.725Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
-        "Switzerland": 89.39,
-        "Other": 10.61
+        "Switzerland": 79.84,
+        "Other": 20.16
       },
       "sector": {
-        "Health Care": 28.95,
-        "Financials": 23.57,
-        "Industrials": 10.89,
-        "Consumer Staples": 10.21,
-        "Basic Materials": 8.79,
-        "Consumer Discretionary": 4.05,
-        "Telecommunication": 1.79,
-        "Technology": 1.14,
-        "Other": 10.61
+        "Financials": 26.18,
+        "Health Care": 18.11,
+        "Consumer Staples": 9.92,
+        "Industrials": 9.86,
+        "Basic Materials": 8.42,
+        "Consumer Discretionary": 4.34,
+        "Telecommunication": 1.87,
+        "Technology": 1.16,
+        "Other": 20.16
       },
       "currency": {
-        "CHF": 89.39,
-        "Other": 10.61
+        "CHF": 79.84,
+        "Other": 20.16
       },
-      "breakdownsAsOf": "2026-04-27T11:05:00.725Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=CH0031768937",
       "_addedAt": "2026-04-27T11:05:00.725Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -929,66 +928,66 @@
       "topHoldings": [
         {
           "name": "NVIDIA Corp.",
-          "pct": 8.73
+          "pct": 8.69
         },
         {
           "name": "Apple",
-          "pct": 7.84
+          "pct": 7.64
         },
         {
           "name": "Microsoft",
-          "pct": 5.8
+          "pct": 5.63
         },
         {
           "name": "Amazon.com, Inc.",
-          "pct": 4.32
+          "pct": 4.58
         },
         {
           "name": "Tesla",
-          "pct": 3.96
+          "pct": 3.8
         },
         {
           "name": "Meta Platforms",
-          "pct": 3.75
-        },
-        {
-          "name": "Alphabet, Inc. A",
-          "pct": 3.47
+          "pct": 3.46
         },
         {
           "name": "Walmart, Inc.",
-          "pct": 3.26
+          "pct": 3.44
+        },
+        {
+          "name": "Alphabet, Inc. A",
+          "pct": 3.43
         },
         {
           "name": "Alphabet, Inc. C",
-          "pct": 3.23
+          "pct": 3.2
         },
         {
           "name": "Broadcom Inc.",
-          "pct": 2.95
+          "pct": 3.01
         }
       ],
-      "topHoldingsAsOf": "2026-04-27T16:24:48.015Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
-        "United States": 92.73,
-        "Other": 7.27
+        "United States": 92.9,
+        "Other": 7.1
       },
       "sector": {
-        "Technology": 49.08,
-        "Telecommunication": 15.28,
-        "Consumer Discretionary": 12.45,
-        "Consumer Staples": 8.35,
-        "Health Care": 4.95,
-        "Industrials": 3.21,
-        "Utilities": 1.53,
-        "Energy": 0.6,
-        "Other": 4.55
+        "Technology": 48.95,
+        "Telecommunication": 15.31,
+        "Consumer Discretionary": 12.57,
+        "Consumer Staples": 8.55,
+        "Health Care": 4.91,
+        "Industrials": 3.13,
+        "Utilities": 1.54,
+        "Energy": 0.65,
+        "Other": 4.39
       },
       "currency": {
-        "USD": 92.73,
-        "Other": 7.27
+        "USD": 92.9,
+        "Other": 7.1
       },
-      "breakdownsAsOf": "2026-04-27T16:24:48.015Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B53SZB19",
       "_addedAt": "2026-04-27T16:24:48.015Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -998,65 +997,66 @@
       "topHoldings": [
         {
           "name": "NVIDIA Corp.",
-          "pct": 20.57
+          "pct": 20.38
         },
         {
           "name": "Apple",
-          "pct": 18.55
+          "pct": 18.41
         },
         {
           "name": "Microsoft",
-          "pct": 12.99
+          "pct": 12.87
         },
         {
           "name": "Broadcom Inc.",
-          "pct": 6.61
+          "pct": 6.71
         },
         {
           "name": "ASML Holding NV",
-          "pct": 2.58
+          "pct": 2.52
         },
         {
           "name": "Micron Technology",
-          "pct": 2.13
+          "pct": 1.84
         },
         {
           "name": "AMD",
-          "pct": 1.51
+          "pct": 1.62
         },
         {
           "name": "Palantir Technologies, Inc.",
-          "pct": 1.42
+          "pct": 1.6
         },
         {
           "name": "Cisco Systems, Inc.",
-          "pct": 1.41
+          "pct": 1.55
         },
         {
-          "name": "Lam Research",
-          "pct": 1.38
+          "name": "Applied Materials, Inc.",
+          "pct": 1.3
         }
       ],
-      "topHoldingsAsOf": "2026-04-27T18:13:31.321Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
-        "United States": 85.79,
-        "Japan": 3.34,
-        "Netherlands": 3.21,
-        "Germany": 1.32,
-        "Other": 6.34
+        "United States": 86.02,
+        "Netherlands": 3.1,
+        "Japan": 3.1,
+        "Germany": 1.2,
+        "Ireland": 1.01,
+        "Other": 5.57
       },
       "sector": {
-        "Technology": 96.89,
+        "Technology": 96.88,
         "Telecommunication": 0.1,
-        "Other": 3.01
+        "Other": 3.02
       },
       "currency": {
-        "USD": 85.79,
-        "JPY": 3.34,
-        "EUR": 4.53,
-        "Other": 6.34
+        "USD": 86.02,
+        "EUR": 5.31,
+        "JPY": 3.1,
+        "Other": 5.57
       },
-      "breakdownsAsOf": "2026-04-27T18:13:31.321Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BM67HT60",
       "_addedAt": "2026-04-27T18:13:31.321Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -1065,169 +1065,170 @@
       "topHoldings": [
         {
           "name": "NVIDIA Corp.",
-          "pct": 4.13
+          "pct": 4.44
         },
         {
           "name": "Apple",
-          "pct": 3.83
+          "pct": 3.98
         },
         {
           "name": "Microsoft",
-          "pct": 2.9
+          "pct": 2.99
         },
         {
           "name": "Amazon.com, Inc.",
-          "pct": 2.01
+          "pct": 2.17
         },
         {
           "name": "Alphabet, Inc. A",
-          "pct": 1.81
-        },
-        {
-          "name": "Taiwan Semiconductor Manufacturing Co., Ltd.",
-          "pct": 1.54
+          "pct": 1.82
         },
         {
           "name": "Broadcom Inc.",
-          "pct": 1.47
+          "pct": 1.56
         },
         {
           "name": "Alphabet, Inc. C",
+          "pct": 1.48
+        },
+        {
+          "name": "Taiwan Semiconductor Manufacturing Co., Ltd.",
           "pct": 1.46
         },
         {
           "name": "Meta Platforms",
-          "pct": 1.41
+          "pct": 1.36
         },
         {
           "name": "Tesla",
-          "pct": 1.13
+          "pct": 1.14
         }
       ],
-      "topHoldingsAsOf": "2026-04-27T18:49:41.832Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
-        "United States": 55.36,
-        "Japan": 6.09,
-        "United Kingdom": 3,
-        "China": 2.87,
-        "Taiwan": 2.67,
-        "Canada": 2.63,
-        "Switzerland": 2.36,
-        "South Korea": 2.2,
-        "Germany": 2.03,
-        "France": 1.96,
-        "Australia": 1.65,
-        "India": 1.51,
-        "Netherlands": 1.33,
+        "United States": 57.47,
+        "Japan": 5.76,
+        "United Kingdom": 3.02,
+        "China": 2.92,
+        "Canada": 2.78,
+        "Taiwan": 2.57,
+        "Switzerland": 1.97,
+        "Germany": 1.93,
+        "France": 1.9,
+        "South Korea": 1.8,
+        "Australia": 1.62,
+        "India": 1.42,
+        "Netherlands": 1.26,
         "Ireland": 1.02,
-        "Other": 13.32
+        "Other": 12.56
       },
       "sector": {
-        "Technology": 25.87,
-        "Financials": 14.75,
-        "Industrials": 10.57,
-        "Consumer Discretionary": 9.51,
-        "Health Care": 8.23,
-        "Telecommunication": 8.06,
-        "Consumer Staples": 4.94,
-        "Energy": 3.83,
-        "Basic Materials": 3.68,
-        "Utilities": 2.67,
-        "Real Estate": 1.95,
-        "Other": 5.94
+        "Technology": 26.41,
+        "Financials": 14.91,
+        "Industrials": 10.27,
+        "Consumer Discretionary": 9.46,
+        "Telecommunication": 8.12,
+        "Health Care": 7.96,
+        "Consumer Staples": 4.92,
+        "Energy": 4.58,
+        "Basic Materials": 3.55,
+        "Utilities": 2.82,
+        "Real Estate": 1.9,
+        "Other": 5.1
       },
       "currency": {
-        "USD": 55.36,
-        "JPY": 6.09,
-        "GBP": 3,
-        "CNY": 2.87,
-        "TWD": 2.67,
-        "CAD": 2.63,
-        "CHF": 2.36,
-        "KRW": 2.2,
-        "EUR": 6.34,
-        "AUD": 1.65,
-        "INR": 1.51,
-        "Other": 13.32
+        "USD": 57.47,
+        "JPY": 5.76,
+        "GBP": 3.02,
+        "CNY": 2.92,
+        "CAD": 2.78,
+        "TWD": 2.57,
+        "CHF": 1.97,
+        "EUR": 6.11,
+        "KRW": 1.8,
+        "AUD": 1.62,
+        "INR": 1.42,
+        "Other": 12.56
       },
-      "breakdownsAsOf": "2026-04-27T18:49:41.832Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B3RBWM25",
       "_addedAt": "2026-04-27T18:49:41.832Z",
-      "_addedVia": "admin/lookthrough-pool"
+      "_addedVia": "admin/lookthrough-pool",
+      "name": "Vanguard FTSE All-World UCITS ETF (USD) Distributing"
     },
     "FR0007054358": {
       "name": "Amundi EURO STOXX 50 II UCITS ETF Acc",
       "topHoldings": [
         {
           "name": "ASML Holding NV",
-          "pct": 10.95
-        },
-        {
-          "name": "Siemens AG",
-          "pct": 4.12
-        },
-        {
-          "name": "SAP SE",
-          "pct": 3.96
-        },
-        {
-          "name": "Banco Santander SA",
-          "pct": 3.59
-        },
-        {
-          "name": "Schneider Electric SE",
-          "pct": 3.41
+          "pct": 10.45
         },
         {
           "name": "TotalEnergies SE",
-          "pct": 3.34
+          "pct": 4.17
+        },
+        {
+          "name": "Siemens AG",
+          "pct": 3.94
+        },
+        {
+          "name": "SAP SE",
+          "pct": 3.72
+        },
+        {
+          "name": "Schneider Electric SE",
+          "pct": 3.54
+        },
+        {
+          "name": "Banco Santander SA",
+          "pct": 3.53
         },
         {
           "name": "Allianz SE",
-          "pct": 3.24
-        },
-        {
-          "name": "LVMH Moët Hennessy Louis Vuitton SE",
-          "pct": 3.03
-        },
-        {
-          "name": "Safran SA",
-          "pct": 2.92
+          "pct": 3.33
         },
         {
           "name": "Siemens Energy AG",
-          "pct": 2.89
+          "pct": 3.03
+        },
+        {
+          "name": "Iberdrola SA",
+          "pct": 2.98
+        },
+        {
+          "name": "LVMH Moët Hennessy Louis Vuitton SE",
+          "pct": 2.86
         }
       ],
-      "topHoldingsAsOf": "2026-04-28T10:49:43.117Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
-        "Germany": 29.56,
-        "France": 27.96,
-        "Netherlands": 19.21,
-        "Spain": 10.38,
-        "Italy": 7.86,
-        "Belgium": 1.56,
+        "Germany": 29.44,
+        "France": 28.59,
+        "Netherlands": 18.66,
+        "Spain": 10.54,
+        "Italy": 8.01,
+        "Belgium": 1.52,
         "Finland": 1.23,
-        "Other": 2.24
+        "Other": 2.01
       },
       "sector": {
-        "Financials": 24.64,
-        "Industrials": 21.9,
-        "Technology": 16.94,
-        "Consumer Discretionary": 12.51,
-        "Utilities": 4.31,
-        "Energy": 4.18,
-        "Health Care": 4.08,
-        "Consumer Staples": 3.66,
-        "Telecommunication": 2.62,
-        "Basic Materials": 1.17,
-        "Other": 3.99
+        "Financials": 24.48,
+        "Industrials": 21.45,
+        "Technology": 16.15,
+        "Consumer Discretionary": 11.81,
+        "Energy": 5.28,
+        "Utilities": 4.77,
+        "Health Care": 4.09,
+        "Consumer Staples": 3.84,
+        "Telecommunication": 2.82,
+        "Basic Materials": 1.5,
+        "Other": 3.81
       },
       "currency": {
-        "EUR": 97.76,
-        "Other": 2.24
+        "EUR": 97.99,
+        "Other": 2.01
       },
-      "breakdownsAsOf": "2026-04-28T10:49:43.117Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=FR0007054358",
       "_addedAt": "2026-04-28T10:49:43.117Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
@@ -1237,92 +1238,92 @@
       "topHoldings": [
         {
           "name": "NVIDIA Corp.",
-          "pct": 4.13
+          "pct": 4.44
         },
         {
           "name": "Apple",
-          "pct": 3.83
+          "pct": 3.98
         },
         {
           "name": "Microsoft",
-          "pct": 2.9
+          "pct": 2.99
         },
         {
           "name": "Amazon.com, Inc.",
-          "pct": 2.01
+          "pct": 2.17
         },
         {
           "name": "Alphabet, Inc. A",
-          "pct": 1.81
-        },
-        {
-          "name": "Taiwan Semiconductor Manufacturing Co., Ltd.",
-          "pct": 1.54
+          "pct": 1.82
         },
         {
           "name": "Broadcom Inc.",
-          "pct": 1.47
+          "pct": 1.56
         },
         {
           "name": "Alphabet, Inc. C",
+          "pct": 1.48
+        },
+        {
+          "name": "Taiwan Semiconductor Manufacturing Co., Ltd.",
           "pct": 1.46
         },
         {
           "name": "Meta Platforms",
-          "pct": 1.41
+          "pct": 1.36
         },
         {
           "name": "Tesla",
-          "pct": 1.13
+          "pct": 1.14
         }
       ],
-      "topHoldingsAsOf": "2026-04-28T11:06:00.752Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
-        "United States": 55.36,
-        "Japan": 6.09,
-        "United Kingdom": 3,
-        "China": 2.87,
-        "Taiwan": 2.67,
-        "Canada": 2.63,
-        "Switzerland": 2.36,
-        "South Korea": 2.2,
-        "Germany": 2.03,
-        "France": 1.96,
-        "Australia": 1.65,
-        "India": 1.51,
-        "Netherlands": 1.33,
+        "United States": 57.47,
+        "Japan": 5.76,
+        "United Kingdom": 3.02,
+        "China": 2.92,
+        "Canada": 2.78,
+        "Taiwan": 2.57,
+        "Switzerland": 1.97,
+        "Germany": 1.93,
+        "France": 1.9,
+        "South Korea": 1.8,
+        "Australia": 1.62,
+        "India": 1.42,
+        "Netherlands": 1.26,
         "Ireland": 1.02,
-        "Other": 13.32
+        "Other": 12.56
       },
       "sector": {
-        "Technology": 25.87,
-        "Financials": 14.75,
-        "Industrials": 10.57,
-        "Consumer Discretionary": 9.51,
-        "Health Care": 8.23,
-        "Telecommunication": 8.06,
-        "Consumer Staples": 4.94,
-        "Energy": 3.83,
-        "Basic Materials": 3.68,
-        "Utilities": 2.67,
-        "Real Estate": 1.95,
-        "Other": 5.94
+        "Technology": 26.41,
+        "Financials": 14.91,
+        "Industrials": 10.27,
+        "Consumer Discretionary": 9.46,
+        "Telecommunication": 8.12,
+        "Health Care": 7.96,
+        "Consumer Staples": 4.92,
+        "Energy": 4.58,
+        "Basic Materials": 3.55,
+        "Utilities": 2.82,
+        "Real Estate": 1.9,
+        "Other": 5.1
       },
       "currency": {
-        "USD": 55.36,
-        "JPY": 6.09,
-        "GBP": 3,
-        "CNY": 2.87,
-        "TWD": 2.67,
-        "CAD": 2.63,
-        "CHF": 2.36,
-        "KRW": 2.2,
-        "EUR": 6.34,
-        "AUD": 1.65,
-        "INR": 1.51,
-        "Other": 13.32
+        "USD": 57.47,
+        "JPY": 5.76,
+        "GBP": 3.02,
+        "CNY": 2.92,
+        "CAD": 2.78,
+        "TWD": 2.57,
+        "CHF": 1.97,
+        "EUR": 6.11,
+        "KRW": 1.8,
+        "AUD": 1.62,
+        "INR": 1.42,
+        "Other": 12.56
       },
-      "breakdownsAsOf": "2026-04-28T11:06:00.752Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BK5BQT80",
       "_addedAt": "2026-04-28T11:06:00.752Z",
       "_addedVia": "admin/lookthrough-pool/backfill"
@@ -1332,92 +1333,92 @@
       "topHoldings": [
         {
           "name": "NVIDIA Corp.",
-          "pct": 4.59
+          "pct": 4.68
         },
         {
           "name": "Apple",
-          "pct": 4.14
+          "pct": 4.13
         },
         {
           "name": "Microsoft",
-          "pct": 2.9
+          "pct": 2.89
         },
         {
           "name": "Amazon.com, Inc.",
-          "pct": 2.04
+          "pct": 2.21
         },
         {
           "name": "Alphabet, Inc. A",
-          "pct": 1.83
-        },
-        {
-          "name": "Taiwan Semiconductor Manufacturing Co., Ltd.",
-          "pct": 1.62
+          "pct": 1.85
         },
         {
           "name": "Alphabet, Inc. C",
-          "pct": 1.54
+          "pct": 1.55
         },
         {
           "name": "Broadcom Inc.",
-          "pct": 1.48
+          "pct": 1.54
+        },
+        {
+          "name": "Taiwan Semiconductor Manufacturing Co., Ltd.",
+          "pct": 1.5
         },
         {
           "name": "Meta Platforms",
-          "pct": 1.46
+          "pct": 1.38
         },
         {
           "name": "Tesla",
-          "pct": 1.18
+          "pct": 1.16
         }
       ],
-      "topHoldingsAsOf": "2026-04-28T11:06:02.138Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
-        "United States": 58.36,
-        "Japan": 5.24,
-        "United Kingdom": 3,
-        "Canada": 2.8,
-        "Taiwan": 2.69,
-        "China": 2.62,
-        "Switzerland": 2.38,
-        "South Korea": 2.24,
-        "France": 2.18,
-        "Germany": 2.1,
+        "United States": 59.63,
+        "Japan": 5,
+        "United Kingdom": 2.94,
+        "Canada": 2.84,
+        "China": 2.64,
+        "Taiwan": 2.52,
+        "France": 2.07,
+        "Switzerland": 2,
+        "Germany": 1.99,
+        "South Korea": 1.76,
         "Australia": 1.47,
-        "Netherlands": 1.38,
-        "India": 1.34,
-        "Ireland": 1.08,
-        "Other": 11.12
+        "Netherlands": 1.31,
+        "India": 1.24,
+        "Ireland": 1.06,
+        "Other": 11.53
       },
       "sector": {
-        "Technology": 27.18,
-        "Financials": 15.13,
-        "Industrials": 10.64,
-        "Consumer Discretionary": 9.53,
-        "Health Care": 8.29,
-        "Telecommunication": 8.18,
-        "Consumer Staples": 5,
-        "Energy": 3.89,
-        "Basic Materials": 3.59,
-        "Utilities": 2.66,
-        "Real Estate": 1.79,
-        "Other": 4.13
+        "Technology": 27.03,
+        "Financials": 14.95,
+        "Industrials": 10.22,
+        "Consumer Discretionary": 9.34,
+        "Telecommunication": 8.34,
+        "Health Care": 8.02,
+        "Consumer Staples": 4.99,
+        "Energy": 4.61,
+        "Basic Materials": 3.47,
+        "Utilities": 2.77,
+        "Real Estate": 1.73,
+        "Other": 4.53
       },
       "currency": {
-        "USD": 58.36,
-        "JPY": 5.24,
-        "GBP": 3,
-        "CAD": 2.8,
-        "TWD": 2.69,
-        "CNY": 2.62,
-        "CHF": 2.38,
-        "KRW": 2.24,
-        "EUR": 6.74,
+        "USD": 59.63,
+        "JPY": 5,
+        "GBP": 2.94,
+        "CAD": 2.84,
+        "CNY": 2.64,
+        "TWD": 2.52,
+        "EUR": 6.43,
+        "CHF": 2,
+        "KRW": 1.76,
         "AUD": 1.47,
-        "INR": 1.34,
-        "Other": 11.12
+        "INR": 1.24,
+        "Other": 11.53
       },
-      "breakdownsAsOf": "2026-04-28T11:06:02.138Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B6R52259",
       "_addedAt": "2026-04-28T11:06:02.138Z",
       "_addedVia": "admin/lookthrough-pool/backfill"
@@ -1427,71 +1428,71 @@
       "topHoldings": [
         {
           "name": "NVIDIA Corp.",
-          "pct": 7.3
+          "pct": 7.55
         },
         {
           "name": "Apple",
-          "pct": 6.62
+          "pct": 6.64
         },
         {
           "name": "Microsoft",
-          "pct": 4.95
+          "pct": 4.9
         },
         {
           "name": "Amazon.com, Inc.",
-          "pct": 3.47
+          "pct": 3.62
         },
         {
           "name": "Alphabet, Inc. A",
-          "pct": 3.08
+          "pct": 2.98
         },
         {
           "name": "Broadcom Inc.",
-          "pct": 2.56
+          "pct": 2.61
         },
         {
           "name": "Alphabet, Inc. C",
-          "pct": 2.46
-        },
-        {
-          "name": "Meta Platforms",
           "pct": 2.39
         },
         {
+          "name": "Meta Platforms",
+          "pct": 2.23
+        },
+        {
           "name": "Tesla",
-          "pct": 1.92
+          "pct": 1.86
         },
         {
           "name": "Berkshire Hathaway, Inc.",
           "pct": 1.57
         }
       ],
-      "topHoldingsAsOf": "2026-04-28T11:06:02.548Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
-        "United States": 94.79,
-        "Ireland": 1.48,
-        "Other": 3.73
+        "United States": 94.68,
+        "Ireland": 1.43,
+        "Other": 3.89
       },
       "sector": {
-        "Technology": 33.42,
-        "Telecommunication": 10.45,
-        "Consumer Discretionary": 10.08,
-        "Financials": 10.05,
-        "Health Care": 9.66,
-        "Industrials": 8.52,
-        "Consumer Staples": 5.14,
-        "Energy": 3.47,
-        "Utilities": 2.48,
-        "Real Estate": 1.94,
-        "Basic Materials": 1.65,
-        "Other": 3.14
+        "Technology": 33.8,
+        "Telecommunication": 10.2,
+        "Financials": 10.14,
+        "Consumer Discretionary": 9.98,
+        "Health Care": 9.29,
+        "Industrials": 8.29,
+        "Consumer Staples": 4.96,
+        "Energy": 4,
+        "Utilities": 2.53,
+        "Real Estate": 1.91,
+        "Basic Materials": 1.6,
+        "Other": 3.3
       },
       "currency": {
-        "USD": 94.79,
-        "EUR": 1.48,
-        "Other": 3.73
+        "USD": 94.68,
+        "EUR": 1.43,
+        "Other": 3.89
       },
-      "breakdownsAsOf": "2026-04-28T11:06:02.548Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BFMXXD54",
       "_addedAt": "2026-04-28T11:06:02.548Z",
       "_addedVia": "admin/lookthrough-pool/backfill"
@@ -1501,71 +1502,71 @@
       "topHoldings": [
         {
           "name": "NVIDIA Corp.",
-          "pct": 7.32
+          "pct": 7.58
         },
         {
           "name": "Apple",
-          "pct": 6.64
+          "pct": 6.66
         },
         {
           "name": "Microsoft",
-          "pct": 4.96
+          "pct": 4.91
         },
         {
           "name": "Amazon.com, Inc.",
-          "pct": 3.47
+          "pct": 3.64
         },
         {
           "name": "Alphabet, Inc. A",
-          "pct": 3.08
+          "pct": 3
         },
         {
           "name": "Broadcom Inc.",
-          "pct": 2.57
+          "pct": 2.62
         },
         {
           "name": "Alphabet, Inc. C",
-          "pct": 2.46
-        },
-        {
-          "name": "Meta Platforms",
           "pct": 2.4
         },
         {
+          "name": "Meta Platforms",
+          "pct": 2.24
+        },
+        {
           "name": "Tesla",
-          "pct": 1.92
+          "pct": 1.87
         },
         {
           "name": "Berkshire Hathaway, Inc.",
           "pct": 1.57
         }
       ],
-      "topHoldingsAsOf": "2026-04-28T11:06:03.043Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
-        "United States": 95.27,
-        "Ireland": 1.48,
-        "Other": 3.25
+        "United States": 95.29,
+        "Ireland": 1.44,
+        "Other": 3.27
       },
       "sector": {
-        "Technology": 33.51,
-        "Telecommunication": 10.49,
-        "Financials": 10.29,
-        "Consumer Discretionary": 10.1,
-        "Health Care": 9.69,
-        "Industrials": 8.54,
-        "Consumer Staples": 5.17,
-        "Energy": 3.47,
-        "Utilities": 2.48,
-        "Real Estate": 1.95,
-        "Basic Materials": 1.67,
-        "Other": 2.64
+        "Technology": 33.95,
+        "Financials": 10.39,
+        "Telecommunication": 10.24,
+        "Consumer Discretionary": 10,
+        "Health Care": 9.34,
+        "Industrials": 8.34,
+        "Consumer Staples": 4.99,
+        "Energy": 4.01,
+        "Utilities": 2.53,
+        "Real Estate": 1.92,
+        "Basic Materials": 1.61,
+        "Other": 2.68
       },
       "currency": {
-        "USD": 95.27,
-        "EUR": 1.48,
-        "Other": 3.25
+        "USD": 95.29,
+        "EUR": 1.44,
+        "Other": 3.27
       },
-      "breakdownsAsOf": "2026-04-28T11:06:03.043Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B6YX5C33",
       "_addedAt": "2026-04-28T11:06:03.043Z",
       "_addedVia": "admin/lookthrough-pool/backfill"
@@ -1614,44 +1615,46 @@
           "pct": 1.25
         }
       ],
-      "topHoldingsAsOf": "2026-04-28T11:06:04.940Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
-        "United Kingdom": 19.22,
-        "Switzerland": 14.35,
-        "Germany": 13.31,
-        "France": 13.21,
-        "Netherlands": 8.34,
-        "Spain": 5.25,
-        "Sweden": 4.92,
-        "Italy": 4.74,
-        "Finland": 1.51,
-        "Denmark": 1.41,
-        "Belgium": 1.3,
-        "Other": 12.44
+        "United Kingdom": 19.91,
+        "France": 13.12,
+        "Germany": 13.06,
+        "Switzerland": 12.16,
+        "Netherlands": 8.18,
+        "Spain": 5.41,
+        "Italy": 4.8,
+        "Sweden": 4.73,
+        "Finland": 1.58,
+        "Denmark": 1.5,
+        "Belgium": 1.35,
+        "Norway": 1.01,
+        "Other": 13.19
       },
       "sector": {
-        "Financials": 22.19,
-        "Industrials": 17.88,
-        "Health Care": 10.98,
-        "Technology": 7.79,
-        "Consumer Staples": 7.43,
-        "Consumer Discretionary": 7.17,
-        "Utilities": 4.73,
-        "Basic Materials": 4.29,
-        "Energy": 4.18,
-        "Telecommunication": 3.12,
-        "Real Estate": 0.97,
-        "Other": 9.27
+        "Financials": 22.12,
+        "Industrials": 17.17,
+        "Health Care": 9.04,
+        "Technology": 7.74,
+        "Consumer Staples": 7.39,
+        "Consumer Discretionary": 6.81,
+        "Energy": 5.5,
+        "Utilities": 5.02,
+        "Basic Materials": 4.45,
+        "Telecommunication": 3.19,
+        "Real Estate": 0.89,
+        "Other": 10.68
       },
       "currency": {
-        "GBP": 19.22,
-        "CHF": 14.35,
-        "EUR": 47.66,
-        "SEK": 4.92,
-        "DKK": 1.41,
-        "Other": 12.44
+        "GBP": 19.91,
+        "EUR": 47.5,
+        "CHF": 12.16,
+        "SEK": 4.73,
+        "DKK": 1.5,
+        "NOK": 1.01,
+        "Other": 13.19
       },
-      "breakdownsAsOf": "2026-04-28T11:06:04.940Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B945VV12",
       "_addedAt": "2026-04-28T11:06:04.940Z",
       "_addedVia": "admin/lookthrough-pool/backfill"
@@ -1660,74 +1663,74 @@
       "name": "iShares Core FTSE 100 UCITS ETF GBP (Acc)",
       "topHoldings": [
         {
-          "name": "HSBC Holdings Plc",
-          "pct": 9.08
+          "name": "AstraZeneca PLC",
+          "pct": 8.94
         },
         {
-          "name": "AstraZeneca PLC",
-          "pct": 8.56
+          "name": "HSBC Holdings Plc",
+          "pct": 8.52
         },
         {
           "name": "Shell Plc",
-          "pct": 6.61
-        },
-        {
-          "name": "Unilever Plc",
-          "pct": 4.35
+          "pct": 8.28
         },
         {
           "name": "Rolls-Royce Holdings",
-          "pct": 4.34
-        },
-        {
-          "name": "British American Tobacco plc",
-          "pct": 3.72
-        },
-        {
-          "name": "GSK Plc",
-          "pct": 3.27
-        },
-        {
-          "name": "Rio Tinto Plc",
-          "pct": 2.85
+          "pct": 3.9
         },
         {
           "name": "BP Plc",
-          "pct": 2.81
+          "pct": 3.86
         },
         {
-          "name": "National Grid",
-          "pct": 2.6
+          "name": "British American Tobacco plc",
+          "pct": 3.73
+        },
+        {
+          "name": "Unilever Plc",
+          "pct": 3.66
+        },
+        {
+          "name": "GSK Plc",
+          "pct": 3.35
+        },
+        {
+          "name": "Rio Tinto Plc",
+          "pct": 2.91
+        },
+        {
+          "name": "BAE Systems",
+          "pct": 2.69
         }
       ],
-      "topHoldingsAsOf": "2026-04-28T11:06:05.429Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
-        "United Kingdom": 84.24,
-        "Switzerland": 2.45,
+        "United Kingdom": 83.62,
+        "Switzerland": 2.76,
         "Ireland": 1.13,
-        "Other": 12.18
+        "Other": 12.49
       },
       "sector": {
-        "Financials": 22.79,
-        "Industrials": 14.02,
-        "Health Care": 12.52,
-        "Consumer Staples": 10.25,
-        "Energy": 9.43,
-        "Basic Materials": 6.3,
-        "Utilities": 4.85,
-        "Consumer Discretionary": 3.96,
-        "Telecommunication": 2.27,
-        "Real Estate": 0.94,
-        "Technology": 0.88,
-        "Other": 11.81
+        "Financials": 21.86,
+        "Health Care": 12.86,
+        "Industrials": 12.78,
+        "Energy": 12.14,
+        "Consumer Staples": 10.13,
+        "Basic Materials": 6.56,
+        "Utilities": 4.91,
+        "Consumer Discretionary": 2.4,
+        "Telecommunication": 2.36,
+        "Real Estate": 0.96,
+        "Technology": 0.89,
+        "Other": 12.15
       },
       "currency": {
-        "GBP": 84.24,
-        "CHF": 2.45,
+        "GBP": 83.62,
+        "CHF": 2.76,
         "EUR": 1.13,
-        "Other": 12.18
+        "Other": 12.49
       },
-      "breakdownsAsOf": "2026-04-28T11:06:05.429Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B53HP851",
       "_addedAt": "2026-04-28T11:06:05.429Z",
       "_addedVia": "admin/lookthrough-pool/backfill"
@@ -1776,52 +1779,50 @@
           "pct": 0.73
         }
       ],
-      "topHoldingsAsOf": "2026-04-28T11:06:06.914Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
-        "China": 27.09,
-        "Taiwan": 25.4,
-        "India": 14.48,
-        "Brazil": 4.28,
-        "South Africa": 3.46,
-        "Saudi Arabia": 3.07,
-        "Mexico": 2.23,
-        "Malaysia": 1.6,
-        "United Arab Emirates": 1.59,
-        "Thailand": 1.23,
-        "Hong Kong": 1.2,
-        "Indonesia": 1.02,
-        "Other": 13.35
+        "China": 27.84,
+        "Taiwan": 24.67,
+        "India": 13.72,
+        "Brazil": 4.69,
+        "Saudi Arabia": 3.54,
+        "South Africa": 3.11,
+        "Mexico": 2.25,
+        "Malaysia": 1.67,
+        "United Arab Emirates": 1.47,
+        "Hong Kong": 1.24,
+        "Thailand": 1.22,
+        "Other": 14.58
       },
       "sector": {
-        "Technology": 25.55,
-        "Financials": 20.07,
-        "Consumer Discretionary": 10.25,
-        "Basic Materials": 7.61,
-        "Telecommunication": 7.59,
-        "Industrials": 5.82,
-        "Energy": 4.26,
-        "Consumer Staples": 3.56,
-        "Health Care": 2.8,
-        "Utilities": 2.49,
-        "Real Estate": 1.58,
-        "Other": 8.42
+        "Technology": 24.82,
+        "Financials": 20.21,
+        "Consumer Discretionary": 10.08,
+        "Telecommunication": 7.66,
+        "Basic Materials": 7.33,
+        "Industrials": 5.84,
+        "Energy": 4.76,
+        "Consumer Staples": 3.64,
+        "Health Care": 2.91,
+        "Utilities": 2.66,
+        "Real Estate": 1.59,
+        "Other": 8.5
       },
       "currency": {
-        "CNY": 27.09,
-        "TWD": 25.4,
-        "INR": 14.48,
-        "BRL": 4.28,
-        "ZAR": 3.46,
-        "SAR": 3.07,
-        "MXN": 2.23,
-        "MYR": 1.6,
-        "AED": 1.59,
-        "THB": 1.23,
-        "HKD": 1.2,
-        "IDR": 1.02,
-        "Other": 13.35
+        "CNY": 27.84,
+        "TWD": 24.67,
+        "INR": 13.72,
+        "BRL": 4.69,
+        "SAR": 3.54,
+        "ZAR": 3.11,
+        "MXN": 2.25,
+        "MYR": 1.67,
+        "AED": 1.47,
+        "HKD": 1.24,
+        "THB": 1.22,
+        "Other": 14.58
       },
-      "breakdownsAsOf": "2026-04-28T11:06:06.914Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BK5BR733",
       "_addedAt": "2026-04-28T11:06:06.914Z",
       "_addedVia": "admin/lookthrough-pool/backfill"
@@ -1831,71 +1832,71 @@
       "topHoldings": [
         {
           "name": "NVIDIA Corp.",
-          "pct": 7.62
+          "pct": 7.55
         },
         {
           "name": "Apple",
-          "pct": 6.84
+          "pct": 6.64
         },
         {
           "name": "Microsoft",
-          "pct": 5.06
+          "pct": 4.9
         },
         {
           "name": "Amazon.com, Inc.",
-          "pct": 3.43
+          "pct": 3.63
         },
         {
           "name": "Alphabet, Inc. A",
-          "pct": 3.03
+          "pct": 2.98
         },
         {
           "name": "Broadcom Inc.",
-          "pct": 2.58
-        },
-        {
-          "name": "Meta Platforms",
-          "pct": 2.43
+          "pct": 2.62
         },
         {
           "name": "Alphabet, Inc. C",
-          "pct": 2.42
+          "pct": 2.39
+        },
+        {
+          "name": "Meta Platforms",
+          "pct": 2.23
         },
         {
           "name": "Tesla",
-          "pct": 1.95
+          "pct": 1.86
         },
         {
           "name": "Berkshire Hathaway, Inc.",
-          "pct": 1.56
+          "pct": 1.57
         }
       ],
-      "topHoldingsAsOf": "2026-04-28T11:06:07.550Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
-        "United States": 95.43,
-        "Ireland": 1.48,
-        "Other": 3.09
+        "United States": 94.95,
+        "Ireland": 1.43,
+        "Other": 3.62
       },
       "sector": {
-        "Technology": 34.11,
-        "Financials": 10.53,
-        "Telecommunication": 10.3,
-        "Consumer Discretionary": 10.08,
-        "Health Care": 9.49,
-        "Industrials": 8.5,
-        "Consumer Staples": 5.05,
-        "Energy": 3.41,
-        "Utilities": 2.45,
-        "Real Estate": 1.93,
-        "Basic Materials": 1.65,
-        "Other": 2.5
+        "Technology": 33.83,
+        "Financials": 10.37,
+        "Telecommunication": 10.2,
+        "Consumer Discretionary": 9.98,
+        "Health Care": 9.28,
+        "Industrials": 8.29,
+        "Consumer Staples": 4.97,
+        "Energy": 4,
+        "Utilities": 2.53,
+        "Real Estate": 1.91,
+        "Basic Materials": 1.6,
+        "Other": 3.04
       },
       "currency": {
         "USD": 95.43,
         "EUR": 1.48,
         "Other": 3.09
       },
-      "breakdownsAsOf": "2026-04-28T11:06:07.550Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B3ZW0K18",
       "_addedAt": "2026-04-28T11:06:07.550Z",
       "_addedVia": "admin/lookthrough-pool/backfill"
@@ -1904,92 +1905,95 @@
       "topHoldings": [
         {
           "name": "Taiwan Semiconductor Manufacturing Co., Ltd.",
-          "pct": 13.18
+          "pct": 13.54
         },
         {
           "name": "Samsung Electronics Co., Ltd.",
-          "pct": 5.61
+          "pct": 5.46
         },
         {
           "name": "Tencent Holdings Ltd.",
-          "pct": 4.09
+          "pct": 3.93
         },
         {
           "name": "SK hynix, Inc.",
-          "pct": 3.24
+          "pct": 3.12
         },
         {
           "name": "Alibaba Group Holding Ltd.",
-          "pct": 2.7
-        },
-        {
-          "name": "HDFC Bank Ltd.",
-          "pct": 0.95
+          "pct": 2.64
         },
         {
           "name": "China Construction Bank Corp.",
-          "pct": 0.91
+          "pct": 1
+        },
+        {
+          "name": "HDFC Bank Ltd.",
+          "pct": 0.88
         },
         {
           "name": "Reliance Industries Ltd.",
-          "pct": 0.84
-        },
-        {
-          "name": "Delta Electronics, Inc.",
-          "pct": 0.8
+          "pct": 0.86
         },
         {
           "name": "Hon Hai Precision Industry Co., Ltd.",
           "pct": 0.76
+        },
+        {
+          "name": "MediaTek, Inc.",
+          "pct": 0.74
         }
       ],
-      "topHoldingsAsOf": "2026-04-27T16:26:39.619Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
-        "China": 23.15,
-        "Taiwan": 22.05,
-        "South Korea": 16.74,
-        "India": 11.11,
-        "Brazil": 4.25,
-        "Saudi Arabia": 2.73,
-        "South Africa": 2.63,
-        "Mexico": 1.71,
-        "Malaysia": 1.21,
-        "United Arab Emirates": 1.14,
-        "Poland": 1.01,
-        "Other": 12.27
+        "China": 23.37,
+        "Taiwan": 21.52,
+        "South Korea": 16.4,
+        "India": 11.24,
+        "Brazil": 4.56,
+        "Saudi Arabia": 3.03,
+        "South Africa": 2.66,
+        "Mexico": 1.83,
+        "United Arab Emirates": 1.21,
+        "Malaysia": 1.12,
+        "Poland": 1.09,
+        "Hong Kong": 1.03,
+        "Other": 10.94
       },
       "sector": {
-        "Technology": 32.75,
-        "Financials": 19.46,
-        "Consumer Discretionary": 9.64,
-        "Telecommunication": 7.73,
-        "Basic Materials": 6.33,
-        "Industrials": 6.1,
-        "Energy": 4.02,
-        "Consumer Staples": 2.91,
-        "Health Care": 2.44,
-        "Utilities": 1.93,
-        "Real Estate": 1.08,
-        "Other": 5.61
+        "Technology": 31.75,
+        "Financials": 20.04,
+        "Consumer Discretionary": 9.77,
+        "Telecommunication": 7.57,
+        "Basic Materials": 6.55,
+        "Industrials": 6.03,
+        "Energy": 4.31,
+        "Consumer Staples": 3.08,
+        "Health Care": 2.72,
+        "Utilities": 1.98,
+        "Real Estate": 1.1,
+        "Other": 5.11
       },
       "currency": {
-        "CNY": 23.15,
-        "TWD": 22.05,
-        "KRW": 16.74,
-        "INR": 11.11,
-        "BRL": 4.25,
-        "SAR": 2.73,
-        "ZAR": 2.63,
-        "MXN": 1.71,
-        "MYR": 1.21,
-        "AED": 1.14,
-        "PLN": 1.01,
-        "Other": 12.27
+        "CNY": 23.37,
+        "TWD": 21.52,
+        "KRW": 16.4,
+        "INR": 11.24,
+        "BRL": 4.56,
+        "SAR": 3.03,
+        "ZAR": 2.66,
+        "MXN": 1.83,
+        "AED": 1.21,
+        "MYR": 1.12,
+        "PLN": 1.09,
+        "HKD": 1.03,
+        "Other": 10.94
       },
-      "breakdownsAsOf": "2026-04-27T16:26:39.619Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BTJRMP35",
       "_addedAt": "2026-04-27T16:26:39.619Z",
-      "_addedVia": "admin/lookthrough-pool"
+      "_addedVia": "admin/lookthrough-pool",
+      "name": "Xtrackers MSCI Emerging Markets UCITS ETF 1C"
     },
     "IE00BYPLS672": {
       "name": "L&G Cyber Security UCITS ETF",
@@ -2035,7 +2039,7 @@
           "pct": 4.42
         }
       ],
-      "topHoldingsAsOf": "2026-04-28T14:14:00.455Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
         "United States": 80.01,
         "Israel": 6.31,
@@ -2056,7 +2060,7 @@
         "CAD": 4.74,
         "Other": 4.02
       },
-      "breakdownsAsOf": "2026-04-28T14:14:00.455Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BYPLS672",
       "_addedAt": "2026-04-28T14:14:00.455Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
@@ -2105,7 +2109,7 @@
           "pct": 2.39
         }
       ],
-      "topHoldingsAsOf": "2026-04-28T14:14:22.747Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
         "United States": 67.78,
         "United Kingdom": 6.2,
@@ -2130,7 +2134,7 @@
         "EUR": 5.7,
         "Other": 10.95
       },
-      "breakdownsAsOf": "2026-04-28T14:14:22.747Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BM67HK77",
       "_addedAt": "2026-04-28T14:14:22.747Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
@@ -2179,7 +2183,7 @@
           "pct": 1.1
         }
       ],
-      "topHoldingsAsOf": "2026-04-28T14:14:48.627Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
         "United States": 67.74,
         "Japan": 5.92,
@@ -2217,7 +2221,7 @@
         "AUD": 1.67,
         "Other": 9.75
       },
-      "breakdownsAsOf": "2026-04-28T14:14:48.627Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BFNM3J75",
       "_addedAt": "2026-04-28T14:14:48.627Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
@@ -2266,7 +2270,7 @@
           "pct": 2.69
         }
       ],
-      "topHoldingsAsOf": "2026-04-28T14:15:09.421Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
         "United Kingdom": 85.14,
         "Switzerland": 2.76,
@@ -2293,7 +2297,7 @@
         "EUR": 1.13,
         "Other": 10.97
       },
-      "breakdownsAsOf": "2026-04-28T14:15:09.421Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B810Q511",
       "_addedAt": "2026-04-28T14:15:09.421Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
@@ -2342,7 +2346,7 @@
           "pct": 1.6
         }
       ],
-      "topHoldingsAsOf": "2026-04-28T14:16:04.365Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
         "United States": 62.33,
         "Japan": 9.43,
@@ -2377,7 +2381,7 @@
         "SEK": 1.56,
         "Other": 5.52
       },
-      "breakdownsAsOf": "2026-04-28T14:16:04.365Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B5L01S80",
       "_addedAt": "2026-04-28T14:16:04.365Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
@@ -2426,7 +2430,7 @@
           "pct": 4.56
         }
       ],
-      "topHoldingsAsOf": "2026-04-28T14:32:12.382Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
         "United States": 71.05,
         "Japan": 7.45,
@@ -2445,7 +2449,7 @@
         "EUR": 3.62,
         "Other": 13.3
       },
-      "breakdownsAsOf": "2026-04-28T14:32:12.382Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BLPK3577",
       "_addedAt": "2026-04-28T14:32:12.382Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
@@ -2494,7 +2498,7 @@
           "pct": 2.22
         }
       ],
-      "topHoldingsAsOf": "2026-04-28T14:32:46.761Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
         "United States": 67.86,
         "Japan": 10.61,
@@ -2523,7 +2527,7 @@
         "HKD": 1.81,
         "Other": 5.09
       },
-      "breakdownsAsOf": "2026-04-28T14:32:46.761Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=NL0009690239",
       "_addedAt": "2026-04-28T14:32:46.761Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
@@ -2572,7 +2576,7 @@
           "pct": 3.09
         }
       ],
-      "topHoldingsAsOf": "2026-04-28T14:35:10.414Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
         "United States": 95.88,
         "Ireland": 2.51,
@@ -2587,7 +2591,7 @@
         "EUR": 2.51,
         "Other": 1.61
       },
-      "breakdownsAsOf": "2026-04-28T14:35:10.414Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B43HR379",
       "_addedAt": "2026-04-28T14:35:10.414Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -2636,7 +2640,7 @@
           "pct": 1.67
         }
       ],
-      "topHoldingsAsOf": "2026-04-28T14:36:22.899Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
         "Japan": 99.68,
         "Other": 0.32
@@ -2659,7 +2663,7 @@
         "JPY": 99.68,
         "Other": 0.32
       },
-      "breakdownsAsOf": "2026-04-28T14:36:22.899Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=LU0839027447",
       "_addedAt": "2026-04-28T14:36:22.899Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -2708,7 +2712,7 @@
           "pct": 1.6
         }
       ],
-      "topHoldingsAsOf": "2026-04-28T14:36:34.370Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
         "United States": 95.31,
         "Ireland": 1.44,
@@ -2733,7 +2737,7 @@
         "EUR": 1.44,
         "Other": 3.25
       },
-      "breakdownsAsOf": "2026-04-28T14:36:34.370Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BM67HW99",
       "_addedAt": "2026-04-28T14:36:34.370Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -2782,7 +2786,7 @@
           "pct": 1.55
         }
       ],
-      "topHoldingsAsOf": "2026-04-28T16:17:45.553Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
         "South Korea": 99.37,
         "Other": 0.63
@@ -2804,7 +2808,7 @@
         "KRW": 99.37,
         "Other": 0.63
       },
-      "breakdownsAsOf": "2026-04-28T16:17:45.553Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=LU0292100046",
       "_addedAt": "2026-04-28T16:17:45.553Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -2853,7 +2857,7 @@
           "pct": 1.1
         }
       ],
-      "topHoldingsAsOf": "2026-04-28T16:21:28.626Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
         "United States": 18.08,
         "Taiwan": 13.2,
@@ -2895,7 +2899,7 @@
         "GBP": 1.9,
         "Other": 17.92
       },
-      "breakdownsAsOf": "2026-04-28T16:21:28.626Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BLRB0242",
       "_addedAt": "2026-04-28T16:21:28.626Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -2944,7 +2948,7 @@
           "pct": 1.56
         }
       ],
-      "topHoldingsAsOf": "2026-04-30T05:14:43.212Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
         "United States": 94.87,
         "Ireland": 1.43,
@@ -2969,7 +2973,7 @@
         "EUR": 1.43,
         "Other": 3.7
       },
-      "breakdownsAsOf": "2026-04-30T05:14:43.212Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B88DZ566",
       "_addedAt": "2026-04-30T05:14:43.212Z",
       "_addedVia": "admin/lookthrough-pool/backfill"
@@ -3018,7 +3022,7 @@
           "pct": 1.41
         }
       ],
-      "topHoldingsAsOf": "2026-04-30T07:00:19.106Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
         "United States": 94.68,
         "Ireland": 1.44,
@@ -3043,7 +3047,7 @@
         "EUR": 1.44,
         "Other": 3.88
       },
-      "breakdownsAsOf": "2026-04-30T07:00:19.106Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=LU0136234654",
       "_addedAt": "2026-04-30T07:00:19.106Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
@@ -3092,7 +3096,7 @@
           "pct": 2.81
         }
       ],
-      "topHoldingsAsOf": "2026-04-30T07:51:13.682Z",
+      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
       "geo": {
         "France": 30.87,
         "Germany": 29.38,
@@ -3120,7 +3124,7 @@
         "EUR": 99.56,
         "Other": 0.44
       },
-      "breakdownsAsOf": "2026-04-30T07:51:13.682Z",
+      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE0008471009",
       "_addedAt": "2026-04-30T07:51:13.682Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
