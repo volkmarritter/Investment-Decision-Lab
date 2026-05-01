@@ -163,77 +163,109 @@ test.describe("ExplainPortfolio · bring-your-own-ETFs (mobile)", () => {
 
   // Task #136 added HomeBiasAnalysis to Explain, but it's gated to non-USD
   // bases (the framing of "home" only makes sense outside the global default).
-  // The other Explain test covers the USD path (Stress + Geo visible, Home
-  // Bias suppressed); this one locks in the non-USD branch so a regression
-  // in the Explain-specific gating wiring would be caught directly, instead
-  // of relying on Build's coverage of the shared HomeBiasAnalysis component.
-  test("switching Explain to a non-USD base shows Home Bias; flipping back to USD hides it", async ({
-    page,
-    context,
-  }) => {
-    await context.clearCookies();
-    await openExplainTab(page);
-    await page.evaluate(() =>
-      window.localStorage.removeItem("investment-lab.explainPortfolio.v1"),
-    );
-    await page.reload();
-    await dismissWelcomeIfPresent(page);
-    await page.getByRole("tab", { name: /explain my portfolio/i }).tap();
+  // The "default state" first test in this file already covers the USD path
+  // (Stress + Geo visible, Home Bias suppressed); the cases below lock in
+  // each non-USD branch so a regression in the Explain-specific gating
+  // wiring — or in `HOME_LABEL` / `HOME_GEO_KEYS` in `lib/homebias.ts` —
+  // would be caught directly, instead of relying on Build's coverage of
+  // the shared HomeBiasAnalysis component. Each non-USD base also asserts
+  // the CardDescription mentions the expected home-market label, so a
+  // future swap of e.g. EUR's label from "Eurozone" to "Germany" wouldn't
+  // pass silently. Task #146 expanded this from CHF-only to also cover
+  // EUR and GBP.
+  const NON_USD_BASES = [
+    {
+      code: "CHF" as const,
+      // CardDescription is `…of the {home} (CHF) tilt…` (en) or
+      // `…der {home}-Übergewichtung (CHF)…` (de). Match either label.
+      homeLabelRegex: /Switzerland|Schweiz/,
+    },
+    {
+      code: "EUR" as const,
+      // EUR's home label is "Eurozone" in both EN and DE (HOME_LABEL).
+      homeLabelRegex: /Eurozone/,
+    },
+    {
+      code: "GBP" as const,
+      homeLabelRegex: /United Kingdom|Vereinigtes Königreich/,
+    },
+  ];
 
-    // Three catalog ETFs summing to 100% so the analysis block actually
-    // renders — Home Bias only mounts inside `explain-analysis`. We mix in
-    // a fixed-income sleeve so the default Moderate risk profile's equity
-    // cap doesn't trip validation and suppress the analysis cards.
-    await addCatalogRow(page, 0, ISIN_USA);
-    await addCatalogRow(page, 1, ISIN_EUROPE);
-    await addCatalogRow(page, 2, ISIN_FI);
-    await setRowWeight(page, 0, "30");
-    await setRowWeight(page, 1, "30");
-    await setRowWeight(page, 2, "40");
-    await expect(page.getByTestId("explain-total")).toContainText(/100(\.0)?\s*%/);
+  for (const { code, homeLabelRegex } of NON_USD_BASES) {
+    test(`switching Explain to ${code} shows Home Bias with the ${code} home market`, async ({
+      page,
+      context,
+    }) => {
+      await context.clearCookies();
+      await openExplainTab(page);
+      await page.evaluate(() =>
+        window.localStorage.removeItem("investment-lab.explainPortfolio.v1"),
+      );
+      await page.reload();
+      await dismissWelcomeIfPresent(page);
+      await page.getByRole("tab", { name: /explain my portfolio/i }).tap();
 
-    const analysis = page.getByTestId("explain-analysis");
-    await expect(analysis).toBeVisible();
+      // Three catalog ETFs summing to 100% so the analysis block actually
+      // renders — Home Bias only mounts inside `explain-analysis`. We mix in
+      // a fixed-income sleeve so the default Moderate risk profile's equity
+      // cap doesn't trip validation and suppress the analysis cards.
+      await addCatalogRow(page, 0, ISIN_USA);
+      await addCatalogRow(page, 1, ISIN_EUROPE);
+      await addCatalogRow(page, 2, ISIN_FI);
+      await setRowWeight(page, 0, "30");
+      await setRowWeight(page, 1, "30");
+      await setRowWeight(page, 2, "40");
+      await expect(page.getByTestId("explain-total")).toContainText(/100(\.0)?\s*%/);
 
-    // Sanity: USD default → Home Bias suppressed.
-    const homeBiasTitle = analysis.getByText(/home bias analysis|home-bias-analyse/i);
-    await expect(homeBiasTitle).toHaveCount(0);
+      const analysis = page.getByTestId("explain-analysis");
+      await expect(analysis).toBeVisible();
 
-    // Flip the base currency to CHF. The Select trigger uses Radix under
-    // the hood, so we tap to open the listbox and pick the CHF option by
-    // role — same pattern the manual-asset-class test uses above. Use
-    // `click()` on the option (not `tap()`): Radix auto-focuses the
-    // currently-selected option on open which can intercept touch events
-    // before the listbox is fully stable on mobile.
-    const baseCurrency = page.getByTestId("explain-base-currency");
-    await baseCurrency.scrollIntoViewIfNeeded();
-    await baseCurrency.tap();
-    const chfOption = page.getByRole("option", { name: /^CHF$/ });
-    await expect(chfOption).toBeVisible();
-    // Radix Select's overlay briefly puts `pointer-events: none` on the
-    // root while the listbox animates open on mobile, so a normal click
-    // gets blocked by html intercepting pointer events. Force the click
-    // through — the option element itself is fully visible and the
-    // outcome is verified by the trigger's text changing to "CHF".
-    await chfOption.click({ force: true });
-    await expect(baseCurrency).toContainText("CHF");
+      // Sanity: USD default → Home Bias suppressed.
+      const homeBiasTitle = analysis.getByText(/home bias analysis|home-bias-analyse/i);
+      await expect(homeBiasTitle).toHaveCount(0);
 
-    // Non-USD base → Home Bias card renders. Match the title text in
-    // either language so this doesn't pin to a particular locale.
-    await expect(
-      analysis.getByText(/home bias analysis|home-bias-analyse/i).first(),
-    ).toBeVisible();
+      // Flip the base currency. The Select trigger uses Radix under
+      // the hood, so we tap to open the listbox and pick the option by
+      // role — same pattern the manual-asset-class test uses above. Use
+      // `click()` on the option (not `tap()`): Radix auto-focuses the
+      // currently-selected option on open which can intercept touch events
+      // before the listbox is fully stable on mobile.
+      const baseCurrency = page.getByTestId("explain-base-currency");
+      await baseCurrency.scrollIntoViewIfNeeded();
+      await baseCurrency.tap();
+      const targetOption = page.getByRole("option", { name: new RegExp(`^${code}$`) });
+      await expect(targetOption).toBeVisible();
+      // Radix Select's overlay briefly puts `pointer-events: none` on the
+      // root while the listbox animates open on mobile, so a normal click
+      // gets blocked by html intercepting pointer events. Force the click
+      // through — the option element itself is fully visible and the
+      // outcome is verified by the trigger's text changing to the code.
+      await targetOption.click({ force: true });
+      await expect(baseCurrency).toContainText(code);
 
-    // Flip back to USD and confirm the card disappears again. Same
-    // forced click as above to dodge Radix's animated overlay.
-    await baseCurrency.tap();
-    const usdOption = page.getByRole("option", { name: /^USD$/ });
-    await expect(usdOption).toBeVisible();
-    await usdOption.click({ force: true });
-    await expect(baseCurrency).toContainText("USD");
+      // Non-USD base → Home Bias card renders. Match the title text in
+      // either language so this doesn't pin to a particular locale.
+      await expect(
+        analysis.getByText(/home bias analysis|home-bias-analyse/i).first(),
+      ).toBeVisible();
 
-    await expect(
-      analysis.getByText(/home bias analysis|home-bias-analyse/i),
-    ).toHaveCount(0);
-  });
+      // The CardDescription template interpolates the per-currency
+      // `homeMarketLabel` from `HOME_LABEL`. Asserting the rendered
+      // description contains the expected label catches a regression in
+      // either the i18n template (`build.homeBias.desc`) or the
+      // `HOME_LABEL`/`HOME_GEO_KEYS` wiring on the Explain side. The
+      // description text node sits next to the title inside the same
+      // card header, so we scope the search to elements that also
+      // mention the base code in parens — that's the literal `({base})`
+      // substring of the `build.homeBias.desc` template — to avoid false
+      // positives from pros/cons bullets or other cards that may also
+      // mention the home country.
+      await expect(
+        analysis
+          .getByText(homeLabelRegex)
+          .filter({ hasText: new RegExp(`\\(${code}\\)`) })
+          .first(),
+      ).toBeVisible();
+    });
+  }
 });
