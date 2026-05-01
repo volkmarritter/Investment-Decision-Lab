@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-04-28 (build-etf-per-bucket-alternatives)
+Last updated: 2026-05-01 (admin-file-compare-viewer)
 
 ---
 
@@ -626,6 +626,15 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-05-01 (admin-file-compare-viewer) — Per-file Replit ↔ GitHub-main side-by-side viewer
+- **Operator-Wunsch:** Der `WorkspaceSyncPanel` auf `/admin/operations/sync` zeigt zwar an, **wie viele Commits** der Workspace gegenüber `origin/main` zurück- oder vorausläuft, beantwortet aber nicht die operativ wichtigste Folgefrage: **welche konkreten Felder** in den vom monatlichen Cron-Job gepflegten Override-Dateien haben sich geändert? Bevor man pullt (oder einen lokalen Stand committet), will der Betreiber Zeile für Zeile sehen, was genau divergent ist.
+- **Allow-list (3 Dateien, beidseits hartkodiert):** `etfs.overrides.json` (Cron-gepflegte ETF-Stammdaten-Overrides — TER, AUM, Inception), `lookthrough.overrides.json` (Cron-gepflegter Look-Through-Pool — Top-Holdings, Geo, Sektor) und `etfs.ts` (hand-kuratierter Katalog — Buckets, Default-Tickers, Listings). Die fileId ist ein opaker Schlüssel (`"etfs-overrides" | "lookthrough-overrides" | "etfs-ts"`), die Route echot **niemals** einen vom Client benannten Pfad an die Disk weiter — Path-Traversal ist by-design unmöglich.
+- **Backend (`artifacts/api-server/src/routes/admin.ts`):** Neuer Endpoint `GET /admin/file-compare/:fileId` (durch `requireAdmin` gegated, wie alle anderen `/admin/*`). Liest die lokale Datei via `dataFile()` / `getCatalogPath()` (funktioniert in pnpm-dev und im gebündelten Prod-Mode), holt den GitHub-Blob über das bestehende `octokit.repos.getContent({ ref: "heads/${base}" })`-Pattern (Base-Branch via `GITHUB_BASE_BRANCH ?? "main"`, gleicher PAT wie für die PR-Flows), und berechnet einen `structuredPatch` aus `diff@9` mit Kontext = 3. Hard-Cap pro Seite: **1 MB** — wird sie auf irgendeiner Seite überschritten, kommt symmetrisch ein `200`-Response mit `truncated: true`, leerem `hunks: []` und `htmlUrl` zurück (nicht `413` — das wäre für die Local-Seite asymmetrisch zur GitHub-Seite gewesen und hätte die UI-Fallback-Logik kaputtgemacht). Typisierte Fehler-Keys: `unknown_file_id`, `local_file_missing`, `local_read_failed`, `github_not_configured`, `github_fetch_failed`, `github_file_missing`.
+- **Client-Typen (`src/lib/admin-api.ts`):** Neue `FileCompareFileId`, `FileCompareHunk` (Mirror von `StructuredPatchHunk`, ohne `@types/diff` ins Bundle zu ziehen) und `FileCompareResponse`-Interfaces. `adminApi.fileCompare(fileId)` benutzt den bestehenden `call<>()`-Helper (sessionStorage-Bearer-Token).
+- **UI (`src/components/admin/FileCompareViewer.tsx`):** Chip-Selektor für die 3 Dateien (Default = `etfs-overrides`), Header-Zeile mit Repo-Pfad, Byte-Größen pro Seite, GitHub-Short-SHA als Link auf `htmlUrl` und Status-Pill (`identisch` grün / `N Hunks` amber / `Datei zu groß` amber / Fehler-Alert rot). Body: zwei-spaltiges, scrollbares Grid (max-h-600px) mit Hunk-Headern und Zeilen-Pairing. Pairing-Algorithmus: pro Hunk werden `-`-Runs und `+`-Runs gepuffert und beim nächsten Kontext-Trigger Index-für-Index gepaart, kürzere Seite mit Blank gepadded — Kontext-Zeilen erscheinen mit derselben Zeilennummer beidseits. Bilingual via `useAdminT()`. Test-IDs: `file-compare-card`, `file-compare-selector`, `button-file-compare-pick-{id}`, `file-compare-status-pill`, `file-compare-sbs`, `file-compare-row-context`, `file-compare-row-change`, `file-compare-cell-{added|removed}-{lineNo}`, `link-file-compare-github`.
+- **Mount (`src/pages/admin/Operations.tsx`):** Im `sync`-Sub-Tab erscheint `FileCompareViewer` direkt unter `WorkspaceSyncPanel`, gewrappt in `<div className="space-y-4">`. Andere Sub-Tabs (prs/changes/runs/freshness) bleiben unverändert.
+- **Verifikation:** API-Server-Build PASS (esbuild 130ms); Typecheck PASS; **591 / 591 Unit-Tests grün**; Smoke-Curl gegen `/api/admin/file-compare/etfs-overrides` ohne Auth → `401` (Route mounted + admin-gated wie erwartet).
 
 ### 2026-05-01 (explain-analysis-order-mirrors-build) — Explain analysis-block order matches Build
 - **Operator-Wunsch:** „apply the same order to the analysis blocks in My Portfolio as they are in Build" — die Cards unter dem Explain-Editor erschienen in einer anderen Reihenfolge als im Build-Tab, was beim Wechsel zwischen den beiden Tabs zu einer kognitiven Reibung führte (gleiche Daten, andere Lese-Reihenfolge).

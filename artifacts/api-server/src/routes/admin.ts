@@ -18,9 +18,10 @@
 // ----------------------------------------------------------------------------
 
 import { Router, type IRouter } from "express";
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import { resolve } from "node:path";
-import { createPatch } from "diff";
+import { createPatch, structuredPatch } from "diff";
+import { Octokit } from "@octokit/rest";
 import { requireAdmin } from "../middlewares/admin-auth";
 import { dataFile } from "../lib/data-paths";
 import {
@@ -1270,6 +1271,241 @@ router.post("/admin/workspace-sync", async (_req, res) => {
       message: err instanceof Error ? err.message : String(err),
     });
   }
+});
+
+// --- /api/admin/file-compare/:fileId -----------------------------------------
+// Per-file Replit (workspace) vs GitHub-main side-by-side viewer.
+//
+// Operator use case: the WorkspaceSyncPanel above tells the operator
+// HOW MANY commits behind/ahead the workspace is, but not WHICH FIELDS
+// changed in the few override files that are touched by the cron-driven
+// data refresh. This endpoint complements that by returning, per file,
+// both the workspace bytes and the GitHub-main bytes plus a structured
+// diff that the UI can render side-by-side without pulling a diff
+// library into the browser bundle.
+//
+// Allow-list: only three files are exposed (the two cron-managed
+// override JSONs plus the hand-curated catalog source). The fileId is
+// a stable opaque key so the route never echoes a path from the URL
+// back to disk — eliminates traversal as an attack vector entirely.
+//
+// Hard cap: 1 MB per side. The override JSONs are ~50 kB today and
+// etfs.ts is ~700 lines; the cap is a guard against a runaway commit,
+// not a real expectation. When exceeded we return the metadata + a
+// `truncated: true` flag and skip the diff computation (cheaper to let
+// the operator open GitHub directly than to ship a 30 MB JSON payload
+// through Express).
+type FileCompareTarget = {
+  displayName: string;
+  language: "json" | "typescript";
+  localPath: () => string;
+  repoPath: string;
+};
+const FILE_COMPARE_TARGETS: Record<string, FileCompareTarget> = {
+  "etfs-overrides": {
+    displayName: "etfs.overrides.json",
+    language: "json",
+    localPath: () => dataFile("etfs.overrides.json"),
+    repoPath: "artifacts/investment-lab/src/data/etfs.overrides.json",
+  },
+  "lookthrough-overrides": {
+    displayName: "lookthrough.overrides.json",
+    language: "json",
+    localPath: () => dataFile("lookthrough.overrides.json"),
+    repoPath: "artifacts/investment-lab/src/data/lookthrough.overrides.json",
+  },
+  "etfs-ts": {
+    displayName: "etfs.ts",
+    language: "typescript",
+    localPath: () => getCatalogPath(),
+    repoPath: "artifacts/investment-lab/src/lib/etfs.ts",
+  },
+};
+const FILE_COMPARE_MAX_BYTES = 1_000_000; // 1 MB per side.
+
+router.get("/admin/file-compare/:fileId", async (req, res) => {
+  const fileId = String(req.params.fileId ?? "");
+  const target = FILE_COMPARE_TARGETS[fileId];
+  if (!target) {
+    res.status(404).json({
+      error: "unknown_file_id",
+      message: `Unknown file id "${fileId}". Allowed: ${Object.keys(
+        FILE_COMPARE_TARGETS,
+      ).join(", ")}.`,
+    });
+    return;
+  }
+
+  // 1. Local side: read from disk. ENOENT is a real error to surface
+  //    (the operator deleted the file or the path-resolver misfired) —
+  //    do NOT treat as "empty file". Oversize is NOT a hard error: we
+  //    return a successful payload with `truncated: true` so the UI
+  //    can render the size + "open on GitHub" fallback consistently
+  //    with the GitHub-side oversize branch below.
+  const localPath = target.localPath();
+  let workspaceContent: string;
+  let workspaceSizeBytes: number;
+  let workspaceTooLarge = false;
+  try {
+    const st = await stat(localPath);
+    workspaceSizeBytes = st.size;
+    if (st.size > FILE_COMPARE_MAX_BYTES) {
+      workspaceTooLarge = true;
+      workspaceContent = "";
+    } else {
+      workspaceContent = await readFile(localPath, "utf8");
+    }
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code;
+    res.status(code === "ENOENT" ? 404 : 500).json({
+      error: code === "ENOENT" ? "local_file_missing" : "local_read_failed",
+      message:
+        code === "ENOENT"
+          ? `Local file not found at ${localPath}.`
+          : err instanceof Error
+            ? err.message
+            : String(err),
+    });
+    return;
+  }
+
+  // 2. GitHub side: fetch the blob at HEAD of base branch. Match the
+  //    pattern used by openUpdateAppDefaultsPr / openAddLookthroughPoolPr
+  //    so a single PAT scope works for read AND write.
+  if (!githubConfigured()) {
+    res.status(503).json({
+      error: "github_not_configured",
+      message:
+        "GitHub access is not configured. Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO.",
+    });
+    return;
+  }
+  const owner = process.env.GITHUB_OWNER!;
+  const repo = process.env.GITHUB_REPO!;
+  const base = process.env.GITHUB_BASE_BRANCH ?? "main";
+  const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
+
+  let githubContent: string;
+  let githubSha: string;
+  let githubHtmlUrl: string | undefined;
+  let githubSizeBytes: number;
+  try {
+    const { data: fileMeta } = await octokit.repos.getContent({
+      owner,
+      repo,
+      path: target.repoPath,
+      ref: `heads/${base}`,
+    });
+    if (Array.isArray(fileMeta) || fileMeta.type !== "file") {
+      throw new Error(`Not a file at ${target.repoPath}.`);
+    }
+    githubSizeBytes = fileMeta.size;
+    githubSha = fileMeta.sha;
+    githubHtmlUrl = fileMeta.html_url ?? undefined;
+    const githubTooLarge = fileMeta.size > FILE_COMPARE_MAX_BYTES;
+    if (githubTooLarge) {
+      // Skip the base64 decode — caller only gets metadata for this side.
+      githubContent = "";
+    } else {
+      // The contents API returns base64 for "file" type below ~1 MB.
+      if (
+        fileMeta.encoding !== "base64" ||
+        typeof fileMeta.content !== "string"
+      ) {
+        throw new Error(
+          `Unexpected encoding "${fileMeta.encoding}" — only base64 file contents are handled.`,
+        );
+      }
+      githubContent = Buffer.from(fileMeta.content, "base64").toString("utf8");
+    }
+    // If EITHER side is too large, short-circuit: no diff is meaningful
+    // (we'd just be diffing one side against ""), so return metadata
+    // only. Symmetric with the local-oversize branch above.
+    if (workspaceTooLarge || githubTooLarge) {
+      const reasons: string[] = [];
+      if (workspaceTooLarge) {
+        reasons.push(
+          `workspace file is ${workspaceSizeBytes} bytes`,
+        );
+      }
+      if (githubTooLarge) {
+        reasons.push(`GitHub file is ${githubSizeBytes} bytes`);
+      }
+      res.json({
+        fileId,
+        displayName: target.displayName,
+        repoPath: target.repoPath,
+        language: target.language,
+        baseBranch: base,
+        workspace: {
+          content: workspaceContent,
+          sizeBytes: workspaceSizeBytes,
+          exists: true,
+        },
+        github: {
+          content: githubContent,
+          sizeBytes: githubSizeBytes,
+          sha: githubSha,
+          htmlUrl: githubHtmlUrl,
+        },
+        identical: false,
+        hunks: [],
+        truncated: true,
+        message: `${reasons.join(" and ")}, exceeds ${FILE_COMPARE_MAX_BYTES} byte cap. Open on GitHub to view.`,
+      });
+      return;
+    }
+  } catch (err) {
+    const status = (err as { status?: number }).status;
+    res.status(status === 404 ? 404 : 502).json({
+      error: status === 404 ? "github_file_missing" : "github_fetch_failed",
+      message:
+        status === 404
+          ? `File not found on GitHub at ${target.repoPath} (ref heads/${base}).`
+          : err instanceof Error
+            ? err.message
+            : String(err),
+    });
+    return;
+  }
+
+  // 3. Compute structured patch (context = 3, sane default matching
+  //    what GitHub PR diffs render). When identical, hunks is empty
+  //    and the UI shows a single "identisch / identical" pill.
+  const identical = workspaceContent === githubContent;
+  const patch = identical
+    ? { hunks: [] }
+    : structuredPatch(
+        target.repoPath, // oldFileName
+        target.repoPath, // newFileName
+        githubContent, // old (GitHub-main is the baseline)
+        workspaceContent, // new (workspace is the candidate)
+        undefined,
+        undefined,
+        { context: 3 },
+      );
+
+  res.json({
+    fileId,
+    displayName: target.displayName,
+    repoPath: target.repoPath,
+    language: target.language,
+    baseBranch: base,
+    workspace: {
+      content: workspaceContent,
+      sizeBytes: workspaceSizeBytes,
+      exists: true,
+    },
+    github: {
+      content: githubContent,
+      sizeBytes: githubSizeBytes,
+      sha: githubSha,
+      htmlUrl: githubHtmlUrl,
+    },
+    identical,
+    hunks: patch.hunks,
+    truncated: false,
+  });
 });
 
 // DELETE /admin/bucket-alternatives/:parentKey/:isin — opens a PR that

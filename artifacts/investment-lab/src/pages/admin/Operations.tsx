@@ -20,6 +20,7 @@ import { SectionHeader } from "@/components/admin/SectionHeader";
 import { SubTabNav, type SubTab } from "@/components/admin/SubTabNav";
 import { useAdminContext } from "@/components/admin/AdminContext";
 import { WorkspaceSyncPanel } from "@/components/admin/WorkspaceSyncPanel";
+import { FileCompareViewer } from "@/components/admin/FileCompareViewer";
 import { PendingPrsCard } from "@/components/admin/PendingPrsCard";
 import {
   FreshnessCard,
@@ -124,7 +125,12 @@ export default function Operations() {
       />
       <SubTabNav tabs={tabs} testid="subnav-operations" />
       <div data-testid={`subpage-operations-${active}`}>
-        {active === "sync" && <WorkspaceSyncPanel />}
+        {active === "sync" && (
+          <div className="space-y-4">
+            <WorkspaceSyncPanel />
+            <FileCompareViewer />
+          </div>
+        )}
         {active === "prs" && <OperationsPrsTab />}
         {active === "changes" && <ChangesTab />}
         {active === "runs" && <RunsTab />}

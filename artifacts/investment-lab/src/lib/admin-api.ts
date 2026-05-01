@@ -432,6 +432,11 @@ export const adminApi = {
     call<WorkspaceSyncPullResponse>("/admin/workspace-sync", {
       method: "POST",
     }),
+  // Per-file Replit (workspace) vs GitHub-main side-by-side diff.
+  // fileId is opaque (one of "etfs-overrides" | "lookthrough-overrides" |
+  // "etfs-ts") — the route never lets the client name a path.
+  fileCompare: (fileId: FileCompareFileId) =>
+    call<FileCompareResponse>(`/admin/file-compare/${fileId}`),
   // Lists currently-open PRs on the configured GitHub repo, optionally
   // scoped to a single admin flow via branch prefix. Recognized prefixes:
   //   "add-etf/" | "add-alt/" | "rm-alt/" | "add-lookthrough-pool/" |
@@ -778,6 +783,52 @@ export interface WorkspaceSyncPullResponse {
   changedFiles: string[];
   alreadyUpToDate: boolean;
   baseBranch: string;
+}
+
+// /admin/file-compare/:fileId — per-file Replit ↔ GitHub-main diff.
+// fileId is a stable opaque key — the route never echoes a raw path
+// from the URL back to disk, so traversal is impossible by design.
+export type FileCompareFileId =
+  | "etfs-overrides"
+  | "lookthrough-overrides"
+  | "etfs-ts";
+
+// Mirrors `StructuredPatchHunk` from the `diff` package. Re-declared here
+// rather than imported so the client bundle doesn't drag in @types/diff.
+export interface FileCompareHunk {
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  // Each entry begins with " " (context), "-" (removed from GitHub side),
+  // "+" (added on workspace side), or "\" (no newline at end of file).
+  lines: string[];
+}
+
+export interface FileCompareResponse {
+  fileId: FileCompareFileId;
+  displayName: string;
+  repoPath: string;
+  language: "json" | "typescript";
+  baseBranch: string;
+  workspace: {
+    content: string;
+    sizeBytes: number;
+    exists: true;
+  };
+  github: {
+    content: string;
+    sizeBytes: number;
+    sha: string;
+    htmlUrl?: string;
+  };
+  identical: boolean;
+  hunks: FileCompareHunk[];
+  // True when one side exceeded the 1 MB cap; in that case `hunks` is
+  // empty and at least one of the `content` fields is "" — the UI
+  // should fall back to a "open on GitHub" link.
+  truncated: boolean;
+  message?: string;
 }
 
 export interface LookthroughPoolEntry {
