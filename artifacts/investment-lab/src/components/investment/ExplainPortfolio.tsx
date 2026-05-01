@@ -12,6 +12,7 @@ import {
   Search,
   RotateCcw,
   Scale,
+  Layers,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -53,6 +54,7 @@ import {
 import { BaseCurrency, RiskAppetite } from "@/lib/types";
 import {
   ALL_BUCKET_KEYS,
+  type BucketMeta,
   getBucketKeyForIsin,
   getBucketMeta,
   getInstrumentByIsin,
@@ -181,16 +183,21 @@ interface IsinPickerProps {
   onPick: (isin: string) => void;
   excludeIsins: ReadonlySet<string>;
   testId?: string;
+  restrictToBucketKey?: string;
 }
 
-function IsinPicker({ value, onPick, excludeIsins, testId }: IsinPickerProps) {
+function IsinPicker({ value, onPick, excludeIsins, testId, restrictToBucketKey }: IsinPickerProps) {
   const { t, lang } = useT();
   const [open, setOpen] = useState(false);
   const all = useMemo(() => listInstruments(), []);
 
   const candidates = useMemo(() => {
-    return all.filter((i) => !excludeIsins.has(i.isin) || i.isin === value);
-  }, [all, excludeIsins, value]);
+    return all.filter(
+      (i) =>
+        (!excludeIsins.has(i.isin) || i.isin === value) &&
+        (!restrictToBucketKey || i.bucketKey === restrictToBucketKey),
+    );
+  }, [all, excludeIsins, value, restrictToBucketKey]);
 
   const selected = value ? all.find((i) => i.isin === value) : null;
 
@@ -350,6 +357,7 @@ function PositionRow({
             onPick={onPickIsin}
             excludeIsins={excludeIsins}
             testId={`explain-picker-${rowIndex}`}
+            restrictToBucketKey={position.bucketKey || undefined}
           />
         )}
         <Input
@@ -488,6 +496,11 @@ export function ExplainPortfolio() {
     setWeightDrafts((d) => [...d, ""]);
   }
 
+  function addPositionInBucket(bucketKey: string) {
+    setState((s) => ({ ...s, positions: [...s.positions, { isin: "", bucketKey, weight: 0 }] }));
+    setWeightDrafts((d) => [...d, ""]);
+  }
+
   function addManualPosition() {
     setState((s) => ({
       ...s,
@@ -614,7 +627,7 @@ export function ExplainPortfolio() {
     state.positions.forEach((p, i) => {
       let key: string;
       if (p.manualMeta) key = "(manual)";
-      else if (p.isin && p.bucketKey) key = p.bucketKey;
+      else if (p.bucketKey) key = p.bucketKey;
       else key = "(unassigned)";
       const arr = m.get(key) ?? [];
       arr.push(i);
@@ -626,6 +639,22 @@ export function ExplainPortfolio() {
     if (m.has("(unassigned)")) ordered.push(["(unassigned)", m.get("(unassigned)")!]);
     return ordered;
   }, [state.positions]);
+
+  // Catalog buckets grouped by asset class for the "Add by bucket" popover.
+  // Iteration order of ALL_BUCKET_KEYS preserves the catalog's intended
+  // ordering (Equity → Fixed Income → … → Cash), and within each asset
+  // class the regional order is whatever the catalog ships with.
+  const bucketsByAssetClass = useMemo(() => {
+    const m = new Map<string, BucketMeta[]>();
+    for (const k of ALL_BUCKET_KEYS) {
+      const meta = getBucketMeta(k);
+      if (!meta) continue;
+      const list = m.get(meta.assetClass) ?? [];
+      list.push(meta);
+      m.set(meta.assetClass, list);
+    }
+    return Array.from(m.entries());
+  }, []);
 
   function bucketSum(indices: number[]): number {
     let s = 0;
@@ -764,6 +793,51 @@ export function ExplainPortfolio() {
                     <Plus className="mr-1.5 h-3 w-3" />
                     {t("explain.btn.addManual")}
                   </Button>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-8 text-xs"
+                        data-testid="explain-add-by-bucket"
+                      >
+                        <Layers className="mr-1.5 h-3 w-3" />
+                        {t("explain.btn.addByBucket")}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      className="w-[420px] max-w-[calc(100vw-2rem)] p-0"
+                      align="end"
+                    >
+                      <Command>
+                        <CommandInput placeholder={t("explain.byBucket.search")} />
+                        <CommandList className="max-h-[360px]">
+                          <CommandEmpty>{t("explain.byBucket.empty")}</CommandEmpty>
+                          {bucketsByAssetClass.map(([assetClass, items]) => (
+                            <CommandGroup key={assetClass} heading={assetClass}>
+                              {items.map((b) => {
+                                const flags = `${b.hedged ? (lang === "de" ? " (gehedgt)" : " (hedged)") : ""}${b.synthetic ? (lang === "de" ? " · synthetisch" : " · synthetic") : ""}`;
+                                return (
+                                  <CommandItem
+                                    key={b.key}
+                                    value={`${b.assetClass}|${b.region}|${b.key}`}
+                                    onSelect={() => addPositionInBucket(b.key)}
+                                    data-testid={`explain-by-bucket-${b.key}`}
+                                  >
+                                    <span className="text-xs">
+                                      {b.region}
+                                      {flags}
+                                    </span>
+                                  </CommandItem>
+                                );
+                              })}
+                            </CommandGroup>
+                          ))}
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
                   <Button
                     type="button"
                     variant="outline"
@@ -852,15 +926,32 @@ export function ExplainPortfolio() {
                     : "Manually entered positions"
                   : t("explain.positions.unassigned");
                 const sum = bucketSum(indices);
+                const isCatalogBucket = bucketKey !== "(manual)" && bucketKey !== "(unassigned)";
                 return (
                   <div key={bucketKey} className="space-y-2">
-                    <div className="flex items-center justify-between text-xs">
+                    <div className="flex items-center justify-between gap-2 text-xs">
                       <span className="font-semibold uppercase tracking-wide text-muted-foreground">
                         {heading}
                       </span>
-                      <span className="font-mono text-muted-foreground">
-                        {sum.toFixed(1)}%
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-muted-foreground">
+                          {sum.toFixed(1)}%
+                        </span>
+                        {isCatalogBucket && (
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-muted-foreground hover:text-primary"
+                            onClick={() => addPositionInBucket(bucketKey)}
+                            aria-label={t("explain.btn.addInThisBucket")}
+                            title={t("explain.btn.addInThisBucket")}
+                            data-testid={`explain-add-in-bucket-${bucketKey}`}
+                          >
+                            <Plus className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
+                      </div>
                     </div>
                     <div className="space-y-2">
                       {indices.map((i) => (
