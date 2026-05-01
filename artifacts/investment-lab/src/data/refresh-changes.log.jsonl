@@ -68,3 +68,9 @@
 {"ts":"2026-04-30T05:15:00.822Z","source":"justetf-listings","isin":"IE00B88DZ566","field":"listings","before":null,"after":{"SIX":{"ticker":"IUSC"}}}
 {"ts":"2026-04-30T05:15:00.822Z","source":"justetf-listings","isin":"IE00BM67HT60","field":"listings","before":null,"after":{"LSE":{"ticker":"XDWT"},"SIX":{"ticker":"XDWT"},"XETRA":{"ticker":"XDWT"}}}
 {"ts":"2026-04-30T05:15:00.822Z","source":"justetf-listings","isin":"IE00BLRB0242","field":"listings","before":null,"after":{"LSE":{"ticker":"GCLE"},"SIX":{"ticker":"GCLE"},"XETRA":{"ticker":"G1CE"}}}
+{"ts":"2026-05-01T05:50:06.303Z","source":"justetf-listings","isin":"IE00BLCHJB90","field":"listings","before":null,"after":{"LSE":{"ticker":"BOTZ"},"SIX":{"ticker":"BOTZ"},"XETRA":{"ticker":"XB0T"}}}
+{"ts":"2026-05-01T05:50:06.303Z","source":"justetf-listings","isin":"IE00BLR6QB00","field":"listings","before":null,"after":{"LSE":{"ticker":"EDOC"},"SIX":{"ticker":"EDOC"},"XETRA":{"ticker":"DDOC"}}}
+{"ts":"2026-05-01T05:50:06.303Z","source":"justetf-listings","isin":"LU0136234654","field":"listings","before":null,"after":{"LSE":{"ticker":"UC67"},"SIX":{"ticker":"USAUSA"},"XETRA":{"ticker":"UIM6"}}}
+{"ts":"2026-05-01T05:50:06.303Z","source":"justetf-listings","isin":"IE0008471009","field":"listings","before":null,"after":{"LSE":{"ticker":"EUE"},"Euronext":{"ticker":"EUEA"},"SIX":{"ticker":"EUNE"},"XETRA":{"ticker":"EUN2"}}}
+{"ts":"2026-05-01T05:50:06.303Z","source":"justetf-listings","isin":"IE00B3RBWM25","field":"listings","before":null,"after":{"Euronext":{"ticker":"VWRL"},"LSE":{"ticker":"VWRD"},"SIX":{"ticker":"VWRL"},"XETRA":{"ticker":"VGWL"}}}
+{"ts":"2026-05-01T05:50:06.303Z","source":"justetf-listings","isin":"LU0292100046","field":"listings","before":null,"after":{"LSE":{"ticker":"XKSD"},"XETRA":{"ticker":"DBX8"}}}

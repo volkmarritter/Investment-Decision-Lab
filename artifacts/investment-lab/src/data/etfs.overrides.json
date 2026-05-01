@@ -1,10 +1,10 @@
 {
   "_meta": {
     "source": "justetf.com",
-    "lastRefreshed": "2026-04-30T05:38:19.077Z",
+    "lastRefreshed": "2026-05-01T05:50:06.303Z",
     "lastRefreshedMode": "listings",
     "lastCoreRefresh": "2026-04-24T08:04:32.368Z",
-    "lastListingsRefresh": "2026-04-30T05:38:19.077Z",
+    "lastListingsRefresh": "2026-05-01T05:50:06.303Z",
     "refreshedBy": "scripts/refresh-justetf.mjs",
     "note": "ISIN -> partial ETFRecord overrides applied on top of the in-code CATALOG in src/lib/etfs.ts. Populated by two CI cadences: weekly (Sundays 03:00 UTC) for core fund metadata and nightly (02:00 UTC) for the per-exchange listings map. Only fields present in this file override the catalog defaults; everything else stays as defined in code."
   },
@@ -724,6 +724,87 @@
         },
         "XETRA": {
           "ticker": "G1CE"
+        }
+      }
+    },
+    "IE00BLCHJB90": {
+      "listings": {
+        "LSE": {
+          "ticker": "BOTZ"
+        },
+        "SIX": {
+          "ticker": "BOTZ"
+        },
+        "XETRA": {
+          "ticker": "XB0T"
+        }
+      }
+    },
+    "IE00BLR6QB00": {
+      "listings": {
+        "LSE": {
+          "ticker": "EDOC"
+        },
+        "SIX": {
+          "ticker": "EDOC"
+        },
+        "XETRA": {
+          "ticker": "DDOC"
+        }
+      }
+    },
+    "LU0136234654": {
+      "listings": {
+        "LSE": {
+          "ticker": "UC67"
+        },
+        "SIX": {
+          "ticker": "USAUSA"
+        },
+        "XETRA": {
+          "ticker": "UIM6"
+        }
+      }
+    },
+    "IE0008471009": {
+      "listings": {
+        "LSE": {
+          "ticker": "EUE"
+        },
+        "Euronext": {
+          "ticker": "EUEA"
+        },
+        "SIX": {
+          "ticker": "EUNE"
+        },
+        "XETRA": {
+          "ticker": "EUN2"
+        }
+      }
+    },
+    "IE00B3RBWM25": {
+      "listings": {
+        "Euronext": {
+          "ticker": "VWRL"
+        },
+        "LSE": {
+          "ticker": "VWRD"
+        },
+        "SIX": {
+          "ticker": "VWRL"
+        },
+        "XETRA": {
+          "ticker": "VGWL"
+        }
+      }
+    },
+    "LU0292100046": {
+      "listings": {
+        "LSE": {
+          "ticker": "XKSD"
+        },
+        "XETRA": {
+          "ticker": "DBX8"
         }
       }
     }
