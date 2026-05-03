@@ -1,10 +1,10 @@
 {
   "_meta": {
     "source": "justetf.com",
-    "lastRefreshed": "2026-05-02T05:21:28.946Z",
+    "lastRefreshed": "2026-05-03T05:41:21.748Z",
     "lastRefreshedMode": "listings",
     "lastCoreRefresh": "2026-04-24T08:04:32.368Z",
-    "lastListingsRefresh": "2026-05-02T05:21:28.946Z",
+    "lastListingsRefresh": "2026-05-03T05:41:21.748Z",
     "refreshedBy": "scripts/refresh-justetf.mjs",
     "note": "ISIN -> partial ETFRecord overrides applied on top of the in-code CATALOG in src/lib/etfs.ts. Populated by two CI cadences: weekly (Sundays 03:00 UTC) for core fund metadata and nightly (02:00 UTC) for the per-exchange listings map. Only fields present in this file override the catalog defaults; everything else stays as defined in code."
   },
