@@ -1,9 +1,9 @@
 {
   "_meta": {
     "source": "justetf.com",
-    "lastRefreshed": "2026-05-03T05:41:21.748Z",
-    "lastRefreshedMode": "listings",
-    "lastCoreRefresh": "2026-04-24T08:04:32.368Z",
+    "lastRefreshed": "2026-05-03T06:12:24.107Z",
+    "lastRefreshedMode": "core",
+    "lastCoreRefresh": "2026-05-03T06:12:24.107Z",
     "lastListingsRefresh": "2026-05-03T05:41:21.748Z",
     "refreshedBy": "scripts/refresh-justetf.mjs",
     "note": "ISIN -> partial ETFRecord overrides applied on top of the in-code CATALOG in src/lib/etfs.ts. Populated by two CI cadences: weekly (Sundays 03:00 UTC) for core fund metadata and nightly (02:00 UTC) for the per-exchange listings map. Only fields present in this file override the catalog defaults; everything else stays as defined in code."
@@ -24,7 +24,11 @@
         "XETRA": {
           "ticker": "SPYI"
         }
-      }
+      },
+      "aumMillionsEUR": 4859,
+      "inceptionDate": "2011-05-13",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B5BMR087": {
       "terBps": 7,
@@ -41,7 +45,11 @@
         "XETRA": {
           "ticker": "SXR8"
         }
-      }
+      },
+      "aumMillionsEUR": 119543,
+      "inceptionDate": "2010-05-19",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B3YCGJ38": {
       "terBps": 5,
@@ -58,7 +66,11 @@
         "XETRA": {
           "ticker": "P500"
         }
-      }
+      },
+      "aumMillionsEUR": 32046,
+      "inceptionDate": "2010-05-20",
+      "distribution": "Accumulating",
+      "replication": "Synthetic"
     },
     "IE00B4K48X80": {
       "terBps": 12,
@@ -75,7 +87,11 @@
         "XETRA": {
           "ticker": "EUNK"
         }
-      }
+      },
+      "aumMillionsEUR": 14724,
+      "inceptionDate": "2009-09-25",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "CH0237935652": {
       "terBps": 10,
@@ -83,7 +99,11 @@
         "SIX": {
           "ticker": "CHSPI"
         }
-      }
+      },
+      "aumMillionsEUR": 5699,
+      "inceptionDate": "2014-04-28",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00B4L5YX21": {
       "terBps": 12,
@@ -100,7 +120,11 @@
         "XETRA": {
           "ticker": "EUNN"
         }
-      }
+      },
+      "aumMillionsEUR": 6343,
+      "inceptionDate": "2009-09-25",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BKM4GZ66": {
       "terBps": 18,
@@ -117,7 +141,11 @@
         "XETRA": {
           "ticker": "IS3N"
         }
-      }
+      },
+      "aumMillionsEUR": 34160,
+      "inceptionDate": "2014-05-30",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B3ZW0K18": {
       "terBps": 20,
@@ -134,7 +162,11 @@
         "XETRA": {
           "ticker": "IBCF"
         }
-      }
+      },
+      "aumMillionsEUR": 8236,
+      "inceptionDate": "2010-09-30",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B3F81409": {
       "terBps": 10,
@@ -148,7 +180,11 @@
         "XETRA": {
           "ticker": "EUNU"
         }
-      }
+      },
+      "aumMillionsEUR": 2209,
+      "inceptionDate": "2017-11-21",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00BDBRDM35": {
       "terBps": 10,
@@ -162,7 +198,11 @@
         "XETRA": {
           "ticker": "EUNA"
         }
-      }
+      },
+      "aumMillionsEUR": 2372,
+      "inceptionDate": "2017-11-21",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B579F325": {
       "terBps": 12,
@@ -179,7 +219,11 @@
         "XETRA": {
           "ticker": "8PSG"
         }
-      }
+      },
+      "aumMillionsEUR": 25041,
+      "inceptionDate": "2009-06-25",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B1FZS350": {
       "terBps": 59,
@@ -196,7 +240,11 @@
         "XETRA": {
           "ticker": "IQQ6"
         }
-      }
+      },
+      "aumMillionsEUR": 1020,
+      "inceptionDate": "2006-10-20",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "GB00BLD4ZL17": {
       "terBps": 15,
@@ -213,7 +261,11 @@
         "XETRA": {
           "ticker": "BITC"
         }
-      }
+      },
+      "aumMillionsEUR": 1306,
+      "inceptionDate": "2021-01-19",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B3WJKG14": {
       "terBps": 15,
@@ -227,7 +279,11 @@
         "XETRA": {
           "ticker": "QDVE"
         }
-      }
+      },
+      "aumMillionsEUR": 14478,
+      "inceptionDate": "2015-11-20",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BYZK4776": {
       "terBps": 40,
@@ -244,7 +300,11 @@
         "XETRA": {
           "ticker": "2B78"
         }
-      }
+      },
+      "aumMillionsEUR": 812,
+      "inceptionDate": "2016-09-08",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B1XNHC34": {
       "terBps": 65,
@@ -258,7 +318,11 @@
         "XETRA": {
           "ticker": "IQQH"
         }
-      }
+      },
+      "aumMillionsEUR": 2938,
+      "inceptionDate": "2007-07-06",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00BG0J4C88": {
       "terBps": 40,
@@ -275,7 +339,11 @@
         "XETRA": {
           "ticker": "L0CK"
         }
-      }
+      },
+      "aumMillionsEUR": 1301,
+      "inceptionDate": "2018-09-07",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B53HP851": {
       "listings": {
@@ -291,7 +359,12 @@
         "XETRA": {
           "ticker": "SXRW"
         }
-      }
+      },
+      "terBps": 7,
+      "aumMillionsEUR": 3473,
+      "inceptionDate": "2010-01-26",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BK5BQT80": {
       "listings": {
@@ -307,7 +380,12 @@
         "XETRA": {
           "ticker": "VWCE"
         }
-      }
+      },
+      "terBps": 19,
+      "aumMillionsEUR": 35326,
+      "inceptionDate": "2019-07-23",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B6R52259": {
       "listings": {
@@ -323,7 +401,12 @@
         "XETRA": {
           "ticker": "IUSQ"
         }
-      }
+      },
+      "terBps": 20,
+      "aumMillionsEUR": 25679,
+      "inceptionDate": "2011-10-21",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BFMXXD54": {
       "listings": {
@@ -333,7 +416,12 @@
         "XETRA": {
           "ticker": "VUAA"
         }
-      }
+      },
+      "terBps": 7,
+      "aumMillionsEUR": 26906,
+      "inceptionDate": "2019-05-14",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B6YX5C33": {
       "listings": {
@@ -349,7 +437,12 @@
         "XETRA": {
           "ticker": "SPY5"
         }
-      }
+      },
+      "terBps": 3,
+      "aumMillionsEUR": 16527,
+      "inceptionDate": "2012-03-19",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "LU0490618542": {
       "listings": {
@@ -362,7 +455,12 @@
         "XETRA": {
           "ticker": "D5BM"
         }
-      }
+      },
+      "terBps": 15,
+      "aumMillionsEUR": 4025,
+      "inceptionDate": "2010-03-26",
+      "distribution": "Accumulating",
+      "replication": "Synthetic"
     },
     "IE00B945VV12": {
       "listings": {
@@ -378,7 +476,12 @@
         "XETRA": {
           "ticker": "VGEU"
         }
-      }
+      },
+      "terBps": 10,
+      "aumMillionsEUR": 4309,
+      "inceptionDate": "2013-05-21",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "FR0007054358": {
       "listings": {
@@ -391,14 +494,24 @@
         "XETRA": {
           "ticker": "LYSX"
         }
-      }
+      },
+      "terBps": 20,
+      "aumMillionsEUR": 4084,
+      "inceptionDate": "2001-02-19",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "CH0031768937": {
       "listings": {
         "SIX": {
           "ticker": "CSSLI"
         }
-      }
+      },
+      "terBps": 35,
+      "aumMillionsEUR": 728,
+      "inceptionDate": "2007-06-29",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "LU1681044993": {
       "listings": {
@@ -414,7 +527,12 @@
         "XETRA": {
           "ticker": "18MN"
         }
-      }
+      },
+      "terBps": 25,
+      "aumMillionsEUR": 334,
+      "inceptionDate": "2010-06-17",
+      "distribution": "Accumulating",
+      "replication": "Synthetic"
     },
     "IE00B810Q511": {
       "listings": {
@@ -427,7 +545,12 @@
         "XETRA": {
           "ticker": "VUKE"
         }
-      }
+      },
+      "terBps": 9,
+      "aumMillionsEUR": 5073,
+      "inceptionDate": "2012-05-22",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "LU0839027447": {
       "listings": {
@@ -440,7 +563,12 @@
         "XETRA": {
           "ticker": "XDJP"
         }
-      }
+      },
+      "terBps": 9,
+      "aumMillionsEUR": 1805,
+      "inceptionDate": "2013-01-25",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00BK5BR733": {
       "listings": {
@@ -453,7 +581,12 @@
         "XETRA": {
           "ticker": "VFEA"
         }
-      }
+      },
+      "terBps": 17,
+      "aumMillionsEUR": 1814,
+      "inceptionDate": "2019-09-24",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BTJRMP35": {
       "listings": {
@@ -466,14 +599,24 @@
         "XETRA": {
           "ticker": "XMME"
         }
-      }
+      },
+      "terBps": 18,
+      "aumMillionsEUR": 10462,
+      "inceptionDate": "2017-06-21",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BM67HW99": {
       "listings": {
         "XETRA": {
           "ticker": "XDPE"
         }
-      }
+      },
+      "terBps": 5,
+      "aumMillionsEUR": 426,
+      "inceptionDate": "2015-02-27",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BRKWGL70": {
       "listings": {
@@ -483,28 +626,48 @@
         "XETRA": {
           "ticker": "E500"
         }
-      }
+      },
+      "terBps": 5,
+      "aumMillionsEUR": 2605,
+      "inceptionDate": "2014-12-08",
+      "distribution": "Accumulating",
+      "replication": "Synthetic"
     },
     "LU0378818131": {
       "listings": {
         "XETRA": {
           "ticker": "DBZB"
         }
-      }
+      },
+      "terBps": 25,
+      "aumMillionsEUR": 702,
+      "inceptionDate": "2008-10-20",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BG47KH54": {
       "listings": {
         "XETRA": {
           "ticker": "VAGF"
         }
-      }
+      },
+      "terBps": 8,
+      "aumMillionsEUR": 1955,
+      "inceptionDate": "2019-06-18",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BG47KB92": {
       "listings": {
         "XETRA": {
           "ticker": "VAGE"
         }
-      }
+      },
+      "terBps": 8,
+      "aumMillionsEUR": 123,
+      "inceptionDate": "2019-06-18",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "LU0290355717": {
       "listings": {
@@ -514,14 +677,24 @@
         "XETRA": {
           "ticker": "XGLE"
         }
-      }
+      },
+      "terBps": 7,
+      "aumMillionsEUR": 2237,
+      "inceptionDate": "2007-05-22",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BG47KJ78": {
       "listings": {
         "LSE": {
           "ticker": "VAGU"
         }
-      }
+      },
+      "terBps": 8,
+      "aumMillionsEUR": 549,
+      "inceptionDate": "2019-06-18",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B4ND3602": {
       "listings": {
@@ -531,7 +704,12 @@
         "XETRA": {
           "ticker": "PPFB"
         }
-      }
+      },
+      "terBps": 12,
+      "aumMillionsEUR": 32229,
+      "inceptionDate": "2011-04-08",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "JE00B1VS3770": {
       "listings": {
@@ -544,7 +722,12 @@
         "XETRA": {
           "ticker": "VZLD"
         }
-      }
+      },
+      "terBps": 39,
+      "aumMillionsEUR": 6515,
+      "inceptionDate": "2007-04-24",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B5L01S80": {
       "listings": {
@@ -557,7 +740,12 @@
         "XETRA": {
           "ticker": "H4ZL"
         }
-      }
+      },
+      "terBps": 24,
+      "aumMillionsEUR": 1844,
+      "inceptionDate": "2011-06-20",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "NL0009690239": {
       "listings": {
@@ -573,7 +761,12 @@
         "XETRA": {
           "ticker": "TRET"
         }
-      }
+      },
+      "terBps": 25,
+      "aumMillionsEUR": 411,
+      "inceptionDate": "2011-04-14",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "GB00BJYDH287": {
       "listings": {
@@ -589,7 +782,12 @@
         "XETRA": {
           "ticker": "WBIT"
         }
-      }
+      },
+      "terBps": 15,
+      "aumMillionsEUR": 1204,
+      "inceptionDate": "2019-11-28",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "CH1199067674": {
       "listings": {
@@ -605,7 +803,12 @@
         "XETRA": {
           "ticker": "21BC"
         }
-      }
+      },
+      "terBps": 10,
+      "aumMillionsEUR": 386,
+      "inceptionDate": "2022-06-29",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B53SZB19": {
       "listings": {
@@ -621,7 +824,12 @@
         "XETRA": {
           "ticker": "SXRV"
         }
-      }
+      },
+      "terBps": 30,
+      "aumMillionsEUR": 20492,
+      "inceptionDate": "2010-01-26",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BM67HK77": {
       "listings": {
@@ -634,7 +842,12 @@
         "XETRA": {
           "ticker": "XDWH"
         }
-      }
+      },
+      "terBps": 25,
+      "aumMillionsEUR": 2659,
+      "inceptionDate": "2016-03-04",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B43HR379": {
       "listings": {
@@ -647,7 +860,12 @@
         "XETRA": {
           "ticker": "QDVG"
         }
-      }
+      },
+      "terBps": 15,
+      "aumMillionsEUR": 2074,
+      "inceptionDate": "2015-11-20",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BFNM3J75": {
       "listings": {
@@ -660,7 +878,12 @@
         "XETRA": {
           "ticker": "SNAW"
         }
-      }
+      },
+      "terBps": 20,
+      "aumMillionsEUR": 4648,
+      "inceptionDate": "2018-10-19",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BYPLS672": {
       "listings": {
@@ -676,7 +899,12 @@
         "XETRA": {
           "ticker": "USPY"
         }
-      }
+      },
+      "terBps": 69,
+      "aumMillionsEUR": 2278,
+      "inceptionDate": "2015-09-28",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BLPK3577": {
       "listings": {
@@ -692,14 +920,24 @@
         "XETRA": {
           "ticker": "W1TB"
         }
-      }
+      },
+      "terBps": 45,
+      "aumMillionsEUR": 322,
+      "inceptionDate": "2021-01-25",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B88DZ566": {
       "listings": {
         "SIX": {
           "ticker": "IUSC"
         }
-      }
+      },
+      "terBps": 20,
+      "aumMillionsEUR": 1020,
+      "inceptionDate": "2012-11-30",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BM67HT60": {
       "listings": {
@@ -712,7 +950,12 @@
         "XETRA": {
           "ticker": "XDWT"
         }
-      }
+      },
+      "terBps": 25,
+      "aumMillionsEUR": 4692,
+      "inceptionDate": "2016-03-09",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BLRB0242": {
       "listings": {
@@ -725,7 +968,12 @@
         "XETRA": {
           "ticker": "G1CE"
         }
-      }
+      },
+      "terBps": 60,
+      "aumMillionsEUR": 105,
+      "inceptionDate": "2021-03-01",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BLCHJB90": {
       "listings": {
@@ -738,7 +986,12 @@
         "XETRA": {
           "ticker": "XB0T"
         }
-      }
+      },
+      "terBps": 50,
+      "aumMillionsEUR": 100,
+      "inceptionDate": "2021-11-16",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BLR6QB00": {
       "listings": {
@@ -751,7 +1004,12 @@
         "XETRA": {
           "ticker": "DDOC"
         }
-      }
+      },
+      "terBps": 68,
+      "aumMillionsEUR": 4,
+      "inceptionDate": "2020-12-17",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "LU0136234654": {
       "listings": {
@@ -764,7 +1022,12 @@
         "XETRA": {
           "ticker": "UIM6"
         }
-      }
+      },
+      "terBps": 14,
+      "aumMillionsEUR": 467,
+      "inceptionDate": "2001-10-29",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE0008471009": {
       "listings": {
@@ -780,7 +1043,12 @@
         "XETRA": {
           "ticker": "EUN2"
         }
-      }
+      },
+      "terBps": 10,
+      "aumMillionsEUR": 5309,
+      "inceptionDate": "2000-04-03",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00B3RBWM25": {
       "listings": {
@@ -796,7 +1064,12 @@
         "XETRA": {
           "ticker": "VGWL"
         }
-      }
+      },
+      "terBps": 19,
+      "aumMillionsEUR": 20489,
+      "inceptionDate": "2012-05-22",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "LU0292100046": {
       "listings": {
@@ -806,7 +1079,12 @@
         "XETRA": {
           "ticker": "DBX8"
         }
-      }
+      },
+      "terBps": 45,
+      "aumMillionsEUR": 297,
+      "inceptionDate": "2007-07-05",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B4L5Y983": {
       "listings": {
@@ -822,7 +1100,12 @@
         "XETRA": {
           "ticker": "EUNL"
         }
-      }
+      },
+      "terBps": 20,
+      "aumMillionsEUR": 115407,
+      "inceptionDate": "2009-09-25",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B0M62Q58": {
       "listings": {
@@ -838,7 +1121,12 @@
         "XETRA": {
           "ticker": "IQQW"
         }
-      }
+      },
+      "terBps": 50,
+      "aumMillionsEUR": 7587,
+      "inceptionDate": "2005-10-28",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00BFY0GT14": {
       "listings": {
@@ -854,7 +1142,12 @@
         "XETRA": {
           "ticker": "SPPW"
         }
-      }
+      },
+      "terBps": 12,
+      "aumMillionsEUR": 15101,
+      "inceptionDate": "2019-02-28",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "LU0274208692": {
       "listings": {
@@ -867,7 +1160,12 @@
         "XETRA": {
           "ticker": "DBXW"
         }
-      }
+      },
+      "terBps": 45,
+      "aumMillionsEUR": 4865,
+      "inceptionDate": "2006-12-19",
+      "distribution": "Accumulating",
+      "replication": "Synthetic"
     },
     "IE00BK5BQV03": {
       "listings": {
@@ -877,7 +1175,12 @@
         "XETRA": {
           "ticker": "VGVF"
         }
-      }
+      },
+      "terBps": 12,
+      "aumMillionsEUR": 5453,
+      "inceptionDate": "2019-09-24",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE0031442068": {
       "listings": {
@@ -893,7 +1196,12 @@
         "XETRA": {
           "ticker": "IUSA"
         }
-      }
+      },
+      "terBps": 7,
+      "aumMillionsEUR": 17723,
+      "inceptionDate": "2002-03-15",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00BYTRRD19": {
       "listings": {
@@ -909,7 +1217,12 @@
         "XETRA": {
           "ticker": "SPFT"
         }
-      }
+      },
+      "terBps": 30,
+      "aumMillionsEUR": 951,
+      "inceptionDate": "2016-04-29",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE0032077012": {
       "listings": {
@@ -925,7 +1238,12 @@
         "XETRA": {
           "ticker": "EQQQ"
         }
-      }
+      },
+      "terBps": 30,
+      "aumMillionsEUR": 9887,
+      "inceptionDate": "2002-12-02",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00BMFKG444": {
       "listings": {
@@ -938,14 +1256,24 @@
         "XETRA": {
           "ticker": "XNAS"
         }
-      }
+      },
+      "terBps": 20,
+      "aumMillionsEUR": 1781,
+      "inceptionDate": "2021-01-21",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BYVQ9F29": {
       "listings": {
         "XETRA": {
           "ticker": "NQSE"
         }
-      }
+      },
+      "terBps": 33,
+      "aumMillionsEUR": 2007,
+      "inceptionDate": "2018-09-10",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "LU1681038243": {
       "listings": {
@@ -955,7 +1283,12 @@
         "XETRA": {
           "ticker": "6AQQ"
         }
-      }
+      },
+      "terBps": 23,
+      "aumMillionsEUR": 1449,
+      "inceptionDate": "2010-06-08",
+      "distribution": "Accumulating",
+      "replication": "Synthetic"
     },
     "IE00B0M62S72": {
       "listings": {
@@ -971,7 +1304,12 @@
         "XETRA": {
           "ticker": "IQQA"
         }
-      }
+      },
+      "terBps": 40,
+      "aumMillionsEUR": 1442,
+      "inceptionDate": "2005-10-28",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "DE0002635307": {
       "listings": {
@@ -981,7 +1319,12 @@
         "XETRA": {
           "ticker": "EXSA"
         }
-      }
+      },
+      "terBps": 20,
+      "aumMillionsEUR": 8904,
+      "inceptionDate": "2004-02-13",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "LU0908500753": {
       "listings": {
@@ -994,7 +1337,12 @@
         "XETRA": {
           "ticker": "LYP6"
         }
-      }
+      },
+      "terBps": 7,
+      "aumMillionsEUR": 17674,
+      "inceptionDate": "2013-04-03",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BKM4H312": {
       "listings": {
@@ -1007,7 +1355,12 @@
         "XETRA": {
           "ticker": "QDVD"
         }
-      }
+      },
+      "terBps": 35,
+      "aumMillionsEUR": 565,
+      "inceptionDate": "2014-06-06",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "LU0274209237": {
       "listings": {
@@ -1020,7 +1373,12 @@
         "XETRA": {
           "ticker": "XMEU"
         }
-      }
+      },
+      "terBps": 12,
+      "aumMillionsEUR": 7224,
+      "inceptionDate": "2007-01-10",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B53L4350": {
       "listings": {
@@ -1033,7 +1391,12 @@
         "XETRA": {
           "ticker": "SXRU"
         }
-      }
+      },
+      "terBps": 33,
+      "aumMillionsEUR": 1491,
+      "inceptionDate": "2010-01-26",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "LU0290358497": {
       "listings": {
@@ -1043,7 +1406,12 @@
         "XETRA": {
           "ticker": "XEON"
         }
-      }
+      },
+      "terBps": 10,
+      "aumMillionsEUR": 20333,
+      "inceptionDate": "2007-05-25",
+      "distribution": "Accumulating",
+      "replication": "Synthetic"
     },
     "IE00B0M62Y33": {
       "listings": {
@@ -1056,7 +1424,12 @@
         "SIX": {
           "ticker": "IAEX"
         }
-      }
+      },
+      "terBps": 30,
+      "aumMillionsEUR": 683,
+      "inceptionDate": "2005-11-18",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00B0M63177": {
       "listings": {
@@ -1072,7 +1445,12 @@
         "XETRA": {
           "ticker": "IQQE"
         }
-      }
+      },
+      "terBps": 18,
+      "aumMillionsEUR": 8203,
+      "inceptionDate": "2005-11-18",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "LU0292107645": {
       "listings": {
@@ -1085,7 +1463,12 @@
         "XETRA": {
           "ticker": "XMEM"
         }
-      }
+      },
+      "terBps": 49,
+      "aumMillionsEUR": 807,
+      "inceptionDate": "2007-06-22",
+      "distribution": "Accumulating",
+      "replication": "Synthetic"
     },
     "IE00B8KGV557": {
       "listings": {
@@ -1098,7 +1481,12 @@
         "XETRA": {
           "ticker": "EUNZ"
         }
-      }
+      },
+      "terBps": 40,
+      "aumMillionsEUR": 335,
+      "inceptionDate": "2012-11-30",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B53QDK08": {
       "listings": {
@@ -1114,7 +1502,12 @@
         "XETRA": {
           "ticker": "SXR5"
         }
-      }
+      },
+      "terBps": 12,
+      "aumMillionsEUR": 1211,
+      "inceptionDate": "2010-01-11",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B02KXH56": {
       "listings": {
@@ -1130,7 +1523,12 @@
         "XETRA": {
           "ticker": "IQQJ"
         }
-      }
+      },
+      "terBps": 12,
+      "aumMillionsEUR": 2189,
+      "inceptionDate": "2004-10-01",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "LU0274209740": {
       "listings": {
@@ -1143,7 +1541,12 @@
         "XETRA": {
           "ticker": "DBXJ"
         }
-      }
+      },
+      "terBps": 12,
+      "aumMillionsEUR": 4910,
+      "inceptionDate": "2007-01-09",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B52MJY50": {
       "listings": {
@@ -1159,7 +1562,12 @@
         "XETRA": {
           "ticker": "SXR1"
         }
-      }
+      },
+      "terBps": 20,
+      "aumMillionsEUR": 3186,
+      "inceptionDate": "2010-01-12",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B0M63730": {
       "listings": {
@@ -1175,7 +1583,12 @@
         "XETRA": {
           "ticker": "IQQF"
         }
-      }
+      },
+      "terBps": 74,
+      "aumMillionsEUR": 1361,
+      "inceptionDate": "2005-10-28",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "DE0005933931": {
       "listings": {
@@ -1188,7 +1601,12 @@
         "XETRA": {
           "ticker": "EXS1"
         }
-      }
+      },
+      "terBps": 16,
+      "aumMillionsEUR": 8362,
+      "inceptionDate": "2000-12-27",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "LU0274211480": {
       "listings": {
@@ -1201,14 +1619,24 @@
         "XETRA": {
           "ticker": "DBXD"
         }
-      }
+      },
+      "terBps": 9,
+      "aumMillionsEUR": 6750,
+      "inceptionDate": "2007-01-10",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "CH0008899764": {
       "listings": {
         "SIX": {
           "ticker": "CSSMI"
         }
-      }
+      },
+      "terBps": 35,
+      "aumMillionsEUR": 2562,
+      "inceptionDate": "1999-10-06",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00BZCQB185": {
       "listings": {
@@ -1221,7 +1649,12 @@
         "XETRA": {
           "ticker": "QDV5"
         }
-      }
+      },
+      "terBps": 65,
+      "aumMillionsEUR": 4391,
+      "inceptionDate": "2018-05-24",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BFMXYX26": {
       "listings": {
@@ -1234,7 +1667,12 @@
         "XETRA": {
           "ticker": "VJPA"
         }
-      }
+      },
+      "terBps": 10,
+      "aumMillionsEUR": 1142,
+      "inceptionDate": "2019-09-24",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B02KXK85": {
       "listings": {
@@ -1250,7 +1688,12 @@
         "XETRA": {
           "ticker": "IQQC"
         }
-      }
+      },
+      "terBps": 74,
+      "aumMillionsEUR": 805,
+      "inceptionDate": "2004-10-21",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00B4K6B022": {
       "listings": {
@@ -1266,7 +1709,12 @@
         "XETRA": {
           "ticker": "H4ZA"
         }
-      }
+      },
+      "terBps": 5,
+      "aumMillionsEUR": 1398,
+      "inceptionDate": "2009-10-05",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00B40B8R38": {
       "listings": {
@@ -1279,7 +1727,12 @@
         "XETRA": {
           "ticker": "2B7D"
         }
-      }
+      },
+      "terBps": 15,
+      "aumMillionsEUR": 392,
+      "inceptionDate": "2017-03-20",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BMW42181": {
       "listings": {
@@ -1289,7 +1742,12 @@
         "XETRA": {
           "ticker": "ESIH"
         }
-      }
+      },
+      "terBps": 18,
+      "aumMillionsEUR": 830,
+      "inceptionDate": "2020-11-17",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BYZK4552": {
       "listings": {
@@ -1305,7 +1763,12 @@
         "XETRA": {
           "ticker": "2B76"
         }
-      }
+      },
+      "terBps": 40,
+      "aumMillionsEUR": 3750,
+      "inceptionDate": "2016-09-08",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BGV5VN51": {
       "listings": {
@@ -1318,7 +1781,12 @@
         "XETRA": {
           "ticker": "XAIX"
         }
-      }
+      },
+      "terBps": 35,
+      "aumMillionsEUR": 6143,
+      "inceptionDate": "2019-01-29",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BYWQWR46": {
       "listings": {
@@ -1334,7 +1802,12 @@
         "XETRA": {
           "ticker": "ESP0"
         }
-      }
+      },
+      "terBps": 55,
+      "aumMillionsEUR": 564,
+      "inceptionDate": "2019-06-24",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BYZK4883": {
       "listings": {
@@ -1350,7 +1823,12 @@
         "XETRA": {
           "ticker": "2B79"
         }
-      }
+      },
+      "terBps": 40,
+      "aumMillionsEUR": 598,
+      "inceptionDate": "2016-09-08",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BMDX0K95": {
       "listings": {
@@ -1360,7 +1838,12 @@
         "XETRA": {
           "ticker": "CSYZ"
         }
-      }
+      },
+      "terBps": 25,
+      "aumMillionsEUR": 164,
+      "inceptionDate": "2020-06-26",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00BJK9H753": {
       "listings": {
@@ -1373,7 +1856,12 @@
         "XETRA": {
           "ticker": "BBUS"
         }
-      }
+      },
+      "terBps": 4,
+      "aumMillionsEUR": 75,
+      "inceptionDate": "2019-05-06",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BMWXKN31": {
       "listings": {
@@ -1389,7 +1877,12 @@
         "XETRA": {
           "ticker": "H4ZX"
         }
-      }
+      },
+      "terBps": 50,
+      "aumMillionsEUR": 1381,
+      "inceptionDate": "2020-12-09",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BJ5JNZ06": {
       "listings": {
@@ -1402,7 +1895,12 @@
         "XETRA": {
           "ticker": "CBUF"
         }
-      }
+      },
+      "terBps": 18,
+      "aumMillionsEUR": 480,
+      "inceptionDate": "2019-10-17",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE000U9ODG19": {
       "listings": {
@@ -1418,7 +1916,12 @@
         "XETRA": {
           "ticker": "5J50"
         }
-      }
+      },
+      "terBps": 35,
+      "aumMillionsEUR": 1482,
+      "inceptionDate": "2024-02-01",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BMC38736": {
       "listings": {
@@ -1434,7 +1937,12 @@
         "XETRA": {
           "ticker": "VVSM"
         }
-      }
+      },
+      "terBps": 35,
+      "aumMillionsEUR": 5289,
+      "inceptionDate": "2020-12-01",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BMW3QX54": {
       "listings": {
@@ -1450,7 +1958,12 @@
         "XETRA": {
           "ticker": "IROB"
         }
-      }
+      },
+      "terBps": 80,
+      "aumMillionsEUR": 1139,
+      "inceptionDate": "2014-10-27",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BP3QZ601": {
       "listings": {
@@ -1463,7 +1976,12 @@
         "XETRA": {
           "ticker": "IS3Q"
         }
-      }
+      },
+      "terBps": 25,
+      "aumMillionsEUR": 4235,
+      "inceptionDate": "2014-10-03",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BP3QZB59": {
       "listings": {
@@ -1476,7 +1994,12 @@
         "XETRA": {
           "ticker": "IS3S"
         }
-      }
+      },
+      "terBps": 25,
+      "aumMillionsEUR": 5457,
+      "inceptionDate": "2014-10-03",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BP3QZ825": {
       "listings": {
@@ -1489,7 +2012,12 @@
         "XETRA": {
           "ticker": "IS3R"
         }
-      }
+      },
+      "terBps": 25,
+      "aumMillionsEUR": 3797,
+      "inceptionDate": "2014-10-03",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BD1F4M44": {
       "listings": {
@@ -1502,7 +2030,12 @@
         "XETRA": {
           "ticker": "QDVI"
         }
-      }
+      },
+      "terBps": 20,
+      "aumMillionsEUR": 3828,
+      "inceptionDate": "2016-10-13",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B6YX5D40": {
       "listings": {
@@ -1515,7 +2048,12 @@
         "XETRA": {
           "ticker": "SPYD"
         }
-      }
+      },
+      "terBps": 35,
+      "aumMillionsEUR": 3071,
+      "inceptionDate": "2011-10-14",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00B9CQXS71": {
       "listings": {
@@ -1528,7 +2066,12 @@
         "XETRA": {
           "ticker": "ZPRG"
         }
-      }
+      },
+      "terBps": 45,
+      "aumMillionsEUR": 1335,
+      "inceptionDate": "2013-05-14",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00B5M1WJ87": {
       "listings": {
@@ -1544,7 +2087,12 @@
         "XETRA": {
           "ticker": "SPYW"
         }
-      }
+      },
+      "terBps": 30,
+      "aumMillionsEUR": 1617,
+      "inceptionDate": "2012-02-28",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00BCHWNQ94": {
       "listings": {
@@ -1554,7 +2102,12 @@
         "XETRA": {
           "ticker": "XDWY"
         }
-      }
+      },
+      "terBps": 19,
+      "aumMillionsEUR": 122,
+      "inceptionDate": "2018-03-26",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00B652H904": {
       "listings": {
@@ -1567,7 +2120,12 @@
         "XETRA": {
           "ticker": "EUNY"
         }
-      }
+      },
+      "terBps": 65,
+      "aumMillionsEUR": 1199,
+      "inceptionDate": "2011-11-25",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00B3VWMM18": {
       "listings": {
@@ -1580,7 +2138,12 @@
         "XETRA": {
           "ticker": "SXRJ"
         }
-      }
+      },
+      "terBps": 58,
+      "aumMillionsEUR": 962,
+      "inceptionDate": "2009-07-01",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BCBJG560": {
       "listings": {
@@ -1593,7 +2156,12 @@
         "XETRA": {
           "ticker": "ZPRS"
         }
-      }
+      },
+      "terBps": 45,
+      "aumMillionsEUR": 1526,
+      "inceptionDate": "2013-11-25",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BHZPJ569": {
       "listings": {
@@ -1606,7 +2174,12 @@
         "XETRA": {
           "ticker": "EDMW"
         }
-      }
+      },
+      "terBps": 20,
+      "aumMillionsEUR": 3785,
+      "inceptionDate": "2019-04-16",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BG0J4841": {
       "listings": {
@@ -1616,7 +2189,12 @@
         "XETRA": {
           "ticker": "IS4S"
         }
-      }
+      },
+      "terBps": 40,
+      "aumMillionsEUR": 140,
+      "inceptionDate": "2018-10-29",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00BFNM3P36": {
       "listings": {
@@ -1629,14 +2207,24 @@
         "XETRA": {
           "ticker": "AYEM"
         }
-      }
+      },
+      "terBps": 18,
+      "aumMillionsEUR": 5550,
+      "inceptionDate": "2018-10-19",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "CH0044781232": {
       "listings": {
         "SIX": {
           "ticker": "JBGOCA"
         }
-      }
+      },
+      "terBps": 41,
+      "aumMillionsEUR": 418,
+      "inceptionDate": "2008-10-24",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "DE000A0H0728": {
       "listings": {
@@ -1646,7 +2234,12 @@
         "XETRA": {
           "ticker": "EXXY"
         }
-      }
+      },
+      "terBps": 46,
+      "aumMillionsEUR": 306,
+      "inceptionDate": "2007-08-07",
+      "distribution": "Accumulating",
+      "replication": "Synthetic"
     },
     "IE00B0M63284": {
       "listings": {
@@ -1662,7 +2255,12 @@
         "XETRA": {
           "ticker": "IQQP"
         }
-      }
+      },
+      "terBps": 40,
+      "aumMillionsEUR": 899,
+      "inceptionDate": "2005-11-04",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00B1FZS798": {
       "listings": {
@@ -1678,7 +2276,12 @@
         "XETRA": {
           "ticker": "IUSM"
         }
-      }
+      },
+      "terBps": 7,
+      "aumMillionsEUR": 2880,
+      "inceptionDate": "2006-12-08",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00B3VWN518": {
       "listings": {
@@ -1691,7 +2294,12 @@
         "XETRA": {
           "ticker": "SXRM"
         }
-      }
+      },
+      "terBps": 7,
+      "aumMillionsEUR": 4049,
+      "inceptionDate": "2009-06-03",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B4WXJJ64": {
       "listings": {
@@ -1707,7 +2315,12 @@
         "XETRA": {
           "ticker": "EUNH"
         }
-      }
+      },
+      "terBps": 7,
+      "aumMillionsEUR": 4907,
+      "inceptionDate": "2009-04-17",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00B3VWN179": {
       "listings": {
@@ -1717,7 +2330,12 @@
         "SIX": {
           "ticker": "CSBGU3"
         }
-      }
+      },
+      "terBps": 7,
+      "aumMillionsEUR": 558,
+      "inceptionDate": "2009-06-03",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BSKRJZ44": {
       "listings": {
@@ -1730,7 +2348,12 @@
         "XETRA": {
           "ticker": "IS04"
         }
-      }
+      },
+      "terBps": 7,
+      "aumMillionsEUR": 856,
+      "inceptionDate": "2015-01-20",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00B1FZS244": {
       "listings": {
@@ -1746,7 +2369,12 @@
         "XETRA": {
           "ticker": "IQQ4"
         }
-      }
+      },
+      "terBps": 59,
+      "aumMillionsEUR": 180,
+      "inceptionDate": "2006-10-20",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00B0M62X26": {
       "listings": {
@@ -1762,7 +2390,12 @@
         "XETRA": {
           "ticker": "IBCI"
         }
-      }
+      },
+      "terBps": 9,
+      "aumMillionsEUR": 1823,
+      "inceptionDate": "2005-11-18",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B1FZSC47": {
       "listings": {
@@ -1778,7 +2411,12 @@
         "XETRA": {
           "ticker": "IUST"
         }
-      }
+      },
+      "terBps": 10,
+      "aumMillionsEUR": 2421,
+      "inceptionDate": "2006-12-08",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B3F81R35": {
       "listings": {
@@ -1794,7 +2432,12 @@
         "XETRA": {
           "ticker": "EUN5"
         }
-      }
+      },
+      "terBps": 9,
+      "aumMillionsEUR": 8972,
+      "inceptionDate": "2009-03-06",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00B3F81G20": {
       "listings": {
@@ -1807,7 +2450,12 @@
         "XETRA": {
           "ticker": "EUNI"
         }
-      }
+      },
+      "terBps": 74,
+      "aumMillionsEUR": 316,
+      "inceptionDate": "2009-03-06",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00B66F4759": {
       "listings": {
@@ -1820,7 +2468,33 @@
         "XETRA": {
           "ticker": "EUNW"
         }
-      }
+      },
+      "terBps": 50,
+      "aumMillionsEUR": 4945,
+      "inceptionDate": "2010-09-03",
+      "distribution": "Distributing",
+      "replication": "Physical"
+    },
+    "IE00BJK55C48": {
+      "terBps": 25,
+      "aumMillionsEUR": 3308,
+      "inceptionDate": "2019-11-12",
+      "distribution": "Accumulating",
+      "replication": "Physical"
+    },
+    "IE00B2NPKV68": {
+      "terBps": 45,
+      "aumMillionsEUR": 3395,
+      "inceptionDate": "2008-02-15",
+      "distribution": "Distributing",
+      "replication": "Physical"
+    },
+    "IE00B5L65R35": {
+      "terBps": 20,
+      "aumMillionsEUR": 1821,
+      "inceptionDate": "2011-03-30",
+      "distribution": "Distributing",
+      "replication": "Physical"
     }
   }
 }
