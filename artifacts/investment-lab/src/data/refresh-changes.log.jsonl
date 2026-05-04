@@ -914,3 +914,6 @@
 {"ts":"2026-05-03T06:12:24.107Z","source":"justetf-core","isin":"IE00B5L65R35","field":"inceptionDate","before":null,"after":"2011-03-30"}
 {"ts":"2026-05-03T06:12:24.107Z","source":"justetf-core","isin":"IE00B5L65R35","field":"distribution","before":null,"after":"Distributing"}
 {"ts":"2026-05-03T06:12:24.107Z","source":"justetf-core","isin":"IE00B5L65R35","field":"replication","before":null,"after":"Physical"}
+{"ts":"2026-05-04T05:45:43.870Z","source":"justetf-listings","isin":"IE00BJK55C48","field":"listings","before":null,"after":{"Euronext":{"ticker":"EHYA"},"SIX":{"ticker":"EHYA"},"XETRA":{"ticker":"AYE2"}}}
+{"ts":"2026-05-04T05:45:43.870Z","source":"justetf-listings","isin":"IE00B2NPKV68","field":"listings","before":null,"after":{"LSE":{"ticker":"IEMB"},"SIX":{"ticker":"IEMB"},"XETRA":{"ticker":"IUS7"}}}
+{"ts":"2026-05-04T05:45:43.870Z","source":"justetf-listings","isin":"IE00B5L65R35","field":"listings","before":null,"after":{"LSE":{"ticker":"IS15"},"SIX":{"ticker":"IS15"}}}

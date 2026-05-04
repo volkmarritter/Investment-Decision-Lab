@@ -1,10 +1,10 @@
 {
   "_meta": {
     "source": "justetf.com",
-    "lastRefreshed": "2026-05-03T06:12:24.107Z",
-    "lastRefreshedMode": "core",
+    "lastRefreshed": "2026-05-04T05:45:43.870Z",
+    "lastRefreshedMode": "listings",
     "lastCoreRefresh": "2026-05-03T06:12:24.107Z",
-    "lastListingsRefresh": "2026-05-03T05:41:21.748Z",
+    "lastListingsRefresh": "2026-05-04T05:45:43.870Z",
     "refreshedBy": "scripts/refresh-justetf.mjs",
     "note": "ISIN -> partial ETFRecord overrides applied on top of the in-code CATALOG in src/lib/etfs.ts. Populated by two CI cadences: weekly (Sundays 03:00 UTC) for core fund metadata and nightly (02:00 UTC) for the per-exchange listings map. Only fields present in this file override the catalog defaults; everything else stays as defined in code."
   },
@@ -2480,21 +2480,51 @@
       "aumMillionsEUR": 3308,
       "inceptionDate": "2019-11-12",
       "distribution": "Accumulating",
-      "replication": "Physical"
+      "replication": "Physical",
+      "listings": {
+        "Euronext": {
+          "ticker": "EHYA"
+        },
+        "SIX": {
+          "ticker": "EHYA"
+        },
+        "XETRA": {
+          "ticker": "AYE2"
+        }
+      }
     },
     "IE00B2NPKV68": {
       "terBps": 45,
       "aumMillionsEUR": 3395,
       "inceptionDate": "2008-02-15",
       "distribution": "Distributing",
-      "replication": "Physical"
+      "replication": "Physical",
+      "listings": {
+        "LSE": {
+          "ticker": "IEMB"
+        },
+        "SIX": {
+          "ticker": "IEMB"
+        },
+        "XETRA": {
+          "ticker": "IUS7"
+        }
+      }
     },
     "IE00B5L65R35": {
       "terBps": 20,
       "aumMillionsEUR": 1821,
       "inceptionDate": "2011-03-30",
       "distribution": "Distributing",
-      "replication": "Physical"
+      "replication": "Physical",
+      "listings": {
+        "LSE": {
+          "ticker": "IS15"
+        },
+        "SIX": {
+          "ticker": "IS15"
+        }
+      }
     }
   }
 }
