@@ -8,10 +8,11 @@
 //   1. The marker block (BEGIN/END comments) is intact in `etfs.ts`.
 //   2. Every ISIN listed in `scripts/data/popular-etfs-staged.json` is
 //      registered in INSTRUMENTS and resolvable via getInstrumentByIsin().
-//   3. None of those ISINs is referenced by any BUCKET (default OR
-//      alternative slot) — i.e. they remain orphans, recognised in the
-//      Explain manual-entry flow but absent from the model-portfolio
-//      bucket dropdowns.
+//   3. None of those ISINs is bound to a BUCKET as `default` or
+//      `alternative`. They MAY be assigned to the per-bucket `pool`
+//      slot (extended universe, surfaced via the "More ETFs" dialog
+//      in Build and via the IsinPicker in Explain) — that is now an
+//      explicit, supported placement for staged popular ETFs.
 //   4. validateCatalog() reports no errors for the catalog as a whole.
 //   5. ≥ 80 orphan entries exist (Definition of Done minimum).
 //   6. ≥ 80% of orphan ISINs have a complete look-through pool entry
@@ -24,7 +25,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   getInstrumentByIsin,
-  getBucketKeyForIsin,
+  getInstrumentRole,
   validateCatalog,
 } from "../src/lib/etfs";
 import { profileFor } from "../src/lib/lookthrough";
@@ -80,14 +81,19 @@ describe("popular-ETFs orphan block", () => {
     );
   });
 
-  it("no staged ISIN is bound to any BUCKET (orphan invariant)", () => {
-    const wrongly: string[] = [];
+  it("no staged ISIN is bound as default or alternative (pool placement is allowed)", () => {
+    const wrongly: { isin: string; role: string }[] = [];
     for (const entry of staged) {
-      if (getBucketKeyForIsin(entry.isin)) wrongly.push(entry.isin);
+      const role = getInstrumentRole(entry.isin);
+      if (role === "default" || role === "alternative") {
+        wrongly.push({ isin: entry.isin, role });
+      }
     }
     expect(
       wrongly,
-      `Orphans should not be bucketed; offenders: ${wrongly.join(", ")}`,
+      `Staged popular ETFs may only be unassigned or pool-only; offenders: ${wrongly
+        .map((w) => `${w.isin}=${w.role}`)
+        .join(", ")}`,
     ).toEqual([]);
   });
 

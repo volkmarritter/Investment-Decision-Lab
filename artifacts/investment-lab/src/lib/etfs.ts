@@ -2107,10 +2107,12 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "Equity-Global": B({
     default: "IE00B3YLTY66",
     alternatives: ["IE00BK5BQT80", "IE00B6R52259"],
+    pool: ["IE00B4L5Y983", "IE00B0M62Q58", "IE00BFY0GT14", "LU0274208692", "IE00BK5BQV03", "IE00BP3QZ601", "IE00BP3QZB59", "IE00BP3QZ825", "IE00BD1F4M44", "IE00B9CQXS71", "IE00B5M1WJ87", "IE00BCHWNQ94", "IE00B3VWMM18"],
   }),
   "Equity-USA": B({
     default: "IE00B5BMR087",
     alternatives: ["IE00BFMXXD54", "IE00B6YX5C33", "LU0136234654"],
+    pool: ["IE0031442068", "IE00BYTRRD19", "IE00B6YX5D40"],
   }),
   "Equity-USA-Synthetic": B({
     default: "IE00B3YCGJ38",
@@ -2119,10 +2121,12 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "Equity-Europe": B({
     default: "IE00B4K48X80",
     alternatives: ["IE00B945VV12", "FR0007054358", "IE0008471009"],
+    pool: ["IE00B0M62S72", "DE0002635307", "LU0908500753", "IE00BKM4H312", "LU0274209237", "IE00B53L4350", "IE00B0M62Y33", "DE0005933931", "LU0274211480", "IE00B652H904", "IE00BCBJG560"],
   }),
   "Equity-Switzerland": B({
     default: "CH0237935652",
     alternatives: ["CH0031768937", "LU1681044993"],
+    pool: ["CH0008899764"],
   }),
   "Equity-UK": B({
     default: "IE00B53HP851",
@@ -2131,10 +2135,12 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "Equity-Japan": B({
     default: "IE00B4L5YX21",
     alternatives: ["LU0839027447"],
+    pool: ["IE00B53QDK08", "IE00B02KXH56", "LU0274209740"],
   }),
   "Equity-EM": B({
     default: "IE00BKM4GZ66",
     alternatives: ["IE00BK5BR733", "IE00BTJRMP35"],
+    pool: ["IE00B0M63177", "LU0292107645", "IE00B8KGV557", "IE00B52MJY50", "IE00B0M63730", "IE00BZCQB185", "IE00BFMXYX26", "IE00B02KXK85"],
   }),
   "Equity-USA-EUR": B({
     default: "IE00B3ZW0K18",
@@ -2151,10 +2157,12 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "FixedIncome-Global": B({
     default: "IE00B3F81409",
     alternatives: ["LU0378818131", "IE00BG47KH54"],
+    pool: ["IE00B3VWN179", "IE00BSKRJZ44", "IE00B1FZS244", "IE00B1FZSC47", "IE00B3F81G20", "IE00BJK55C48", "IE00B2NPKV68", "IE00B5L65R35", "IE00B9M6RS56"],
   }),
   "FixedIncome-Global-EUR": B({
     default: "IE00BDBRDM35",
     alternatives: ["IE00BG47KB92", "LU0290355717"],
+    pool: ["IE00B1FZS798", "IE00B3VWN518", "IE00B4WXJJ64", "IE00B0M62X26", "IE00B3F81R35", "IE00B66F4759"],
   }),
   "FixedIncome-Global-CHF": B({
     default: "IE00BDBRDN42",
@@ -2167,10 +2175,12 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "Commodities-Gold": B({
     default: "IE00B579F325",
     alternatives: ["IE00B4ND3602", "JE00B1VS3770"],
+    pool: ["CH0044781232"],
   }),
   "RealEstate-GlobalREITs": B({
     default: "IE00B1FZS350",
     alternatives: ["IE00B5L01S80", "NL0009690239"],
+    pool: ["IE00B0M63284"],
   }),
   "DigitalAssets-BroadCrypto": B({
     default: "GB00BLD4ZL17",
@@ -2179,18 +2189,22 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "Equity-Technology": B({
     default: "IE00B3WJKG14",
     alternatives: ["IE00B53SZB19", "IE00BM67HT60"],
+    pool: ["IE0032077012", "IE00BMFKG444", "IE00BYVQ9F29", "LU1681038243", "IE00BYZK4552", "IE00BMDX0K95", "IE00BMWXKN31"],
   }),
   "Equity-Healthcare": B({
     default: "IE00BYZK4776",
     alternatives: ["IE00BM67HK77", "IE00B43HR379"],
+    pool: ["IE00B4K6B022", "IE00BYWQWR46", "IE00BYZK4883"],
   }),
   "Equity-Sustainability": B({
     default: "IE00B1XNHC34",
     alternatives: ["IE00BFNM3J75", "IE00BLRB0242"],
+    pool: ["IE00BMW42181", "IE00BJK9H753", "IE00BMW3QX54", "IE00BHZPJ569", "IE00BG0J4841", "IE00BFNM3P36"],
   }),
   "Equity-Cybersecurity": B({
     default: "IE00BG0J4C88",
     alternatives: ["IE00BYPLS672", "IE00BLPK3577"],
+    pool: ["IE00BGV5VN51", "IE00BJ5JNZ06"],
   }),
 };
 

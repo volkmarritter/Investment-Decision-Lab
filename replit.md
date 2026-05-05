@@ -67,7 +67,15 @@ duplicate).
 
 Phase 3 (Task #149 — 2026-05): per-bucket **extended-universe pool**
 slot added (`BucketAssignment.pool?: string[]`, cap
-`MAX_POOL_PER_BUCKET = 50`). Engine slot range extended in-place —
+`MAX_POOL_PER_BUCKET = 50`). Initial fill (2026-05-05): 74 of the 80
+orphan popular UCITS ETFs (registered in INSTRUMENTS since the
+2026-05-01 bulk-add) were assigned to bucket pools across 14 buckets
+based on their `popular-etfs-seed.mjs` category — see
+`artifacts/investment-lab/DOCUMENTATION.md` changelog entry
+`pool-bulk-fill` for the full per-bucket breakdown. The
+`tests/popular-etfs-orphan.test.ts` orphan-invariant was relaxed
+accordingly: staged ISINs may now be `unassigned` OR `pool`, but
+never `default`/`alternative` — checked via `getInstrumentRole`. Engine slot range extended in-place —
 slots `0` = default, `1..altCount` = alternatives,
 `altCount+1..altCount+poolCount` = pool. `resolvePickerSelection`
 takes an optional `pool` 3rd arg (defaults to `[]` for backward
