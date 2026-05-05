@@ -551,7 +551,7 @@ router.post("/admin/bucket-alternatives/bulk", async (req, res) => {
     });
     return;
   }
-  if (!dryRun && !githubConfigured()) {
+  if (!dryRun && !directWriteMode() && !githubConfigured()) {
     res.status(503).json({
       error: "github_not_configured",
       message:
