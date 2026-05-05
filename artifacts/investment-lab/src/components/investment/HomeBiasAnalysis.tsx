@@ -89,8 +89,12 @@ export function HomeBiasAnalysis({ etfs, baseCurrency, lookThroughView = true }:
               * Methodology → Home-Bias Multipliers section. The i18n
               * template uses `{link}` as a placeholder so DE and EN both
               * keep the link text in their own language and the surrounding
-              * sentence stays translator-friendly. */}
-            {(() => {
+              * sentence stays translator-friendly. The caveat is specific
+              * to EUR (broad-Europe vs strict Eurozone ETFs materially
+              * change the EUR home-share figure), so it is only surfaced
+              * when EUR is the base currency — for CHF/GBP/USD the
+              * distinction is irrelevant noise. */}
+            {r.baseCurrency === "EUR" && (() => {
               const raw = t("build.homeBias.lookThroughNote");
               const [before, after = ""] = raw.split("{link}");
               return (
