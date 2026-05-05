@@ -1379,7 +1379,7 @@ export function Methodology() {
               </span>
             </div>
 
-            {/* ---------- Chain: anchor × multiplier = engine target ÷ cap = bias ratio ---------- */}
+            {/* ---------- Chain: anchor × multiplier × look-through = engine target ÷ cap = bias ratio ---------- */}
             <div className="rounded-md border bg-background p-3 space-y-2" data-testid="home-bias-chain">
               <div className="text-xs font-semibold">
                 {de
@@ -1388,8 +1388,8 @@ export function Methodology() {
               </div>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
                 {de
-                  ? "Der Multiplikator wirkt auf den Engine-Anker (Cap-Weight Anchor des heimischen Aktien-Eimers, oben in der Anker-Tabelle), nicht direkt auf das MSCI-Cap-Gewicht. Die Home-Bias-Karte vergleicht anschließend den tatsächlichen Heimat-Anteil mit dem MSCI-Cap-Gewicht — daher liegt der angezeigte Bias-Faktor in der Regel über dem Multiplikator. Werte unten ohne Sharpe-Tilt, ohne Normalisierung und ohne 65 %-Cap (≈ vor finaler Konstruktion)."
-                  : "The multiplier acts on the engine anchor (cap-weight anchor of the home equity bucket, see anchor table above), not on the MSCI cap weight itself. The Home-Bias card then compares the actual home share to the MSCI cap weight — which is why the displayed bias ratio is normally larger than the multiplier. Values below ignore Sharpe tilt, normalisation and the 65 % cap (≈ pre-finalisation)."}
+                  ? "Der Multiplikator wirkt auf den Engine-Anker (Cap-Weight Anchor des heimischen Aktien-Eimers, oben in der Anker-Tabelle), nicht direkt auf das MSCI-Cap-Gewicht. Anschließend reduziert der Look-Through-Faktor das Engine-Ziel um den Anteil, der laut Geo-Look-Through tatsächlich auf das Heimatland entfällt — siehe Spalte „LT-Faktor“. Die Home-Bias-Karte vergleicht den so entstandenen Heimat-Anteil mit dem MSCI-Cap-Gewicht. Werte unten ohne Sharpe-Tilt, ohne Normalisierung und ohne 65 %-Cap (≈ vor finaler Konstruktion)."
+                  : "The multiplier acts on the engine anchor (cap-weight anchor of the home equity bucket, see anchor table above), not on the MSCI cap weight itself. The look-through factor then reduces the engine target to the share that actually lands in the home country once the ETF look-through is applied — see the \"LT factor\" column. The Home-Bias card compares this home share to the MSCI cap weight. Values below ignore Sharpe tilt, normalisation and the 65 % cap (≈ pre-finalisation)."}
               </p>
               <div className="overflow-x-auto">
                 <Table>
@@ -1400,6 +1400,8 @@ export function Methodology() {
                       <TableHead className="text-right text-xs">{de ? "Anker" : "Anchor"}</TableHead>
                       <TableHead className="text-right text-xs">{de ? "Multiplikator" : "Multiplier"}</TableHead>
                       <TableHead className="text-right text-xs">{de ? "Engine-Ziel" : "Engine target"}</TableHead>
+                      <TableHead className="text-right text-xs">{de ? "LT-Faktor" : "LT factor"}</TableHead>
+                      <TableHead className="text-right text-xs">{de ? "Heimat-Anteil" : "Home share"}</TableHead>
                       <TableHead className="text-right text-xs">{de ? "MSCI-Cap (neutral)" : "MSCI cap (neutral)"}</TableHead>
                       <TableHead className="text-right text-xs">{de ? "≈ Bias-Faktor" : "≈ Bias ratio"}</TableHead>
                     </TableRow>
@@ -1410,8 +1412,23 @@ export function Methodology() {
                       const anchor = getHomeAnchorPct(c);
                       const mult = resolvedHomeBias(c);
                       const target = anchor * mult;
+                      // Typical look-through factor per base currency: how much of
+                      // the engine's "home region" allocation actually shows up as
+                      // home-country exposure once Geo-Look-Through is applied.
+                      // CHF/GBP carve out their home country and pick country-pure
+                      // ETFs (SPI / FTSE 100), so ~95-100% lands at home.
+                      // EUR fills the "Europe" bucket with broad-Europe ETFs
+                      // (STOXX 600, MSCI Europe, FTSE Dev. Europe) which are only
+                      // ~50% Eurozone — the rest is UK + CH + Nordics. With a
+                      // Eurozone-pure ETF (EURO STOXX 50, MSCI EMU) the factor
+                      // approaches ~1.0 and the bias ratio jumps to ~2.2×.
+                      const LT_FACTOR: Record<HomeBiasCurrency, number | null> = {
+                        USD: null, EUR: 0.50, GBP: 1.00, CHF: 1.00,
+                      };
+                      const lt = LT_FACTOR[c];
+                      const homeShare = lt === null ? null : target * lt;
                       const cap = getNeutralHomeCapWeightPct(c);
-                      const ratio = cap > 0 ? target / cap : null;
+                      const ratio = (homeShare !== null && cap > 0) ? homeShare / cap : null;
                       const usd = c === "USD";
                       return (
                         <TableRow key={`hb-chain-${c}`} data-testid={`hb-chain-row-${c}`}>
@@ -1420,6 +1437,16 @@ export function Methodology() {
                           <TableCell className="text-right font-mono text-xs">{anchor.toFixed(1)}%</TableCell>
                           <TableCell className="text-right font-mono text-xs">× {mult.toFixed(2)}</TableCell>
                           <TableCell className="text-right font-mono text-xs">= {target.toFixed(1)}%</TableCell>
+                          <TableCell className="text-right font-mono text-xs">
+                            {lt === null
+                              ? <span className="text-muted-foreground">{de ? "n. v." : "n/a"}</span>
+                              : `× ${lt.toFixed(2)}`}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-xs">
+                            {homeShare === null
+                              ? <span className="text-muted-foreground">{de ? "n. v." : "n/a"}</span>
+                              : `= ${homeShare.toFixed(1)}%`}
+                          </TableCell>
                           <TableCell className="text-right font-mono text-xs">
                             {usd ? <span className="text-muted-foreground">{de ? "n. v." : "n/a"}</span> : `${cap.toFixed(1)}%`}
                           </TableCell>
@@ -1434,11 +1461,23 @@ export function Methodology() {
                   </TableBody>
                 </Table>
               </div>
-              <p className="text-[10px] text-muted-foreground italic leading-relaxed">
-                {de
-                  ? "Beispiel CHF: 4,0 % Anker × 2,5 = 10,0 % vor Normalisierung. Nach Sharpe-Tilt und Re-Normalisierung über alle Regionen landet der Schweiz-Anteil typischerweise bei ~9 – 10 % des Aktien-Anteils und ergibt im Verhältnis zum MSCI-Cap-Gewicht (2,4 %) den in der Home-Bias-Karte angezeigten Faktor (~3,9 ×). USD hat per Konvention keine Home-Bias-Bewertung, weil die USA bereits ~60 % der globalen Marktkapitalisierung ausmachen."
-                  : "Example CHF: 4.0 % anchor × 2.5 = 10.0 % before normalisation. After Sharpe tilt and re-normalisation across regions the Swiss share typically lands at ~9 – 10 % of the equity sleeve and, divided by the MSCI cap weight (2.4 %), produces the bias ratio (~3.9 ×) shown in the Home-Bias card. USD has no home-bias verdict by design because the US already represents ~60 % of global market cap."}
-              </p>
+              <div className="text-[10px] text-muted-foreground italic leading-relaxed space-y-1">
+                <p>
+                  {de
+                    ? "Beispiel CHF: 4,0 % × 2,5 × 1,00 = 10,0 % Heimat-Anteil ÷ 2,4 % MSCI-Cap ≈ 4,2 ×. Nach Sharpe-Tilt und Re-Normalisierung über alle Regionen landet der Schweiz-Anteil typischerweise bei ~9 – 10 % und ergibt den in der Home-Bias-Karte angezeigten Faktor (~3,9 ×)."
+                    : "Example CHF: 4.0 % × 2.5 × 1.00 = 10.0 % home share ÷ 2.4 % MSCI cap ≈ 4.2 ×. After Sharpe tilt and re-normalisation across regions the Swiss share typically lands at ~9 – 10 % and produces the bias ratio (~3.9 ×) shown in the Home-Bias card."}
+                </p>
+                <p>
+                  {de
+                    ? "Beispiel EUR (wichtig): Die EUR-Aktien-Region wird mit Breit-Europa-ETFs gefüllt (STOXX 600, MSCI Europe, FTSE Developed Europe) — diese sind nur zu ~50 % Eurozone, der Rest ist UK + Schweiz + Nordics. Daher LT-Faktor ≈ 0,50 und der angezeigte Bias-Faktor liegt bei ~1,0 ×, obwohl der Multiplikator 1,5 × beträgt. Wird stattdessen ein Eurozone-reiner ETF gewählt (z. B. iShares Core EURO STOXX 50 IE0008471009 oder Amundi MSCI EMU), steigt der LT-Faktor auf ~1,00 und der Bias-Faktor springt entsprechend auf ~2,2 × — die Wirkung des Multiplikators wird damit voll sichtbar."
+                    : "Example EUR (important): the EUR equity region is filled with broad-Europe ETFs (STOXX 600, MSCI Europe, FTSE Developed Europe) — these are only ~50 % Eurozone, with the rest in UK + Switzerland + Nordics. Hence LT factor ≈ 0.50 and the displayed bias ratio sits around ~1.0 × despite the 1.5 × multiplier. Switching to a Eurozone-pure ETF (e.g. iShares Core EURO STOXX 50 IE0008471009 or Amundi MSCI EMU) lifts the LT factor toward ~1.00 and the bias ratio jumps to ~2.2 ×, fully delivering the multiplier."}
+                </p>
+                <p>
+                  {de
+                    ? "USD hat per Konvention keine Home-Bias-Bewertung, weil die USA bereits ~60 % der globalen Marktkapitalisierung ausmachen."
+                    : "USD has no home-bias verdict by design because the US already represents ~60 % of global market cap."}
+                </p>
+              </div>
             </div>
           </div>
         </Section>
