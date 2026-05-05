@@ -36,16 +36,17 @@ export default function Operations() {
   const { githubInfo, directWrite } = useAdminContext();
 
   const tabs: SubTab[] = [
-    {
-      to: "/admin/operations/sync",
-      label: t({ de: "Workspace-Sync", en: "Workspace sync" }),
-      testid: "tab-operations-sync",
-    },
-    // Direct-write mode hides the Pull-requests sub-tab — there are no PRs
-    // to track when the server edits etfs.ts directly on disk.
+    // Direct-write mode hides Workspace-sync (no main→workspace roundtrip
+    // exists when the server edits etfs.ts in place) and the Pull-requests
+    // sub-tab (no PRs to track).
     ...(directWrite
       ? []
       : [
+          {
+            to: "/admin/operations/sync",
+            label: t({ de: "Workspace-Sync", en: "Workspace sync" }),
+            testid: "tab-operations-sync",
+          },
           {
             to: "/admin/operations/prs",
             label: t({ de: "Pull Requests", en: "Pull requests" }),
@@ -78,7 +79,13 @@ export default function Operations() {
           ? "runs"
           : location === "/admin/operations/freshness"
             ? "freshness"
-            : "sync";
+            : location === "/admin/operations/sync"
+              ? "sync"
+              : // Default landing: in direct-write the sync tab is gone, so
+                // land on "changes" (the most useful operator surface).
+                directWrite
+                ? "changes"
+                : "sync";
 
   const description: Record<SubKey, string> = {
     sync: t({

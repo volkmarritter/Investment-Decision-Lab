@@ -26,7 +26,7 @@ export default function Catalog() {
       return null;
     }
   })();
-  const { catalog, catalogError, githubConfigured } = useAdminContext();
+  const { catalog, catalogError, githubConfigured, directWrite } = useAdminContext();
 
   const tabs: SubTab[] = [
     {
@@ -69,14 +69,28 @@ export default function Catalog() {
       de: "Master-Liste aller ETF-Instrumente. Hier werden Instrumente registriert, bearbeitet oder entfernt. Bucket-Zuordnung läuft separat: neue Defaults über „ISIN hinzufügen“, neue Alternativen über die Zeilen-Buttons im Browse-Tab. Instrumente ohne Bucket-Zuordnung bilden den Look-through-Pool.",
       en: "Master list of every ETF instrument. Register, edit or retire instruments here. Bucket assignment runs separately: new defaults via the 'Add ISIN' tab, new alternatives via the per-row buttons in the Browse tab. Instruments with no bucket assignment make up the look-through pool.",
     }),
-    "add-isin": t({
-      de: "Eine ISIN scrapen, Felder prüfen und einen einzelnen Pull Request öffnen, der das Instrument registriert und gleich als Bucket-Default einträgt.",
-      en: "Scrape one ISIN, review the fields, and open a single pull request that registers the instrument and assigns it as a bucket default in one go.",
-    }),
-    batch: t({
-      de: "Mehrere kuratierte Alternativen zusammenstellen und alle in einem Pull Request öffnen.",
-      en: "Queue multiple curated alternatives and ship them all in a single pull request.",
-    }),
+    "add-isin": t(
+      directWrite
+        ? {
+            de: "Eine ISIN scrapen, Felder prüfen und in einem Schritt speichern — registriert das Instrument und trägt es gleich als Bucket-Default ein.",
+            en: "Scrape one ISIN, review the fields, and save in one step — registers the instrument and assigns it as a bucket default in one go.",
+          }
+        : {
+            de: "Eine ISIN scrapen, Felder prüfen und einen einzelnen Pull Request öffnen, der das Instrument registriert und gleich als Bucket-Default einträgt.",
+            en: "Scrape one ISIN, review the fields, and open a single pull request that registers the instrument and assigns it as a bucket default in one go.",
+          },
+    ),
+    batch: t(
+      directWrite
+        ? {
+            de: "Mehrere kuratierte Alternativen zusammenstellen und in einem Rutsch speichern.",
+            en: "Queue multiple curated alternatives and save them all at once.",
+          }
+        : {
+            de: "Mehrere kuratierte Alternativen zusammenstellen und alle in einem Pull Request öffnen.",
+            en: "Queue multiple curated alternatives and ship them all in a single pull request.",
+          },
+    ),
   }[active];
 
   const primaryAction = active === "browse" ? (

@@ -325,14 +325,30 @@ No — appending one row to a markdown file is microseconds. The trade-off is on
 
 The Investment Decision Lab artifact ships a single-operator admin pane at `/admin` (e.g. `https://your-repl.replit.app/admin`). It gives you two things from the live app, without leaving the browser:
 
-### A. Suggest an ISIN → open a PR
+### Two write modes — direct-write vs. PR
+
+Catalog mutations (add ISIN, attach/remove alternative, set default, add/remove pool entry, edit instrument) automatically pick one of two write paths at runtime:
+
+| Mode | When it activates | What happens on **Save** |
+|---|---|---|
+| **Direct-write** | The api-server can locate `artifacts/investment-lab/src/lib/etfs.ts` from `process.cwd()` AND that file is writable AND `ADMIN_DIRECT_WRITE_DISABLED` is **not** set to `"1"`. This is true in the Replit workspace. | The api-server edits `etfs.ts` (and `lookthrough.overrides.json` when bundled with attach-alternative) **directly on disk**. No Git activity. The change is immediately visible after the next dev-server hot-reload, and is committed/pushed via the normal Git flow. |
+| **PR mode** | Direct-write is unavailable (production/published builds, or `ADMIN_DIRECT_WRITE_DISABLED=1`) AND `GITHUB_PAT`/`GITHUB_OWNER`/`GITHUB_REPO` are configured. | The api-server opens a branch `add-etf/<isin>` (or `add-alt/`, `rm-alt/`, `instr-add/`, …) on the configured GitHub repo, commits the change, and opens a pull request. The operator merges on github.com. |
+
+The mode is reported by `GET /admin/whoami` as `directWrite: boolean` and the UI adapts:
+
+- **Direct-write mode:** the Operations → "Workspace sync" and "Pull requests" sub-tabs are hidden; the Overview "Pending PRs" and "Workspace sync" cards are hidden; success toasts say "Saved" / "Gespeichert"; subtitle copy says "save in one step" instead of "open a pull request".
+- **PR mode:** every PR-related surface stays visible.
+
+To force PR mode locally for testing the production codepath, set `ADMIN_DIRECT_WRITE_DISABLED=1` and restart the api-server workflow.
+
+### A. Add an ISIN
 
 1. Paste an ISIN.
 2. Click **Preview** — the api-server scrapes the justETF profile page once, runs the same regex extractors as the scheduled refresh, and returns a draft catalog entry (name, TER, AUM, domicile, currency, replication, distribution, inception date, listings).
 3. Edit anything that's wrong (catalog key, comment, default exchange, listings tickers).
-4. Click **Open PR** — the api-server uses the configured `GITHUB_PAT` to open a PR on `volkmarritter/Investment-Decision-Lab` that adds the entry to `src/lib/etfs.ts` on a branch `add-etf/<isin>`.
+4. Click **Save** (direct-write) or **Open PR** (PR mode) — the api-server adds the entry to `src/lib/etfs.ts`.
 
-You then review and merge the PR like any other change. The next scheduled refresh will populate the override layer for the new ISIN automatically.
+In PR mode you then review and merge the PR like any other change. In direct-write mode the change is live on the next dev-server reload — commit and push via your normal Git workflow when you're ready to ship.
 
 ### B. Data updates panel
 
@@ -344,20 +360,21 @@ The right column shows three live read-only panels:
 
 ### Auth
 
-The admin pane is gated by a shared bearer token (single operator). On first visit you enter the token; it's stored in `sessionStorage` (cleared when the browser tab closes — slightly safer than `localStorage` for a token that unlocks PR creation).
+The admin pane is gated by a shared bearer token (single operator). On first visit you enter the token; it's stored in `sessionStorage` (cleared when the browser tab closes — slightly safer than `localStorage` for a token that unlocks admin actions).
 
 ### Required environment variables (api-server)
 
 | Var | Purpose | Required for |
 |---|---|---|
-| `ADMIN_TOKEN` | The shared secret the UI sends as `Authorization: Bearer <token>`. | Read panels and preview |
-| `GITHUB_PAT` | Classic PAT with `repo` scope on the catalog repo. | Opening PRs |
-| `GITHUB_OWNER` | e.g. `volkmarritter` | Opening PRs |
-| `GITHUB_REPO` | e.g. `Investment-Decision-Lab` | Opening PRs |
-| `GITHUB_BASE_BRANCH` | Optional; defaults to `main`. | Opening PRs |
+| `ADMIN_TOKEN` | The shared secret the UI sends as `Authorization: Bearer <token>`. | Always (read panels, preview, mutations) |
+| `ADMIN_DIRECT_WRITE_DISABLED` | Set to `"1"` to force PR mode even when `etfs.ts` is writable on disk. Useful for testing the production codepath locally. | Optional |
+| `GITHUB_PAT` | Classic PAT with `repo` scope on the catalog repo. | PR mode (mutations) |
+| `GITHUB_OWNER` | e.g. `volkmarritter` | PR mode (mutations) |
+| `GITHUB_REPO` | e.g. `Investment-Decision-Lab` | PR mode (mutations) |
+| `GITHUB_BASE_BRANCH` | Optional; defaults to `main`. | PR mode (mutations) |
 | `INVESTMENT_LAB_DATA_DIR` | Optional override path to `src/data/` if the api-server isn't deployed alongside the investment-lab artifact. | Read panels (only if layout differs) |
 
-If `ADMIN_TOKEN` is unset the api-server returns `503 admin_not_configured` for every `/api/admin/*` route — the UI shows a clear message rather than a generic auth failure. If `GITHUB_PAT` (or owner/repo) is unset the preview still works, but the **Open PR** button is disabled and the UI explains why.
+If `ADMIN_TOKEN` is unset the api-server returns `503 admin_not_configured` for every `/api/admin/*` route — the UI shows a clear message rather than a generic auth failure. If neither direct-write IS available NOR `GITHUB_PAT`/owner/repo are configured, mutation routes return `503 github_not_configured`; the preview still works.
 
 ### Endpoint summary
 
@@ -365,14 +382,14 @@ All under `/api/admin/*`, all gated by `requireAdmin`:
 
 | Method | Path | What it does |
 |---|---|---|
-| GET | `/whoami` | Auth-check ping; returns `{ok, githubConfigured}`. |
+| GET | `/whoami` | Auth-check ping; returns `{ok, githubConfigured, githubInfo, directWrite}`. The UI uses `directWrite` to hide PR-only surfaces. |
 | GET | `/changes?limit=50` | Tail of `refresh-changes.log.jsonl`, newest first. |
 | GET | `/run-log?limit=20` | Parsed rows of `refresh-runs.log.md`. |
 | GET | `/freshness` | `_meta` of override JSONs + cron schedule map. |
 | GET | `/catalog` | Returns the live catalog summary (key → entry fields) parsed from `src/lib/etfs.ts`. |
 | POST | `/preview-isin` | Body `{isin}` → scraped fields + policy fit. |
 | POST | `/render-entry` | Body `{entry}` → the literal `"<key>": E({...})` TS block that would be inserted; same renderer the PR-creation flow uses. |
-| POST | `/add-isin` | Body `{entry}` → opens a PR; returns `{prUrl, prNumber}`. |
+| POST | `/add-isin` | Body `{entry}` → adds the entry to `etfs.ts`. Returns `{prUrl, prNumber}` (in direct-write mode both are empty: `{prUrl: "", prNumber: 0}`). |
 | POST | `/buckets/:key/pool` | Body `{isin}` → opens a PR adding the ISIN to the bucket's extended-universe **pool** (cap 50/bucket). Rejects writes that violate global ISIN uniqueness across `{default, alternative, pool}`. Surfaced in Build via the "More ETFs" dialog and in Explain via the per-bucket IsinPicker (Pool-badged). |
 | DELETE | `/buckets/:key/pool/:isin` | Opens a PR removing the ISIN from the bucket's pool. |
 
@@ -380,11 +397,11 @@ All under `/api/admin/*`, all gated by `requireAdmin`:
 
 After clicking **Preview**, the pane shows one of three states beneath the editable form so the catalog-key decision is hard to fumble:
 
-- **New bucket** (green) — the chosen key isn't in `etfs.ts` yet. The PR will add a fresh entry. A "Show generated code" disclosure exposes the literal `E({...})` block that will be inserted.
-- **Replaces existing entry** (amber) — the key already exists. A side-by-side table shows current vs. proposed values for every field; differing cells are tinted. The same generated code block is shown beneath. The button label changes to **Open PR to replace the existing entry** so it's clear what merging will do.
-- **Duplicate ISIN** (red) — the proposed ISIN already lives under a different key. The **Open PR** button is disabled until the operator changes either the key or the ISIN. Duplicates take priority over replace warnings.
+- **New bucket** (green) — the chosen key isn't in `etfs.ts` yet. Saving will add a fresh entry. A "Show generated code" disclosure exposes the literal `E({...})` block that will be inserted.
+- **Replaces existing entry** (amber) — the key already exists. A side-by-side table shows current vs. proposed values for every field; differing cells are tinted. The same generated code block is shown beneath. The button label changes to make it clear that the existing entry will be overwritten.
+- **Duplicate ISIN** (red) — the proposed ISIN already lives under a different key. The save button is disabled until the operator changes either the key or the ISIN. Duplicates take priority over replace warnings.
 
-The same generated code block is also embedded in the PR body inside a fenced ```ts``` snippet, so reviewers see exactly what the operator saw without clicking through to the file diff. Catalog data is loaded once per visit via `GET /catalog` and re-classified live as the operator edits the key/ISIN — no extra justETF fetches.
+In PR mode the same generated code block is also embedded in the PR body inside a fenced ```ts``` snippet, so reviewers see exactly what the operator saw without clicking through to the file diff. Catalog data is loaded once per visit via `GET /catalog` and re-classified live as the operator edits the key/ISIN — no extra justETF fetches.
 
 ### Why no auto-discovery?
 

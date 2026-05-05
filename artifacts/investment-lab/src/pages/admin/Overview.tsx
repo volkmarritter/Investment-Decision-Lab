@@ -66,7 +66,7 @@ const initial: DashState = {
 
 export default function Overview() {
   const { t } = useAdminT();
-  const { githubConfigured, githubInfo } = useAdminContext();
+  const { githubConfigured, githubInfo, directWrite } = useAdminContext();
   const [state, setState] = useState<DashState>(initial);
 
   useEffect(() => {
@@ -74,12 +74,18 @@ export default function Overview() {
     async function load() {
       setState((s) => ({ ...s, loading: true, error: null }));
       try {
+        // Direct-write mode: skip workspace-sync + PR fetches entirely —
+        // those surfaces are hidden and don't need the data.
         const [sync, fresh, changes, runs, ...prResponses] = await Promise.all([
-          adminApi.workspaceSyncStatus(),
+          directWrite
+            ? Promise.resolve(null as WorkspaceSyncStatus | null)
+            : adminApi.workspaceSyncStatus(),
           adminApi.freshness(),
           adminApi.changes(5),
           adminApi.runLog(5),
-          ...PR_BRANCH_PREFIXES.map((p) => adminApi.listOpenPrs(p)),
+          ...(directWrite
+            ? []
+            : PR_BRANCH_PREFIXES.map((p) => adminApi.listOpenPrs(p))),
         ]);
         if (cancelled) return;
         // Flatten + de-dup by PR number — overlapping prefixes are not used,
@@ -118,20 +124,36 @@ export default function Overview() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [directWrite]);
 
   return (
     <section className="space-y-5" data-testid="page-admin-overview">
       <SectionHeader
         title={t({ de: "Übersicht", en: "Overview" })}
-        description={t({
-          de: "Operativer Status auf einen Blick — Workspace, offene Pull Requests, Datenfrische, jüngste Änderungen und Läufe.",
-          en: "Operational status at a glance — workspace, open Pull Requests, data freshness, recent changes, and runs.",
-        })}
+        description={t(
+          directWrite
+            ? {
+                de: "Operativer Status auf einen Blick — Datenfrische, jüngste Änderungen und Läufe.",
+                en: "Operational status at a glance — data freshness, recent changes, and runs.",
+              }
+            : {
+                de: "Operativer Status auf einen Blick — Workspace, offene Pull Requests, Datenfrische, jüngste Änderungen und Läufe.",
+                en: "Operational status at a glance — workspace, open Pull Requests, data freshness, recent changes, and runs.",
+              },
+        )}
         testid="header-admin-overview"
       />
 
-      {!githubConfigured && (
+      {directWrite && (
+        <p className="text-xs text-muted-foreground" data-testid="overview-direct-write-info">
+          {t({
+            de: "Direkt-Schreib-Modus — Katalog-Änderungen werden sofort in den Workspace gespeichert (kein Pull Request).",
+            en: "Direct-write mode — catalog changes are saved straight into the workspace (no pull request).",
+          })}
+        </p>
+      )}
+
+      {!directWrite && !githubConfigured && (
         <Alert variant="destructive" data-testid="overview-github-missing">
           <AlertDescription>
             {t({
@@ -142,7 +164,7 @@ export default function Overview() {
         </Alert>
       )}
 
-      {githubConfigured && githubInfo.owner && githubInfo.repo && (
+      {!directWrite && githubConfigured && githubInfo.owner && githubInfo.repo && (
         <p className="text-xs text-muted-foreground" data-testid="overview-github-info">
           {t({ de: "Verknüpft mit", en: "Linked to" })}{" "}
           <code className="font-mono">
@@ -164,15 +186,17 @@ export default function Overview() {
         </Alert>
       )}
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <SyncCard sync={state.sync} loading={state.loading} />
-        <PrsCard
-          count={state.prCount}
-          list={state.prList}
-          loading={state.loading}
-          githubConfigured={githubConfigured}
-        />
-      </div>
+      {!directWrite && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <SyncCard sync={state.sync} loading={state.loading} />
+          <PrsCard
+            count={state.prCount}
+            list={state.prList}
+            loading={state.loading}
+            githubConfigured={githubConfigured}
+          />
+        </div>
+      )}
 
       <FreshnessSummaryCard fresh={state.fresh} loading={state.loading} />
 

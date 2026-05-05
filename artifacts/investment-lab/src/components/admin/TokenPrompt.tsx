@@ -1,7 +1,7 @@
 // ----------------------------------------------------------------------------
 // TokenPrompt — admin sign-in card. Stored once per browser tab in
-// sessionStorage so the bearer token unlocking Pull Request creation isn't
-// persisted across tabs/windows.
+// sessionStorage so the bearer token unlocking admin actions isn't persisted
+// across tabs/windows.
 // ----------------------------------------------------------------------------
 
 import { useState } from "react";
