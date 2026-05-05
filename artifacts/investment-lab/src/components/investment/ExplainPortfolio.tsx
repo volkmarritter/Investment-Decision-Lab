@@ -211,6 +211,23 @@ function IsinPicker({ value, onPick, excludeIsins, testId, restrictToBucketKey }
       list.push(c);
       m.set(c.bucketKey, list);
     }
+    // Within each bucket: order rows by role (default → alternative →
+    // pool → unassigned), then alphabetically by name as a stable
+    // tiebreak so operators always see the curated picks first.
+    const roleRank: Record<string, number> = {
+      default: 0,
+      alternative: 1,
+      pool: 2,
+      unassigned: 3,
+    };
+    for (const [, rows] of m) {
+      rows.sort((a, b) => {
+        const ra = roleRank[getInstrumentRole(a.isin)] ?? 4;
+        const rb = roleRank[getInstrumentRole(b.isin)] ?? 4;
+        if (ra !== rb) return ra - rb;
+        return a.name.localeCompare(b.name);
+      });
+    }
     return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [candidates]);
 
