@@ -1374,6 +1374,19 @@ export function ExplainPortfolio() {
                 etfs={portfolio.etfImplementation}
                 baseCurrency={state.baseCurrency}
               />
+              {/* Home Bias sits directly under the geo map so the qualitative
+               *  verdict ("over/modest/under") reads as a natural follow-on
+               *  to the visual regional breakdown. Same gating as Build:
+               *  non-USD bases only, and the card itself returns null when
+               *  look-through is OFF (which is already enforced by the
+               *  enclosing block here). */}
+              {state.baseCurrency !== "USD" && (
+                <HomeBiasAnalysis
+                  etfs={portfolio.etfImplementation}
+                  baseCurrency={state.baseCurrency}
+                  lookThroughView={state.lookThroughView}
+                />
+              )}
               <LookThroughAnalysis
                 etfs={portfolio.etfImplementation}
                 baseCurrency={state.baseCurrency}
@@ -1421,16 +1434,6 @@ export function ExplainPortfolio() {
             allocation={portfolio.allocation}
             baseCurrency={state.baseCurrency}
           />
-
-          {/* Home Bias (non-USD bases only — same gating as Build, since the
-           *  framing of "home" only makes sense outside the global default). */}
-          {state.baseCurrency !== "USD" && (
-            <HomeBiasAnalysis
-              etfs={portfolio.etfImplementation}
-              baseCurrency={state.baseCurrency}
-              lookThroughView={state.lookThroughView}
-            />
-          )}
 
           {/* Fee Estimator — last block, mirroring Build's placement after the
            *  risk/return story so total cost is the closing line. */}

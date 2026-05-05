@@ -1562,13 +1562,29 @@ export function BuildPortfolio() {
                   lookThroughView={form.getValues().lookThroughView}
                 />
 
-                {/* Geographic Exposure Map + Look-Through Analysis + Top 10 Holdings (only when look-through view is active) */}
+                {/* Geographic Exposure Map + Home Bias + Look-Through Analysis + Top 10 Holdings
+                 *  (only when look-through view is active). Home Bias sits
+                 *  directly under the geo map so the qualitative verdict
+                 *  ("over/modest/under") reads as a natural follow-on to the
+                 *  visual regional breakdown the user just scanned. The card
+                 *  itself returns null when look-through is OFF, so nesting
+                 *  it inside this block doesn't change visibility behaviour. */}
                 {form.getValues().lookThroughView && (
                   <>
                     <GeoExposureMap
                       etfs={output.etfImplementation}
                       baseCurrency={form.getValues().baseCurrency}
                     />
+                    {/* Home Bias (non-USD bases only — full width, collapsed
+                     *  by default). USD-base portfolios skip the card because
+                     *  "home" framing collapses against the global default. */}
+                    {form.getValues().baseCurrency !== "USD" && (
+                      <HomeBiasAnalysis
+                        etfs={output.etfImplementation}
+                        baseCurrency={form.getValues().baseCurrency}
+                        lookThroughView={watchedLookThroughView}
+                      />
+                    )}
                     <LookThroughAnalysis
                       etfs={output.etfImplementation}
                       baseCurrency={form.getValues().baseCurrency}
@@ -1607,15 +1623,6 @@ export function BuildPortfolio() {
 
                 {/* Scenario Stress Test */}
                 <StressTest allocation={output.allocation} baseCurrency={watchedBaseCcy} />
-
-                {/* Section 6b: Home Bias Analysis (non-USD bases only, full width, collapsed by default) */}
-                {form.getValues().baseCurrency !== "USD" && (
-                  <HomeBiasAnalysis
-                    etfs={output.etfImplementation}
-                    baseCurrency={form.getValues().baseCurrency}
-                    lookThroughView={watchedLookThroughView}
-                  />
-                )}
 
                 {/* Section 7: Learning Insights */}
                 <div className="space-y-3">
