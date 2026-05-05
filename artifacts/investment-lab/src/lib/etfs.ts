@@ -2170,7 +2170,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
   }),
   "FixedIncome-Global-GBP": B({
     default: "IE00BDBRDP65",
-    alternatives: ["IE00BG47KJ78"],
+    alternatives: [],
   }),
   "Commodities-Gold": B({
     default: "IE00B579F325",
