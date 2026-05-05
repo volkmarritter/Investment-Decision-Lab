@@ -2189,7 +2189,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "Equity-Technology": B({
     default: "IE00B3WJKG14",
     alternatives: ["IE00B53SZB19", "IE00BM67HT60"],
-    pool: ["IE0032077012", "IE00BMFKG444", "IE00BYVQ9F29", "LU1681038243", "IE00BYZK4552", "IE00BMDX0K95", "IE00BMWXKN31"],
+    pool: ["IE0032077012", "IE00BMFKG444", "IE00BYVQ9F29", "LU1681038243", "IE00BYZK4552", "IE00BMWXKN31"],
   }),
   "Equity-Healthcare": B({
     default: "IE00BYZK4776",
