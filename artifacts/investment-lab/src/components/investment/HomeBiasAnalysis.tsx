@@ -55,14 +55,6 @@ export function HomeBiasAnalysis({ etfs, baseCurrency, lookThroughView = true }:
                 {r.biasRatio > 0 ? `${r.biasRatio.toFixed(1)}× ${t("build.homeBias.metric.neutralCap").toLowerCase()}` : ""}
               </span>
             </CardTitle>
-            <CardDescription className="mt-2">
-              {t("build.homeBias.desc")
-                .replace("{home}", r.homeMarketLabel)
-                .replace("{base}", r.baseCurrency)}
-            </CardDescription>
-            <p className="text-[10px] text-muted-foreground italic mt-1.5">
-              {t("build.homeBias.lookThroughNote")}
-            </p>
           </div>
           <Button
             type="button"
@@ -86,6 +78,16 @@ export function HomeBiasAnalysis({ etfs, baseCurrency, lookThroughView = true }:
 
       {open && (
         <CardContent className="space-y-5">
+          <div className="space-y-1.5">
+            <CardDescription>
+              {t("build.homeBias.desc")
+                .replace("{home}", r.homeMarketLabel)
+                .replace("{base}", r.baseCurrency)}
+            </CardDescription>
+            <p className="text-[10px] text-muted-foreground italic">
+              {t("build.homeBias.lookThroughNote")}
+            </p>
+          </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
             <div className="rounded-md border p-3">
               <div className="text-muted-foreground">{t("build.homeBias.metric.actualEquity")}</div>
