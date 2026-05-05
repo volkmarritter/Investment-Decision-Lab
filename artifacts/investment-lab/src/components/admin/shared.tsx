@@ -1,4 +1,6 @@
 import { Label } from "@/components/ui/label";
+import { formatAsOf, type AdminLang } from "@/lib/admin-date";
+import { useAdminT } from "@/lib/admin-i18n";
 import type {
 AddBucketAlternativeRequest,
 AddEtfRequest,
@@ -33,12 +35,52 @@ export function Field({
   );
 }
 
-export function Row({ k, v }: { k: string; v: string }) {
+export function Row({ k, v }: { k: string; v: React.ReactNode }) {
   return (
-    <div className="flex justify-between gap-4">
+    <div className="flex justify-between gap-4 items-start">
       <span className="text-muted-foreground">{k}</span>
-      <span className="font-mono text-xs text-right">{v}</span>
+      <div className="font-mono text-xs text-right">{v}</div>
     </div>
+  );
+}
+
+// AsOfInline / AsOfCell — render a YYYY-MM-DD "as of" date as a
+// localised calendar date plus a relative-age subscript ("vor 9 Tagen"
+// / "9 days ago"). The raw ISO date is preserved as a tooltip so the
+// operator can copy it for grepping logs / look-through pool entries.
+//
+// Use AsOfInline for grid / inline contexts (badges, definition lists)
+// and AsOfCell when the value goes inside a table cell — it adds the
+// muted-foreground colour and em-dash placeholder our tables use for
+// missing data.
+export function AsOfInline({
+  value,
+  lang,
+}: {
+  value: string | null | undefined;
+  lang: AdminLang;
+}) {
+  const f = value ? formatAsOf(value, lang) : null;
+  if (!f) return <span className="text-muted-foreground">—</span>;
+  return (
+    <span
+      className="leading-tight inline-block tabular-nums"
+      title={value ?? undefined}
+    >
+      <span className="block">{f.local}</span>
+      <span className="block text-[10px] text-muted-foreground">
+        {f.relative}
+      </span>
+    </span>
+  );
+}
+
+export function AsOfCell({ value }: { value: string | null | undefined }) {
+  const { lang } = useAdminT();
+  return (
+    <span className="text-muted-foreground">
+      <AsOfInline value={value} lang={lang} />
+    </span>
   );
 }
 

@@ -8,6 +8,12 @@ import {
   type RunLogRow,
 } from "@/lib/admin-api";
 import { useAdminT } from "@/lib/admin-i18n";
+import {
+  formatCron,
+  formatTimestamp,
+  isIsoTimestamp,
+  type AdminLang,
+} from "@/lib/admin-date";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +21,38 @@ import { Separator } from "@/components/ui/separator";
 import { RefreshCw } from "lucide-react";
 import { Row, fmt } from "./shared";
 import { useAdminContext } from "./AdminContext";
+
+// Inline timestamp display: localised date+time on top, "vor 9 Tagen ·
+// 08:47 UTC" underneath, with the raw ISO string as a tooltip so the
+// operator can copy it for grepping logs. Used by the freshness card,
+// the recent-changes card and (indirectly via RunCell) the run-log
+// table — keeping every admin timestamp visually identical.
+function TimestampInline({
+  iso,
+  lang,
+  suffix,
+}: {
+  iso: string;
+  lang: AdminLang;
+  suffix?: string;
+}) {
+  const f = formatTimestamp(iso, lang);
+  if (!f) return <span title={iso}>{iso}</span>;
+  return (
+    <span
+      className="leading-tight inline-block text-right tabular-nums"
+      title={iso}
+    >
+      <span className="block">
+        {f.local}
+        {suffix ? ` (${suffix})` : ""}
+      </span>
+      <span className="block text-[10px] text-muted-foreground">
+        {f.relative} · {f.utc}
+      </span>
+    </span>
+  );
+}
 
 export function DataUpdatesColumn() {
   const { t } = useAdminT();
@@ -78,7 +116,7 @@ export function DataUpdatesColumn() {
 }
 
 export function FreshnessCard({ fresh }: { fresh: FreshnessResponse | null }) {
-  const { t } = useAdminT();
+  const { t, lang } = useAdminT();
   return (
     <Card>
       <CardHeader>
@@ -97,20 +135,39 @@ export function FreshnessCard({ fresh }: { fresh: FreshnessResponse | null }) {
             <Row
               k="etfs.overrides.json"
               v={
-                fresh.etfsOverrides?.lastRefreshedAt
-                  ? `${fresh.etfsOverrides.lastRefreshedAt} (${
-                      fresh.etfsOverrides.lastRefreshedMode ?? "?"
-                    })`
-                  : "—"
+                fresh.etfsOverrides?.lastRefreshedAt ? (
+                  <TimestampInline
+                    iso={fresh.etfsOverrides.lastRefreshedAt}
+                    lang={lang}
+                    suffix={fresh.etfsOverrides.lastRefreshedMode ?? "?"}
+                  />
+                ) : (
+                  "—"
+                )
               }
             />
             <Row
               k="lookthrough.overrides.json"
-              v={fresh.lookthroughOverrides?.lastRefreshedAt ?? "—"}
+              v={
+                fresh.lookthroughOverrides?.lastRefreshedAt ? (
+                  <TimestampInline
+                    iso={fresh.lookthroughOverrides.lastRefreshedAt}
+                    lang={lang}
+                  />
+                ) : (
+                  "—"
+                )
+              }
             />
             <Separator className="my-2" />
             {Object.entries(fresh.schedules).map(([name, cron]) => (
-              <Row key={name} k={name} v={`cron: ${cron}`} />
+              <Row
+                key={name}
+                k={name}
+                v={
+                  <span title={`cron: ${cron}`}>{formatCron(cron, lang)}</span>
+                }
+              />
             ))}
           </>
         )}
@@ -120,7 +177,7 @@ export function FreshnessCard({ fresh }: { fresh: FreshnessResponse | null }) {
 }
 
 export function RecentChangesCard({ changes }: { changes: ChangeEntry[] }) {
-  const { t } = useAdminT();
+  const { t, lang } = useAdminT();
   const grouped = useMemo(() => {
     const byIsin = new Map<string, ChangeEntry[]>();
     for (const c of changes) {
@@ -155,7 +212,12 @@ export function RecentChangesCard({ changes }: { changes: ChangeEntry[] }) {
             <div key={isin} className="border rounded p-2">
               <div className="font-mono text-xs font-medium">{isin}</div>
               <div className="text-[10px] text-muted-foreground mb-1">
-                {entries[0].source} · {entries[0].ts}
+                {entries[0].source} ·{" "}
+                {isIsoTimestamp(entries[0].ts) ? (
+                  <TimestampInline iso={entries[0].ts} lang={lang} />
+                ) : (
+                  <span title={entries[0].ts}>{entries[0].ts}</span>
+                )}
               </div>
               <ul className="space-y-1">
                 {entries.map((e, i) => (
@@ -176,7 +238,6 @@ export function RecentChangesCard({ changes }: { changes: ChangeEntry[] }) {
   );
 }
 
-const ISO_TIMESTAMP_RX = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/;
 const TIMESTAMP_COL_NAMES = new Set([
   "Started (UTC)",
   "Started",
@@ -184,49 +245,6 @@ const TIMESTAMP_COL_NAMES = new Set([
   "Finished",
   "Timestamp",
 ]);
-
-function formatRelative(diffMs: number, lang: "de" | "en"): string {
-  const past = diffMs >= 0;
-  const abs = Math.abs(diffMs);
-  const sec = Math.floor(abs / 1000);
-  const min = Math.floor(sec / 60);
-  const hr = Math.floor(min / 60);
-  const day = Math.floor(hr / 24);
-  const de = lang === "de";
-  const ago = (n: number, unit: string) =>
-    de ? `vor ${n} ${unit}` : `${n} ${unit} ago`;
-  const fwd = (n: number, unit: string) =>
-    de ? `in ${n} ${unit}` : `in ${n} ${unit}`;
-  const wrap = past ? ago : fwd;
-  if (sec < 60) return de ? (past ? "gerade eben" : "in Kürze") : past ? "just now" : "soon";
-  if (min < 60) return wrap(min, de ? "Min." : min === 1 ? "min" : "mins");
-  if (hr < 48) return wrap(hr, de ? (hr === 1 ? "Std." : "Std.") : hr === 1 ? "hour" : "hours");
-  return wrap(day, de ? (day === 1 ? "Tag" : "Tagen") : day === 1 ? "day" : "days");
-}
-
-function formatRunTimestamp(iso: string, lang: "de" | "en"): {
-  local: string;
-  relative: string;
-  utc: string;
-} {
-  const date = new Date(iso);
-  if (isNaN(date.getTime())) return { local: iso, relative: "", utc: "" };
-  const locale = lang === "de" ? "de-CH" : "en-GB";
-  const local = date.toLocaleString(locale, {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  const utc =
-    `${String(date.getUTCHours()).padStart(2, "0")}:${String(
-      date.getUTCMinutes(),
-    ).padStart(2, "0")} UTC`;
-  const relative = formatRelative(Date.now() - date.getTime(), lang);
-  return { local, relative, utc };
-}
 
 const RUN_LOG_PATH = "artifacts/investment-lab/src/data/refresh-runs.log.md";
 
@@ -302,8 +320,10 @@ export function RunCell({
     col.toLowerCase().includes("started") ||
     col.toLowerCase().includes("finished");
 
-  if (isTimestampCol && value && ISO_TIMESTAMP_RX.test(value)) {
-    const { local, relative, utc } = formatRunTimestamp(value, lang);
+  if (isTimestampCol && value && isIsoTimestamp(value)) {
+    const f = formatTimestamp(value, lang);
+    if (!f) return <span className="whitespace-nowrap">{value}</span>;
+    const { local, relative, utc } = f;
     return (
       <div className="leading-tight whitespace-nowrap" title={value}>
         <div className="font-medium tabular-nums">{local}</div>
@@ -328,7 +348,7 @@ export function RecentRunsCard({ runs }: { runs: RunLogRow[] }) {
     runs[0]?.["Started"] ??
     "";
   const bundleNewestDate =
-    bundleNewestIso && ISO_TIMESTAMP_RX.test(bundleNewestIso)
+    bundleNewestIso && isIsoTimestamp(bundleNewestIso)
       ? new Date(bundleNewestIso)
       : null;
   const githubDate =
@@ -376,8 +396,8 @@ export function RecentRunsCard({ runs }: { runs: RunLogRow[] }) {
               <span className="tabular-nums" title={bundleNewestIso}>
                 {bundleNewestDate
                   ? (() => {
-                      const f = formatRunTimestamp(bundleNewestIso, lang);
-                      return `${f.local} · ${f.relative}`;
+                      const f = formatTimestamp(bundleNewestIso, lang);
+                      return f ? `${f.local} · ${f.relative}` : bundleNewestIso;
                     })()
                   : "—"}
               </span>
@@ -412,8 +432,10 @@ export function RecentRunsCard({ runs }: { runs: RunLogRow[] }) {
                     title={githubCommit.date}
                   >
                     {(() => {
-                      const f = formatRunTimestamp(githubCommit.date!, lang);
-                      return `${f.local} · ${f.relative}`;
+                      const f = formatTimestamp(githubCommit.date!, lang);
+                      return f
+                        ? `${f.local} · ${f.relative}`
+                        : githubCommit.date!;
                     })()}
                   </a>
                 )}

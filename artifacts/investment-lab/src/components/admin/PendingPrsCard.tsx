@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { adminApi, type OpenPrInfo } from "@/lib/admin-api";
 import { useAdminT } from "@/lib/admin-i18n";
+import { formatRelative, formatTimestamp } from "@/lib/admin-date";
 import { ExternalLink, GitPullRequest, RefreshCw } from "lucide-react";
 
 export function PendingPrsCard({
@@ -40,15 +41,10 @@ export function PendingPrsCard({
     void load();
   }, [load, refreshKey]);
 
-  const fmtAge = (iso: string) => {
-    const ms = Date.now() - new Date(iso).getTime();
-    if (ms < 60_000) return lang === "de" ? "gerade eben" : "just now";
-    const m = Math.floor(ms / 60_000);
-    if (m < 60) return lang === "de" ? `vor ${m} Min` : `${m} min ago`;
-    const h = Math.floor(m / 60);
-    if (h < 48) return lang === "de" ? `vor ${h} Std` : `${h} h ago`;
-    const d = Math.floor(h / 24);
-    return lang === "de" ? `vor ${d} Tagen` : `${d} d ago`;
+  const fmtAge = (iso: string) => formatRelative(Date.now() - new Date(iso).getTime(), lang);
+  const fmtAbs = (iso: string) => {
+    const f = formatTimestamp(iso, lang);
+    return f ? `${f.local} · ${f.utc}` : iso;
   };
 
   return (
@@ -111,7 +107,10 @@ export function PendingPrsCard({
                   </span>
                 )}
                 <span className="ml-2 truncate">{p.title}</span>
-                <span className="ml-2 text-xs text-muted-foreground">
+                <span
+                  className="ml-2 text-xs text-muted-foreground"
+                  title={fmtAbs(p.createdAt)}
+                >
                   · {fmtAge(p.createdAt)}
                 </span>
               </div>

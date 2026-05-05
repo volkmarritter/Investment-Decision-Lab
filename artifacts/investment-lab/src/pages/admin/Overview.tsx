@@ -26,6 +26,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAdminT } from "@/lib/admin-i18n";
+import { formatTimestamp, isIsoTimestamp } from "@/lib/admin-date";
 import { SectionHeader } from "@/components/admin/SectionHeader";
 import { useAdminContext } from "@/components/admin/AdminContext";
 
@@ -422,13 +423,25 @@ function FreshnessSummaryCard({
 }
 
 function FreshTsRow({ label, ts }: { label: string; ts: string | null }) {
-  const parsed = ts ? new Date(ts) : null;
-  const valid = parsed && !Number.isNaN(parsed.getTime());
+  const { lang } = useAdminT();
+  const f = ts ? formatTimestamp(ts, lang) : null;
   return (
     <div className="border border-border rounded-md px-3 py-2">
       <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-sm font-medium font-mono break-all">
-        {valid ? parsed!.toLocaleString() : "—"}
+      <dd
+        className="text-sm font-medium font-mono break-all leading-tight tabular-nums"
+        title={ts ?? undefined}
+      >
+        {f ? (
+          <>
+            <span className="block">{f.local}</span>
+            <span className="block text-[10px] text-muted-foreground">
+              {f.relative} · {f.utc}
+            </span>
+          </>
+        ) : (
+          "—"
+        )}
       </dd>
     </div>
   );
@@ -451,7 +464,7 @@ function RecentChangesSummaryCard({
   changes: ChangeEntry[];
   loading: boolean;
 }) {
-  const { t } = useAdminT();
+  const { t, lang } = useAdminT();
   return (
     <Card data-testid="overview-changes-card">
       <CardHeader className="pb-2">
@@ -492,8 +505,15 @@ function RecentChangesSummaryCard({
                     </span>
                   )}
                 </div>
-                <span className="text-xs text-muted-foreground flex-shrink-0">
-                  {c.ts ? new Date(c.ts).toLocaleString() : "—"}
+                <span
+                  className="text-xs text-muted-foreground flex-shrink-0 tabular-nums"
+                  title={c.ts ?? undefined}
+                >
+                  {(() => {
+                    if (!c.ts) return "—";
+                    const f = formatTimestamp(c.ts, lang);
+                    return f ? `${f.local} · ${f.relative}` : c.ts;
+                  })()}
                 </span>
               </li>
             ))}
@@ -512,7 +532,7 @@ function RecentRunsSummaryCard({
   runs: RunLogRow[];
   loading: boolean;
 }) {
-  const { t } = useAdminT();
+  const { t, lang } = useAdminT();
   // RunLogRow is a Record<string,string>; the first column is typically a
   // human label (script name) and a "Started (UTC)" column carries the time.
   const labelKey = (row: RunLogRow): string => {
@@ -554,8 +574,16 @@ function RecentRunsSummaryCard({
                   <div className="min-w-0 truncate">
                     <span className="text-xs">{k ? r[k] : "—"}</span>
                   </div>
-                  <span className="text-xs text-muted-foreground flex-shrink-0 font-mono">
-                    {started || "—"}
+                  <span
+                    className="text-xs text-muted-foreground flex-shrink-0 font-mono tabular-nums"
+                    title={started || undefined}
+                  >
+                    {(() => {
+                      if (!started) return "—";
+                      if (!isIsoTimestamp(started)) return started;
+                      const f = formatTimestamp(started, lang);
+                      return f ? `${f.local} · ${f.relative}` : started;
+                    })()}
                   </span>
                 </li>
               );

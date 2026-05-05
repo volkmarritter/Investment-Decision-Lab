@@ -13,6 +13,7 @@ import { useAdminT } from "@/lib/admin-i18n";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LookthroughStatusBadge, PoolSourceBadge } from "./badges";
+import { AsOfCell } from "./shared";
 
 export function BucketRowsTable({
   parentKey,
@@ -110,7 +111,9 @@ export function BucketRowsTable({
                   <PoolSourceBadge entry={lt} />
                 </td>
                 <td className="px-2 py-1 text-muted-foreground">
-                  {lt?.topHoldingsAsOf || lt?.breakdownsAsOf || "—"}
+                  <AsOfCell
+                    value={lt?.topHoldingsAsOf || lt?.breakdownsAsOf}
+                  />
                 </td>
                 <td className="px-2 py-1 text-right">
                   {r.role === "alt" && githubConfigured && (

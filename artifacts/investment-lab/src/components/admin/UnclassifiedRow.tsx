@@ -11,6 +11,7 @@ import { useAdminT } from "@/lib/admin-i18n";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { LookthroughStatusBadge, PoolSourceBadge } from "./badges";
+import { AsOfInline } from "./shared";
 import { AddAlternativeForm } from "./AddAlternativeForm";
 
 export function UnclassifiedRow({
@@ -179,10 +180,13 @@ export function UnclassifiedRow({
                         <span className="text-muted-foreground">
                           {t({ de: "Stand", en: "As of" })}
                         </span>
-                        <span>
-                          {poolEntry.topHoldingsAsOf ||
-                            poolEntry.breakdownsAsOf}
-                        </span>
+                        <AsOfInline
+                          value={
+                            poolEntry.topHoldingsAsOf ||
+                            poolEntry.breakdownsAsOf
+                          }
+                          lang={lang}
+                        />
                       </>
                     )}
                   </div>

@@ -14,6 +14,7 @@ import {
 import { BUILT_IN_RF, BUILT_IN_HB } from "@/lib/settings";
 import { BASE_SEED } from "@/lib/metrics";
 import { useAdminT } from "@/lib/admin-i18n";
+import { AsOfInline } from "./shared";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -329,10 +330,12 @@ export function AppDefaultsPanel({ githubConfigured }: { githubConfigured: boole
             })}
           </span>
           {meta?.lastUpdated && (
-            <span className="text-xs font-normal text-muted-foreground">
-              {t({ de: "zuletzt geändert: ", en: "last changed: " })}
-              {meta.lastUpdated}
-              {meta.lastUpdatedBy ? ` (${meta.lastUpdatedBy})` : ""}
+            <span className="text-xs font-normal text-muted-foreground inline-flex items-baseline gap-1">
+              {t({ de: "zuletzt geändert:", en: "last changed:" })}
+              <AsOfInline value={meta.lastUpdated} lang={lang} />
+              {meta.lastUpdatedBy ? (
+                <span>({meta.lastUpdatedBy})</span>
+              ) : null}
             </span>
           )}
         </CardTitle>
