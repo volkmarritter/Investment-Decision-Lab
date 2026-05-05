@@ -2162,7 +2162,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "FixedIncome-Global-EUR": B({
     default: "IE00BDBRDM35",
     alternatives: ["IE00BG47KB92", "LU0290355717"],
-    pool: ["IE00B1FZS798", "IE00B3VWN518", "IE00B4WXJJ64", "IE00B0M62X26", "IE00B3F81R35", "IE00B66F4759"],
+    pool: ["IE00B1FZS798", "IE00B3VWN518", "IE00B4WXJJ64", "IE00B3F81R35", "IE00B66F4759"],
   }),
   "FixedIncome-Global-CHF": B({
     default: "IE00BDBRDN42",
