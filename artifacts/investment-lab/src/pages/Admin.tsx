@@ -94,7 +94,13 @@ export default function Admin() {
           <Route path="/admin/catalog/batch" component={Catalog} />
           <Route path="/admin/defaults" component={Defaults} />
           <Route path="/admin/operations">
-            <Redirect to="/admin/operations/sync" />
+            <Redirect
+              to={
+                directWrite
+                  ? "/admin/operations/changes"
+                  : "/admin/operations/sync"
+              }
+            />
           </Route>
           <Route path="/admin/operations/sync" component={Operations} />
           <Route path="/admin/operations/prs" component={Operations} />

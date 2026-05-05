@@ -70,7 +70,7 @@ export default function Operations() {
     },
   ];
 
-  const active: SubKey =
+  const resolved: SubKey =
     location === "/admin/operations/prs"
       ? "prs"
       : location === "/admin/operations/changes"
@@ -86,6 +86,14 @@ export default function Operations() {
                 directWrite
                 ? "changes"
                 : "sync";
+
+  // In direct-write mode the sync/prs tabs are hidden from the nav. If the
+  // user lands on those URLs via a stale bookmark, fall back to "changes" so
+  // we never render a panel whose tab is invisible.
+  const active: SubKey =
+    directWrite && (resolved === "sync" || resolved === "prs")
+      ? "changes"
+      : resolved;
 
   const description: Record<SubKey, string> = {
     sync: t({
