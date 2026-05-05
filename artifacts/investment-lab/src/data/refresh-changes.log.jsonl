@@ -917,3 +917,5 @@
 {"ts":"2026-05-04T05:45:43.870Z","source":"justetf-listings","isin":"IE00BJK55C48","field":"listings","before":null,"after":{"Euronext":{"ticker":"EHYA"},"SIX":{"ticker":"EHYA"},"XETRA":{"ticker":"AYE2"}}}
 {"ts":"2026-05-04T05:45:43.870Z","source":"justetf-listings","isin":"IE00B2NPKV68","field":"listings","before":null,"after":{"LSE":{"ticker":"IEMB"},"SIX":{"ticker":"IEMB"},"XETRA":{"ticker":"IUS7"}}}
 {"ts":"2026-05-04T05:45:43.870Z","source":"justetf-listings","isin":"IE00B5L65R35","field":"listings","before":null,"after":{"LSE":{"ticker":"IS15"},"SIX":{"ticker":"IS15"}}}
+{"ts":"2026-05-05T05:25:56.079Z","source":"justetf-listings","isin":"IE00B9M6RS56","field":"listings","before":null,"after":{"LSE":{"ticker":"EMBE"},"SIX":{"ticker":"EMBE"},"XETRA":{"ticker":"IS3C"}}}
+{"ts":"2026-05-05T05:25:56.079Z","source":"justetf-listings","isin":"IE00BCRY6557","field":"listings","before":null,"after":{"Euronext":{"ticker":"ERNE"},"LSE":{"ticker":"ERNE"},"SIX":{"ticker":"ERNE"},"XETRA":{"ticker":"IS3M"}}}
