@@ -41,7 +41,10 @@ export function normalizeIsin(raw: unknown): string {
   return String(raw ?? "").trim().toUpperCase();
 }
 
-export async function scrapePreview(rawIsin: unknown): Promise<PreviewResult> {
+export async function scrapePreview(
+  rawIsin: unknown,
+  signal?: AbortSignal,
+): Promise<PreviewResult> {
   const isin = normalizeIsin(rawIsin);
   if (!ISIN_RE.test(isin)) {
     throw new PreviewError(400, "invalid_isin", `Invalid ISIN: ${isin}`);
@@ -49,8 +52,10 @@ export async function scrapePreview(rawIsin: unknown): Promise<PreviewResult> {
 
   let html: string;
   try {
-    html = await scraper.fetchProfile(isin);
+    html = await scraper.fetchProfile(isin, signal);
   } catch (err) {
+    // Re-throw abort errors as-is so the caller can translate them to 504.
+    if (err instanceof Error && err.name === "AbortError") throw err;
     throw new PreviewError(
       502,
       "fetch_failed",

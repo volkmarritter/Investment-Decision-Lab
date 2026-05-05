@@ -256,6 +256,8 @@ export function lastRefreshedModeFor(mode) {
 //   - Exponential backoff with jitter: base × 2^attempt + Random(0, 500ms).
 //   - Honour Retry-After header when justETF sends one (seconds or HTTP-date),
 //     capped at maxDelayMs to keep CI runtime predictable.
+//   - When a signal is provided, abort errors are re-thrown immediately
+//     without any retry so that a parent timeout can cancel all pending work.
 //
 // Defaults: 3 retries, base 2 000 ms, cap 30 000 ms — total worst-case wait
 // per URL ≈ 2 + 4 + 8 = 14 s + jitter, comfortably under the 6-min Actions
@@ -269,6 +271,7 @@ export async function fetchWithRetry(
     baseDelayMs = 2000,
     maxDelayMs = 30000,
     onRetry,
+    signal,
     // Test seam: lets unit tests inject a fake fetch without monkey-patching
     // the global. Defaults to the runtime's global fetch in production.
     fetchImpl = fetch,
@@ -276,9 +279,19 @@ export async function fetchWithRetry(
 ) {
   let lastErr;
   for (let attempt = 0; attempt <= retries; attempt++) {
+    // Bail immediately if the caller has already signalled cancellation.
+    if (signal?.aborted) {
+      const abortErr = new Error("AbortError");
+      abortErr.name = "AbortError";
+      throw abortErr;
+    }
+
     let res;
     try {
-      res = await fetchImpl(url, init);
+      // Forward the AbortSignal into the underlying fetch so that an
+      // in-progress network request is torn down as soon as the signal fires,
+      // rather than continuing until the OS TCP timeout.
+      res = await fetchImpl(url, { ...init, signal });
       if (res.ok) return res;
       // Non-2xx: classify into retryable vs hard-fail.
       if (res.status === 429 || res.status >= 500) {
@@ -288,6 +301,8 @@ export async function fetchWithRetry(
         throw new Error(`HTTP ${res.status}`);
       }
     } catch (e) {
+      // Abort errors must never be swallowed — propagate immediately.
+      if (e?.name === "AbortError") throw e;
       // Re-throw the hard-fail HTTP errors so they bubble up unchanged.
       if (e?.message?.startsWith("HTTP ") && !/(HTTP 429|HTTP 5\d\d)/.test(e.message)) {
         throw e;
@@ -319,17 +334,36 @@ export async function fetchWithRetry(
         /* never let logging side-effects bubble back into the retry loop */
       }
     }
-    await new Promise((r) => setTimeout(r, waitMs));
+
+    // During the backoff sleep, also watch for abort so we don't sit out the
+    // full delay after cancellation has been requested.
+    await new Promise((resolve, reject) => {
+      const t = setTimeout(resolve, waitMs);
+      if (signal) {
+        const onAbort = () => {
+          clearTimeout(t);
+          const abortErr = new Error("AbortError");
+          abortErr.name = "AbortError";
+          reject(abortErr);
+        };
+        if (signal.aborted) {
+          onAbort();
+        } else {
+          signal.addEventListener("abort", onAbort, { once: true });
+        }
+      }
+    });
   }
   throw lastErr;
 }
 
-export async function fetchProfile(isin) {
+export async function fetchProfile(isin, signal) {
   const url = `https://www.justetf.com/en/etf-profile.html?isin=${isin}`;
   const res = await fetchWithRetry(
     url,
     { headers: { "User-Agent": USER_AGENT, "Accept-Language": "en" } },
     {
+      signal,
       onRetry: ({ attempt, retries, waitMs, error }) =>
         console.warn(
           `  ! ${isin}: profile fetch attempt ${attempt}/${retries} failed (${error?.message ?? "unknown"}), retrying in ${Math.round(waitMs / 100) / 10}s`

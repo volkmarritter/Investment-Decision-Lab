@@ -13,14 +13,23 @@
 // Abuse controls (the upstream scraper hits justETF, so we cannot let
 // this endpoint act as an open scraping proxy):
 //   * Per-IP token-bucket rate limit (10 requests / 60 s burst, refill
-//     1 req every 6 s).
-//   * 8-second timeout on the underlying scrape (raceable).
+//     1 req every 6 s). Client IP is read from req.ip which Express
+//     derives from X-Forwarded-For using the trust-proxy setting —
+//     never from a raw header value that a client can spoof.
+//   * 8-second timeout on the underlying scrape. The AbortController is
+//     signalled when the deadline fires, so the upstream fetch and any
+//     pending retries are cancelled immediately rather than running to
+//     completion in the background.
 //   * Short in-memory TTL cache keyed by normalized ISIN (5 min).
+//   * In-flight deduplication: concurrent requests for the same ISIN
+//     share one upstream fetch rather than fanning out independently.
+//   * Periodic eviction of stale rate-limit buckets to prevent unbounded
+//     memory growth from spoofed IPs (runs every 5 min).
 // All state is process-local; restarts clear it.
 // ----------------------------------------------------------------------------
 
 import { Router, type IRouter } from "express";
-import { scrapePreview, PreviewError } from "../lib/etf-scrape";
+import { scrapePreview, PreviewError, type PreviewResult } from "../lib/etf-scrape";
 
 const router: IRouter = Router();
 
@@ -31,6 +40,8 @@ const previewCache = new Map<string, { at: number; payload: unknown }>();
 // ----- per-IP token bucket --------------------------------------------------
 const RL_CAPACITY = 10;
 const RL_REFILL_MS = 6_000; // 1 token every 6s → 10 / minute steady state
+// A bucket is fully recharged after RL_CAPACITY refill intervals.
+const RL_FULL_RECHARGE_MS = RL_CAPACITY * RL_REFILL_MS;
 const buckets = new Map<string, { tokens: number; last: number }>();
 
 function takeToken(ip: string): boolean {
@@ -51,43 +62,61 @@ function takeToken(ip: string): boolean {
   return true;
 }
 
-// ----- timeout wrapper ------------------------------------------------------
+// Evict fully-recharged bucket entries so the map cannot grow without bound
+// even when an attacker cycles through many source addresses.
+function evictStaleBuckets(): void {
+  const now = Date.now();
+  for (const [ip, b] of buckets) {
+    if (b.tokens >= RL_CAPACITY && now - b.last > RL_FULL_RECHARGE_MS) {
+      buckets.delete(ip);
+    }
+  }
+}
+
+const BUCKET_EVICTION_INTERVAL_MS = 5 * 60 * 1000;
+const evictionTimer = setInterval(evictStaleBuckets, BUCKET_EVICTION_INTERVAL_MS);
+evictionTimer.unref(); // Don't prevent process exit.
+
+// ----- in-flight deduplication ----------------------------------------------
+// Concurrent requests for the same ISIN share a single upstream fetch.
+// The promise is removed from the map once it settles (success or error).
+const inFlight = new Map<string, Promise<PreviewResult>>();
+
+// ----- timeout wrapper with abort -------------------------------------------
 const SCRAPE_TIMEOUT_MS = 8_000;
 
-function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const t = setTimeout(
-      () =>
-        reject(
-          new PreviewError(
-            504,
-            "upstream_timeout",
-            `Upstream scrape exceeded ${ms} ms`,
-          ),
-        ),
-      ms,
-    );
-    p.then(
-      (v) => {
-        clearTimeout(t);
-        resolve(v);
-      },
-      (e) => {
-        clearTimeout(t);
-        reject(e);
-      },
-    );
-  });
+function scrapeWithDeadline(isin: string): Promise<PreviewResult> {
+  const controller = new AbortController();
+  const { signal } = controller;
+
+  const timer = setTimeout(() => controller.abort(), SCRAPE_TIMEOUT_MS);
+
+  return scrapePreview(isin, signal).then(
+    (result) => {
+      clearTimeout(timer);
+      return result;
+    },
+    (err) => {
+      clearTimeout(timer);
+      // Translate an AbortError into a recognisable 504.
+      if (signal.aborted && !(err instanceof PreviewError)) {
+        throw new PreviewError(
+          504,
+          "upstream_timeout",
+          `Upstream scrape exceeded ${SCRAPE_TIMEOUT_MS} ms`,
+        );
+      }
+      throw err;
+    },
+  );
 }
 
 router.get("/etf-preview/:isin", async (req, res) => {
-  // Use the first hop in X-Forwarded-For if present (Replit proxy), else
-  // fall back to the connection address.
-  const ip =
-    (req.headers["x-forwarded-for"]?.toString().split(",")[0]?.trim() ||
-      req.ip ||
-      req.socket.remoteAddress ||
-      "unknown");
+  // req.ip is computed by Express from X-Forwarded-For using the
+  // trust-proxy setting (app.set("trust proxy", 1) in app.ts). This
+  // prevents clients from minting fresh buckets by supplying an
+  // arbitrary leftmost X-Forwarded-For value.
+  const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
 
   if (!takeToken(ip)) {
     res.status(429).json({
@@ -104,12 +133,26 @@ router.get("/etf-preview/:isin", async (req, res) => {
     return;
   }
 
-  try {
-    const result = await withTimeout(
-      scrapePreview(req.params.isin),
-      SCRAPE_TIMEOUT_MS,
+  // Deduplicate: attach to an in-flight request for this ISIN if one
+  // already exists, otherwise start a new one.
+  let pending = inFlight.get(cacheKey);
+  if (!pending) {
+    pending = scrapeWithDeadline(cacheKey).then(
+      (result) => {
+        previewCache.set(cacheKey, { at: Date.now(), payload: result });
+        inFlight.delete(cacheKey);
+        return result;
+      },
+      (err) => {
+        inFlight.delete(cacheKey);
+        throw err;
+      },
     );
-    previewCache.set(cacheKey, { at: Date.now(), payload: result });
+    inFlight.set(cacheKey, pending);
+  }
+
+  try {
+    const result = await pending;
     res.json(result);
   } catch (err) {
     if (err instanceof PreviewError) {

@@ -20,5 +20,5 @@ declare module "*scripts/lib/justetf-extract.mjs" {
   export const VENUE_MAP: Record<string, string>;
   export function parseDateLoose(s: unknown): string | undefined;
   export function lastRefreshedModeFor(mode: string): string;
-  export function fetchProfile(isin: string): Promise<string>;
+  export function fetchProfile(isin: string, signal?: AbortSignal): Promise<string>;
 }

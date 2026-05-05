@@ -6,6 +6,12 @@ import { logger } from "./lib/logger";
 
 const app: Express = express();
 
+// Trust exactly one proxy hop (the Replit reverse proxy). This makes
+// req.ip return the real client address derived from the rightmost
+// untrusted entry in X-Forwarded-For rather than letting callers
+// supply an arbitrary leftmost value.
+app.set("trust proxy", 1);
+
 app.use(
   pinoHttp({
     logger,
