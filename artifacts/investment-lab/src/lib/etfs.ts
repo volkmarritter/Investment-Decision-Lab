@@ -2112,7 +2112,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "Equity-USA": B({
     default: "IE00B5BMR087",
     alternatives: ["IE00BFMXXD54", "IE00B6YX5C33", "LU0136234654"],
-    pool: ["IE0031442068", "IE00BYTRRD19", "IE00B6YX5D40"],
+    pool: ["IE0031442068", "IE00B6YX5D40"],
   }),
   "Equity-USA-Synthetic": B({
     default: "IE00B3YCGJ38",
@@ -2144,7 +2144,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
   }),
   "Equity-USA-EUR": B({
     default: "IE00B3ZW0K18",
-    alternatives: ["IE00BM67HW99", "IE00BRKWGL70"],
+    alternatives: ["IE00BM67HW99"],
   }),
   "Equity-USA-CHF": B({
     default: "IE00B88DZ566",
@@ -2157,12 +2157,12 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "FixedIncome-Global": B({
     default: "IE00B3F81409",
     alternatives: ["LU0378818131", "IE00BG47KH54"],
-    pool: ["IE00B3VWN179", "IE00BSKRJZ44", "IE00B1FZS244", "IE00B1FZSC47", "IE00B3F81G20", "IE00BJK55C48", "IE00B2NPKV68", "IE00B5L65R35", "IE00B9M6RS56"],
+    pool: [],
   }),
   "FixedIncome-Global-EUR": B({
     default: "IE00BDBRDM35",
     alternatives: ["IE00BG47KB92", "LU0290355717"],
-    pool: ["IE00B1FZS798", "IE00B3VWN518", "IE00B4WXJJ64", "IE00B0M62X26", "IE00B3F81R35"],
+    pool: [],
   }),
   "FixedIncome-Global-CHF": B({
     default: "IE00BDBRDN42",
@@ -2189,17 +2189,17 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "Equity-Technology": B({
     default: "IE00B3WJKG14",
     alternatives: ["IE00B53SZB19", "IE00BM67HT60"],
-    pool: ["IE0032077012", "IE00BMFKG444", "IE00BYVQ9F29", "LU1681038243", "IE00BYZK4552", "IE00BMDX0K95", "IE00BMWXKN31"],
+    pool: ["IE0032077012", "IE00BMFKG444", "IE00BYVQ9F29", "LU1681038243", "IE00BYZK4552"],
   }),
   "Equity-Healthcare": B({
     default: "IE00BYZK4776",
     alternatives: ["IE00BM67HK77", "IE00B43HR379"],
-    pool: ["IE00B4K6B022", "IE00BYWQWR46", "IE00BYZK4883"],
+    pool: ["IE00B4K6B022"],
   }),
   "Equity-Sustainability": B({
     default: "IE00B1XNHC34",
     alternatives: ["IE00BFNM3J75", "IE00BLRB0242"],
-    pool: ["IE00BMW42181", "IE00BJK9H753", "IE00BMW3QX54", "IE00BHZPJ569", "IE00BG0J4841", "IE00BFNM3P36"],
+    pool: ["IE00BMW3QX54", "IE00BHZPJ569", "IE00BFNM3P36"],
   }),
   "Equity-Cybersecurity": B({
     default: "IE00BG0J4C88",
