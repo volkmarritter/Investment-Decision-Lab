@@ -107,6 +107,17 @@ const HOME_TILT_REGION: Record<BaseCurrency, string> = {
   CHF: "Switzerland",  // Swiss anchor is small (~4%), default factor 2.5
 };
 
+// Exported so the Methodology UI can render the full
+// `anchor × multiplier = engine target` chain next to each home-bias input,
+// avoiding a hand-maintained duplicate of these numbers in two places.
+// Declared after the two `const` maps it reads to eliminate any TDZ risk if
+// the function were ever called eagerly during module init by a caller.
+export function getHomeAnchorPct(base: BaseCurrency): number {
+  const region = HOME_TILT_REGION[base];
+  const anchor = ANCHOR_BY_BASE[base];
+  return (anchor[region] ?? 0) * 100;
+}
+
 const REGION_TO_CMA: Record<string, AssetKey> = {
   USA: "equity_us",
   Europe: "equity_eu",

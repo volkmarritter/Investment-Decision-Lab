@@ -11,6 +11,8 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { CMA, BENCHMARK, buildCorrelationMatrix, getCMAConsensus, getCMASources, getCMASeed, applyCMALayers, AssetKey, CMA_BUILDING_BLOCKS, sumBuildingBlocks } from "@/lib/metrics";
 import { SCENARIOS } from "@/lib/scenarios";
 import { getRiskFreeRates, getRiskFreeRateOverrides, setRiskFreeRate, resetRiskFreeRate, resetAllRiskFreeRates, subscribeRiskFreeRate, RF_DEFAULTS, RFCurrency, getCMAOverrides, setCMAOverrides, resetCMAOverrides, resetCMAOverride, subscribeCMAOverrides, CMAUserOverrides, getHomeBiasOverrides, setHomeBiasOverrides, resetHomeBiasOverrides, resetHomeBiasOverride, subscribeHomeBiasOverrides, resolvedHomeBias, HOME_BIAS_DEFAULTS, HomeBiasCurrency, getLastAllocation, subscribeLastAllocation, getLastEtfImplementation, subscribeLastEtfImplementation } from "@/lib/settings";
+import { getHomeAnchorPct } from "@/lib/portfolio";
+import { getNeutralHomeCapWeightPct } from "@/lib/homebias";
 import type { AssetAllocation, ETFImplementation } from "@/lib/types";
 import { useT } from "@/lib/i18n";
 import { parseDecimalInput } from "@/lib/manualWeights";
@@ -1375,6 +1377,68 @@ export function Methodology() {
                   ? "Hinweis: Wirkung erst nach erneutem „Portfolio generieren\"."
                   : "Note: takes effect after re-running \"Generate Portfolio\"."}
               </span>
+            </div>
+
+            {/* ---------- Chain: anchor × multiplier = engine target ÷ cap = bias ratio ---------- */}
+            <div className="rounded-md border bg-background p-3 space-y-2" data-testid="home-bias-chain">
+              <div className="text-xs font-semibold">
+                {de
+                  ? "Wie aus dem Multiplikator der angezeigte „Bias-Faktor vs. neutral“ wird"
+                  : "How the multiplier becomes the displayed \"Bias ratio vs neutral\""}
+              </div>
+              <p className="text-[11px] text-muted-foreground leading-relaxed">
+                {de
+                  ? "Der Multiplikator wirkt auf den Engine-Anker (Cap-Weight Anchor des heimischen Aktien-Eimers, oben in der Anker-Tabelle), nicht direkt auf das MSCI-Cap-Gewicht. Die Home-Bias-Karte vergleicht anschließend den tatsächlichen Heimat-Anteil mit dem MSCI-Cap-Gewicht — daher liegt der angezeigte Bias-Faktor in der Regel über dem Multiplikator. Werte unten ohne Sharpe-Tilt, ohne Normalisierung und ohne 65 %-Cap (≈ vor finaler Konstruktion)."
+                  : "The multiplier acts on the engine anchor (cap-weight anchor of the home equity bucket, see anchor table above), not on the MSCI cap weight itself. The Home-Bias card then compares the actual home share to the MSCI cap weight — which is why the displayed bias ratio is normally larger than the multiplier. Values below ignore Sharpe tilt, normalisation and the 65 % cap (≈ pre-finalisation)."}
+              </p>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="text-xs">{de ? "Basis" : "Base"}</TableHead>
+                      <TableHead className="text-xs">{de ? "Heimat-Region" : "Home region"}</TableHead>
+                      <TableHead className="text-right text-xs">{de ? "Anker" : "Anchor"}</TableHead>
+                      <TableHead className="text-right text-xs">{de ? "Multiplikator" : "Multiplier"}</TableHead>
+                      <TableHead className="text-right text-xs">{de ? "Engine-Ziel" : "Engine target"}</TableHead>
+                      <TableHead className="text-right text-xs">{de ? "MSCI-Cap (neutral)" : "MSCI cap (neutral)"}</TableHead>
+                      <TableHead className="text-right text-xs">{de ? "≈ Bias-Faktor" : "≈ Bias ratio"}</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {HB_CURRENCIES.map((c) => {
+                      const region = de ? HB_REGION_LABEL_DE[c] : HB_REGION_LABEL[c];
+                      const anchor = getHomeAnchorPct(c);
+                      const mult = resolvedHomeBias(c);
+                      const target = anchor * mult;
+                      const cap = getNeutralHomeCapWeightPct(c);
+                      const ratio = cap > 0 ? target / cap : null;
+                      const usd = c === "USD";
+                      return (
+                        <TableRow key={`hb-chain-${c}`} data-testid={`hb-chain-row-${c}`}>
+                          <TableCell className="text-xs font-mono">{c}</TableCell>
+                          <TableCell className="text-xs">{region}</TableCell>
+                          <TableCell className="text-right font-mono text-xs">{anchor.toFixed(1)}%</TableCell>
+                          <TableCell className="text-right font-mono text-xs">× {mult.toFixed(2)}</TableCell>
+                          <TableCell className="text-right font-mono text-xs">= {target.toFixed(1)}%</TableCell>
+                          <TableCell className="text-right font-mono text-xs">
+                            {usd ? <span className="text-muted-foreground">{de ? "n. v." : "n/a"}</span> : `${cap.toFixed(1)}%`}
+                          </TableCell>
+                          <TableCell className="text-right font-mono text-xs">
+                            {ratio === null
+                              ? <span className="text-muted-foreground">{de ? "n. v." : "n/a"}</span>
+                              : `${ratio.toFixed(1)}×`}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+              <p className="text-[10px] text-muted-foreground italic leading-relaxed">
+                {de
+                  ? "Beispiel CHF: 4,0 % Anker × 2,5 = 10,0 % vor Normalisierung. Nach Sharpe-Tilt und Re-Normalisierung über alle Regionen landet der Schweiz-Anteil typischerweise bei ~9 – 10 % des Aktien-Anteils und ergibt im Verhältnis zum MSCI-Cap-Gewicht (2,4 %) den in der Home-Bias-Karte angezeigten Faktor (~3,9 ×). USD hat per Konvention keine Home-Bias-Bewertung, weil die USA bereits ~60 % der globalen Marktkapitalisierung ausmachen."
+                  : "Example CHF: 4.0 % anchor × 2.5 = 10.0 % before normalisation. After Sharpe tilt and re-normalisation across regions the Swiss share typically lands at ~9 – 10 % of the equity sleeve and, divided by the MSCI cap weight (2.4 %), produces the bias ratio (~3.9 ×) shown in the Home-Bias card. USD has no home-bias verdict by design because the US already represents ~60 % of global market cap."}
+              </p>
             </div>
           </div>
         </Section>

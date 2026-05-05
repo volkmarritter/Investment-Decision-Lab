@@ -9,6 +9,16 @@ const NEUTRAL_HOME_CAP_WEIGHT_PCT: Record<Exclude<BaseCurrency, "USD">, number> 
   EUR: 9.0,
 };
 
+// Exported so the Methodology UI can render the same "neutral" cap weight that
+// the Bias-ratio card divides by, so the chain
+// `anchor × multiplier = engine target ÷ neutral cap = bias ratio` is fully
+// visible end-to-end. USD has no home-bias analysis (US is already ~60 % of the
+// global cap), so callers should treat USD as N/A.
+export function getNeutralHomeCapWeightPct(base: BaseCurrency): number {
+  if (base === "USD") return 0;
+  return NEUTRAL_HOME_CAP_WEIGHT_PCT[base];
+}
+
 // Geographic look-through keys that count as the home market for each base currency.
 const HOME_GEO_KEYS: Record<Exclude<BaseCurrency, "USD">, string[]> = {
   CHF: ["Switzerland"],
