@@ -132,8 +132,10 @@ const NAVIGATE_TAB_EVENT = "idl-navigate-tab";
 
 export function navigateToTab(
   tab: "build" | "compare" | "explain" | "methodology",
+  sectionHash?: string,
 ): void {
   if (typeof window === "undefined") return;
+  let hashChanged = false;
   try {
     const url = new URL(window.location.href);
     if (tab === "build") {
@@ -141,17 +143,30 @@ export function navigateToTab(
     } else {
       url.searchParams.set("tab", tab);
     }
-    url.hash = "";
+    // Default behaviour: clear any stale section hash so e.g. switching
+    // from Methodology back to Build doesn't leave `#tail-realism`
+    // hanging in the URL. Callers that want to land on a specific
+    // Methodology section pass `sectionHash` (without the leading `#`).
+    const nextHash = sectionHash ? `#${sectionHash}` : "";
+    url.hash = nextHash;
     if (
       url.pathname + url.search + url.hash !==
       window.location.pathname + window.location.search + window.location.hash
     ) {
+      hashChanged = window.location.hash !== nextHash;
       window.history.pushState(null, "", url.toString());
     }
   } catch {
     /* ignore — the listener still picks up the event below */
   }
   window.dispatchEvent(new CustomEvent(NAVIGATE_TAB_EVENT, { detail: tab }));
+  // Methodology's section accordion is driven by a `hashchange` listener;
+  // pushState does NOT fire that event automatically, so we emit it here
+  // when a section hash was requested. Without this, the tab would flip
+  // to Methodology but the targeted accordion wouldn't open.
+  if (sectionHash && hashChanged) {
+    window.dispatchEvent(new HashChangeEvent("hashchange"));
+  }
 }
 
 export function subscribeNavigateTab(

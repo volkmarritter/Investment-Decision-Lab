@@ -6,6 +6,7 @@ import { Home, ThumbsUp, ThumbsDown, Lightbulb, ChevronDown, ChevronUp } from "l
 import { ETFImplementation, BaseCurrency } from "@/lib/types";
 import { evaluateHomeBias, HomeBiasVerdict } from "@/lib/homebias";
 import { useT } from "@/lib/i18n";
+import { navigateToTab } from "@/lib/explainCompare";
 
 interface Props {
   etfs: ETFImplementation[];
@@ -84,9 +85,28 @@ export function HomeBiasAnalysis({ etfs, baseCurrency, lookThroughView = true }:
                 .replace("{home}", r.homeMarketLabel)
                 .replace("{base}", r.baseCurrency)}
             </CardDescription>
-            <p className="text-[10px] text-muted-foreground italic">
-              {t("build.homeBias.lookThroughNote")}
-            </p>
+            {/* Render the EUR-dilution caveat with an inline link to the
+              * Methodology → Home-Bias Multipliers section. The i18n
+              * template uses `{link}` as a placeholder so DE and EN both
+              * keep the link text in their own language and the surrounding
+              * sentence stays translator-friendly. */}
+            {(() => {
+              const raw = t("build.homeBias.lookThroughNote");
+              const [before, after = ""] = raw.split("{link}");
+              return (
+                <p className="text-[10px] text-muted-foreground italic">
+                  {before}
+                  <button
+                    type="button"
+                    onClick={() => navigateToTab("methodology", "home-bias")}
+                    className="underline underline-offset-2 hover:no-underline text-foreground/80 hover:text-foreground"
+                  >
+                    {t("build.homeBias.lookThroughNoteLink")}
+                  </button>
+                  {after}
+                </p>
+              );
+            })()}
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
             <div className="rounded-md border p-3">
