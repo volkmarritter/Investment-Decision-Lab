@@ -30,6 +30,26 @@ import {
 // ----------------------------------------------------------------------------
 export const MAX_ALTERNATIVES_PER_BUCKET = 10;
 
+// ----------------------------------------------------------------------------
+// Per-bucket extended-universe pool cap.
+// ----------------------------------------------------------------------------
+// The "pool" is a third per-bucket slot, separate from default + curated
+// alternatives. ISINs in the pool are tagged to a bucket but are NOT
+// surfaced as recommended alternatives in the picker — they live behind a
+// dedicated "More ETFs" disclosure so the curated alternatives stay
+// visible as the operator's recommendations.
+//
+// Same global-uniqueness rule as alternatives: an ISIN may appear in at
+// most one slot across the whole catalog (default OR alternative OR pool).
+// validateCatalog() enforces this; the admin PR helpers reject any write
+// that would violate it.
+//
+// Soft cap of 50 per bucket prevents accidental thousand-row pickers from
+// breaking the "More ETFs" dialog UX. Bump the constant if a single bucket
+// legitimately needs more.
+// ----------------------------------------------------------------------------
+export const MAX_POOL_PER_BUCKET = 50;
+
 export interface ETFDetails {
   name: string;
   isin: string;
@@ -149,6 +169,13 @@ export interface InstrumentRecord {
 export interface BucketAssignment {
   default: string; // ISIN — must exist as a key in INSTRUMENTS
   alternatives: string[]; // ISINs, length <= MAX_ALTERNATIVES_PER_BUCKET
+  // Optional extended-universe pool — additional ISINs tagged to this
+  // bucket that are pickable in Build (via the "More ETFs" dialog) and
+  // in Explain (via the per-bucket IsinPicker), but NOT surfaced as
+  // recommended alternatives. length <= MAX_POOL_PER_BUCKET. Same
+  // global-uniqueness rule as `alternatives` — every ISIN here must
+  // also be absent from every other slot in every other bucket.
+  pool?: string[];
 }
 
 const I = (r: InstrumentRecord) => r;
@@ -2188,6 +2215,20 @@ function buildJoinedCatalog(
       }
       alts.push({ ...alt });
     }
+    // Pool entries are NOT folded into the joined ETFRecord — the
+    // joined view drives the picker's recommended-alternatives row,
+    // which intentionally stays the curated short list. Pool entries
+    // are reachable via getBucketPool() and ISIN_TO_BUCKET so the
+    // "More ETFs" dialog and Explain's IsinPicker can find them.
+    // Existence of every pool ISIN in INSTRUMENTS is still enforced
+    // here so a typo in the pool array fails fast at module load.
+    for (const poolIsin of assignment.pool ?? []) {
+      if (!instruments[poolIsin]) {
+        throw new Error(
+          `Bucket "${key}" references unknown pool ISIN "${poolIsin}" — INSTRUMENTS table is out of sync with BUCKETS.`,
+        );
+      }
+    }
     result[key] = {
       ...def,
       ...(alts.length > 0 ? { alternatives: alts } : {}),
@@ -2485,9 +2526,48 @@ const ISIN_TO_BUCKET: Record<string, string> = (() => {
     for (const altIsin of assignment.alternatives) {
       m[altIsin] = key;
     }
+    // Pool entries belong to the same bucket as default+alternatives.
+    // Including them here means listInstruments() automatically picks
+    // them up and Explain's IsinPicker (which scopes by bucketKey)
+    // sees pool entries with no extra wiring.
+    for (const poolIsin of assignment.pool ?? []) {
+      m[poolIsin] = key;
+    }
   }
   return m;
 })();
+
+// Per-bucket extended-universe pool accessor. Returns the list of
+// InstrumentRecords tagged to a bucket via BUCKETS[key].pool, in
+// declaration order. Empty when the bucket has no pool. Used by the
+// Build "More ETFs" dialog and the admin Catalog tree to render the
+// pool independently of default+alternatives.
+export function getBucketPool(bucketKey: string): ReadonlyArray<InstrumentRecord> {
+  const assignment = BUCKETS[bucketKey];
+  if (!assignment || !assignment.pool || assignment.pool.length === 0) return [];
+  const out: InstrumentRecord[] = [];
+  for (const isin of assignment.pool) {
+    const rec = INSTRUMENTS[isin];
+    if (rec) out.push(rec);
+  }
+  return out;
+}
+
+// Per-instrument role in the catalog. "unassigned" means the ISIN is
+// registered in INSTRUMENTS but absent from every BUCKETS slot — that
+// path remains supported for transitional editing in /admin.
+export type InstrumentRole = "default" | "alternative" | "pool" | "unassigned";
+
+export function getInstrumentRole(isin: string): InstrumentRole {
+  const bucketKey = ISIN_TO_BUCKET[isin];
+  if (!bucketKey) return "unassigned";
+  const assignment = BUCKETS[bucketKey];
+  if (!assignment) return "unassigned";
+  if (assignment.default === isin) return "default";
+  if (assignment.alternatives.includes(isin)) return "alternative";
+  if (assignment.pool?.includes(isin)) return "pool";
+  return "unassigned";
+}
 
 function decodeBucketKey(key: string): BucketMeta {
   const HEDGE_SUFFIXES: ReadonlyArray<"-EUR" | "-CHF" | "-GBP"> = [
@@ -2683,8 +2763,8 @@ export function validateCatalog(): CatalogValidationIssue[] {
   const issues: CatalogValidationIssue[] = [];
   // ownership[isin] = list of "bucketKey:role" usages; any ISIN with
   // more than one usage is a global-uniqueness violation.
-  const ownership = new Map<string, Array<{ bucket: string; role: "default" | "alternative" }>>();
-  function note(isin: string, bucket: string, role: "default" | "alternative") {
+  const ownership = new Map<string, Array<{ bucket: string; role: "default" | "alternative" | "pool" }>>();
+  function note(isin: string, bucket: string, role: "default" | "alternative" | "pool") {
     const list = ownership.get(isin) ?? [];
     list.push({ bucket, role });
     ownership.set(isin, list);
@@ -2711,6 +2791,30 @@ export function validateCatalog(): CatalogValidationIssue[] {
         seenInBucket.add(alt.isin);
       }
       note(alt.isin, key, "alternative");
+    }
+    // Pool slot — same per-bucket distinctness + cap rules, separate
+    // capacity (MAX_POOL_PER_BUCKET). The pool is consulted directly
+    // from BUCKETS[key].pool because the joined CATALOG view does not
+    // surface pool entries (they are not picker recommendations).
+    const pool = BUCKETS[key]?.pool ?? [];
+    if (pool.length > MAX_POOL_PER_BUCKET) {
+      issues.push({
+        severity: "error",
+        bucket: key,
+        message: `bucket pool has ${pool.length} entries; max is ${MAX_POOL_PER_BUCKET}`,
+      });
+    }
+    for (const poolIsin of pool) {
+      if (seenInBucket.has(poolIsin)) {
+        issues.push({
+          severity: "error",
+          bucket: key,
+          message: `duplicate ISIN ${poolIsin} within bucket — pool entries must not overlap with default or alternatives`,
+        });
+      } else {
+        seenInBucket.add(poolIsin);
+      }
+      note(poolIsin, key, "pool");
     }
   }
   // Cross-bucket uniqueness pass: any ISIN that shows up in more than
