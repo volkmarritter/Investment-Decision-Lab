@@ -68,7 +68,6 @@ import { CurrencyOverview } from "./CurrencyOverview";
 import { TopHoldings } from "./TopHoldings";
 import { ETFDetailsDialog } from "./ETFDetailsDialog";
 import { EtfImplementationCommentCell } from "./EtfImplementationCommentCell";
-import { MoreEtfsDialog } from "./MoreEtfsDialog";
 import { ETFSnapshotFreshness } from "./SnapshotFreshness";
 import { SavedScenariosUI } from "./SavedScenariosUI";
 import { DisclaimerPdfBlock } from "./Disclaimer";
@@ -110,10 +109,6 @@ export function BuildPortfolio() {
   const [isExportingDetailed, setIsExportingDetailed] = useState(false);
   const [numETFsMode, setNumETFsMode] = useState<"auto" | "manual">("auto");
   const [detailsEtf, setDetailsEtf] = useState<import("@/lib/types").ETFImplementation | null>(null);
-  // Task #149 — per-bucket "More ETFs" (extended-universe pool) dialog
-  // open state. Keyed by bucket label so the right modal opens for the
-  // row the operator clicked.
-  const [moreEtfsBucket, setMoreEtfsBucket] = useState<string | null>(null);
   // Persisted open/closed state for the "Rationale & Key Risks" collapsible
   // (Task #85). Hydrated synchronously from localStorage so the first render
   // already reflects the user's last choice — no flash of the default-open
@@ -1338,59 +1333,49 @@ export function BuildPortfolio() {
                               </TableCell>
                               <TableCell className="font-medium">
                                 {(() => {
-                                  // Task #149 — split selectableOptions into the
-                                  // curated rows (default + alternatives, shown
-                                  // inline) and the extended-universe pool
-                                  // (shown via the "More ETFs" dialog button).
-                                  const curatedOptions = etf.selectableOptions
-                                    .map((opt, idx) => ({ opt, idx }))
-                                    .filter(({ opt }) => opt.kind !== "pool");
-                                  const poolOptions = etf.selectableOptions
-                                    .map((opt, idx) => ({ opt, idx }))
-                                    .filter(({ opt }) => opt.kind === "pool");
+                                  // Unified picker — default + alternatives + pool
+                                  // all live in the same <Select> dropdown,
+                                  // ordered by slot index (default → alts → pool).
+                                  // The selected slot is shown directly in the
+                                  // trigger, including pool entries.
                                   const showPicker =
                                     !!etf.catalogKey &&
                                     etf.selectableOptions.length > 1;
                                   if (!showPicker) return etf.exampleETF;
-                                  const selectedIsPool =
-                                    etf.selectableOptions[etf.selectedSlot]?.kind ===
-                                    "pool";
+                                  const selectedKind =
+                                    etf.selectableOptions[etf.selectedSlot]?.kind;
+                                  const poolCount = etf.selectableOptions.filter(
+                                    (o) => o.kind === "pool",
+                                  ).length;
                                   return (
                                     <div className="flex items-center gap-1.5 flex-wrap">
-                                      {curatedOptions.length > 1 ? (
-                                        <Select
-                                          value={
-                                            selectedIsPool
-                                              ? "0"
-                                              : String(etf.selectedSlot)
-                                          }
-                                          onValueChange={(v) => {
-                                            // Sentinel: the trailing
-                                            // "More ETFs (N)" item opens
-                                            // the pool dialog instead of
-                                            // committing a slot change.
-                                            if (v === "__more__") {
-                                              setMoreEtfsBucket(etf.bucket);
-                                              return;
-                                            }
-                                            setETFSelection(
-                                              etf.catalogKey!,
-                                              Number(v) as ETFSlot,
-                                            );
-                                          }}
+                                      <Select
+                                        value={String(etf.selectedSlot)}
+                                        onValueChange={(v) =>
+                                          setETFSelection(
+                                            etf.catalogKey!,
+                                            Number(v) as ETFSlot,
+                                          )
+                                        }
+                                      >
+                                        <SelectTrigger
+                                          className="h-7 px-2 text-xs gap-1.5 w-auto min-w-[180px] max-w-[280px] font-medium border-dashed hover:border-solid focus:border-solid"
+                                          data-testid={`etf-picker-${etf.bucket}`}
+                                          title={t("build.impl.picker.label")}
+                                          aria-label={`${t("build.impl.picker.label")} — ${etf.bucket}`}
                                         >
-                                          <SelectTrigger
-                                            className="h-7 px-2 text-xs gap-1.5 w-auto min-w-[180px] max-w-[280px] font-medium border-dashed hover:border-solid focus:border-solid"
-                                            data-testid={`etf-picker-${etf.bucket}`}
-                                            title={t("build.impl.picker.label")}
-                                            aria-label={`${t("build.impl.picker.label")} — ${etf.bucket}`}
-                                          >
-                                            <SelectValue>
-                                              {etf.exampleETF}
-                                            </SelectValue>
-                                          </SelectTrigger>
-                                          <SelectContent>
-                                            {curatedOptions.map(({ opt, idx }) => (
+                                          <SelectValue>
+                                            {etf.exampleETF}
+                                          </SelectValue>
+                                        </SelectTrigger>
+                                        <SelectContent className="max-h-[60vh]">
+                                          {etf.selectableOptions.map((opt, idx) => {
+                                            const isDefault = idx === 0;
+                                            const isPool = opt.kind === "pool";
+                                            const altIndex = isPool
+                                              ? -1
+                                              : idx; // alts use 1..altCount
+                                            return (
                                               <SelectItem
                                                 key={`${etf.catalogKey}-${idx}`}
                                                 value={String(idx)}
@@ -1403,15 +1388,21 @@ export function BuildPortfolio() {
                                                     </span>
                                                     <Badge
                                                       variant={
-                                                        idx === 0
+                                                        isDefault
                                                           ? "secondary"
                                                           : "outline"
                                                       }
-                                                      className="text-[9px] px-1.5 py-0 h-4 shrink-0"
+                                                      className={
+                                                        isPool
+                                                          ? "text-[9px] px-1.5 py-0 h-4 shrink-0 border-emerald-600 text-emerald-700 dark:text-emerald-400"
+                                                          : "text-[9px] px-1.5 py-0 h-4 shrink-0"
+                                                      }
                                                     >
-                                                      {idx === 0
+                                                      {isDefault
                                                         ? t("build.impl.picker.default")
-                                                        : `${t("build.impl.picker.alt")} ${idx}`}
+                                                        : isPool
+                                                          ? t("build.impl.picker.pool")
+                                                          : `${t("build.impl.picker.alt")} ${altIndex}`}
                                                     </Badge>
                                                   </div>
                                                   <span className="text-[10px] text-muted-foreground font-mono">
@@ -1421,31 +1412,21 @@ export function BuildPortfolio() {
                                                   </span>
                                                 </div>
                                               </SelectItem>
-                                            ))}
-                                            {poolOptions.length > 0 && (
-                                              <SelectItem
-                                                key={`${etf.catalogKey}-__more__`}
-                                                value="__more__"
-                                                data-testid={`etf-picker-option-more-${etf.bucket}`}
-                                              >
-                                                <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
-                                                  <span className="font-medium text-xs">
-                                                    {t("build.impl.moreEtfs.button")} ({poolOptions.length})
-                                                  </span>
-                                                  <span className="text-[10px] text-muted-foreground">
-                                                    {t("build.impl.moreEtfs.tooltip")}
-                                                  </span>
-                                                </div>
-                                              </SelectItem>
-                                            )}
-                                          </SelectContent>
-                                        </Select>
-                                      ) : (
-                                        <span className="text-xs">
-                                          {etf.exampleETF}
-                                        </span>
-                                      )}
-                                      {selectedIsPool && (
+                                            );
+                                          })}
+                                          {poolCount > 0 && (
+                                            <div
+                                              className="px-2 py-1 text-[10px] text-muted-foreground border-t mt-1"
+                                              data-testid={`etf-picker-pool-hint-${etf.bucket}`}
+                                            >
+                                              {t("build.impl.moreEtfs.tooltip")} ·{" "}
+                                              {poolCount}{" "}
+                                              {t("build.impl.picker.pool")}
+                                            </div>
+                                          )}
+                                        </SelectContent>
+                                      </Select>
+                                      {selectedKind === "pool" && (
                                         <Badge
                                           variant="outline"
                                           className="text-[9px] px-1.5 py-0 h-4 border-emerald-600 text-emerald-700 dark:text-emerald-400"
@@ -1453,22 +1434,6 @@ export function BuildPortfolio() {
                                         >
                                           {t("build.impl.picker.pool")}
                                         </Badge>
-                                      )}
-                                      {poolOptions.length > 0 && etf.catalogKey && (
-                                        <Button
-                                          type="button"
-                                          variant="ghost"
-                                          size="sm"
-                                          onClick={() =>
-                                            setMoreEtfsBucket(etf.bucket)
-                                          }
-                                          className="h-6 px-1.5 text-[10px] text-muted-foreground hover:text-foreground"
-                                          data-testid={`button-more-etfs-${etf.bucket}`}
-                                          title={t("build.impl.moreEtfs.tooltip")}
-                                        >
-                                          {t("build.impl.moreEtfs.button")} (
-                                          {poolOptions.length})
-                                        </Button>
                                       )}
                                     </div>
                                   );
@@ -1647,35 +1612,6 @@ export function BuildPortfolio() {
                     if (!o) setDetailsEtf(null);
                   }}
                 />
-
-                {/* Task #149 — extended-universe pool picker, opened from
-                    the per-row "More ETFs (N)" button in the ETF
-                    Implementation table. We resolve the bucket's etf row
-                    on the fly so the dialog always sees fresh
-                    selectableOptions after a re-render. */}
-                {moreEtfsBucket &&
-                  (() => {
-                    const target = output.etfImplementation.find(
-                      (e) => e.bucket === moreEtfsBucket && !!e.catalogKey,
-                    );
-                    if (!target) return null;
-                    const altCount = target.selectableOptions.filter(
-                      (o) => o.kind === "alternative",
-                    ).length;
-                    return (
-                      <MoreEtfsDialog
-                        open={true}
-                        onOpenChange={(o) => {
-                          if (!o) setMoreEtfsBucket(null);
-                        }}
-                        bucket={target.bucket}
-                        catalogKey={target.catalogKey!}
-                        selectableOptions={target.selectableOptions}
-                        altCount={altCount}
-                        selectedSlot={target.selectedSlot}
-                      />
-                    );
-                  })()}
 
                 {/* Always-visible: Consolidated Currency Overview (post-hedge).
                  *  The Look-Through toggle flips the unhedged-currency split:
