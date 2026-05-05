@@ -2125,8 +2125,8 @@ const BUCKETS: Record<string, BucketAssignment> = {
   }),
   "Equity-Switzerland": B({
     default: "CH0237935652",
-    alternatives: ["CH0031768937", "LU1681044993"],
-    pool: ["CH0008899764"],
+    alternatives: ["CH0031768937", "CH0008899764"],
+    pool: [],
   }),
   "Equity-UK": B({
     default: "IE00B53HP851",
@@ -2194,7 +2194,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "Equity-Healthcare": B({
     default: "IE00BYZK4776",
     alternatives: ["IE00BM67HK77", "IE00B43HR379"],
-    pool: ["IE00B4K6B022", "IE00BLR6QB00", "IE00BJ5JNZ06", "IE00BMW42181"],
+    pool: ["IE00B4K6B022", "IE00BJ5JNZ06", "IE00BMW42181"],
   }),
   "Equity-Sustainability": B({
     default: "IE00B1XNHC34",
