@@ -148,7 +148,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "build.top10.transparency.action": "Before acting on this list, verify positions against the latest official ETF factsheet or index methodology document.",
 
     // Home bias analysis (non-USD base currencies)
-    "build.homeBias.title": "Home Bias Analysis",
+    "build.homeBias.title": "Home Bias Analysis (Look-Through)",
     "build.homeBias.desc": "Explicit assessment of the {home} ({base}) tilt embedded in this portfolio: is the home overweight warranted, or has it grown into a concentration risk?",
     "build.homeBias.metric.actualEquity": "Home share of equity sleeve",
     "build.homeBias.metric.actualPortfolio": "Home share of total portfolio",
@@ -773,7 +773,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "build.top10.transparency.action": "Vor jeder Handlung auf Basis dieser Liste die Positionen mit dem aktuellen offiziellen ETF-Factsheet oder Indexmethodik-Dokument abgleichen.",
 
     // Home bias analysis (non-USD base currencies)
-    "build.homeBias.title": "Home-Bias-Analyse",
+    "build.homeBias.title": "Home-Bias-Analyse (Look-Through)",
     "build.homeBias.desc": "Explizite Bewertung der {home}-Übergewichtung ({base}) in diesem Portfolio: Ist der Heimat-Tilt gerechtfertigt, oder hat er sich zu einem Konzentrationsrisiko entwickelt?",
     "build.homeBias.metric.actualEquity": "Heimat-Anteil am Aktienanteil",
     "build.homeBias.metric.actualPortfolio": "Heimat-Anteil am Gesamtportfolio",
