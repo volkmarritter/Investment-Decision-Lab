@@ -2204,7 +2204,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "Equity-Cybersecurity": B({
     default: "IE00BG0J4C88",
     alternatives: ["IE00BYPLS672", "IE00BLPK3577"],
-    pool: ["IE00BGV5VN51", "IE00BJ5JNZ06"],
+    pool: ["IE00BGV5VN51"],
   }),
 };
 
