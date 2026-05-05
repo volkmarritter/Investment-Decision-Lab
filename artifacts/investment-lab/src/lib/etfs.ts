@@ -2107,7 +2107,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "Equity-Global": B({
     default: "IE00B3YLTY66",
     alternatives: ["IE00BK5BQT80", "IE00B6R52259"],
-    pool: ["IE00B4L5Y983", "IE00B0M62Q58", "IE00BFY0GT14", "LU0274208692", "IE00BK5BQV03", "IE00BP3QZ601", "IE00BP3QZB59", "IE00BP3QZ825", "IE00BD1F4M44", "IE00B9CQXS71", "IE00B5M1WJ87", "IE00BCHWNQ94", "IE00B3VWMM18"],
+    pool: ["IE00B4L5Y983", "IE00B0M62Q58", "IE00BFY0GT14", "LU0274208692", "IE00BK5BQV03", "IE00BP3QZ601", "IE00BP3QZB59", "IE00BP3QZ825", "IE00B9CQXS71", "IE00BCHWNQ94"],
   }),
   "Equity-USA": B({
     default: "IE00B5BMR087",
@@ -2121,7 +2121,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "Equity-Europe": B({
     default: "IE00B4K48X80",
     alternatives: ["IE00B945VV12", "FR0007054358", "IE0008471009"],
-    pool: ["IE00B0M62S72", "DE0002635307", "LU0908500753", "IE00BKM4H312", "LU0274209237", "IE00B53L4350", "IE00B0M62Y33", "DE0005933931", "LU0274211480", "IE00B652H904", "IE00BCBJG560"],
+    pool: ["IE00B0M62S72", "DE0002635307", "LU0908500753", "LU0274209237", "DE0005933931", "LU0274211480"],
   }),
   "Equity-Switzerland": B({
     default: "CH0237935652",
@@ -2140,7 +2140,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "Equity-EM": B({
     default: "IE00BKM4GZ66",
     alternatives: ["IE00BK5BR733", "IE00BTJRMP35"],
-    pool: ["IE00B0M63177", "LU0292107645", "IE00B8KGV557", "IE00B52MJY50", "IE00B0M63730", "IE00BZCQB185", "IE00B02KXK85"],
+    pool: ["IE00B0M63177", "IE00B8KGV557", "IE00B0M63730", "IE00BZCQB185", "IE00B02KXK85"],
   }),
   "Equity-USA-EUR": B({
     default: "IE00B3ZW0K18",
@@ -2204,7 +2204,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "Equity-Cybersecurity": B({
     default: "IE00BG0J4C88",
     alternatives: ["IE00BYPLS672", "IE00BLPK3577"],
-    pool: ["IE00BGV5VN51", "IE00BJ5JNZ06"],
+    pool: [],
   }),
 };
 
