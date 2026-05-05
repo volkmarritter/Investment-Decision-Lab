@@ -40,7 +40,7 @@ export function HomeBiasAnalysis({ etfs, baseCurrency, lookThroughView = true }:
   if (!lookThroughView) return null;
 
   return (
-    <Card className="w-full">
+    <Card className="w-full" data-testid="home-bias-card">
       <CardHeader>
         <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
           <div className="flex-1">

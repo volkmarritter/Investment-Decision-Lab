@@ -313,10 +313,16 @@ test.describe("ExplainPortfolio · bring-your-own-ETFs (mobile)", () => {
       await targetOption.click({ force: true });
       await expect(baseCurrency).toContainText(code);
 
-      // Non-USD base → Home Bias card renders. Match the title text in
-      // either language so this doesn't pin to a particular locale.
+      // Non-USD base → Home Bias card renders. Scope the rest of this
+      // test to the Home Bias card itself via its dedicated test id —
+      // the surrounding `analysis` block contains several other cards
+      // (Stress Test, Look-Through, Currency Overview, …) that ALSO
+      // render their own "Show details" toggle, so locating by role
+      // alone would hit the wrong card.
+      const homeBiasCard = analysis.getByTestId("home-bias-card");
+      await expect(homeBiasCard).toBeVisible();
       await expect(
-        analysis.getByText(/home bias analysis|home-bias-analyse/i).first(),
+        homeBiasCard.getByText(/home bias analysis|home-bias-analyse/i).first(),
       ).toBeVisible();
 
       // The card now starts collapsed (only title + verdict badge +
@@ -324,9 +330,8 @@ test.describe("ExplainPortfolio · bring-your-own-ETFs (mobile)", () => {
       // carries the per-currency `homeMarketLabel` lives inside the
       // collapsible block, so we have to click "Show details" before
       // asserting on it. Match either locale's button label.
-      await analysis
+      await homeBiasCard
         .getByRole("button", { name: /show details|details anzeigen/i })
-        .first()
         .click();
 
       // The CardDescription template interpolates the per-currency
@@ -340,7 +345,7 @@ test.describe("ExplainPortfolio · bring-your-own-ETFs (mobile)", () => {
       // pros/cons bullets or other cards that may also mention the
       // home country.
       await expect(
-        analysis
+        homeBiasCard
           .getByText(homeLabelRegex)
           .filter({ hasText: new RegExp(`\\(${code}\\)`) })
           .first(),
