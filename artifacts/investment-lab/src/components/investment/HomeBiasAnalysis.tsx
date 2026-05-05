@@ -56,6 +56,16 @@ export function HomeBiasAnalysis({ etfs, baseCurrency, lookThroughView = true }:
                 {r.biasRatio > 0 ? `${r.biasRatio.toFixed(1)}× ${t("build.homeBias.metric.neutralCap").toLowerCase()}` : ""}
               </span>
             </CardTitle>
+            {/* Subtitle — visible in BOTH collapsed and expanded mode so the
+              * user always sees the per-currency framing ("Explicit
+              * assessment of the {home} ({base}) tilt …") even before
+              * opening the details. The EUR-only look-through caveat
+              * stays inside the collapsible body below. */}
+            <CardDescription className="mt-1.5">
+              {t("build.homeBias.desc")
+                .replace("{home}", r.homeMarketLabel)
+                .replace("{base}", r.baseCurrency)}
+            </CardDescription>
           </div>
           <Button
             type="button"
@@ -79,39 +89,32 @@ export function HomeBiasAnalysis({ etfs, baseCurrency, lookThroughView = true }:
 
       {open && (
         <CardContent className="space-y-5">
-          <div className="space-y-1.5">
-            <CardDescription>
-              {t("build.homeBias.desc")
-                .replace("{home}", r.homeMarketLabel)
-                .replace("{base}", r.baseCurrency)}
-            </CardDescription>
-            {/* Render the EUR-dilution caveat with an inline link to the
-              * Methodology → Home-Bias Multipliers section. The i18n
-              * template uses `{link}` as a placeholder so DE and EN both
-              * keep the link text in their own language and the surrounding
-              * sentence stays translator-friendly. The caveat is specific
-              * to EUR (broad-Europe vs strict Eurozone ETFs materially
-              * change the EUR home-share figure), so it is only surfaced
-              * when EUR is the base currency — for CHF/GBP/USD the
-              * distinction is irrelevant noise. */}
-            {r.baseCurrency === "EUR" && (() => {
-              const raw = t("build.homeBias.lookThroughNote");
-              const [before, after = ""] = raw.split("{link}");
-              return (
-                <p className="text-[10px] text-muted-foreground italic">
-                  {before}
-                  <button
-                    type="button"
-                    onClick={() => navigateToTab("methodology", "home-bias")}
-                    className="underline underline-offset-2 hover:no-underline text-foreground/80 hover:text-foreground"
-                  >
-                    {t("build.homeBias.lookThroughNoteLink")}
-                  </button>
-                  {after}
-                </p>
-              );
-            })()}
-          </div>
+          {/* Render the EUR-dilution caveat with an inline link to the
+            * Methodology → Home-Bias Multipliers section. The i18n
+            * template uses `{link}` as a placeholder so DE and EN both
+            * keep the link text in their own language and the surrounding
+            * sentence stays translator-friendly. The caveat is specific
+            * to EUR (broad-Europe vs strict Eurozone ETFs materially
+            * change the EUR home-share figure), so it is only surfaced
+            * when EUR is the base currency — for CHF/GBP/USD the
+            * distinction is irrelevant noise. */}
+          {r.baseCurrency === "EUR" && (() => {
+            const raw = t("build.homeBias.lookThroughNote");
+            const [before, after = ""] = raw.split("{link}");
+            return (
+              <p className="text-[10px] text-muted-foreground italic">
+                {before}
+                <button
+                  type="button"
+                  onClick={() => navigateToTab("methodology", "home-bias")}
+                  className="underline underline-offset-2 hover:no-underline text-foreground/80 hover:text-foreground"
+                >
+                  {t("build.homeBias.lookThroughNoteLink")}
+                </button>
+                {after}
+              </p>
+            );
+          })()}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs">
             <div className="rounded-md border p-3">
               <div className="text-muted-foreground">{t("build.homeBias.metric.actualEquity")}</div>
