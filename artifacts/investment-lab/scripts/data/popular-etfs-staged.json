@@ -786,26 +786,6 @@
       "_seedNote": "Xtrackers DAX UCITS 1C"
     },
     {
-      "name": "iShares SMI (CH)",
-      "isin": "CH0008899764",
-      "terBps": 35,
-      "domicile": "Switzerland",
-      "replication": "Physical",
-      "distribution": "Distributing",
-      "currency": "CHF",
-      "comment": "Popular UCITS ETF auto-added on 2026-05-01 as orphan catalog entry — recognised in Explain manual-entry but not assigned to any model-portfolio bucket. Seed note: iShares SMI ETF (CH).",
-      "listings": {
-        "SIX": {
-          "ticker": "CSSMI"
-        }
-      },
-      "defaultExchange": "SIX",
-      "aumMillionsEUR": 2562,
-      "inceptionDate": "1999-10-06",
-      "_seedCategory": "Switzerland equity",
-      "_seedNote": "iShares SMI ETF (CH)"
-    },
-    {
       "name": "iShares MSCI India UCITS ETF USD (Acc)",
       "isin": "IE00BZCQB185",
       "terBps": 65,

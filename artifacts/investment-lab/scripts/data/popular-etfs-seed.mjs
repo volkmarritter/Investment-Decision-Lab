@@ -93,7 +93,9 @@ export const POPULAR_ETF_SEED = [
   { isin: "LU0274211480", category: "Germany equity", note: "Xtrackers DAX UCITS 1C" },
 
   // ---- Switzerland / SMI ----
-  { isin: "CH0008899764", category: "Switzerland equity", note: "iShares SMI ETF (CH)" },
+  // Note: CH0008899764 (iShares SMI CH) was promoted out of the staged orphan
+  // pool on 2026-05 and curated as an explicit bucket alternative — it no
+  // longer belongs on the orphan-staging seed list.
   { isin: "IE00B53RJK88", category: "Switzerland equity", note: "iShares MSCI Switzerland UCITS" },
 
   // ---- India / China ----
