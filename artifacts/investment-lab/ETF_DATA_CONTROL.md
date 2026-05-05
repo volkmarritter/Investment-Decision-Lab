@@ -373,6 +373,8 @@ All under `/api/admin/*`, all gated by `requireAdmin`:
 | POST | `/preview-isin` | Body `{isin}` → scraped fields + policy fit. |
 | POST | `/render-entry` | Body `{entry}` → the literal `"<key>": E({...})` TS block that would be inserted; same renderer the PR-creation flow uses. |
 | POST | `/add-isin` | Body `{entry}` → opens a PR; returns `{prUrl, prNumber}`. |
+| POST | `/buckets/:key/pool` | Body `{isin}` → opens a PR adding the ISIN to the bucket's extended-universe **pool** (cap 50/bucket). Rejects writes that violate global ISIN uniqueness across `{default, alternative, pool}`. Surfaced in Build via the "More ETFs" dialog and in Explain via the per-bucket IsinPicker (Pool-badged). |
+| DELETE | `/buckets/:key/pool/:isin` | Opens a PR removing the ISIN from the bucket's pool. |
 
 ### Replace-vs-add diff
 
@@ -392,6 +394,7 @@ The pane is intentionally **paste-an-ISIN only**, not "scan the universe and sug
 
 ## Changelog
 
+- **2026-05-05** — Extended-universe **pool** slot added to the catalog data model (`BucketAssignment.pool?: string[]`, cap 50/bucket). Two new admin endpoints `POST /admin/buckets/:key/pool` and `DELETE /admin/buckets/:key/pool/:isin` (PR-only writes). Strict global ISIN uniqueness now spans all three slot types `{default, alternative, pool}`. Operator surfaces: third "+ Pool" action button per tree row in the admin Catalog panel, Role column in InstrumentsPanel, "Pool" Glossary entry. End-user surfaces: new "More ETFs (N)" dialog button in Build's ETF Implementation table, and Pool-badged rows in Explain's per-bucket IsinPicker.
 - **2026-04-25** — Admin pane now shows a replace-vs-add diff before opening a PR: a coloured badge labels the chosen catalog key as **New bucket / Replaces existing entry / Duplicate ISIN**, the REPLACE state renders a side-by-side current vs. proposed field table, the DUPLICATE_ISIN state blocks the Open PR button until the clash is resolved, and a "Show generated code" disclosure (plus a fenced `ts` block in the PR body) exposes the literal `E({...})` snippet GitHub will see. New endpoints `GET /api/admin/catalog` and `POST /api/admin/render-entry` back the diff and the disclosure.
 - **2026-04-25** — Added §12 (admin pane `/admin`): in-app paste-an-ISIN flow that previews scraped fields and opens a GitHub PR adding the entry to `src/lib/etfs.ts`, plus three read-only panels (recent changes, recent runs, freshness). Gated by `ADMIN_TOKEN`; PR creation requires `GITHUB_PAT`/`GITHUB_OWNER`/`GITHUB_REPO`. Scrapers now also write per-field diffs to `src/data/refresh-changes.log.jsonl` so the pane can surface "what changed last night".
 - **2026-04-25** — Added §11 (run log file): scrapers now append a row to `src/data/refresh-runs.log.md` on every invocation (success, no-op, or fail), and the workflows always commit it — so even no-op scheduled runs leave a visible commit and row.

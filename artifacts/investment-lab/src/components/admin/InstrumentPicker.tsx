@@ -51,7 +51,7 @@ const LOOKTHROUGH_KNOWN_ISINS: ReadonlySet<string> = new Set([
   ...getLookthroughOverrideIsins(),
 ]);
 
-export type InstrumentPickerMode = "default" | "alternative";
+export type InstrumentPickerMode = "default" | "alternative" | "pool";
 
 // Render one row of the side-by-side preview. Kept inline to avoid
 // pulling in the full SuggestIsinPanel DiffPanel just for a 6-field
@@ -173,7 +173,9 @@ export function InstrumentPicker({
       const r =
         mode === "default"
           ? await adminApi.setBucketDefaultIsin(parentKey, pickedIsin)
-          : await adminApi.attachAlternativeIsin(parentKey, pickedIsin);
+          : mode === "pool"
+            ? await adminApi.attachPoolIsin(parentKey, pickedIsin)
+            : await adminApi.attachAlternativeIsin(parentKey, pickedIsin);
       toast.success(
         lang === "de"
           ? `Pull Request #${r.prNumber} geöffnet`
@@ -213,10 +215,15 @@ export function InstrumentPicker({
                     de: "Default festlegen",
                     en: "Set default",
                   })
-              : t({
-                  de: "Alternative anhängen",
-                  en: "Attach alternative",
-                })}
+              : mode === "pool"
+                ? t({
+                    de: "Pool anhängen",
+                    en: "Attach to pool",
+                  })
+                : t({
+                    de: "Alternative anhängen",
+                    en: "Attach alternative",
+                  })}
           </Badge>
           <span className="text-xs">
             {t({ de: "Bucket", en: "Bucket" })}:{" "}
@@ -235,7 +242,9 @@ export function InstrumentPicker({
           <div>
             {mode === "default"
               ? t({ de: "Neu (Default)", en: "After (default)" })
-              : t({ de: "Neue Alternative", en: "New alternative" })}
+              : mode === "pool"
+                ? t({ de: "Neuer Pool-Eintrag", en: "New pool entry" })
+                : t({ de: "Neue Alternative", en: "New alternative" })}
           </div>
         </div>
         <div className="space-y-1.5 rounded border bg-background p-2">
@@ -352,10 +361,15 @@ export function InstrumentPicker({
                 de: "Default-ISIN aus Registry wählen",
                 en: "Pick default ISIN from registry",
               })
-            : t({
-                de: "Alternative aus Registry wählen",
-                en: "Pick alternative from registry",
-              })}
+            : mode === "pool"
+              ? t({
+                  de: "Pool-ISIN aus Registry wählen",
+                  en: "Pick pool ISIN from registry",
+                })
+              : t({
+                  de: "Alternative aus Registry wählen",
+                  en: "Pick alternative from registry",
+                })}
         </div>
         <button
           type="button"

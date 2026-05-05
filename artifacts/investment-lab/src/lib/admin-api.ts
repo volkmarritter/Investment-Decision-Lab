@@ -155,6 +155,11 @@ export interface CatalogEntrySummary {
   // endpoint populates this; the regular /admin/catalog endpoint also now
   // returns it (the parser was extended) but legacy admin views ignore it.
   alternatives?: AlternativeEntrySummary[];
+  // Extended-universe pool (Task #149) — additional ISINs tagged to this
+  // bucket that are pickable in Build (via the "More ETFs" dialog) and in
+  // Explain (via the per-bucket IsinPicker), but not surfaced as
+  // recommended alternatives. Capped at 50 by validateCatalog.
+  pool?: AlternativeEntrySummary[];
 }
 
 // Mirrors AlternativeEntrySummary on the server. Same shape as
@@ -226,7 +231,7 @@ export interface AddInstrumentRequest {
 // `index` (1-based) inside that bucket's alternatives.
 export interface InstrumentUsageEntry {
   bucket: string;
-  role: "default" | "alternative";
+  role: "default" | "alternative" | "pool";
   index?: number;
 }
 
@@ -540,6 +545,23 @@ export const adminApi = {
         method: "PUT",
         body: JSON.stringify({ isin }),
       },
+    ),
+  // Task #149: per-bucket extended-universe pool. Same picker UX as
+  // attachAlternativeIsin (existing-INSTRUMENTS-only), but lands in
+  // BUCKETS["..."].pool[] rather than .alternatives[]. Cap = 50 per
+  // bucket; strict global ISIN uniqueness enforced server-side.
+  attachPoolIsin: (parentKey: string, isin: string) =>
+    call<{ ok: boolean; prUrl: string; prNumber: number }>(
+      `/admin/buckets/${encodeURIComponent(parentKey)}/pool`,
+      {
+        method: "POST",
+        body: JSON.stringify({ isin }),
+      },
+    ),
+  removeBucketPool: (parentKey: string, isin: string) =>
+    call<{ ok: boolean; prUrl: string; prNumber: number }>(
+      `/admin/buckets/${encodeURIComponent(parentKey)}/pool/${encodeURIComponent(isin)}`,
+      { method: "DELETE" },
     ),
   workspaceStatus: () =>
     call<WorkspaceStatusResponse>("/admin/workspace-status"),

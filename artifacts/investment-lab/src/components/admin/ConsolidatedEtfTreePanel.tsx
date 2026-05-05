@@ -7,7 +7,11 @@ import {
   type CatalogSummary,
   type LookthroughPoolEntry,
 } from "@/lib/admin-api";
-import { MAX_ALTERNATIVES_PER_BUCKET, validateCatalog } from "@/lib/etfs";
+import {
+  MAX_ALTERNATIVES_PER_BUCKET,
+  MAX_POOL_PER_BUCKET,
+  validateCatalog,
+} from "@/lib/etfs";
 import { useAdminT } from "@/lib/admin-i18n";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -94,7 +98,7 @@ export function ConsolidatedEtfTreePanel({
   // — opening one closes the other to keep the page tidy.
   const [pickerOpen, setPickerOpen] = useState<{
     parentKey: string;
-    mode: "default" | "alternative";
+    mode: "default" | "alternative" | "pool";
   } | null>(null);
 
   // ─── Task #122 (T006/T007): referential-integrity surface ─────────────
@@ -260,6 +264,36 @@ export function ConsolidatedEtfTreePanel({
       setPrsRefreshKey((k) => k + 1);
     } finally {
       setBackfilling(false);
+    }
+  }
+
+  async function removePool(parentKey: string, isin: string, name: string) {
+    const confirmed = window.confirm(
+      lang === "de"
+        ? `Pull-Request öffnen, die "${name}" (${isin}) aus dem Pool von "${parentKey}" entfernt?\n\nDas Instrument bleibt in INSTRUMENTS registriert und kann später in einen anderen Slot oder Bucket gehängt werden.`
+        : `Open a pull request removing "${name}" (${isin}) from the "${parentKey}" pool?\n\nThe instrument stays registered in INSTRUMENTS and can be re-attached to another slot or bucket later.`,
+    );
+    if (!confirmed) return;
+    try {
+      const r = await adminApi.removeBucketPool(parentKey, isin);
+      toast.success(
+        lang === "de"
+          ? `Remove-Pull Request #${r.prNumber} geöffnet`
+          : `Remove Pull Request #${r.prNumber} opened`,
+        {
+          action: {
+            label: t({ de: "Öffnen", en: "Open" }),
+            onClick: () => window.open(r.prUrl, "_blank"),
+          },
+        },
+      );
+      setPrsRefreshKey((k) => k + 1);
+    } catch (e: unknown) {
+      toast.error(
+        lang === "de"
+          ? `Pool-Entfernen fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`
+          : `Pool remove failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
     }
   }
 
@@ -583,10 +617,35 @@ export function ConsolidatedEtfTreePanel({
           </Alert>
         )}
 
-        {/* Combined open-Pull Requests strip — both alt-add and pool-add flows feed
-            into the same tree, so the operator should see all pending Pull Requests
-            in one place. Two cards because the prefix filter is per-call. */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {/* Combined open-Pull Requests strip — alt-add/rm, pool-add/rm and the
+            look-through-pool flows all feed into the same tree, so the operator
+            should see every pending Pull Request in one place. One card per
+            branch prefix because the listOpenPrs filter is per-call. */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-3">
+          <PendingPrsCard
+            prefix="add-pool/"
+            refreshKey={prsRefreshKey}
+            title={t({
+              de: "Pool hinzufügen — offene Pull Requests",
+              en: "Add pool — open Pull Requests",
+            })}
+            emptyHint={t({
+              de: "Keine offenen Pool-Add-Pull Requests.",
+              en: "No open pool-add Pull Requests.",
+            })}
+          />
+          <PendingPrsCard
+            prefix="rm-pool/"
+            refreshKey={prsRefreshKey}
+            title={t({
+              de: "Pool entfernen — offene Pull Requests",
+              en: "Remove pool — open Pull Requests",
+            })}
+            emptyHint={t({
+              de: "Keine offenen Pool-Remove-Pull Requests.",
+              en: "No open pool-remove Pull Requests.",
+            })}
+          />
           <PendingPrsCard
             prefix="add-alt/"
             refreshKey={prsRefreshKey}
@@ -662,8 +721,11 @@ export function ConsolidatedEtfTreePanel({
                         const entry = catalog[leaf.key];
                         if (!entry) return null;
                         const alts = entry.alternatives ?? [];
+                        const bucketPoolEntries = entry.pool ?? [];
                         const altsAtCap =
                           alts.length >= MAX_ALTERNATIVES_PER_BUCKET;
+                        const poolAtCap =
+                          bucketPoolEntries.length >= MAX_POOL_PER_BUCKET;
                         return (
                           <div
                             key={leaf.key}
@@ -685,6 +747,11 @@ export function ConsolidatedEtfTreePanel({
                                 <span className="text-xs text-muted-foreground">
                                   {alts.length}/{MAX_ALTERNATIVES_PER_BUCKET}{" "}
                                   {t({ de: "Alt.", en: "alt." })}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {bucketPoolEntries.length}/
+                                  {MAX_POOL_PER_BUCKET}{" "}
+                                  {t({ de: "Pool", en: "pool" })}
                                 </span>
                                 {githubConfigured && (
                                   <>
@@ -768,6 +835,48 @@ export function ConsolidatedEtfTreePanel({
                                       type="button"
                                       size="sm"
                                       variant={
+                                        pickerOpen?.parentKey === leaf.key &&
+                                        pickerOpen.mode === "pool"
+                                          ? "secondary"
+                                          : "outline"
+                                      }
+                                      onClick={() =>
+                                        setPickerOpen((cur) =>
+                                          cur?.parentKey === leaf.key &&
+                                          cur.mode === "pool"
+                                            ? null
+                                            : {
+                                                parentKey: leaf.key,
+                                                mode: "pool",
+                                              },
+                                        )
+                                      }
+                                      disabled={poolAtCap}
+                                      title={
+                                        poolAtCap
+                                          ? t({
+                                              de: `Maximal ${MAX_POOL_PER_BUCKET} Pool-Einträge pro Bucket erreicht`,
+                                              en: `Maximum ${MAX_POOL_PER_BUCKET} pool entries per bucket reached`,
+                                            })
+                                          : t({
+                                              de: "Bestehendes Instrument zum erweiterten Pool dieses Buckets hinzufügen (in Build und Explain wählbar, ohne Empfehlungs-Status).",
+                                              en: "Add an existing instrument to this bucket's extended pool (selectable in Build and Explain, without recommendation status).",
+                                            })
+                                      }
+                                      data-testid={`button-tree-pick-pool-${leaf.key}`}
+                                    >
+                                      {pickerOpen?.parentKey === leaf.key &&
+                                      pickerOpen.mode === "pool"
+                                        ? t({ de: "Schließen", en: "Close" })
+                                        : t({
+                                            de: "+ Pool",
+                                            en: "+ Pool",
+                                          })}
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant={
                                         addingAltKey === leaf.key
                                           ? "secondary"
                                           : "ghost"
@@ -799,8 +908,10 @@ export function ConsolidatedEtfTreePanel({
                               parentKey={leaf.key}
                               defaultEntry={entry}
                               alternatives={alts}
+                              bucketPool={bucketPoolEntries}
                               poolByIsin={poolByIsin}
                               onRemoveAlt={removeAlt}
+                              onRemovePool={removePool}
                               githubConfigured={githubConfigured}
                             />
                             {pickerOpen?.parentKey === leaf.key && (

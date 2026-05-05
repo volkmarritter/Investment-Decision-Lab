@@ -72,6 +72,12 @@ export interface ETFImplementation {
     name: string;
     isin: string;
     terBps: number;
+    // Task #149 — distinguishes the curated rows (default + alternatives,
+    // shown in the inline Select) from the extended-universe pool rows
+    // (shown in the "More ETFs" dialog). Optional for backward
+    // compatibility with consumers that don't care about the distinction.
+    kind?: "default" | "alternative" | "pool";
+    distribution?: "Accumulating" | "Distributing";
   }>;
 }
 

@@ -19,20 +19,27 @@ export function BucketRowsTable({
   parentKey,
   defaultEntry,
   alternatives,
+  bucketPool,
   poolByIsin,
   onRemoveAlt,
+  onRemovePool,
   githubConfigured,
 }: {
   parentKey: string;
   defaultEntry: CatalogEntrySummary;
   alternatives: AlternativeEntrySummary[];
+  // Task #149 — extended-universe pool entries for this bucket. Empty
+  // array when the bucket has no pool. Distinct from the look-through
+  // `poolByIsin` map below which stores per-ISIN holdings data.
+  bucketPool: AlternativeEntrySummary[];
   poolByIsin: Map<string, LookthroughPoolEntry>;
   onRemoveAlt: (parentKey: string, isin: string, name: string) => void;
+  onRemovePool: (parentKey: string, isin: string, name: string) => void;
   githubConfigured: boolean;
 }) {
   const { t, lang } = useAdminT();
   const rows: Array<{
-    role: "default" | "alt";
+    role: "default" | "alt" | "pool";
     name: string;
     isin: string;
   }> = [
@@ -41,6 +48,11 @@ export function BucketRowsTable({
       role: "alt" as const,
       name: a.name,
       isin: a.isin,
+    })),
+    ...bucketPool.map((p) => ({
+      role: "pool" as const,
+      name: p.name,
+      isin: p.isin,
     })),
   ];
   return (
@@ -85,12 +97,16 @@ export function BucketRowsTable({
                     className={
                       r.role === "default"
                         ? "border-primary text-primary"
-                        : "border-slate-500 text-slate-700 dark:text-slate-300"
+                        : r.role === "pool"
+                          ? "border-emerald-600 text-emerald-700 dark:text-emerald-400"
+                          : "border-slate-500 text-slate-700 dark:text-slate-300"
                     }
                   >
                     {r.role === "default"
                       ? t({ de: "Default", en: "Default" })
-                      : t({ de: "Alt", en: "Alt" })}
+                      : r.role === "pool"
+                        ? t({ de: "Pool", en: "Pool" })
+                        : t({ de: "Alt", en: "Alt" })}
                   </Badge>
                 </td>
                 <td className="px-2 py-1 font-mono">{r.isin}</td>
@@ -124,6 +140,18 @@ export function BucketRowsTable({
                       onClick={() => onRemoveAlt(parentKey, r.isin, r.name)}
                       className="h-7 px-2 text-xs text-rose-700 hover:text-rose-800 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950"
                       data-testid={`button-tree-remove-alt-${parentKey}-${r.isin}`}
+                    >
+                      {t({ de: "Entfernen", en: "Remove" })}
+                    </Button>
+                  )}
+                  {r.role === "pool" && githubConfigured && (
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => onRemovePool(parentKey, r.isin, r.name)}
+                      className="h-7 px-2 text-xs text-rose-700 hover:text-rose-800 hover:bg-rose-50 dark:text-rose-400 dark:hover:bg-rose-950"
+                      data-testid={`button-tree-remove-pool-${parentKey}-${r.isin}`}
                     >
                       {t({ de: "Entfernen", en: "Remove" })}
                     </Button>

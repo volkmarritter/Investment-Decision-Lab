@@ -57,12 +57,32 @@ blocks. Renaming those headers requires updating the helpers.
 
 Phase 2 (Task #111 Phase 2 — 2026-04, completed): the catalog now
 enforces **strict global ISIN uniqueness** — every ISIN appears in at
-most one bucket slot (default OR alternative), and `validateCatalog`
-fails fast otherwise. The mutators `injectEntry`, `injectAlternative`,
-and `setBucketDefault` reject any write that would violate this
-invariant; in particular `setBucketDefault` also refuses targets that
-already live as an alternative within the SAME bucket (would create a
-within-bucket duplicate). Operator-facing surfaces:
+most one bucket slot (default OR alternative OR pool), and
+`validateCatalog` fails fast otherwise. The mutators `injectEntry`,
+`injectAlternative`, `setBucketDefault`, `injectPool`, `removePool`
+reject any write that would violate this invariant; in particular
+`setBucketDefault` also refuses targets that already live as an
+alternative within the SAME bucket (would create a within-bucket
+duplicate).
+
+Phase 3 (Task #149 — 2026-05): per-bucket **extended-universe pool**
+slot added (`BucketAssignment.pool?: string[]`, cap
+`MAX_POOL_PER_BUCKET = 50`). Engine slot range extended in-place —
+slots `0` = default, `1..altCount` = alternatives,
+`altCount+1..altCount+poolCount` = pool. `resolvePickerSelection`
+takes an optional `pool` 3rd arg (defaults to `[]` for backward
+compat); `selectableOptions[]` rows now carry an optional
+`kind: "default" | "alternative" | "pool"` discriminator. Build UI
+splits the inline `<Select>` (default + alternatives) from a new
+`More ETFs (N)` dialog (`MoreEtfsDialog.tsx`); Explain's per-bucket
+`IsinPicker` flags pool rows via `getInstrumentRole`. Admin routes
+`POST /admin/buckets/:key/pool` and `DELETE /admin/buckets/:key/pool/:isin`
+(PR-only). **Gotcha:** `etfs.ts ↔ etfSelection.ts` form an import
+cycle, so any cap that mixes `MAX_POOL_PER_BUCKET` and
+`MAX_ALTERNATIVES_PER_BUCKET` in `etfSelection.ts` MUST be computed
+lazily inside the function (not at module scope) — top-level access
+would observe `MAX_POOL_PER_BUCKET` as `undefined` and silently drop
+all stored selections through the `v <= NaN` guard. Operator-facing surfaces:
 - **Instruments sub-tab** (`src/pages/admin/Catalog.tsx` + `src/components/admin/InstrumentsPanel.tsx`) — full CRUD over the INSTRUMENTS table with usage column.
 - **Tree-row registry pickers** (`src/components/admin/InstrumentPicker.tsx`, wired in `ConsolidatedEtfTreePanel.tsx`) — "Default ändern" and "+ Alternative" buttons pick from already-registered, currently-unassigned ISINs; "Neues Instrument …" still allows ad-hoc creation via the legacy `AddAlternativeForm`.
 - **Glossary** (`src/components/admin/Glossary.tsx`) — added plain-language entries explaining "Instrument" vs "Bucket-Zuordnung" (DE+EN).

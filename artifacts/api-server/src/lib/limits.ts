@@ -21,3 +21,10 @@
 //     and the bulk-PR reviewer-checklist body.
 // ----------------------------------------------------------------------------
 export const MAX_ALTERNATIVES_PER_BUCKET = 10;
+
+// Server-side mirror of the per-bucket extended-universe pool cap. The
+// pool is the third per-bucket slot (separate from default + curated
+// alternatives) and is bounded to keep the "More ETFs" dialog UX sane.
+// Mirror of MAX_POOL_PER_BUCKET in
+// artifacts/investment-lab/src/lib/etfs.ts — change both together.
+export const MAX_POOL_PER_BUCKET = 50;

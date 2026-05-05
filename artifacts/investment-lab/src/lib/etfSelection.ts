@@ -30,7 +30,20 @@
 // See getETFDetails() for the exact wiring.
 // ----------------------------------------------------------------------------
 
-import { MAX_ALTERNATIVES_PER_BUCKET } from "./etfs";
+import { MAX_ALTERNATIVES_PER_BUCKET, MAX_POOL_PER_BUCKET } from "./etfs";
+
+// Maximum slot value that can ever be persisted. Slots 0..N map onto:
+//   0                                                 → curated default
+//   1..MAX_ALTERNATIVES_PER_BUCKET                    → alternatives[slot-1]
+//   MAX_ALTERNATIVES_PER_BUCKET+1..MAX_TOTAL_SLOT     → pool[slot - alts - 1]
+// Computed lazily inside `readAll()` rather than at module top-level
+// because etfs.ts ↔ etfSelection.ts form an import cycle (etfs imports
+// `getETFSelection`); evaluating the cap at module scope would
+// observe `MAX_POOL_PER_BUCKET` as `undefined` and silently drop every
+// stored selection through the `v <= NaN` guard below.
+function getMaxTotalSlot(): number {
+  return MAX_ALTERNATIVES_PER_BUCKET + MAX_POOL_PER_BUCKET;
+}
 
 const KEY = "il.etfSelection.v1";
 const EVENT = "il-etf-selection-changed";
@@ -60,12 +73,13 @@ function readAll(): Record<string, ETFSlot> {
     const parsed = JSON.parse(raw);
     if (!parsed || typeof parsed !== "object") return {};
     const out: Record<string, ETFSlot> = {};
+    const maxTotal = getMaxTotalSlot();
     for (const [k, v] of Object.entries(parsed as Record<string, unknown>)) {
       if (
         typeof v === "number" &&
         Number.isInteger(v) &&
         v >= 1 &&
-        v <= MAX_ALTERNATIVES_PER_BUCKET
+        v <= maxTotal
       ) {
         out[k] = v;
       }

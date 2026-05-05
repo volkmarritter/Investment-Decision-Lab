@@ -286,7 +286,9 @@ export function InstrumentsPanel({
                         .map((u) =>
                           u.role === "default"
                             ? `${u.bucket} (default)`
-                            : `${u.bucket} alt ${u.index ?? "?"}`,
+                            : u.role === "pool"
+                              ? `${u.bucket} (pool)`
+                              : `${u.bucket} alt ${u.index ?? "?"}`,
                         )
                         .join(", ");
                       return (

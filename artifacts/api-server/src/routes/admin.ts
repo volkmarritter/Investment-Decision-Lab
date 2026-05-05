@@ -29,10 +29,12 @@ import {
   injectAlternative,
   listOpenPrs,
   openAddBucketAlternativePr,
+  openAddBucketPoolPr,
   openAttachBucketAlternativePr,
   openBulkAddBucketAlternativesPr,
   openInstrumentPr,
   openRemoveBucketAlternativePr,
+  openRemoveBucketPoolPr,
   openSetBucketDefaultPr,
   openAddEtfPr,
   openAddLookthroughPoolPr,
@@ -53,7 +55,10 @@ import {
   loadCatalog,
   loadInstruments,
 } from "../lib/catalog-parser";
-import { MAX_ALTERNATIVES_PER_BUCKET } from "../lib/limits";
+import {
+  MAX_ALTERNATIVES_PER_BUCKET,
+  MAX_POOL_PER_BUCKET,
+} from "../lib/limits";
 import { getCatalogPath } from "../lib/data-paths";
 import { scrapePreview, PreviewError, normalizeIsin } from "../lib/etf-scrape";
 import { scrapeLookthrough } from "../lib/lookthrough-scrape";
@@ -2852,6 +2857,125 @@ router.put("/admin/buckets/:key/default", async (req, res) => {
     }
     if (/already assigned/i.test(msg)) {
       res.status(409).json({ error: "isin_in_use", message: msg });
+      return;
+    }
+    res.status(502).json({ error: "pr_creation_failed", message: msg });
+  }
+});
+
+// --- /api/admin/buckets/:key/pool -------------------------------------------
+// POST: attach an EXISTING INSTRUMENTS ISIN to bucket :key as a pool
+// (extended-universe) entry. Mirror of the alternatives attach route at
+// POST /admin/buckets/:key/alternatives, but the pool is the third
+// per-bucket slot — pickable in Build's "More ETFs" dialog and Explain's
+// per-bucket IsinPicker, NOT surfaced as a recommended alternative.
+//
+// No look-through bundling — pool entries are filled by the next
+// monthly refresh job (or via a manual scrape-and-PR through the
+// Operations tab).
+router.post("/admin/buckets/:key/pool", async (req, res) => {
+  const parentKey = String(req.params.key ?? "");
+  if (!parentKey || !/^[A-Z][A-Za-z0-9-]{2,40}$/.test(parentKey)) {
+    res.status(400).json({
+      error: "invalid_parent_key",
+      message: "parentKey must match the catalog key format.",
+    });
+    return;
+  }
+  let isin: string;
+  try {
+    isin = normalizeIsin(req.body?.isin);
+  } catch (err) {
+    res.status(400).json({
+      error: "invalid_isin",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+  if (!githubConfigured()) {
+    res.status(503).json({
+      error: "github_not_configured",
+      message: "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
+    });
+    return;
+  }
+  try {
+    const pr = await openAddBucketPoolPr(parentKey, isin);
+    res.json({ ok: true, prUrl: pr.url, prNumber: pr.number });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/already exists/i.test(msg)) {
+      res.status(409).json({ error: "pr_already_open", message: msg });
+      return;
+    }
+    if (/not in the INSTRUMENTS/i.test(msg)) {
+      res.status(404).json({ error: "instrument_missing", message: msg });
+      return;
+    }
+    if (/not found in catalog/i.test(msg)) {
+      res.status(404).json({ error: "parent_missing", message: msg });
+      return;
+    }
+    if (/already assigned/i.test(msg)) {
+      res.status(409).json({ error: "isin_in_use", message: msg });
+      return;
+    }
+    if (/maximum of/i.test(msg)) {
+      res.status(409).json({
+        error: "cap_exceeded",
+        message: msg,
+        cap: MAX_POOL_PER_BUCKET,
+      });
+      return;
+    }
+    res.status(502).json({ error: "pr_creation_failed", message: msg });
+  }
+});
+
+// DELETE /admin/buckets/:key/pool/:isin — opens a PR that removes the
+// ISIN from BUCKETS[key].pool. The look-through profile is intentionally
+// untouched (mirrors the curated-alternative removal contract).
+router.delete("/admin/buckets/:key/pool/:isin", async (req, res) => {
+  const parentKey = String(req.params.key ?? "");
+  if (!parentKey || !/^[A-Z][A-Za-z0-9-]{2,40}$/.test(parentKey)) {
+    res.status(400).json({
+      error: "invalid_parent_key",
+      message: "parentKey must match the catalog key format.",
+    });
+    return;
+  }
+  let isin: string;
+  try {
+    isin = normalizeIsin(req.params.isin);
+  } catch (err) {
+    res.status(400).json({
+      error: "invalid_isin",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+  if (!githubConfigured()) {
+    res.status(503).json({
+      error: "github_not_configured",
+      message: "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
+    });
+    return;
+  }
+  try {
+    const pr = await openRemoveBucketPoolPr(parentKey, isin);
+    res.json({ ok: true, prUrl: pr.url, prNumber: pr.number });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/already exists/i.test(msg)) {
+      res.status(409).json({ error: "pr_already_open", message: msg });
+      return;
+    }
+    if (/not found in catalog/i.test(msg)) {
+      res.status(404).json({ error: "parent_missing", message: msg });
+      return;
+    }
+    if (/not in the pool/i.test(msg)) {
+      res.status(404).json({ error: "isin_not_found", message: msg });
       return;
     }
     res.status(502).json({ error: "pr_creation_failed", message: msg });

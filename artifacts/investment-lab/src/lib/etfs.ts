@@ -87,6 +87,12 @@ export interface ETFDetails {
     name: string;
     isin: string;
     terBps: number;
+    // Task #149 — distinguishes the curated rows (default + alternatives,
+    // shown in the inline Select) from the extended-universe pool rows
+    // (shown in the "More ETFs" dialog). Optional for backward
+    // compatibility.
+    kind?: "default" | "alternative" | "pool";
+    distribution?: "Accumulating" | "Distributing";
   }>;
 }
 
@@ -2348,27 +2354,50 @@ function placeholder(assetClass: string, region: string): ETFDetails {
   };
 }
 
-// Resolve which curated record (default or alternative) to use for a bucket
-// based on the user's per-bucket selection. Slot 0 always returns the
-// curated default; slots 1..N return alternatives[slot-1] when they
-// exist, falling back to the default if the slot index points past the
-// available alternatives. Kept tiny so the hot path stays cheap.
-function resolveSelectedETF(curated: ETFRecord, slot: number): ETFRecord {
+// Resolve which record (default, alternative or pool) to use for a
+// bucket based on the user's per-bucket selection. Slot 0 always
+// returns the curated default; slots 1..altCount return
+// alternatives[slot-1]; slots altCount+1..altCount+poolCount return
+// the pool entries (Task #149). Falls back to the default whenever
+// the slot index points past the available rows.
+function resolveSelectedETF(
+  curated: ETFRecord,
+  slot: number,
+  pool: ReadonlyArray<InstrumentRecord>,
+): ETFRecord {
   if (slot <= 0) return curated;
-  const alt = curated.alternatives?.[slot - 1];
-  return alt ?? curated;
+  const altCount = curated.alternatives?.length ?? 0;
+  if (slot <= altCount) return curated.alternatives![slot - 1];
+  const poolIdx = slot - altCount - 1;
+  const poolRec = pool[poolIdx];
+  if (!poolRec) return curated;
+  // Pool entries live in INSTRUMENTS (no `alternatives` field). Lift
+  // them into ETFRecord shape — same fields, no nested alternatives.
+  return { ...poolRec };
 }
 
-// Clamp a stored slot to 0..MAX_ALTERNATIVES_PER_BUCKET and to what's
+// Clamp a stored slot to 0..(altCount + poolCount), and to what's
 // actually available for the bucket. Used both for resolution and for
-// the `selectedSlot` field surfaced to the UI so the dropdown highlights
-// the right option even when localStorage holds a stale value (e.g.
-// user picked alt-3 of a bucket whose alternatives list has since
-// shrunk to 1).
-function clampSlot(stored: number, alternativesCount: number): number {
+// the `selectedSlot` field surfaced to the UI so the dropdown
+// highlights the right option even when localStorage holds a stale
+// value (e.g. user picked alt-3 of a bucket whose alternatives list
+// has since shrunk, or picked a pool entry that has since been
+// removed). Out-of-range slots silently fall back to the default.
+function clampSlot(
+  stored: number,
+  alternativesCount: number,
+  poolCount: number = 0,
+): number {
   if (!Number.isFinite(stored) || stored <= 0) return 0;
-  const max = Math.min(MAX_ALTERNATIVES_PER_BUCKET, alternativesCount);
-  if (stored >= max) return max;
+  const altMax = Math.min(MAX_ALTERNATIVES_PER_BUCKET, alternativesCount);
+  const poolMax = Math.min(MAX_POOL_PER_BUCKET, poolCount);
+  const total = altMax + poolMax;
+  if (total === 0) return 0;
+  // Preserve legacy "clamp to highest available" behaviour — stored
+  // values past the end fall back to the last available row rather
+  // than to the default. Keeps existing scenarios stable when a
+  // bucket's alternative/pool list shrinks between sessions.
+  if (stored >= total) return total;
   return Math.floor(stored);
 }
 
@@ -2396,19 +2425,44 @@ export interface PickerResolution {
 }
 export function resolvePickerSelection(
   curated: ETFRecord,
-  storedSlot: number
+  storedSlot: number,
+  // Task #149 — extended-universe pool entries for this bucket. Empty
+  // by default for backward compatibility with callers that don't
+  // care about the pool (engine tests, legacy consumers).
+  pool: ReadonlyArray<InstrumentRecord> = [],
 ): PickerResolution {
   const altCount = curated.alternatives?.length ?? 0;
-  const selectedSlot = clampSlot(storedSlot, altCount);
-  const rec = resolveSelectedETF(curated, selectedSlot);
+  const poolCount = pool.length;
+  const selectedSlot = clampSlot(storedSlot, altCount, poolCount);
+  const rec = resolveSelectedETF(curated, selectedSlot, pool);
+  // The selectable list always starts with the curated default + every
+  // alternative; the pool entries are appended after so slot indexing
+  // matches `resolveSelectedETF`. The `kind` discriminator lets the UI
+  // split the inline Select (default + alternatives) from the
+  // "More ETFs" dialog (pool only) without re-deriving the lists.
   const selectableOptions: ETFDetails["selectableOptions"] =
-    altCount > 0
+    altCount > 0 || poolCount > 0
       ? [
-          { name: curated.name, isin: curated.isin, terBps: curated.terBps },
-          ...curated.alternatives!.map((a) => ({
+          {
+            name: curated.name,
+            isin: curated.isin,
+            terBps: curated.terBps,
+            kind: "default" as const,
+            distribution: curated.distribution,
+          },
+          ...(curated.alternatives ?? []).map((a) => ({
             name: a.name,
             isin: a.isin,
             terBps: a.terBps,
+            kind: "alternative" as const,
+            distribution: a.distribution,
+          })),
+          ...pool.map((p) => ({
+            name: p.name,
+            isin: p.isin,
+            terBps: p.terBps,
+            kind: "pool" as const,
+            distribution: p.distribution,
           })),
         ]
       : [];
@@ -2704,6 +2758,7 @@ export function getETFDetails(
     ({ rec, selectedSlot, selectableOptions } = resolvePickerSelection(
       curated,
       slot,
+      getBucketPool(key),
     ));
   }
   const { ticker, exchange } = pickListing(rec, input.preferredExchange);

@@ -25,6 +25,11 @@ const TERMS: Term[] = [
     en: "Curated bucket alternative — interchangeable ETF variant (up to 10 per bucket).",
   },
   {
+    term: "Pool",
+    de: "Erweitertes Universum eines Buckets — bis zu 50 ISINs, die in Build (über „Mehr ETFs“) und Explain (über die ISIN-Auswahl) zusätzlich zu Default und kuratierten Alternativen wählbar sind. Pool-Einträge sind keine Empfehlungen; sie erweitern die operative Auswahl. Strenge Regel: jede ISIN gehört zu höchstens einem Slot (Default ODER Alternative ODER Pool) eines einzigen Buckets.",
+    en: "A bucket's extended universe — up to 50 ISINs that are pickable in Build (via the “More ETFs” dialog) and Explain (via the ISIN picker) on top of the default and curated alternatives. Pool entries are not recommendations; they widen the operator-facing choice. Strict rule: every ISIN may live in at most one slot (default OR alternative OR pool) of a single bucket.",
+  },
+  {
     term: "Look-through",
     de: "Aufgelöste Holdings hinter einem Dach- oder Multi-Asset-ETF (Aktien-/Anleihen-Splits, Regionen, Sektoren).",
     en: "Resolved holdings behind a wrapper or multi-asset ETF (equity/bond splits, regions, sectors).",

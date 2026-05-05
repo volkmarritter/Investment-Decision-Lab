@@ -63,6 +63,12 @@ export interface CatalogEntrySummary {
   // Capped at 2 by the catalog invariants (validateCatalog) — see etfs.ts.
   // Absent when the bucket has no curated alternatives configured.
   alternatives?: AlternativeEntrySummary[];
+  // Extended-universe pool — additional ISINs tagged to this bucket
+  // that are pickable in Build (via the "More ETFs" dialog) and in
+  // Explain (via the per-bucket IsinPicker), but not surfaced as
+  // recommended alternatives. Capped at MAX_POOL_PER_BUCKET (50) by
+  // validateCatalog. Absent when the bucket has no pool entries.
+  pool?: AlternativeEntrySummary[];
 }
 
 export type CatalogSummary = Record<string, CatalogEntrySummary>;
@@ -97,6 +103,14 @@ export interface InstrumentEntrySummary {
 export interface BucketAssignmentSummary {
   default: string;
   alternatives: string[];
+  // Extended-universe pool — additional ISINs tagged to this bucket
+  // that are pickable in Build (via the "More ETFs" dialog) and in
+  // Explain (via the per-bucket IsinPicker), but not surfaced as
+  // recommended alternatives. Empty array when the bucket has no
+  // `pool: [...]` field. Same global-uniqueness rule as alternatives:
+  // every ISIN here must be absent from every other slot in every
+  // other bucket.
+  pool: string[];
 }
 
 export function parseInstrumentsFromSource(
@@ -178,7 +192,8 @@ export function parseBucketsFromSource(
     const entryBody = body.slice(openBrace + 1, closeBrace);
     const def = stringField(entryBody, "default") ?? "";
     const alts = parseStringArrayField(entryBody, "alternatives");
-    out[key] = { default: def, alternatives: alts };
+    const pool = parseStringArrayField(entryBody, "pool");
+    out[key] = { default: def, alternatives: alts, pool };
     entryRe.lastIndex = closeBrace + 1;
   }
   return out;
@@ -264,6 +279,33 @@ function joinCatalog(
           : {}),
       });
     }
+    const poolSummaries: AlternativeEntrySummary[] = [];
+    for (const isin of b.pool) {
+      const p = instruments[isin];
+      if (!p) {
+        throw new Error(
+          `BUCKETS["${key}"].pool contains "${isin}" but no INSTRUMENTS["${isin}"] exists.`,
+        );
+      }
+      poolSummaries.push({
+        name: p.name,
+        isin: p.isin,
+        terBps: p.terBps,
+        domicile: p.domicile,
+        replication: p.replication,
+        distribution: p.distribution,
+        currency: p.currency,
+        comment: p.comment,
+        listings: p.listings,
+        defaultExchange: p.defaultExchange,
+        ...(p.aumMillionsEUR !== undefined
+          ? { aumMillionsEUR: p.aumMillionsEUR }
+          : {}),
+        ...(p.inceptionDate !== undefined
+          ? { inceptionDate: p.inceptionDate }
+          : {}),
+      });
+    }
     out[key] = {
       key,
       name: def.name,
@@ -283,6 +325,7 @@ function joinCatalog(
         ? { inceptionDate: def.inceptionDate }
         : {}),
       ...(altSummaries.length > 0 ? { alternatives: altSummaries } : {}),
+      ...(poolSummaries.length > 0 ? { pool: poolSummaries } : {}),
     };
   }
   return out;
@@ -740,7 +783,11 @@ export interface InstrumentUsage {
   // means this list will be either empty (unassigned) or single-entry
   // (one bucket slot). Stored as an array so callers can render
   // "unassigned" vs "in use by X" without an extra branch.
-  usages: Array<{ bucket: string; role: "default" | "alternative"; index?: number }>;
+  usages: Array<{
+    bucket: string;
+    role: "default" | "alternative" | "pool";
+    index?: number;
+  }>;
 }
 
 export function buildInstrumentUsage(
@@ -756,6 +803,11 @@ export function buildInstrumentUsage(
     for (let i = 0; i < b.alternatives.length; i++) {
       if (b.alternatives[i].toUpperCase() === norm) {
         usages.push({ bucket: k, role: "alternative", index: i + 1 });
+      }
+    }
+    for (let i = 0; i < b.pool.length; i++) {
+      if (b.pool[i].toUpperCase() === norm) {
+        usages.push({ bucket: k, role: "pool", index: i + 1 });
       }
     }
   }

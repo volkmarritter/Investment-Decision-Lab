@@ -35,8 +35,12 @@ import {
   findMatchingClose,
   parseCatalogFromSource,
   parseInstrumentsFromSource,
+  parseBucketsFromSource,
 } from "./catalog-parser";
-import { MAX_ALTERNATIVES_PER_BUCKET } from "./limits";
+import {
+  MAX_ALTERNATIVES_PER_BUCKET,
+  MAX_POOL_PER_BUCKET,
+} from "./limits";
 
 // Re-exported so downstream callers (admin.ts, tests) keep importing the
 // canonical entry shape from one place. The implementation lives in
@@ -1155,6 +1159,24 @@ export function injectAlternative(
         }
       }
     }
+    // Pool slots are not part of the joined CatalogSummary view (the
+    // engine never sees them) but they ARE part of the strict global-
+    // uniqueness invariant — Phase 1 of Task #111 enforced "every ISIN
+    // lives in at most one bucket slot, including pool". Walk them
+    // separately so injecting an alternative ISIN that already lives
+    // as a pool entry of any bucket fails fast at PR time.
+    const buckets = parseBucketsFromSource(source);
+    for (const [k, b] of Object.entries(buckets)) {
+      for (let i = 0; i < b.pool.length; i++) {
+        if (b.pool[i].toUpperCase() === normIsin) {
+          return {
+            content: source,
+            status: "isin_present",
+            conflict: `${k} pool ${i + 1}`,
+          };
+        }
+      }
+    }
   }
 
   // Pre-flight #3: cap. Read existing alternatives ISINs in the bucket.
@@ -1933,6 +1955,22 @@ export function setBucketDefault(
             conflict: `${k} alt ${j + 1}`,
           };
         }
+      }
+    }
+  }
+  // Pool slots are not in CatalogSummary — walk them separately so
+  // swapping the default into an ISIN already living in any bucket's
+  // pool (same OR other bucket) fails fast. Mirrors the analogous
+  // alternatives-uniqueness loop above.
+  const bucketsForPool = parseBucketsFromSource(source);
+  for (const [k, b] of Object.entries(bucketsForPool)) {
+    for (let j = 0; j < b.pool.length; j++) {
+      if (b.pool[j].toUpperCase() === normNew) {
+        return {
+          content: source,
+          status: "isin_in_use",
+          conflict: `${k} pool ${j + 1}`,
+        };
       }
     }
   }
@@ -2776,4 +2814,462 @@ export async function openAttachBucketAlternativePr(
   });
 
   return { url: pr.html_url, number: pr.number, lookthroughIncluded };
+}
+
+// ---------------------------------------------------------------------------
+// Bucket POOL slot — extended-universe ISINs (Task #126 — 2026-05)
+// ---------------------------------------------------------------------------
+// The `pool` slot on a BUCKETS entry is a third per-bucket bucket of
+// ISINs (separate from `default` and `alternatives`). It is the
+// "extended universe": funds the operator has tagged as belonging
+// to this bucket so they're pickable in the Build "More ETFs"
+// dialog and in the Explain per-bucket IsinPicker — without being
+// promoted to a curated alternative.
+//
+// Same data-as-code constraints as alternatives:
+//   • Stored as a bare ISIN string array inside BUCKETS["X"].pool.
+//   • Every ISIN MUST already exist in INSTRUMENTS (no row creation
+//     here — pool is "attach existing only").
+//   • Strict global uniqueness — every ISIN appears in at most one
+//     slot of one bucket across {default, alternatives, pool}.
+//   • Per-bucket cap MAX_POOL_PER_BUCKET (50).
+//
+// String-mutation strategy mirrors injectAlternative:
+//   1. Parent must exist.
+//   2. ISIN must exist in INSTRUMENTS.
+//   3. ISIN must not already live anywhere in the catalog (default,
+//      alt, OR pool of any bucket).
+//   4. Bucket's pool size < MAX_POOL_PER_BUCKET.
+//   5. Append into existing `pool: [...]` if present, OR insert a new
+//      `pool: [...]` field just before the bucket's closing `})`.
+//
+// removePool is a pure mirror — refuses if the parent or ISIN is
+// missing, otherwise rewrites the `pool` array literal in-place.
+// ---------------------------------------------------------------------------
+
+export type InjectPoolStatus =
+  | "ok"
+  | "parent_missing"
+  | "instrument_missing"
+  | "isin_in_use"
+  | "cap_exceeded";
+
+export interface InjectPoolResult {
+  content: string;
+  status: InjectPoolStatus;
+  // When status === "isin_in_use", the catalog key + slot
+  // (e.g. "Equity-Global", "Equity-USA alt 2", "Equity-EU pool 1")
+  // where the ISIN already lives.
+  conflict?: string;
+}
+
+// Locate the bucket entry's `pool: [ ... ]` field. Returns null when the
+// bucket has no `pool:` field — caller treats that as "empty pool, can
+// insert a new field". Same string- and comment-aware walker as
+// findBucketAlternatives so the logic stays identical except for the
+// field name.
+function findBucketPool(
+  source: string,
+  bucketBody: { openBrace: number; closeBrace: number },
+): {
+  openBracket: number;
+  closeBracket: number;
+  isins: string[];
+} | null {
+  const inner = source.slice(bucketBody.openBrace + 1, bucketBody.closeBrace);
+  const idx = findFieldIndex(inner, "pool");
+  if (idx < 0) return null;
+  let cursor = idx + "pool:".length;
+  while (cursor < inner.length && /\s/.test(inner[cursor])) cursor++;
+  if (inner[cursor] !== "[") {
+    throw new Error(
+      "`pool` field of a BUCKETS entry is not an array literal.",
+    );
+  }
+  const openBracketRel = cursor;
+  const closeBracketRel = findMatchingBracket(inner, openBracketRel);
+  if (closeBracketRel < 0) {
+    throw new Error(
+      "Unbalanced brackets inside `pool` array of BUCKETS entry.",
+    );
+  }
+  const arrayBody = inner.slice(openBracketRel + 1, closeBracketRel);
+  const isins: string[] = [];
+  let i = 0;
+  while (i < arrayBody.length) {
+    const ch = arrayBody[i];
+    if (ch === "/" && arrayBody[i + 1] === "/") {
+      while (i < arrayBody.length && arrayBody[i] !== "\n") i++;
+      continue;
+    }
+    if (ch === "/" && arrayBody[i + 1] === "*") {
+      i += 2;
+      while (
+        i < arrayBody.length - 1 &&
+        !(arrayBody[i] === "*" && arrayBody[i + 1] === "/")
+      ) {
+        i++;
+      }
+      i += 2;
+      continue;
+    }
+    if (ch === '"') {
+      const start = i + 1;
+      i++;
+      while (i < arrayBody.length) {
+        const c = arrayBody[i];
+        if (c === "\\") {
+          i += 2;
+          continue;
+        }
+        if (c === '"') {
+          isins.push(arrayBody.slice(start, i));
+          i++;
+          break;
+        }
+        i++;
+      }
+      continue;
+    }
+    i++;
+  }
+  return {
+    openBracket: bucketBody.openBrace + 1 + openBracketRel,
+    closeBracket: bucketBody.openBrace + 1 + closeBracketRel,
+    isins,
+  };
+}
+
+export function injectPool(
+  source: string,
+  parentKey: string,
+  isin: string,
+): InjectPoolResult {
+  // Pre-flight #1: parent bucket must exist in BUCKETS.
+  const bucketsBlock = findLiteralBlock(source, BUCKETS_HEADER);
+  const bucketBody = findBucketEntry(source, bucketsBlock, parentKey);
+  if (!bucketBody) {
+    return { content: source, status: "parent_missing" };
+  }
+
+  const normIsin = isin.trim().toUpperCase();
+  if (!normIsin) {
+    // Defensive: a blank ISIN is not "instrument_missing" — it's a
+    // caller bug. Treat as instrument_missing so the route handler
+    // surfaces the same 404 path it uses for unregistered ISINs.
+    return { content: source, status: "instrument_missing" };
+  }
+
+  // Pre-flight #2: ISIN must already live in INSTRUMENTS — pool is
+  // attach-existing-only. Without this the `pool: [...]` array would
+  // hold a bare ISIN string the runtime catalog joiner can't resolve.
+  const instrumentsBlock = findLiteralBlock(source, INSTRUMENTS_HEADER);
+  if (!instrumentRowExists(source, instrumentsBlock, normIsin)) {
+    return { content: source, status: "instrument_missing" };
+  }
+
+  // Pre-flight #3: strict global ISIN uniqueness across every bucket
+  // (default OR alternative OR pool — every slot in every bucket).
+  // Same single source of truth used by injectAlternative +
+  // setBucketDefault — the joined parser for default/alts plus a
+  // separate parseBucketsFromSource walk for pool entries (which
+  // aren't surfaced by the joined view).
+  const summary = parseCatalogFromSource(source);
+  for (const [k, e] of Object.entries(summary)) {
+    if (e.isin.toUpperCase() === normIsin) {
+      return { content: source, status: "isin_in_use", conflict: k };
+    }
+    if (e.alternatives) {
+      for (let i = 0; i < e.alternatives.length; i++) {
+        if (e.alternatives[i].isin.toUpperCase() === normIsin) {
+          return {
+            content: source,
+            status: "isin_in_use",
+            conflict: `${k} alt ${i + 1}`,
+          };
+        }
+      }
+    }
+  }
+  const buckets = parseBucketsFromSource(source);
+  for (const [k, b] of Object.entries(buckets)) {
+    for (let i = 0; i < b.pool.length; i++) {
+      if (b.pool[i].toUpperCase() === normIsin) {
+        return {
+          content: source,
+          status: "isin_in_use",
+          conflict: `${k} pool ${i + 1}`,
+        };
+      }
+    }
+  }
+
+  // Pre-flight #4: per-bucket cap.
+  const poolField = findBucketPool(source, bucketBody);
+  const currentCount = poolField ? poolField.isins.length : 0;
+  if (currentCount >= MAX_POOL_PER_BUCKET) {
+    return { content: source, status: "cap_exceeded" };
+  }
+
+  // Step A: rewrite (or insert) the `pool: [...]` field.
+  if (poolField) {
+    // Append to existing array. Single-line style mirrors alternatives.
+    const newIsins = [...poolField.isins, normIsin];
+    const newArrayLiteral = `[${newIsins.map((s) => JSON.stringify(s)).join(", ")}]`;
+    const next =
+      source.slice(0, poolField.openBracket) +
+      newArrayLiteral +
+      source.slice(poolField.closeBracket + 1);
+    return { content: next, status: "ok" };
+  }
+  // Insert a new `pool: ["..."],` field just before the bucket's
+  // closing `}`. Walk back from the closing brace to capture the
+  // existing close-brace indent (typically "  ") so the inserted
+  // field is indented one level deeper than the brace.
+  let indentEnd = bucketBody.closeBrace;
+  let indentStart = indentEnd;
+  while (
+    indentStart > 0 &&
+    (source[indentStart - 1] === " " || source[indentStart - 1] === "\t")
+  ) {
+    indentStart--;
+  }
+  const closeIndent = source.slice(indentStart, indentEnd);
+  const fieldIndent = closeIndent + "  ";
+  const newArrayLiteral = `[${JSON.stringify(normIsin)}]`;
+  const insertion = `${fieldIndent}pool: ${newArrayLiteral},\n${closeIndent}`;
+  const next =
+    source.slice(0, indentStart) + insertion + source.slice(indentStart);
+  return { content: next, status: "ok" };
+}
+
+export type RemovePoolStatus = "ok" | "parent_missing" | "isin_not_found";
+export interface RemovePoolResult {
+  content: string;
+  status: RemovePoolStatus;
+}
+
+export function removePool(
+  source: string,
+  parentKey: string,
+  isin: string,
+): RemovePoolResult {
+  const bucketsBlock = findLiteralBlock(source, BUCKETS_HEADER);
+  const bucketBody = findBucketEntry(source, bucketsBlock, parentKey);
+  if (!bucketBody) {
+    return { content: source, status: "parent_missing" };
+  }
+  const poolField = findBucketPool(source, bucketBody);
+  if (!poolField) {
+    return { content: source, status: "isin_not_found" };
+  }
+  const target = isin.trim().toUpperCase();
+  const remaining = poolField.isins.filter(
+    (s) => s.toUpperCase() !== target,
+  );
+  if (remaining.length === poolField.isins.length) {
+    return { content: source, status: "isin_not_found" };
+  }
+  const newArrayLiteral =
+    remaining.length === 0
+      ? "[]"
+      : `[${remaining.map((s) => JSON.stringify(s)).join(", ")}]`;
+  const content =
+    source.slice(0, poolField.openBracket) +
+    newArrayLiteral +
+    source.slice(poolField.closeBracket + 1);
+  // INSTRUMENTS row intentionally untouched — same contract as
+  // removeAlternative; deletion of an orphaned instrument is a
+  // separate explicit operation through the Instruments sub-tab.
+  return { content, status: "ok" };
+}
+
+// ---------------------------------------------------------------------------
+// openAddBucketPoolPr — orchestration mirroring openAttachBucketAlternativePr
+// ---------------------------------------------------------------------------
+// "Attach existing INSTRUMENTS ISIN to bucket :key as a pool entry."
+// No look-through bundling — pool is the extended-universe slot, and
+// look-through data for it is filled on the next monthly refresh job
+// (or via a manual scrape-and-PR through the Operations tab) rather
+// than coupled to the pool-attach flow.
+//
+// Branch name: `add-pool/<isin-lower>` so listOpenPrs can scope to
+// the pool flow distinctly from add-alt / rm-alt.
+// ---------------------------------------------------------------------------
+export async function openAddBucketPoolPr(
+  parentKey: string,
+  isin: string,
+): Promise<{ url: string; number: number }> {
+  if (!githubConfigured()) {
+    throw new Error(
+      "GitHub PR creation is not configured. Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO.",
+    );
+  }
+  const owner = process.env.GITHUB_OWNER!;
+  const repo = process.env.GITHUB_REPO!;
+  const base = process.env.GITHUB_BASE_BRANCH ?? "main";
+  const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
+
+  const { data: baseRef } = await octokit.git.getRef({
+    owner,
+    repo,
+    ref: `heads/${base}`,
+  });
+  const baseSha = baseRef.object.sha;
+
+  const { data: fileMeta } = await octokit.repos.getContent({
+    owner,
+    repo,
+    path: ETFS_FILE_PATH,
+    ref: baseSha,
+  });
+  if (Array.isArray(fileMeta) || fileMeta.type !== "file") {
+    throw new Error(`Unexpected GitHub response for ${ETFS_FILE_PATH}.`);
+  }
+  const currentContent = Buffer.from(fileMeta.content, "base64").toString(
+    "utf8",
+  );
+
+  const result = injectPool(currentContent, parentKey, isin);
+  if (result.status === "parent_missing") {
+    throw new Error(`Parent bucket "${parentKey}" not found in catalog.`);
+  }
+  if (result.status === "instrument_missing") {
+    throw new Error(
+      `ISIN ${isin} is not in the INSTRUMENTS table — register it first via the Instruments sub-tab.`,
+    );
+  }
+  if (result.status === "isin_in_use") {
+    throw new Error(
+      `ISIN ${isin} is already assigned to bucket "${result.conflict}". Every ISIN may belong to at most one bucket slot.`,
+    );
+  }
+  if (result.status === "cap_exceeded") {
+    throw new Error(
+      `Bucket "${parentKey}" already has the maximum of ${MAX_POOL_PER_BUCKET} pool entries.`,
+    );
+  }
+
+  const branch = `add-pool/${isin.toLowerCase()}`;
+  await ensureFreshBranch({ octokit, owner, repo, branch, baseSha });
+
+  const title = `Attach ${isin} to pool of ${parentKey}`;
+  await octokit.repos.createOrUpdateFileContents({
+    owner,
+    repo,
+    path: ETFS_FILE_PATH,
+    branch,
+    message: title,
+    content: Buffer.from(result.content, "utf8").toString("base64"),
+    sha: fileMeta.sha,
+  });
+
+  const { data: pr } = await octokit.pulls.create({
+    owner,
+    repo,
+    head: branch,
+    base,
+    title,
+    body: [
+      `Adds existing ISIN \`${isin}\` to the **extended-universe pool** of bucket \`${parentKey}\`.`,
+      "",
+      "The pool is a third per-bucket slot (separate from `default` and `alternatives`). Pool entries are pickable in the Build tab's _More ETFs_ dialog and in the Explain tab's per-bucket IsinPicker, but are **not** surfaced as recommended alternatives.",
+      "",
+      "Generated from the in-app admin pane (tree-row picker). The pre-flight checks confirmed:",
+      `- The ISIN already exists in the INSTRUMENTS table.`,
+      `- No other bucket slot (default / alternative / pool) currently references this ISIN — strict global uniqueness.`,
+      `- The bucket has fewer than ${MAX_POOL_PER_BUCKET} pool entries, so the cap holds.`,
+      "",
+      "**Reviewer checklist**",
+      `- Confirm \`${parentKey}\` is the correct bucket (currency / asset-class match).`,
+      `- After merge, the ISIN appears in the _More ETFs_ dialog of that bucket on Build, and as a tagged option in the Explain picker.`,
+      "- Look-through data for this ISIN will be filled on the next monthly refresh job — no need to bundle it here.",
+    ].join("\n"),
+  });
+
+  return { url: pr.html_url, number: pr.number };
+}
+
+// ---------------------------------------------------------------------------
+// openRemoveBucketPoolPr — pure removal mirror of openAddBucketPoolPr.
+// Branch name: `rm-pool/<isin-lower>`.
+// ---------------------------------------------------------------------------
+export async function openRemoveBucketPoolPr(
+  parentKey: string,
+  isin: string,
+): Promise<{ url: string; number: number }> {
+  if (!githubConfigured()) {
+    throw new Error(
+      "GitHub PR creation is not configured. Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO.",
+    );
+  }
+  const owner = process.env.GITHUB_OWNER!;
+  const repo = process.env.GITHUB_REPO!;
+  const base = process.env.GITHUB_BASE_BRANCH ?? "main";
+  const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
+
+  const { data: baseRef } = await octokit.git.getRef({
+    owner,
+    repo,
+    ref: `heads/${base}`,
+  });
+  const baseSha = baseRef.object.sha;
+
+  const { data: fileMeta } = await octokit.repos.getContent({
+    owner,
+    repo,
+    path: ETFS_FILE_PATH,
+    ref: baseSha,
+  });
+  if (Array.isArray(fileMeta) || fileMeta.type !== "file") {
+    throw new Error(`Unexpected GitHub response for ${ETFS_FILE_PATH}.`);
+  }
+  const currentContent = Buffer.from(fileMeta.content, "base64").toString(
+    "utf8",
+  );
+
+  const result = removePool(currentContent, parentKey, isin);
+  if (result.status === "parent_missing") {
+    throw new Error(`Parent bucket "${parentKey}" not found in catalog.`);
+  }
+  if (result.status === "isin_not_found") {
+    throw new Error(
+      `ISIN ${isin} is not in the pool of bucket "${parentKey}".`,
+    );
+  }
+
+  const branch = `rm-pool/${isin.toLowerCase()}`;
+  await ensureFreshBranch({ octokit, owner, repo, branch, baseSha });
+
+  const title = `Remove ${isin} from pool of ${parentKey}`;
+  await octokit.repos.createOrUpdateFileContents({
+    owner,
+    repo,
+    path: ETFS_FILE_PATH,
+    branch,
+    message: title,
+    content: Buffer.from(result.content, "utf8").toString("base64"),
+    sha: fileMeta.sha,
+  });
+
+  const { data: pr } = await octokit.pulls.create({
+    owner,
+    repo,
+    head: branch,
+    base,
+    title,
+    body: [
+      `Removes ISIN \`${isin}\` from the extended-universe pool of bucket \`${parentKey}\`.`,
+      "",
+      "Generated from the in-app admin pane (tree-row pool editor).",
+      "",
+      "**Note:** the per-ISIN look-through profile in `lookthrough.overrides.json` is intentionally **not** touched. The ETF disappears from the bucket's _More ETFs_ dialog and from the Explain picker, but its holdings / country / sector breakdown stays in the look-through data pool.",
+      "",
+      "**Reviewer checklist**",
+      `- Confirm the operator intended to retire this pool entry from \`${parentKey}\`.`,
+      `- After merging, the _More ETFs_ dialog of \`${parentKey}\` no longer offers this ISIN.`,
+    ].join("\n"),
+  });
+
+  return { url: pr.html_url, number: pr.number };
 }

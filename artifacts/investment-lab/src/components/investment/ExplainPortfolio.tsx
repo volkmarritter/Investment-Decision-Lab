@@ -59,6 +59,7 @@ import {
   getBucketMeta,
   getInstrumentByIsin,
   listInstruments,
+  getInstrumentRole,
 } from "@/lib/etfs";
 import {
   PersonalPosition,
@@ -276,8 +277,22 @@ function IsinPicker({ value, onPick, excludeIsins, testId, restrictToBucketKey }
                       }}
                       data-testid={`isin-option-${r.isin}`}
                     >
-                      <div className="flex flex-col gap-0.5 min-w-0">
-                        <span className="text-xs font-medium truncate">{r.name}</span>
+                      <div className="flex flex-col gap-0.5 min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-xs font-medium truncate">{r.name}</span>
+                          {/* Task #149 — flag pool entries so the operator can
+                              tell curated alternatives apart from the broader
+                              extended-universe pool while picking. */}
+                          {getInstrumentRole(r.isin) === "pool" && (
+                            <Badge
+                              variant="outline"
+                              className="text-[9px] px-1.5 py-0 h-4 shrink-0 border-emerald-600 text-emerald-700 dark:text-emerald-400"
+                              data-testid={`isin-option-pool-badge-${r.isin}`}
+                            >
+                              {t("explain.picker.pool")}
+                            </Badge>
+                          )}
+                        </div>
                         <span className="text-[11px] text-muted-foreground font-mono">
                           {r.isin} · {r.currency} · {(r.terBps / 100).toFixed(2)}% TER
                         </span>
