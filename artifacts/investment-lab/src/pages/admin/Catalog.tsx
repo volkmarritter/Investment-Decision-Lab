@@ -133,7 +133,10 @@ export default function Catalog() {
           />
         )}
         {active === "batch" && (
-          <BatchAddAlternativesPanel githubConfigured={githubConfigured} />
+          <BatchAddAlternativesPanel
+            githubConfigured={githubConfigured}
+            directWrite={directWrite}
+          />
         )}
         {active === "instruments" && (
           <InstrumentsPanel

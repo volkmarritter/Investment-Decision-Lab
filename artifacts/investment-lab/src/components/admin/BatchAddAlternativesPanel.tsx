@@ -149,8 +149,10 @@ function diagnoseBatchRows(
 
 export function BatchAddAlternativesPanel({
   githubConfigured,
+  directWrite = false,
 }: {
   githubConfigured: boolean;
+  directWrite?: boolean;
 }) {
   const { t, lang } = useAdminT();
   const [rows, setRows] = useState<BatchRow[]>(() => [
@@ -296,14 +298,19 @@ export function BatchAddAlternativesPanel({
           })}
         </CardTitle>
         <p className="text-xs text-muted-foreground">
-          {t({
-            de: "Mehrere Alternativen in EINEM Pull Request. Dedup, Cap (≤2 pro Bucket) und Parent-Existenz werden über die ganze Liste geprüft. Look-through-Daten werden für jede neue Alternative best-effort gescraped und – sofern vorhanden – im selben Pull Request mitgeliefert (eine gemeinsame Änderung an etfs.ts und lookthrough.overrides.json).",
-            en: "Queue N alternatives into ONE pull request. Dedup, per-bucket cap (≤2) and parent existence are checked across the whole list. Look-through data is best-effort scraped per row and — when available — bundled into the SAME pull request (a single commit touching both etfs.ts and lookthrough.overrides.json).",
-          })}
+          {directWrite
+            ? t({
+                de: "Bulk-Validierung & Massen-Paste für Katalog-Edits: Dedup, Cap (≤2 pro Bucket) und Parent-Existenz werden über die ganze Liste geprüft, BEVOR irgendetwas geschrieben wird — fängt Konflikte ab, die der Einzel-Picker im Tree nicht sehen kann. Look-through-Daten werden pro Zeile best-effort gescraped. Im Direkt-Schreib-Modus landen alle gültigen Zeilen sofort auf der Festplatte.",
+                en: "Bulk validation & paste-many for catalog mass edits: dedup, per-bucket cap (≤2) and parent existence are checked across the whole list BEFORE anything is written — catches cross-row conflicts the per-row picker in the tree can't see. Look-through data is best-effort scraped per row. In direct-write mode, all valid rows are saved straight to disk.",
+              })
+            : t({
+                de: "Mehrere Alternativen in EINEM Pull Request. Dedup, Cap (≤2 pro Bucket) und Parent-Existenz werden über die ganze Liste geprüft. Look-through-Daten werden für jede neue Alternative best-effort gescraped und – sofern vorhanden – im selben Pull Request mitgeliefert (eine gemeinsame Änderung an etfs.ts und lookthrough.overrides.json).",
+                en: "Queue N alternatives into ONE pull request. Dedup, per-bucket cap (≤2) and parent existence are checked across the whole list. Look-through data is best-effort scraped per row and — when available — bundled into the SAME pull request (a single commit touching both etfs.ts and lookthrough.overrides.json).",
+              })}
         </p>
       </CardHeader>
       <CardContent className="space-y-4">
-        {!githubConfigured && (
+        {!githubConfigured && !directWrite && (
           <Alert variant="destructive">
             <AlertTitle>
               {t({
@@ -499,14 +506,16 @@ export function BatchAddAlternativesPanel({
               submitting ||
               previewing ||
               filledCount === 0 ||
-              !githubConfigured ||
+              (!githubConfigured && !directWrite) ||
               hasLocalProblem
             }
             data-testid="button-batch-submit"
           >
             {submitting
               ? t({ de: "Sende…", en: "Submitting…" })
-              : t({ de: "Batch absenden", en: "Submit batch" })}
+              : directWrite
+                ? t({ de: "Batch speichern", en: "Save batch" })
+                : t({ de: "Batch absenden", en: "Submit batch" })}
           </Button>
           <span className="text-xs text-muted-foreground">
             {t({
@@ -541,19 +550,23 @@ export function BatchAddAlternativesPanel({
         {submitResult && (
           <BatchSubmitDisplay result={submitResult} lang={lang} t={t} />
         )}
-        <Separator />
-        <PendingPrsCard
-          prefix="add-alt/bulk-"
-          refreshKey={refreshKey}
-          emptyHint={
-            <span>
-              {t({
-                de: "Noch keine offenen Batch-Pull-Requests.",
-                en: "No open batch pull requests.",
-              })}
-            </span>
-          }
-        />
+        {!directWrite && (
+          <>
+            <Separator />
+            <PendingPrsCard
+              prefix="add-alt/bulk-"
+              refreshKey={refreshKey}
+              emptyHint={
+                <span>
+                  {t({
+                    de: "Noch keine offenen Batch-Pull-Requests.",
+                    en: "No open batch pull requests.",
+                  })}
+                </span>
+              }
+            />
+          </>
+        )}
       </CardContent>
     </Card>
   );
