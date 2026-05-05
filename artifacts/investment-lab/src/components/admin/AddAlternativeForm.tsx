@@ -183,16 +183,24 @@ export function AddAlternativeForm({
                 en: `Look-through data will be filled in later by the refresh job: ${r.lookthroughError}`,
               })
             : null;
+      // Direct-write mode (2026-05): server returns "" prUrl + 0 prNumber.
+      const directWrite = !r.prUrl || r.prNumber === 0;
       toast.success(
-        t({ de: "Pull-Request geöffnet", en: "Pull request opened" }),
+        directWrite
+          ? t({ de: "Gespeichert", en: "Saved" })
+          : t({ de: "Pull-Request geöffnet", en: "Pull request opened" }),
         {
-          description: lookthroughLine
-            ? `${r.prUrl}\n${lookthroughLine}`
-            : r.prUrl,
-          action: {
-            label: t({ de: "Öffnen", en: "Open" }),
-            onClick: () => window.open(r.prUrl, "_blank"),
-          },
+          description: directWrite
+            ? lookthroughLine ?? undefined
+            : lookthroughLine
+              ? `${r.prUrl}\n${lookthroughLine}`
+              : r.prUrl,
+          action: directWrite
+            ? undefined
+            : {
+                label: t({ de: "Öffnen", en: "Open" }),
+                onClick: () => window.open(r.prUrl, "_blank"),
+              },
         },
       );
       setDraft(blankAlternativeDraft());

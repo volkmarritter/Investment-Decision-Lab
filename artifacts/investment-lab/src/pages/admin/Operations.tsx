@@ -33,7 +33,7 @@ type SubKey = "sync" | "prs" | "changes" | "runs" | "freshness";
 export default function Operations() {
   const { t } = useAdminT();
   const [location] = useLocation();
-  const { githubInfo } = useAdminContext();
+  const { githubInfo, directWrite } = useAdminContext();
 
   const tabs: SubTab[] = [
     {
@@ -41,11 +41,17 @@ export default function Operations() {
       label: t({ de: "Workspace-Sync", en: "Workspace sync" }),
       testid: "tab-operations-sync",
     },
-    {
-      to: "/admin/operations/prs",
-      label: t({ de: "Pull Requests", en: "Pull requests" }),
-      testid: "tab-operations-prs",
-    },
+    // Direct-write mode hides the Pull-requests sub-tab — there are no PRs
+    // to track when the server edits etfs.ts directly on disk.
+    ...(directWrite
+      ? []
+      : [
+          {
+            to: "/admin/operations/prs",
+            label: t({ de: "Pull Requests", en: "Pull requests" }),
+            testid: "tab-operations-prs",
+          },
+        ]),
     {
       to: "/admin/operations/changes",
       label: t({ de: "Datenänderungen", en: "Data changes" }),

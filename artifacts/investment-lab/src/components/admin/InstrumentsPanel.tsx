@@ -118,16 +118,22 @@ export function InstrumentsPanel({
     if (!confirmed) return;
     try {
       const r = await adminApi.removeInstrument(row.isin);
+      // Direct-write mode (2026-05): server returns prNumber: 0 / prUrl: "".
+      const directWrite = !r.prUrl || r.prNumber === 0;
       toast.success(
-        lang === "de"
-          ? `Pull Request #${r.prNumber} geöffnet`
-          : `Pull Request #${r.prNumber} opened`,
-        {
-          action: {
-            label: t({ de: "Öffnen", en: "Open" }),
-            onClick: () => window.open(r.prUrl, "_blank"),
-          },
-        },
+        directWrite
+          ? lang === "de" ? "Gespeichert" : "Saved"
+          : lang === "de"
+            ? `Pull Request #${r.prNumber} geöffnet`
+            : `Pull Request #${r.prNumber} opened`,
+        directWrite
+          ? undefined
+          : {
+              action: {
+                label: t({ de: "Öffnen", en: "Open" }),
+                onClick: () => window.open(r.prUrl, "_blank"),
+              },
+            },
       );
       setReloadKey((k) => k + 1);
     } catch (e: unknown) {
@@ -470,16 +476,22 @@ function InstrumentForm({
       const r = isEdit
         ? await adminApi.updateInstrument(initial!.isin, draft)
         : await adminApi.addInstrument(draft);
+      // Direct-write mode (2026-05): server returns prNumber: 0 / prUrl: "".
+      const directWrite = !r.prUrl || r.prNumber === 0;
       toast.success(
-        lang === "de"
-          ? `Pull Request #${r.prNumber} geöffnet`
-          : `Pull Request #${r.prNumber} opened`,
-        {
-          action: {
-            label: t({ de: "Öffnen", en: "Open" }),
-            onClick: () => window.open(r.prUrl, "_blank"),
-          },
-        },
+        directWrite
+          ? lang === "de" ? "Gespeichert" : "Saved"
+          : lang === "de"
+            ? `Pull Request #${r.prNumber} geöffnet`
+            : `Pull Request #${r.prNumber} opened`,
+        directWrite
+          ? undefined
+          : {
+              action: {
+                label: t({ de: "Öffnen", en: "Open" }),
+                onClick: () => window.open(r.prUrl, "_blank"),
+              },
+            },
       );
       onCreated();
     } catch (e: unknown) {

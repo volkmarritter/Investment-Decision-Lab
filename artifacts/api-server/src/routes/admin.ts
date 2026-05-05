@@ -25,6 +25,7 @@ import { Octokit } from "@octokit/rest";
 import { requireAdmin } from "../middlewares/admin-auth";
 import { dataFile } from "../lib/data-paths";
 import {
+  directWriteMode,
   githubConfigured,
   injectAlternative,
   listOpenPrs,
@@ -90,6 +91,11 @@ router.get("/admin/whoami", (_req, res) => {
     githubOwner: process.env.GITHUB_OWNER ?? null,
     githubRepo: process.env.GITHUB_REPO ?? null,
     githubBaseBranch: process.env.GITHUB_BASE_BRANCH ?? "main",
+    // Direct-write mode (2026-05): when the api-server can write
+    // `etfs.ts` directly on disk (workspace dev), catalog mutations
+    // skip the PR roundtrip entirely. The UI uses this to hide the
+    // PR badges, polling, and Operations → Pull requests sub-tab.
+    directWrite: directWriteMode(),
   });
 });
 
@@ -113,7 +119,7 @@ router.get("/admin/github/prs", async (req, res) => {
   const prefixRaw =
     typeof req.query.prefix === "string" ? req.query.prefix : "";
   const prefix = prefixRaw.length > 0 ? prefixRaw : undefined;
-  if (!githubConfigured()) {
+  if (!directWriteMode() && !githubConfigured()) {
     res.json({ configured: false, prs: [] });
     return;
   }
@@ -364,7 +370,7 @@ router.post("/admin/bucket-alternatives", async (req, res) => {
     return;
   }
 
-  if (!githubConfigured()) {
+  if (!directWriteMode() && !githubConfigured()) {
     res.status(503).json({
       error: "github_not_configured",
       message:
@@ -1377,7 +1383,7 @@ router.get("/admin/file-compare/:fileId", async (req, res) => {
   // 2. GitHub side: fetch the blob at HEAD of base branch. Match the
   //    pattern used by openUpdateAppDefaultsPr / openAddLookthroughPoolPr
   //    so a single PAT scope works for read AND write.
-  if (!githubConfigured()) {
+  if (!directWriteMode() && !githubConfigured()) {
     res.status(503).json({
       error: "github_not_configured",
       message:
@@ -1564,7 +1570,7 @@ router.delete("/admin/bucket-alternatives/:parentKey/:isin", async (req, res) =>
     return;
   }
 
-  if (!githubConfigured()) {
+  if (!directWriteMode() && !githubConfigured()) {
     res.status(503).json({
       error: "github_not_configured",
       message:
@@ -1620,7 +1626,7 @@ router.post("/admin/add-isin", async (req, res) => {
     res.status(400).json({ error: "invalid_entry", message: validationError });
     return;
   }
-  if (!githubConfigured()) {
+  if (!directWriteMode() && !githubConfigured()) {
     res.status(503).json({
       error: "github_not_configured",
       message:
@@ -1752,7 +1758,7 @@ router.post("/admin/lookthrough-pool/:isin", async (req, res) => {
   // während die Admin-Tabelle "Daten OK" behauptete.
   // Jetzt: GitHub-PR öffnen (gleicher Pattern wie /admin/app-defaults).
   // Nach Merge + Redeploy sehen Admin und Frontend dieselben Daten.
-  if (!githubConfigured()) {
+  if (!directWriteMode() && !githubConfigured()) {
     res.status(503).json({
       error: "github_not_configured",
       message: "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
@@ -1909,7 +1915,7 @@ router.post("/admin/lookthrough-pool/:isin", async (req, res) => {
 // registered earlier; Express would match `:isin = "backfill"` and the
 // bulk handler would be unreachable.
 router.post("/admin/backfill-lookthrough-pool", async (_req, res) => {
-  if (!githubConfigured()) {
+  if (!directWriteMode() && !githubConfigured()) {
     res.status(503).json({
       error: "github_not_configured",
       message: "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
@@ -2361,7 +2367,7 @@ router.post("/admin/app-defaults", async (req, res) => {
     });
     return;
   }
-  if (!githubConfigured()) {
+  if (!directWriteMode() && !githubConfigured()) {
     res.status(503).json({
       error: "github_not_configured",
       message: "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
@@ -2484,7 +2490,7 @@ router.post("/admin/instruments", async (req, res) => {
     res.status(400).json({ error: "invalid_entry", message: validationError });
     return;
   }
-  if (!githubConfigured()) {
+  if (!directWriteMode() && !githubConfigured()) {
     res.status(503).json({
       error: "github_not_configured",
       message: "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
@@ -2550,7 +2556,7 @@ router.patch("/admin/instruments/:isin", async (req, res) => {
     res.status(400).json({ error: "invalid_entry", message: validationError });
     return;
   }
-  if (!githubConfigured()) {
+  if (!directWriteMode() && !githubConfigured()) {
     res.status(503).json({
       error: "github_not_configured",
       message: "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
@@ -2600,7 +2606,7 @@ router.delete("/admin/instruments/:isin", async (req, res) => {
     });
     return;
   }
-  if (!githubConfigured()) {
+  if (!directWriteMode() && !githubConfigured()) {
     res.status(503).json({
       error: "github_not_configured",
       message: "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
@@ -2689,7 +2695,7 @@ router.post("/admin/buckets/:key/alternatives", async (req, res) => {
     });
     return;
   }
-  if (!githubConfigured()) {
+  if (!directWriteMode() && !githubConfigured()) {
     res.status(503).json({
       error: "github_not_configured",
       message: "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
@@ -2827,7 +2833,7 @@ router.put("/admin/buckets/:key/default", async (req, res) => {
     });
     return;
   }
-  if (!githubConfigured()) {
+  if (!directWriteMode() && !githubConfigured()) {
     res.status(503).json({
       error: "github_not_configured",
       message: "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
@@ -2892,7 +2898,7 @@ router.post("/admin/buckets/:key/pool", async (req, res) => {
     });
     return;
   }
-  if (!githubConfigured()) {
+  if (!directWriteMode() && !githubConfigured()) {
     res.status(503).json({
       error: "github_not_configured",
       message: "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
@@ -2954,7 +2960,7 @@ router.delete("/admin/buckets/:key/pool/:isin", async (req, res) => {
     });
     return;
   }
-  if (!githubConfigured()) {
+  if (!directWriteMode() && !githubConfigured()) {
     res.status(503).json({
       error: "github_not_configured",
       message: "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",

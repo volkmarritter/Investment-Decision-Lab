@@ -35,6 +35,40 @@ Match validation effort to the size of the change. Do not run the full e2e suite
 - **Logic, routing, state, persistence, calculation, or anything touching the home-bias / explain / build flows** → typecheck + unit tests + full e2e (`restart_workflow e2e`).
 - **Always full e2e before suggesting `suggest_deploy`.**
 
+## Admin direct-write mode (2026-05)
+
+The admin UI's catalog mutations no longer round-trip through GitHub PRs when
+running in the Replit workspace — the api-server edits `etfs.ts` (and
+`lookthrough.overrides.json`, when bundled with an attach-alternative call)
+**directly on disk**. In production (deployed/published builds), the workspace
+files don't exist on the runtime FS, so the helpers automatically fall back to
+the original PR-based flow.
+
+Implementation: `artifacts/api-server/src/lib/github.ts` walks up from
+`process.cwd()` at boot looking for `artifacts/investment-lab/src/lib/etfs.ts`.
+If found AND writable AND `ADMIN_DIRECT_WRITE_DISABLED !== "1"`,
+`directWriteMode()` returns `true`. The 7 PR helpers (`openAddEtfPr`,
+`openInstrumentPr`, `openSetBucketDefaultPr`, `openAttachBucketAlternativePr`,
+`openRemoveBucketAlternativePr`, `openAddBucketPoolPr`, `openRemoveBucketPoolPr`)
+all funnel through `fetchEtfsBase()` / `commitEtfsChange()`, which branch on
+direct-write mode and return `{url: "", number: 0}` when writing locally.
+
+UI side: `GET /admin/whoami` now also returns `directWrite: boolean`, threaded
+through `AdminContext`. When true:
+
+- `PendingPrsCard` early-returns `null` (no PR list, no polling).
+- `Operations.tsx` filters out the **Pull requests** sub-tab.
+- The 2 success toasts in `SuggestIsinPanel` and `AddAlternativeForm` say
+  "Saved" / "Gespeichert" instead of "Pull request opened" and drop the
+  empty-URL "Open" action button when the response carries `prUrl: ""`.
+
+Other PR-action buttons (e.g. tree-row "Open PR") are already guarded by
+`if (r.prNumber && r.prUrl)` and become no-ops correctly without further
+changes.
+
+To force PR mode locally for testing the production codepath, set
+`ADMIN_DIRECT_WRITE_DISABLED=1` and restart the api-server workflow.
+
 ## Investment Lab catalog data model (Task #111 — 2026-04)
 
 The ETF catalog in `artifacts/investment-lab/src/lib/etfs.ts` is split

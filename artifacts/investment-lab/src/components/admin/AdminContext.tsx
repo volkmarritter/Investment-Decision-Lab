@@ -12,6 +12,10 @@ export type AdminGithubInfo = {
 export type AdminContextValue = {
   githubConfigured: boolean;
   githubInfo: AdminGithubInfo;
+  // Direct-write mode (2026-05): when true, catalog mutations write
+  // `etfs.ts` on disk and PR-related UI (badges, polling, Operations
+  // → Pull requests sub-tab, "Pull request opened" toasts) is hidden.
+  directWrite: boolean;
   catalog: CatalogSummary | null;
   catalogError: string | null;
 };

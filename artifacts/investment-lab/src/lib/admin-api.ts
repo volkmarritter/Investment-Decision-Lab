@@ -263,6 +263,9 @@ export const adminApi = {
       githubOwner: string | null;
       githubRepo: string | null;
       githubBaseBranch: string;
+      // Direct-write mode (2026-05): server can edit etfs.ts on disk.
+      // Optional for backward-compat with older deployed servers.
+      directWrite?: boolean;
     }>("/admin/whoami", {
       token,
     }),

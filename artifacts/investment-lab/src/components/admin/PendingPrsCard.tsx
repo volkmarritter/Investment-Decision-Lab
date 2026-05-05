@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { adminApi, type OpenPrInfo } from "@/lib/admin-api";
 import { useAdminT } from "@/lib/admin-i18n";
+import { useAdminContext } from "@/components/admin/AdminContext";
 import { formatRelative, formatTimestamp } from "@/lib/admin-date";
 import { ExternalLink, GitPullRequest, RefreshCw } from "lucide-react";
 
@@ -19,11 +20,17 @@ export function PendingPrsCard({
   title?: React.ReactNode;
 }) {
   const { t, lang } = useAdminT();
+  const { directWrite } = useAdminContext();
   const [prs, setPrs] = useState<OpenPrInfo[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
 
   const load = useCallback(async () => {
+    if (directWrite) {
+      // No PRs to track — server writes etfs.ts directly.
+      setPrs([]);
+      return;
+    }
     setLoading(true);
     setErrMsg(null);
     try {
@@ -35,11 +42,14 @@ export function PendingPrsCard({
     } finally {
       setLoading(false);
     }
-  }, [prefix]);
+  }, [prefix, directWrite]);
 
   useEffect(() => {
     void load();
   }, [load, refreshKey]);
+
+  // Direct-write mode hides the entire card — there is no PR to track.
+  if (directWrite) return null;
 
   const fmtAge = (iso: string) => formatRelative(Date.now() - new Date(iso).getTime(), lang);
   const fmtAbs = (iso: string) => {

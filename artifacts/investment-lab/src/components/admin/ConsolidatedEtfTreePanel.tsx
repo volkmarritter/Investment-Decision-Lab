@@ -276,16 +276,22 @@ export function ConsolidatedEtfTreePanel({
     if (!confirmed) return;
     try {
       const r = await adminApi.removeBucketPool(parentKey, isin);
+      // Direct-write mode (2026-05): server returns prNumber: 0 / prUrl: "".
+      const directWrite = !r.prUrl || r.prNumber === 0;
       toast.success(
-        lang === "de"
-          ? `Remove-Pull Request #${r.prNumber} geöffnet`
-          : `Remove Pull Request #${r.prNumber} opened`,
-        {
-          action: {
-            label: t({ de: "Öffnen", en: "Open" }),
-            onClick: () => window.open(r.prUrl, "_blank"),
-          },
-        },
+        directWrite
+          ? lang === "de" ? "Aus Pool entfernt" : "Removed from pool"
+          : lang === "de"
+            ? `Remove-Pull Request #${r.prNumber} geöffnet`
+            : `Remove Pull Request #${r.prNumber} opened`,
+        directWrite
+          ? undefined
+          : {
+              action: {
+                label: t({ de: "Öffnen", en: "Open" }),
+                onClick: () => window.open(r.prUrl, "_blank"),
+              },
+            },
       );
       setPrsRefreshKey((k) => k + 1);
     } catch (e: unknown) {
@@ -306,16 +312,22 @@ export function ConsolidatedEtfTreePanel({
     if (!confirmed) return;
     try {
       const r = await adminApi.removeBucketAlternative(parentKey, isin);
+      // Direct-write mode (2026-05): server returns prNumber: 0 / prUrl: "".
+      const directWrite = !r.prUrl || r.prNumber === 0;
       toast.success(
-        lang === "de"
-          ? `Remove-Pull Request #${r.prNumber} geöffnet`
-          : `Remove Pull Request #${r.prNumber} opened`,
-        {
-          action: {
-            label: t({ de: "Öffnen", en: "Open" }),
-            onClick: () => window.open(r.prUrl, "_blank"),
-          },
-        },
+        directWrite
+          ? lang === "de" ? "Alternative entfernt" : "Alternative removed"
+          : lang === "de"
+            ? `Remove-Pull Request #${r.prNumber} geöffnet`
+            : `Remove Pull Request #${r.prNumber} opened`,
+        directWrite
+          ? undefined
+          : {
+              action: {
+                label: t({ de: "Öffnen", en: "Open" }),
+                onClick: () => window.open(r.prUrl, "_blank"),
+              },
+            },
       );
       setPrsRefreshKey((k) => k + 1);
     } catch (e: unknown) {

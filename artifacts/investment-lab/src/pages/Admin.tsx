@@ -20,6 +20,7 @@ export default function Admin() {
   const [token, setLocalToken] = useState<string | null>(getToken());
   const [authError, setAuthError] = useState<string | null>(null);
   const [githubConfigured, setGithubConfigured] = useState(false);
+  const [directWrite, setDirectWrite] = useState(false);
   const [githubInfo, setGithubInfo] = useState<{
     owner: string | null;
     repo: string | null;
@@ -34,6 +35,7 @@ export default function Admin() {
       .whoami(token)
       .then((r) => {
         setGithubConfigured(r.githubConfigured);
+        setDirectWrite(r.directWrite ?? false);
         setGithubInfo({
           owner: r.githubOwner,
           repo: r.githubRepo,
@@ -73,7 +75,7 @@ export default function Admin() {
 
   return (
     <AdminContextProvider
-      value={{ githubConfigured, githubInfo, catalog, catalogError }}
+      value={{ githubConfigured, directWrite, githubInfo, catalog, catalogError }}
     >
       <AdminLayout
         onSignOut={() => {

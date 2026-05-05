@@ -20,6 +20,8 @@
 //   - GITHUB_BASE_BRANCH (default "main")
 // ----------------------------------------------------------------------------
 
+import * as fs from "node:fs";
+import * as path from "node:path";
 import { Octokit } from "@octokit/rest";
 import {
   renderEntryBlock,
@@ -239,6 +241,196 @@ export function githubConfigured(): boolean {
       process.env.GITHUB_OWNER &&
       process.env.GITHUB_REPO,
   );
+}
+
+// ---------------------------------------------------------------------------
+// Direct-write mode (2026-05) — workspace edits skip the GitHub PR roundtrip.
+// ---------------------------------------------------------------------------
+// In the dev workspace, the source `etfs.ts` lives on disk and the operator
+// publishes the workspace itself, so the PR-merge-sync-republish dance is
+// pure overhead. Auto-detected by walking up from cwd to find the file.
+// In the deployed container the source tree is absent → falls back to PR.
+// Set ADMIN_DIRECT_WRITE_DISABLED=1 to force PR mode regardless.
+// ---------------------------------------------------------------------------
+const DIRECT_WRITE_PATHS: { etfs: string; lookthrough: string } | null = (() => {
+  if (process.env.ADMIN_DIRECT_WRITE_DISABLED === "1") return null;
+  let dir = process.cwd();
+  for (let i = 0; i < 8; i++) {
+    const etfs = path.join(dir, ETFS_FILE_PATH);
+    try {
+      fs.accessSync(etfs, fs.constants.W_OK);
+      return {
+        etfs,
+        lookthrough: path.join(dir, LOOKTHROUGH_OVERRIDES_FILE_PATH),
+      };
+    } catch {
+      /* not here, walk up */
+    }
+    const parent = path.dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return null;
+})();
+
+export function directWriteMode(): boolean {
+  return DIRECT_WRITE_PATHS !== null;
+}
+
+async function readEtfsLocal(): Promise<string> {
+  return await fs.promises.readFile(DIRECT_WRITE_PATHS!.etfs, "utf8");
+}
+async function writeEtfsLocal(content: string): Promise<void> {
+  await fs.promises.writeFile(DIRECT_WRITE_PATHS!.etfs, content, "utf8");
+}
+async function readLookthroughLocal(): Promise<string> {
+  return await fs.promises.readFile(DIRECT_WRITE_PATHS!.lookthrough, "utf8");
+}
+async function writeLookthroughLocal(content: string): Promise<void> {
+  await fs.promises.writeFile(
+    DIRECT_WRITE_PATHS!.lookthrough,
+    content,
+    "utf8",
+  );
+}
+
+// Unified base-read for etfs.ts. In direct-write mode reads the local file;
+// otherwise pulls the file at HEAD of the configured base branch from GitHub.
+type EtfsBaseRead =
+  | { local: true; content: string }
+  | {
+      local: false;
+      content: string;
+      sha: string;
+      baseSha: string;
+      octokit: Octokit;
+      owner: string;
+      repo: string;
+      base: string;
+    };
+
+async function fetchEtfsBase(): Promise<EtfsBaseRead> {
+  if (directWriteMode()) {
+    return { local: true, content: await readEtfsLocal() };
+  }
+  if (!githubConfigured()) {
+    throw new Error(
+      "GitHub PR creation is not configured. Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO.",
+    );
+  }
+  const owner = process.env.GITHUB_OWNER!;
+  const repo = process.env.GITHUB_REPO!;
+  const base = process.env.GITHUB_BASE_BRANCH ?? "main";
+  const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
+  const { data: baseRef } = await octokit.git.getRef({
+    owner,
+    repo,
+    ref: `heads/${base}`,
+  });
+  const baseSha = baseRef.object.sha;
+  const { data: fileMeta } = await octokit.repos.getContent({
+    owner,
+    repo,
+    path: ETFS_FILE_PATH,
+    ref: baseSha,
+  });
+  if (Array.isArray(fileMeta) || fileMeta.type !== "file") {
+    throw new Error(`Unexpected GitHub response for ${ETFS_FILE_PATH}.`);
+  }
+  const content = Buffer.from(fileMeta.content, "base64").toString("utf8");
+  return {
+    local: false,
+    content,
+    sha: fileMeta.sha,
+    baseSha,
+    octokit,
+    owner,
+    repo,
+    base,
+  };
+}
+
+// Read the lookthrough overrides JSON from the same base as fetchEtfsBase.
+// Pass the EtfsBaseRead so direct-write and PR mode stay in sync.
+async function fetchLookthroughBase(
+  base: EtfsBaseRead,
+): Promise<{ content: string; sha?: string }> {
+  if (base.local) {
+    return { content: await readLookthroughLocal() };
+  }
+  const { data: ltMeta } = await base.octokit.repos.getContent({
+    owner: base.owner,
+    repo: base.repo,
+    path: LOOKTHROUGH_OVERRIDES_FILE_PATH,
+    ref: base.baseSha,
+  });
+  if (Array.isArray(ltMeta) || ltMeta.type !== "file") {
+    throw new Error(
+      `Unexpected GitHub response for ${LOOKTHROUGH_OVERRIDES_FILE_PATH}.`,
+    );
+  }
+  return {
+    content: Buffer.from(ltMeta.content, "base64").toString("utf8"),
+    sha: ltMeta.sha,
+  };
+}
+
+// Unified commit. In direct-write mode writes the local file(s) and returns
+// {url:"", number:0}. Otherwise creates a branch, commits, and opens a PR.
+async function commitEtfsChange(args: {
+  base: EtfsBaseRead;
+  newContent: string;
+  branch: string;
+  title: string;
+  body: string;
+  // Optional second file (currently only lookthrough.overrides.json).
+  extraFile?: { path: string; content: string };
+}): Promise<{ url: string; number: number }> {
+  if (args.base.local) {
+    await writeEtfsLocal(args.newContent);
+    if (
+      args.extraFile &&
+      args.extraFile.path === LOOKTHROUGH_OVERRIDES_FILE_PATH
+    ) {
+      await writeLookthroughLocal(args.extraFile.content);
+    }
+    return { url: "", number: 0 };
+  }
+  const { octokit, owner, repo, base, baseSha, sha } = args.base;
+  await ensureFreshBranch({ octokit, owner, repo, branch: args.branch, baseSha });
+  if (args.extraFile) {
+    await commitMultiFile({
+      octokit,
+      owner,
+      repo,
+      branch: args.branch,
+      baseSha,
+      message: args.title,
+      files: [
+        { path: ETFS_FILE_PATH, content: args.newContent },
+        args.extraFile,
+      ],
+    });
+  } else {
+    await octokit.repos.createOrUpdateFileContents({
+      owner,
+      repo,
+      path: ETFS_FILE_PATH,
+      branch: args.branch,
+      message: args.title,
+      content: Buffer.from(args.newContent, "utf8").toString("base64"),
+      sha,
+    });
+  }
+  const { data: pr } = await octokit.pulls.create({
+    owner,
+    repo,
+    head: args.branch,
+    base,
+    title: args.title,
+    body: args.body,
+  });
+  return { url: pr.html_url, number: pr.number };
 }
 
 // ---------------------------------------------------------------------------
@@ -899,39 +1091,8 @@ export async function openAddEtfPr(
   entry: NewEtfEntry,
   ctx: PrCreationContext,
 ): Promise<{ url: string; number: number }> {
-  if (!githubConfigured()) {
-    throw new Error(
-      "GitHub PR creation is not configured. Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO.",
-    );
-  }
-  const owner = process.env.GITHUB_OWNER!;
-  const repo = process.env.GITHUB_REPO!;
-  const base = process.env.GITHUB_BASE_BRANCH ?? "main";
-  const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
-
-  // 1. Read the current etfs.ts on the base branch.
-  const { data: baseRef } = await octokit.git.getRef({
-    owner,
-    repo,
-    ref: `heads/${base}`,
-  });
-  const baseSha = baseRef.object.sha;
-
-  const { data: fileMeta } = await octokit.repos.getContent({
-    owner,
-    repo,
-    path: ETFS_FILE_PATH,
-    ref: baseSha,
-  });
-  if (Array.isArray(fileMeta) || fileMeta.type !== "file") {
-    throw new Error(`Unexpected GitHub response for ${ETFS_FILE_PATH}.`);
-  }
-  const currentContent = Buffer.from(fileMeta.content, "base64").toString(
-    "utf8",
-  );
-
-  // 2. Insert the new entry into the CATALOG literal.
-  const injectResult = injectEntry(currentContent, entry);
+  const baseRead = await fetchEtfsBase();
+  const injectResult = injectEntry(baseRead.content, entry);
   if (injectResult.status === "key_present") {
     throw new Error(
       `An entry with key "${entry.key}" already exists in the catalog.`,
@@ -942,39 +1103,14 @@ export async function openAddEtfPr(
       `ISIN ${entry.isin} is already assigned to bucket "${injectResult.conflict}". Every ISIN may belong to at most one bucket — pick a different ISIN or remove it from "${injectResult.conflict}" first.`,
     );
   }
-  const nextContent = injectResult.content;
-
-  // 3. Create the branch — or, if a stale leftover exists from a previous
-  // closed/merged PR, auto-recover by force-resetting it to baseSha. An
-  // OPEN PR on the same branch still aborts (handled inside the helper).
-  const branch = `add-etf/${entry.isin.toLowerCase()}`;
-  await ensureFreshBranch({ octokit, owner, repo, branch, baseSha });
-
-  // 4. Commit the modified file on the new branch.
-  await octokit.repos.createOrUpdateFileContents({
-    owner,
-    repo,
-    path: ETFS_FILE_PATH,
-    branch,
-    message: `Add ${entry.name} (${entry.isin}) to ETF catalog`,
-    content: Buffer.from(nextContent, "utf8").toString("base64"),
-    sha: fileMeta.sha,
-  });
-
-  // 5. Open the PR. We re-render the same entry block we just inserted so
-  // the PR body shows the literal TS GitHub will see — keeps the operator
-  // and the reviewer looking at the same string.
   const renderedBlock = renderEntryBlock(entry, "  ");
-  const { data: pr } = await octokit.pulls.create({
-    owner,
-    repo,
-    head: branch,
-    base,
+  return commitEtfsChange({
+    base: baseRead,
+    newContent: injectResult.content,
+    branch: `add-etf/${entry.isin.toLowerCase()}`,
     title: `Add ${entry.name} (${entry.isin}) to ETF catalog`,
     body: buildPrBody(entry, ctx, renderedBlock),
   });
-
-  return { url: pr.html_url, number: pr.number };
 }
 
 // ---------------------------------------------------------------------------
@@ -2028,37 +2164,8 @@ export async function openRemoveBucketAlternativePr(
   parentKey: string,
   isin: string,
 ): Promise<{ url: string; number: number }> {
-  if (!githubConfigured()) {
-    throw new Error(
-      "GitHub PR creation is not configured. Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO.",
-    );
-  }
-  const owner = process.env.GITHUB_OWNER!;
-  const repo = process.env.GITHUB_REPO!;
-  const base = process.env.GITHUB_BASE_BRANCH ?? "main";
-  const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
-
-  const { data: baseRef } = await octokit.git.getRef({
-    owner,
-    repo,
-    ref: `heads/${base}`,
-  });
-  const baseSha = baseRef.object.sha;
-
-  const { data: fileMeta } = await octokit.repos.getContent({
-    owner,
-    repo,
-    path: ETFS_FILE_PATH,
-    ref: baseSha,
-  });
-  if (Array.isArray(fileMeta) || fileMeta.type !== "file") {
-    throw new Error(`Unexpected GitHub response for ${ETFS_FILE_PATH}.`);
-  }
-  const currentContent = Buffer.from(fileMeta.content, "base64").toString(
-    "utf8",
-  );
-
-  const result = removeAlternative(currentContent, parentKey, isin);
+  const baseRead = await fetchEtfsBase();
+  const result = removeAlternative(baseRead.content, parentKey, isin);
   if (result.status === "parent_missing") {
     throw new Error(`Parent bucket "${parentKey}" not found in catalog.`);
   }
@@ -2067,26 +2174,10 @@ export async function openRemoveBucketAlternativePr(
       `ISIN ${isin} is not an alternative under "${parentKey}". Nothing to remove.`,
     );
   }
-
-  // Create the branch — or auto-recover a stale leftover (Task #48).
-  const branch = `rm-alt/${isin.toLowerCase()}`;
-  await ensureFreshBranch({ octokit, owner, repo, branch, baseSha });
-
-  await octokit.repos.createOrUpdateFileContents({
-    owner,
-    repo,
-    path: ETFS_FILE_PATH,
-    branch,
-    message: `Remove ${isin} from alternatives under ${parentKey}`,
-    content: Buffer.from(result.content, "utf8").toString("base64"),
-    sha: fileMeta.sha,
-  });
-
-  const { data: pr } = await octokit.pulls.create({
-    owner,
-    repo,
-    head: branch,
-    base,
+  return commitEtfsChange({
+    base: baseRead,
+    newContent: result.content,
+    branch: `rm-alt/${isin.toLowerCase()}`,
     title: `Remove ${isin} from alternatives under ${parentKey}`,
     body: [
       `Removes ISIN \`${isin}\` from the curated alternatives of bucket \`${parentKey}\`.`,
@@ -2100,8 +2191,6 @@ export async function openRemoveBucketAlternativePr(
       "- After merging the picker no longer offers this ISIN — verify with a Build-tab refresh.",
     ].join("\n"),
   });
-
-  return { url: pr.html_url, number: pr.number };
 }
 
 function buildAlternativePrBody(
@@ -2379,35 +2468,7 @@ export interface OpenInstrumentPrArgs {
 export async function openInstrumentPr(
   args: OpenInstrumentPrArgs,
 ): Promise<{ url: string; number: number }> {
-  if (!githubConfigured()) {
-    throw new Error(
-      "GitHub PR creation is not configured. Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO.",
-    );
-  }
-  const owner = process.env.GITHUB_OWNER!;
-  const repo = process.env.GITHUB_REPO!;
-  const base = process.env.GITHUB_BASE_BRANCH ?? "main";
-  const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
-
-  const { data: baseRef } = await octokit.git.getRef({
-    owner,
-    repo,
-    ref: `heads/${base}`,
-  });
-  const baseSha = baseRef.object.sha;
-
-  const { data: fileMeta } = await octokit.repos.getContent({
-    owner,
-    repo,
-    path: ETFS_FILE_PATH,
-    ref: baseSha,
-  });
-  if (Array.isArray(fileMeta) || fileMeta.type !== "file") {
-    throw new Error(`Unexpected GitHub response for ${ETFS_FILE_PATH}.`);
-  }
-  const currentContent = Buffer.from(fileMeta.content, "base64").toString(
-    "utf8",
-  );
+  const baseRead = await fetchEtfsBase();
 
   let nextContent: string;
   let title: string;
@@ -2415,7 +2476,7 @@ export async function openInstrumentPr(
   let branchPrefix: string;
 
   if (args.action === "add") {
-    const result = addInstrumentRow(currentContent, args.entry);
+    const result = addInstrumentRow(baseRead.content, args.entry);
     if (result.status === "isin_present") {
       throw new Error(
         `ISIN ${args.entry.isin} is already in INSTRUMENTS — use the edit action to change its metadata.`,
@@ -2427,7 +2488,7 @@ export async function openInstrumentPr(
     branchPrefix = "instr-add";
   } else if (args.action === "edit") {
     const result = updateInstrumentRow(
-      currentContent,
+      baseRead.content,
       args.entry.isin,
       args.entry,
     );
@@ -2441,7 +2502,7 @@ export async function openInstrumentPr(
     body = buildInstrumentPrBody("edit", args.entry);
     branchPrefix = "instr-edit";
   } else {
-    const result = removeInstrumentRow(currentContent, args.entry.isin);
+    const result = removeInstrumentRow(baseRead.content, args.entry.isin);
     if (result.status === "instrument_missing") {
       throw new Error(
         `ISIN ${args.entry.isin} is not in INSTRUMENTS — nothing to remove.`,
@@ -2458,28 +2519,13 @@ export async function openInstrumentPr(
     branchPrefix = "instr-rm";
   }
 
-  const branch = `${branchPrefix}/${args.entry.isin.toLowerCase()}`;
-  await ensureFreshBranch({ octokit, owner, repo, branch, baseSha });
-
-  await octokit.repos.createOrUpdateFileContents({
-    owner,
-    repo,
-    path: ETFS_FILE_PATH,
-    branch,
-    message: title,
-    content: Buffer.from(nextContent, "utf8").toString("base64"),
-    sha: fileMeta.sha,
-  });
-
-  const { data: pr } = await octokit.pulls.create({
-    owner,
-    repo,
-    head: branch,
-    base,
+  return commitEtfsChange({
+    base: baseRead,
+    newContent: nextContent,
+    branch: `${branchPrefix}/${args.entry.isin.toLowerCase()}`,
     title,
     body,
   });
-  return { url: pr.html_url, number: pr.number };
 }
 
 function buildInstrumentPrBody(
@@ -2526,37 +2572,8 @@ export async function openSetBucketDefaultPr(
   parentKey: string,
   newDefaultIsin: string,
 ): Promise<{ url: string; number: number }> {
-  if (!githubConfigured()) {
-    throw new Error(
-      "GitHub PR creation is not configured. Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO.",
-    );
-  }
-  const owner = process.env.GITHUB_OWNER!;
-  const repo = process.env.GITHUB_REPO!;
-  const base = process.env.GITHUB_BASE_BRANCH ?? "main";
-  const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
-
-  const { data: baseRef } = await octokit.git.getRef({
-    owner,
-    repo,
-    ref: `heads/${base}`,
-  });
-  const baseSha = baseRef.object.sha;
-
-  const { data: fileMeta } = await octokit.repos.getContent({
-    owner,
-    repo,
-    path: ETFS_FILE_PATH,
-    ref: baseSha,
-  });
-  if (Array.isArray(fileMeta) || fileMeta.type !== "file") {
-    throw new Error(`Unexpected GitHub response for ${ETFS_FILE_PATH}.`);
-  }
-  const currentContent = Buffer.from(fileMeta.content, "base64").toString(
-    "utf8",
-  );
-
-  const result = setBucketDefault(currentContent, parentKey, newDefaultIsin);
+  const baseRead = await fetchEtfsBase();
+  const result = setBucketDefault(baseRead.content, parentKey, newDefaultIsin);
   if (result.status === "parent_missing") {
     throw new Error(`Parent bucket "${parentKey}" not found in catalog.`);
   }
@@ -2575,26 +2592,11 @@ export async function openSetBucketDefaultPr(
       `ISIN ${newDefaultIsin} is already assigned to bucket "${result.conflict}". Detach it first or pick a different ISIN.`,
     );
   }
-
-  const branch = `set-default/${parentKey.toLowerCase()}-${newDefaultIsin.toLowerCase()}`;
-  await ensureFreshBranch({ octokit, owner, repo, branch, baseSha });
-
   const title = `Set ${newDefaultIsin} as default for bucket ${parentKey}`;
-  await octokit.repos.createOrUpdateFileContents({
-    owner,
-    repo,
-    path: ETFS_FILE_PATH,
-    branch,
-    message: title,
-    content: Buffer.from(result.content, "utf8").toString("base64"),
-    sha: fileMeta.sha,
-  });
-
-  const { data: pr } = await octokit.pulls.create({
-    owner,
-    repo,
-    head: branch,
-    base,
+  return commitEtfsChange({
+    base: baseRead,
+    newContent: result.content,
+    branch: `set-default/${parentKey.toLowerCase()}-${newDefaultIsin.toLowerCase()}`,
     title,
     body: [
       `Replaces the \`default\` ISIN of bucket \`${parentKey}\` with \`${newDefaultIsin}\`.`,
@@ -2608,8 +2610,6 @@ export async function openSetBucketDefaultPr(
       `- After merge, the previously-default ISIN becomes unassigned and can be reused on another bucket OR retired via the Instruments sub-tab.`,
     ].join("\n"),
   });
-
-  return { url: pr.html_url, number: pr.number };
 }
 
 // ---------------------------------------------------------------------------
@@ -2632,35 +2632,8 @@ export async function openAttachBucketAlternativePr(
   // flow.
   lookthroughEntry?: { isin: string; entry: LookthroughPoolEntry },
 ): Promise<{ url: string; number: number; lookthroughIncluded: boolean }> {
-  if (!githubConfigured()) {
-    throw new Error(
-      "GitHub PR creation is not configured. Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO.",
-    );
-  }
-  const owner = process.env.GITHUB_OWNER!;
-  const repo = process.env.GITHUB_REPO!;
-  const base = process.env.GITHUB_BASE_BRANCH ?? "main";
-  const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
-
-  const { data: baseRef } = await octokit.git.getRef({
-    owner,
-    repo,
-    ref: `heads/${base}`,
-  });
-  const baseSha = baseRef.object.sha;
-
-  const { data: fileMeta } = await octokit.repos.getContent({
-    owner,
-    repo,
-    path: ETFS_FILE_PATH,
-    ref: baseSha,
-  });
-  if (Array.isArray(fileMeta) || fileMeta.type !== "file") {
-    throw new Error(`Unexpected GitHub response for ${ETFS_FILE_PATH}.`);
-  }
-  const currentContent = Buffer.from(fileMeta.content, "base64").toString(
-    "utf8",
-  );
+  const baseRead = await fetchEtfsBase();
+  const currentContent = baseRead.content;
 
   // Pre-flight: ISIN must already live in INSTRUMENTS. Without this the
   // append below would still succeed (alternatives are stored as ISIN
@@ -2728,18 +2701,7 @@ export async function openAttachBucketAlternativePr(
   let lookthroughIncluded = false;
   let nextLookthroughContent: string | null = null;
   if (lookthroughEntry) {
-    const { data: ltMeta } = await octokit.repos.getContent({
-      owner,
-      repo,
-      path: LOOKTHROUGH_OVERRIDES_FILE_PATH,
-      ref: baseSha,
-    });
-    if (Array.isArray(ltMeta) || ltMeta.type !== "file") {
-      throw new Error(
-        `Unexpected GitHub response for ${LOOKTHROUGH_OVERRIDES_FILE_PATH}.`,
-      );
-    }
-    const ltCurrent = Buffer.from(ltMeta.content, "base64").toString("utf8");
+    const { content: ltCurrent } = await fetchLookthroughBase(baseRead);
     const merged = mergeLookthroughEntries({
       currentContent: ltCurrent,
       entries: [lookthroughEntry],
@@ -2750,43 +2712,11 @@ export async function openAttachBucketAlternativePr(
     }
   }
 
-  const branch = `add-alt/${isin.toLowerCase()}`;
-  await ensureFreshBranch({ octokit, owner, repo, branch, baseSha });
-
   const title = `Attach ${isin} as alternative under ${parentKey}${lookthroughIncluded ? " (with look-through data)" : ""}`;
-  if (lookthroughIncluded && nextLookthroughContent !== null) {
-    await commitMultiFile({
-      octokit,
-      owner,
-      repo,
-      branch,
-      baseSha,
-      message: title,
-      files: [
-        { path: ETFS_FILE_PATH, content: result.content },
-        {
-          path: LOOKTHROUGH_OVERRIDES_FILE_PATH,
-          content: nextLookthroughContent,
-        },
-      ],
-    });
-  } else {
-    await octokit.repos.createOrUpdateFileContents({
-      owner,
-      repo,
-      path: ETFS_FILE_PATH,
-      branch,
-      message: title,
-      content: Buffer.from(result.content, "utf8").toString("base64"),
-      sha: fileMeta.sha,
-    });
-  }
-
-  const { data: pr } = await octokit.pulls.create({
-    owner,
-    repo,
-    head: branch,
-    base,
+  const pr = await commitEtfsChange({
+    base: baseRead,
+    newContent: result.content,
+    branch: `add-alt/${isin.toLowerCase()}`,
     title,
     body: [
       `Adds existing ISIN \`${isin}\` (${inst.name}) to the curated alternatives of bucket \`${parentKey}\`.`,
@@ -2811,9 +2741,15 @@ export async function openAttachBucketAlternativePr(
           ]
         : []),
     ].join("\n"),
+    extraFile:
+      lookthroughIncluded && nextLookthroughContent !== null
+        ? {
+            path: LOOKTHROUGH_OVERRIDES_FILE_PATH,
+            content: nextLookthroughContent,
+          }
+        : undefined,
   });
-
-  return { url: pr.html_url, number: pr.number, lookthroughIncluded };
+  return { ...pr, lookthroughIncluded };
 }
 
 // ---------------------------------------------------------------------------
@@ -3100,37 +3036,8 @@ export async function openAddBucketPoolPr(
   parentKey: string,
   isin: string,
 ): Promise<{ url: string; number: number }> {
-  if (!githubConfigured()) {
-    throw new Error(
-      "GitHub PR creation is not configured. Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO.",
-    );
-  }
-  const owner = process.env.GITHUB_OWNER!;
-  const repo = process.env.GITHUB_REPO!;
-  const base = process.env.GITHUB_BASE_BRANCH ?? "main";
-  const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
-
-  const { data: baseRef } = await octokit.git.getRef({
-    owner,
-    repo,
-    ref: `heads/${base}`,
-  });
-  const baseSha = baseRef.object.sha;
-
-  const { data: fileMeta } = await octokit.repos.getContent({
-    owner,
-    repo,
-    path: ETFS_FILE_PATH,
-    ref: baseSha,
-  });
-  if (Array.isArray(fileMeta) || fileMeta.type !== "file") {
-    throw new Error(`Unexpected GitHub response for ${ETFS_FILE_PATH}.`);
-  }
-  const currentContent = Buffer.from(fileMeta.content, "base64").toString(
-    "utf8",
-  );
-
-  const result = injectPool(currentContent, parentKey, isin);
+  const baseRead = await fetchEtfsBase();
+  const result = injectPool(baseRead.content, parentKey, isin);
   if (result.status === "parent_missing") {
     throw new Error(`Parent bucket "${parentKey}" not found in catalog.`);
   }
@@ -3149,27 +3056,11 @@ export async function openAddBucketPoolPr(
       `Bucket "${parentKey}" already has the maximum of ${MAX_POOL_PER_BUCKET} pool entries.`,
     );
   }
-
-  const branch = `add-pool/${isin.toLowerCase()}`;
-  await ensureFreshBranch({ octokit, owner, repo, branch, baseSha });
-
-  const title = `Attach ${isin} to pool of ${parentKey}`;
-  await octokit.repos.createOrUpdateFileContents({
-    owner,
-    repo,
-    path: ETFS_FILE_PATH,
-    branch,
-    message: title,
-    content: Buffer.from(result.content, "utf8").toString("base64"),
-    sha: fileMeta.sha,
-  });
-
-  const { data: pr } = await octokit.pulls.create({
-    owner,
-    repo,
-    head: branch,
-    base,
-    title,
+  return commitEtfsChange({
+    base: baseRead,
+    newContent: result.content,
+    branch: `add-pool/${isin.toLowerCase()}`,
+    title: `Attach ${isin} to pool of ${parentKey}`,
     body: [
       `Adds existing ISIN \`${isin}\` to the **extended-universe pool** of bucket \`${parentKey}\`.`,
       "",
@@ -3186,8 +3077,6 @@ export async function openAddBucketPoolPr(
       "- Look-through data for this ISIN will be filled on the next monthly refresh job — no need to bundle it here.",
     ].join("\n"),
   });
-
-  return { url: pr.html_url, number: pr.number };
 }
 
 // ---------------------------------------------------------------------------
@@ -3198,37 +3087,8 @@ export async function openRemoveBucketPoolPr(
   parentKey: string,
   isin: string,
 ): Promise<{ url: string; number: number }> {
-  if (!githubConfigured()) {
-    throw new Error(
-      "GitHub PR creation is not configured. Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO.",
-    );
-  }
-  const owner = process.env.GITHUB_OWNER!;
-  const repo = process.env.GITHUB_REPO!;
-  const base = process.env.GITHUB_BASE_BRANCH ?? "main";
-  const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
-
-  const { data: baseRef } = await octokit.git.getRef({
-    owner,
-    repo,
-    ref: `heads/${base}`,
-  });
-  const baseSha = baseRef.object.sha;
-
-  const { data: fileMeta } = await octokit.repos.getContent({
-    owner,
-    repo,
-    path: ETFS_FILE_PATH,
-    ref: baseSha,
-  });
-  if (Array.isArray(fileMeta) || fileMeta.type !== "file") {
-    throw new Error(`Unexpected GitHub response for ${ETFS_FILE_PATH}.`);
-  }
-  const currentContent = Buffer.from(fileMeta.content, "base64").toString(
-    "utf8",
-  );
-
-  const result = removePool(currentContent, parentKey, isin);
+  const baseRead = await fetchEtfsBase();
+  const result = removePool(baseRead.content, parentKey, isin);
   if (result.status === "parent_missing") {
     throw new Error(`Parent bucket "${parentKey}" not found in catalog.`);
   }
@@ -3237,27 +3097,11 @@ export async function openRemoveBucketPoolPr(
       `ISIN ${isin} is not in the pool of bucket "${parentKey}".`,
     );
   }
-
-  const branch = `rm-pool/${isin.toLowerCase()}`;
-  await ensureFreshBranch({ octokit, owner, repo, branch, baseSha });
-
-  const title = `Remove ${isin} from pool of ${parentKey}`;
-  await octokit.repos.createOrUpdateFileContents({
-    owner,
-    repo,
-    path: ETFS_FILE_PATH,
-    branch,
-    message: title,
-    content: Buffer.from(result.content, "utf8").toString("base64"),
-    sha: fileMeta.sha,
-  });
-
-  const { data: pr } = await octokit.pulls.create({
-    owner,
-    repo,
-    head: branch,
-    base,
-    title,
+  return commitEtfsChange({
+    base: baseRead,
+    newContent: result.content,
+    branch: `rm-pool/${isin.toLowerCase()}`,
+    title: `Remove ${isin} from pool of ${parentKey}`,
     body: [
       `Removes ISIN \`${isin}\` from the extended-universe pool of bucket \`${parentKey}\`.`,
       "",
@@ -3270,6 +3114,4 @@ export async function openRemoveBucketPoolPr(
       `- After merging, the _More ETFs_ dialog of \`${parentKey}\` no longer offers this ISIN.`,
     ].join("\n"),
   });
-
-  return { url: pr.html_url, number: pr.number };
 }

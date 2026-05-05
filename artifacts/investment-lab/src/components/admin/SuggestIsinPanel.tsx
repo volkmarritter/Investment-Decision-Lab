@@ -63,13 +63,22 @@ export function SuggestIsinPanel({
     setErrMsg(null);
     try {
       const r = await adminApi.addIsin(draft);
-      toast.success(t({ de: "Pull-Request geöffnet", en: "Pull request opened" }), {
-        description: r.prUrl,
-        action: {
-          label: t({ de: "Öffnen", en: "Open" }),
-          onClick: () => window.open(r.prUrl, "_blank"),
+      // Direct-write mode (2026-05): server returns "" prUrl + 0 prNumber.
+      const directWrite = !r.prUrl || r.prNumber === 0;
+      toast.success(
+        directWrite
+          ? t({ de: "Gespeichert", en: "Saved" })
+          : t({ de: "Pull-Request geöffnet", en: "Pull request opened" }),
+        {
+          description: directWrite ? undefined : r.prUrl,
+          action: directWrite
+            ? undefined
+            : {
+                label: t({ de: "Öffnen", en: "Open" }),
+                onClick: () => window.open(r.prUrl, "_blank"),
+              },
         },
-      });
+      );
       setIsin("");
       setPreview(null);
       setDraft(null);
