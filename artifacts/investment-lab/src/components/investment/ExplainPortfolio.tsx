@@ -1428,6 +1428,7 @@ export function ExplainPortfolio() {
             <HomeBiasAnalysis
               etfs={portfolio.etfImplementation}
               baseCurrency={state.baseCurrency}
+              lookThroughView={state.lookThroughView}
             />
           )}
 

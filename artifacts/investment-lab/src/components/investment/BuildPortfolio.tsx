@@ -1613,6 +1613,7 @@ export function BuildPortfolio() {
                   <HomeBiasAnalysis
                     etfs={output.etfImplementation}
                     baseCurrency={form.getValues().baseCurrency}
+                    lookThroughView={watchedLookThroughView}
                   />
                 )}
 

@@ -10,6 +10,13 @@ import { useT } from "@/lib/i18n";
 interface Props {
   etfs: ETFImplementation[];
   baseCurrency: BaseCurrency;
+  // When the parent's "Look-Through" toggle is OFF, the home-share figure
+  // can no longer be computed honestly (the verdict needs the geo
+  // look-through baskets). The card hides itself in that case so the page
+  // never silently shows a verdict that contradicts what the rest of the
+  // metrics are doing. Defaults to ON for callers that don't have the
+  // toggle (e.g. Methodology preview).
+  lookThroughView?: boolean;
 }
 
 const verdictTone: Record<HomeBiasVerdict, string> = {
@@ -20,12 +27,17 @@ const verdictTone: Record<HomeBiasVerdict, string> = {
   neutral: "",
 };
 
-export function HomeBiasAnalysis({ etfs, baseCurrency }: Props) {
+export function HomeBiasAnalysis({ etfs, baseCurrency, lookThroughView = true }: Props) {
   const { t, lang } = useT();
   const r = evaluateHomeBias(etfs, baseCurrency, lang);
   const [open, setOpen] = useState(false);
 
   if (!r.applicable) return null;
+  // Hide the card when the parent's look-through toggle is OFF — the verdict
+  // is computed from the geo look-through baskets and would otherwise
+  // contradict the surrounding metrics (which fall back to row-region
+  // routing). Mirrors the look-through panel's own gating.
+  if (!lookThroughView) return null;
 
   return (
     <Card className="w-full">
@@ -48,6 +60,9 @@ export function HomeBiasAnalysis({ etfs, baseCurrency }: Props) {
                 .replace("{home}", r.homeMarketLabel)
                 .replace("{base}", r.baseCurrency)}
             </CardDescription>
+            <p className="text-[10px] text-muted-foreground italic mt-1.5">
+              {t("build.homeBias.lookThroughNote")}
+            </p>
           </div>
           <Button
             type="button"
