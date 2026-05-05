@@ -6,10 +6,10 @@
 // `I({ ... })` row inside the INSTRUMENTS object literal in
 // src/lib/etfs.ts, immediately before the closing `};` of that object.
 //
-// IDEMPOTENCY: Wraps the auto-added block with explicit BEGIN/END marker
-// comments. On re-run, the script removes any previous block bracketed by
-// those markers before injecting a fresh one — so re-staging + re-running
-// produces a clean diff.
+// IDEMPOTENCY: On re-run, the script scans the existing INSTRUMENTS object
+// for `"<ISIN>": I(` keys and skips any staged ISIN already present —
+// re-running with the same staged.json is a no-op, and re-running after
+// adding new staged entries only injects the new ones.
 //
 // Each row's TS literal is generated mechanically; we never invoke any TS
 // compiler here. The fields are escaped to avoid breaking the literal:
@@ -39,9 +39,6 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
 const ETFS_TS = resolve(ROOT, "src/lib/etfs.ts");
 const STAGED_JSON = resolve(__dirname, "data/popular-etfs-staged.json");
-
-const BEGIN_MARKER = "  // ----- BEGIN auto-added popular-ETFs orphans -----";
-const END_MARKER = "  // ----- END auto-added popular-ETFs orphans -----";
 
 const VALID_REPLICATION = new Set(["Physical", "Physical (sampled)", "Synthetic"]);
 const VALID_DISTRIBUTION = new Set(["Accumulating", "Distributing"]);
@@ -160,56 +157,42 @@ async function main() {
   const staged = JSON.parse(await readFile(STAGED_JSON, "utf8"));
   const instruments = staged.instruments || [];
   console.log(
-    `\n=== inject-popular-etfs — ${instruments.length} staged orphan(s) ===\n`
+    `\n=== inject-popular-etfs — ${instruments.length} staged entry(ies) ===\n`
   );
 
   const src = await readFile(ETFS_TS, "utf8");
 
-  // Strip any pre-existing auto-added block bracketed by our markers.
-  const beginIdx = src.indexOf(BEGIN_MARKER);
-  const endIdx = src.indexOf(END_MARKER);
-  let cleaned;
-  let removed = 0;
-  if (beginIdx !== -1 && endIdx !== -1 && endIdx > beginIdx) {
-    // Include trailing newline of the END marker line.
-    let tail = endIdx + END_MARKER.length;
-    if (src[tail] === "\n") tail++;
-    cleaned = src.slice(0, beginIdx) + src.slice(tail);
-    removed = 1;
-    console.log(`  removed previous auto-added block (will replace)\n`);
-  } else {
-    cleaned = src;
+  // Idempotency: skip ISINs already present in INSTRUMENTS.
+  const existingIsins = new Set(
+    (src.match(/^\s*"([A-Z]{2}[A-Z0-9]{9}\d)":\s*I\(/gm) || []).map((m) =>
+      m.match(/"([A-Z]{2}[A-Z0-9]{9}\d)"/)[1]
+    )
+  );
+  const toInject = instruments.filter((rec) => !existingIsins.has(rec.isin));
+  const skipped = instruments.length - toInject.length;
+  if (skipped > 0) {
+    console.log(`  ${skipped} ISIN(s) already in INSTRUMENTS — will skip`);
+  }
+  if (toInject.length === 0) {
+    console.log(`  nothing to inject — exiting`);
+    return;
   }
 
-  // Find INSTRUMENTS close in the cleaned source.
-  const closeIdx = findInstrumentsCloseIndex(cleaned);
+  const closeIdx = findInstrumentsCloseIndex(src);
 
-  // Build the auto-block.
-  const today = new Date().toISOString().slice(0, 10);
-  const banner =
-    `  // ----------------------------------------------------------------------------\n` +
-    `  // Auto-added orphan popular-ETF entries (no BUCKETS assignment).\n` +
-    `  // Source: scripts/inject-popular-etfs.mjs from scripts/data/popular-etfs-staged.json\n` +
-    `  // Generated: ${today}. ${instruments.length} entries.\n` +
-    `  // These ISINs are recognised by getInstrumentByIsin() in the Explain\n` +
-    `  // manual-entry flow but DO NOT appear in any model-portfolio bucket\n` +
-    `  // dropdown (which iterates BUCKETS).\n` +
-    `  // ----------------------------------------------------------------------------`;
-
-  const entryBlocks = instruments.map((rec) => buildEntryLiteral(rec));
-  const block = `\n${BEGIN_MARKER}\n${banner}\n${entryBlocks.join("\n")}\n${END_MARKER}\n`;
+  const entryBlocks = toInject.map((rec) => buildEntryLiteral(rec));
+  const block = `\n${entryBlocks.join("\n")}\n`;
 
   // Splice in: insert before the closing `}` so the block becomes part of
   // the INSTRUMENTS literal. We expect the previous character (or whitespace
   // before it) to be the comma of the last existing entry.
-  const before = cleaned.slice(0, closeIdx);
-  const after = cleaned.slice(closeIdx);
+  const before = src.slice(0, closeIdx);
+  const after = src.slice(closeIdx);
   const next = before + block + after;
 
   if (dryRun) {
     console.log(`  DRY_RUN=1 — diff summary:`);
-    console.log(`    previous block removed: ${removed === 1 ? "yes" : "no"}`);
-    console.log(`    new entries: ${instruments.length}`);
+    console.log(`    new entries: ${toInject.length} (skipped ${skipped})`);
     console.log(`    src bytes: ${src.length} → ${next.length} (Δ ${next.length - src.length})`);
     return;
   }

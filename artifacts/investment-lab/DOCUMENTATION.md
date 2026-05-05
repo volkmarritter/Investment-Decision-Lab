@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-05-01 (popular-etfs-orphan-bulk-add)
+Last updated: 2026-05-05 (drop-orphan-staging-concept)
 
 ---
 
@@ -626,6 +626,16 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-05-05 (drop-orphan-staging-concept) — collapse "orphan-staged" into plain catalog state
+
+- **Operator-Wunsch:** „Ich will nur ETFs, und entweder sind sie in einem Bucket oder nicht. Wenn sie in einem Bucket sind, haben sie ein Tag: default, Alt 1-n, oder pool." → Der zusätzliche Status „orphan-staged" (eingeführt durch den 2026-05-01-Bulk-Add) wird abgeschafft. Es gibt nur noch zwei Zustände: **in einem Bucket** (mit Slot-Tag default | alternative[i] | pool[j]) oder **nicht in einem Bucket**. Die Pflicht-Review-Schranke „bulk-added Instrumente dürfen nicht ohne Review zum Default/Alt werden" entfällt — der Operator entscheidet nun frei pro ISIN, wann immer er möchte.
+- **Code-Änderungen:**
+  - `tests/popular-etfs-orphan.test.ts` **gelöscht** (war die einzige Stelle, die das Staging-Konzept zur Laufzeit erzwungen hat).
+  - `src/lib/etfs.ts`: `BEGIN/END auto-added popular-ETFs orphans`-Marker-Block entfernt; alle 80 ehemals-orphan Einträge bekommen einen kurzen, sprechenden Kommentar im Schema `"<Kategorie> — <Issuer/Produktname>."` (z. B. `"Broad world equity — iShares Core MSCI World UCITS Acc."`) statt der generischen Auto-Boilerplate `"Popular UCITS ETF auto-added on 2026-05-01..."`.
+  - `src/lib/lookthrough.ts`: Verweis auf den gelöschten Test in einem Code-Kommentar gestrichen.
+- **Beibehalten (Scraper-only-Artefakte):** `scripts/data/popular-etfs-seed.mjs` und `scripts/data/popular-etfs-staged.json` bleiben unverändert. Sie sind weiterhin Input bzw. Output von `scripts/scrape-popular-etfs-instruments.mjs` + `scripts/inject-popular-etfs.mjs`, werden aber nicht mehr zur Laufzeit oder im Test-Suite gelesen. Beim nächsten Bulk-Add läuft die Pipeline genauso wie bisher; das Ergebnis landet einfach direkt in INSTRUMENTS (ohne separater „staged"-Marker).
+- **Verifikation:** Typecheck PASS, 618 / 618 Unit-Tests grün (vorher 625; die 7 gelöschten Orphan-Tests entfallen erwartungsgemäß).
 
 ### 2026-05 (admin-direct-write) — admin catalog mutations write straight to the workspace
 

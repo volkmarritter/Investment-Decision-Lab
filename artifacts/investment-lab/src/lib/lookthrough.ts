@@ -576,8 +576,7 @@ for (const [isin, patch] of Object.entries(RAW_LOOKTHROUGH_OVERRIDES)) {
 // relaxation the runtime would silently drop ~14 bond ETFs whose pool
 // JSON looks valid but lacks the holdings list. (See
 // scripts/scrape-popular-etfs-pool.mjs `buildPoolEntry` for the
-// matching writer-side gate, and tests/popular-etfs-orphan.test.ts for
-// the regression test that asserts profileFor() returns these entries.)
+// matching writer-side gate.)
 //
 // Currency falls back to {} when omitted (rare — derived at the api-server
 // scrape lib via deriveCurrencyFromGeo).

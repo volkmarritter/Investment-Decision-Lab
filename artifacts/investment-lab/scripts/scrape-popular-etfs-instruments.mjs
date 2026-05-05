@@ -105,7 +105,7 @@ async function enrichOne(isin) {
   return { core, preview, listings };
 }
 
-function buildInstrumentRecord({ isin, seedNote, core, preview, listings }) {
+function buildInstrumentRecord({ isin, seedCategory, seedNote, core, preview, listings }) {
   const defaultExchange = pickDefaultExchange(listings);
   const required = {
     name: preview.name,
@@ -145,7 +145,13 @@ function buildInstrumentRecord({ isin, seedNote, core, preview, listings }) {
     replication,
     distribution,
     currency: preview.currency,
-    comment: `Popular UCITS ETF auto-added on ${today} as orphan catalog entry — recognised in Explain manual-entry but not assigned to any model-portfolio bucket. Seed note: ${seedNote || "—"}.`,
+    comment: seedCategory && seedNote
+      ? `${seedCategory} — ${seedNote}.`
+      : seedNote
+        ? `${seedNote}.`
+        : seedCategory
+          ? `${seedCategory}.`
+          : `Popular UCITS ETF.`,
     listings,
     defaultExchange,
     aumMillionsEUR: core.aumMillionsEUR,
@@ -259,6 +265,7 @@ async function main() {
       const { core, preview, listings } = await enrichOne(isin);
       const built = buildInstrumentRecord({
         isin,
+        seedCategory: category,
         seedNote: note,
         core,
         preview,
