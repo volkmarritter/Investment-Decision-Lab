@@ -11,13 +11,16 @@
   export interface AfterMergeCalloutProps {
   autoMergeRunsUrl: string | null;
   allPrsUrl: string | null;
+  directWrite: boolean;
 }
 
 export function AfterMergeCallout({
   autoMergeRunsUrl,
   allPrsUrl,
+  directWrite,
 }: AfterMergeCalloutProps) {
   const { lang, t } = useAdminT();
+  if (directWrite) return <DirectWriteCallout />;
   return (
     <section
       className="rounded-md border border-amber-300 bg-amber-50 dark:border-amber-700 dark:bg-amber-950/30 p-3 space-y-3"
@@ -230,6 +233,176 @@ export function AfterMergeCallout({
             at runtime, no republish needed.
           </p>
         )}
+      </div>
+    </section>
+  );
+}
+
+// DirectWriteCallout — workspace-mode "from edit to live app" recipe.
+// Shown instead of the PR-flow AfterMergeCallout when the api-server is
+// editing etfs.ts directly on disk (replit.md "Admin direct-write mode").
+function DirectWriteCallout() {
+  const { lang, t } = useAdminT();
+  return (
+    <section
+      className="rounded-md border border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-950/30 p-3 space-y-3"
+      data-testid="docs-direct-write-callout"
+    >
+      <div className="flex items-center gap-2 text-emerald-800 dark:text-emerald-300">
+        <AlertTriangle className="h-4 w-4" />
+        <h3 className="font-semibold text-sm">
+          {t({
+            de: "Vom Workspace-Edit bis zur Live-App",
+            en: "From workspace edit to live app",
+          })}
+        </h3>
+      </div>
+
+      <div className="space-y-3 text-sm text-emerald-900 dark:text-emerald-100">
+        {lang === "de" ? (
+          <p>
+            Du arbeitest im <strong>Direkt-Schreib-Modus</strong>: Katalog-Aktionen
+            im Admin schreiben sofort in <code>etfs.ts</code> und{" "}
+            <code>lookthrough.overrides.json</code> auf der Festplatte —
+            <strong> kein Pull Request</strong>, kein Merge, kein
+            Workspace-Sync nötig. Der Republish-Knopf liefert den neuen Stand
+            an alle Endnutzer aus.
+          </p>
+        ) : (
+          <p>
+            You are in <strong>direct-write mode</strong>: catalog actions in
+            the admin write straight into <code>etfs.ts</code> and{" "}
+            <code>lookthrough.overrides.json</code> on disk —
+            <strong> no pull request</strong>, no merge, no workspace sync
+            needed. Republish ships the new state to end users.
+          </p>
+        )}
+
+        <ol className="space-y-3 list-decimal list-inside">
+          <li>
+            <strong>
+              {t({
+                de: "Editieren im Admin (du)",
+                en: "Edit in the admin (you)",
+              })}
+            </strong>
+            <div className="mt-1 ml-1">
+              {lang === "de"
+                ? "Jeder Klick auf „Speichern“ persistiert sofort in den Workspace-Dateien. Der Toast bestätigt mit „Gespeichert“. Die Änderung ist im Workspace-Preview unmittelbar wirksam — Endnutzer sehen sie aber erst nach Republish."
+                : "Every \"Save\" click persists instantly to the workspace files. The toast confirms with \"Saved\". Changes show up in the workspace preview right away — end users only see them after Republish."}
+            </div>
+          </li>
+
+          <li>
+            <strong>
+              {t({
+                de: "Vor Republish: bin/sync-with-main.sh (du)",
+                en: "Before Republish: bin/sync-with-main.sh (you)",
+              })}
+            </strong>
+            <div className="mt-1 ml-1 space-y-2">
+              {lang === "de" ? (
+                <>
+                  <p>
+                    Wurden seit deinem letzten Publish auf{" "}
+                    <strong>github.com</strong> Admin-PRs gemergt (z. B. von
+                    Cron-Jobs oder Auto-Merge), liegt der Workspace hinter{" "}
+                    <code>main</code>. Im <strong>Git-Pane</strong> zeigt die
+                    Karte „Remote Updates“ dann <code>↓ N</code>.
+                  </p>
+                  <p>
+                    Im <strong>Shell</strong>-Tab einmal:
+                  </p>
+                  <pre className="rounded bg-emerald-100/60 dark:bg-emerald-900/40 px-2 py-1 text-xs overflow-x-auto">
+                    bash bin/sync-with-main.sh
+                  </pre>
+                  <p>
+                    Das Script zieht <code>main</code>, löst Konflikte auf den
+                    bekannten Daten-Dateien automatisch zugunsten von{" "}
+                    <code>main</code> auf und stoppt nur bei echten
+                    Code-Konflikten. Danach <strong>Push</strong> im Git-Pane
+                    klicken (oder <code>git push</code> im Shell).
+                  </p>
+                </>
+              ) : (
+                <>
+                  <p>
+                    If admin PRs were merged on <strong>github.com</strong>{" "}
+                    since your last publish (cron, auto-merge…), the workspace
+                    sits behind <code>main</code>. The Git pane's "Remote
+                    Updates" card then shows <code>↓ N</code>.
+                  </p>
+                  <p>
+                    In the <strong>Shell</strong> tab, once:
+                  </p>
+                  <pre className="rounded bg-emerald-100/60 dark:bg-emerald-900/40 px-2 py-1 text-xs overflow-x-auto">
+                    bash bin/sync-with-main.sh
+                  </pre>
+                  <p>
+                    The script pulls <code>main</code>, auto-resolves conflicts
+                    on the known data files in favour of <code>main</code>, and
+                    only stops on a real code-level conflict. Then click{" "}
+                    <strong>Push</strong> in the Git pane (or{" "}
+                    <code>git push</code> from the shell).
+                  </p>
+                </>
+              )}
+            </div>
+          </li>
+
+          <li>
+            <strong>
+              {t({
+                de: "Republish (du)",
+                en: "Republish (you)",
+              })}
+            </strong>
+            <div className="mt-1 ml-1">
+              {lang === "de"
+                ? "Oben rechts auf „Republish“. Der neue Live-Snapshot ist nach 1–3 Min draußen. In der Produktion läuft der api-server NICHT im Direkt-Schreib-Modus — dort greifen wieder die unten beschriebenen PR-Flows als Fallback (für Admin-Aktionen direkt im Live-System)."
+                : "Click \"Republish\" at the top right. The new live snapshot is out in 1–3 min. In production the api-server is NOT in direct-write mode — the PR-based flows described below take over as the fallback there (for admin actions performed against the live system)."}
+            </div>
+          </li>
+        </ol>
+
+        <div className="rounded border border-emerald-400 bg-emerald-100 dark:bg-emerald-900/40 px-2 py-1.5 text-xs space-y-1">
+          {lang === "de" ? (
+            <>
+              <div>
+                <strong>Häufiger Fehler:</strong> Republish klicken,{" "}
+                <em>ohne vorher zu syncen + zu pushen</em>. Der Deploy zieht
+                dann einen Branch, der hinter <code>main</code> liegt — und du
+                landest beim nächsten Sync im Konflikt-Pane.
+              </div>
+              <div>
+                <strong>Tipp:</strong> Bevor du eine längere Edit-Session
+                startest, einmal <code>bash bin/sync-with-main.sh</code>{" "}
+                ausführen — danach arbeitest du auf einem garantiert frischen
+                Stand und vermeidest Konflikte beim Publish.
+              </div>
+            </>
+          ) : (
+            <>
+              <div>
+                <strong>Common mistake:</strong> Hitting Republish{" "}
+                <em>without syncing + pushing first</em>. The deploy then pulls
+                a branch behind <code>main</code> — and on the next sync you
+                land in the conflict pane.
+              </div>
+              <div>
+                <strong>Tip:</strong> Before a longer edit session, run{" "}
+                <code>bash bin/sync-with-main.sh</code> once — you then work on
+                a guaranteed-fresh tree and avoid conflicts at publish time.
+              </div>
+            </>
+          )}
+        </div>
+
+        <p className="text-xs">
+          {lang === "de"
+            ? "Hinweis: Cron-Jobs (z. B. monatlicher Look-through-Refresh auf GitHub Actions) und Aktionen gegen die Live-Produktion laufen weiterhin als Pull Request — siehe Detail-Flows unten."
+            : "Note: cron jobs (e.g. the monthly look-through refresh on GitHub Actions) and admin actions performed against live production still run as Pull Requests — see the detailed flows below."}
+        </p>
       </div>
     </section>
   );

@@ -144,14 +144,7 @@ export default function Overview() {
         testid="header-admin-overview"
       />
 
-      {directWrite && (
-        <p className="text-xs text-muted-foreground" data-testid="overview-direct-write-info">
-          {t({
-            de: "Direkt-Schreib-Modus — Katalog-Änderungen werden sofort in den Workspace gespeichert (kein Pull Request).",
-            en: "Direct-write mode — catalog changes are saved straight into the workspace (no pull request).",
-          })}
-        </p>
-      )}
+      {directWrite && <PublishingWorkflowCard />}
 
       {!directWrite && !githubConfigured && (
         <Alert variant="destructive" data-testid="overview-github-missing">
@@ -205,6 +198,72 @@ export default function Overview() {
         <RecentRunsSummaryCard runs={state.runs} loading={state.loading} />
       </div>
     </section>
+  );
+}
+
+// PublishingWorkflowCard — direct-write mode "how to ship to live" recipe.
+// Shown right under the page header in workspace builds so the operator
+// always has the 3-step sync→push→republish procedure at hand.
+function PublishingWorkflowCard() {
+  const { lang, t } = useAdminT();
+  return (
+    <Card
+      className="border-emerald-300 bg-emerald-50 dark:border-emerald-700 dark:bg-emerald-950/30"
+      data-testid="overview-direct-write-info"
+    >
+      <CardHeader className="pb-2">
+        <CardTitle className="text-base flex items-center gap-2 text-emerald-900 dark:text-emerald-100">
+          <CheckCircle2 className="h-4 w-4" />
+          {t({
+            de: "Direkt-Schreib-Modus aktiv",
+            en: "Direct-write mode active",
+          })}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="text-sm text-emerald-900 dark:text-emerald-100 space-y-2">
+        <p className="text-xs">
+          {t({
+            de: "Katalog-Aktionen schreiben sofort in die Workspace-Dateien — kein Pull Request, kein Merge. Endnutzer sehen die Änderung erst nach Republish:",
+            en: "Catalog actions write straight to the workspace files — no pull request, no merge. End users only see the change after Republish:",
+          })}
+        </p>
+        <ol className="list-decimal list-inside text-xs space-y-1 ml-1">
+          <li>
+            {lang === "de" ? (
+              <>
+                Im <strong>Shell</strong> ausführen, falls Remote Updates
+                anliegen (Git-Pane zeigt <code>↓ N</code>):{" "}
+                <code className="font-mono">bash bin/sync-with-main.sh</code>
+              </>
+            ) : (
+              <>
+                Run in the <strong>Shell</strong> if remote updates exist
+                (Git pane shows <code>↓ N</code>):{" "}
+                <code className="font-mono">bash bin/sync-with-main.sh</code>
+              </>
+            )}
+          </li>
+          <li>
+            {t({
+              de: "Im Git-Pane „Push“ klicken (oder git push in der Shell).",
+              en: "Click \"Push\" in the Git pane (or git push in the shell).",
+            })}
+          </li>
+          <li>
+            {t({
+              de: "Oben rechts „Republish“ — live nach 1–3 Min.",
+              en: "Click \"Republish\" top-right — live in 1–3 min.",
+            })}
+          </li>
+        </ol>
+        <p className="text-[11px] text-emerald-800/80 dark:text-emerald-200/70">
+          {t({
+            de: "Häufiger Fehler: Republish ohne vorher zu syncen + zu pushen — landet beim nächsten Sync im Konflikt-Pane. Volle Anleitung unter Dokumentation.",
+            en: "Common mistake: Republish without syncing + pushing first — lands you in the conflict pane on the next sync. Full guide under Documentation.",
+          })}
+        </p>
+      </CardContent>
+    </Card>
   );
 }
 

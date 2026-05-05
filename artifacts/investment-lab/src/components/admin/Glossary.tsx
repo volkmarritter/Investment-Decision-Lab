@@ -44,14 +44,24 @@ const TERMS: Term[] = [
       "Strict invariant since Task #122: every ISIN in this file must also be registered in INSTRUMENTS (etfs.ts) — INSTRUMENTS is the single source of truth; the JSON sidecar only carries the volatile look-through fields.",
   },
   {
+    term: "Direct-write mode",
+    de: "Workspace-Modus: der api-server schreibt Katalog-Änderungen direkt in etfs.ts und lookthrough.overrides.json auf der Festplatte (kein Pull Request, kein Auto-Merge). Aktiv, wenn die Workspace-Dateien existieren und beschreibbar sind und ADMIN_DIRECT_WRITE_DISABLED nicht gesetzt ist. In der publizierten Cloud-Variante greift automatisch der PR-Modus zurück.",
+    en: "Workspace mode: the api-server writes catalog changes straight into etfs.ts and lookthrough.overrides.json on disk (no pull request, no auto-merge). Active when the workspace files exist, are writable, and ADMIN_DIRECT_WRITE_DISABLED is unset. The published Cloud build automatically falls back to PR mode.",
+  },
+  {
     term: "Pull Request",
-    de: "GitHub Pull Request — jede Daten-Änderung verlässt das Admin als Pull Request gegen den Basis-Branch und wird nach Merge ausgeliefert.",
-    en: "GitHub pull request — every data change leaves the admin as a pull request against the base branch and ships after merge.",
+    de: "GitHub Pull Request — wird nur im Produktions-Modus erzeugt (Live-Cloud-Run, ohne Workspace-Dateien). Im Workspace ist der Direkt-Schreib-Modus aktiv und es entstehen keine PRs.",
+    en: "GitHub pull request — only created in production mode (live Cloud Run, no workspace files). In the workspace direct-write mode is active and no PRs are produced.",
+  },
+  {
+    term: "Republish",
+    de: "Workflow im Workspace, der den aktuellen Stand der Daten-Dateien live für alle Endnutzer sichtbar macht. Reihenfolge: 1) bin/sync-with-main.sh im Shell ausführen, falls Remote Updates anliegen, 2) Push im Git-Pane, 3) Republish-Knopf oben rechts. Live nach 1–3 Min.",
+    en: "Workspace workflow that makes the current state of the data files visible to end users. Order: 1) run bin/sync-with-main.sh in the shell if remote updates exist, 2) Push in the Git pane, 3) Republish button top-right. Live in 1–3 min.",
   },
   {
     term: "Workspace sync",
-    de: "Lokalen Workspace gegen origin/<base> synchronisieren — Voraussetzung für ein verlässliches Republish nach jedem Merge.",
-    en: "Sync the local workspace against origin/<base> — prerequisite for a reliable republish after every merge.",
+    de: "Lokalen Workspace gegen origin/<base> synchronisieren — im Workspace übernimmt das Skript bin/sync-with-main.sh (löst Konflikte auf den Daten-Dateien automatisch zugunsten von main auf). Voraussetzung für ein verlässliches Republish, wenn auf GitHub seit dem letzten Push neue Commits gemergt wurden.",
+    en: "Sync the local workspace against origin/<base> — in the workspace this is done by bin/sync-with-main.sh (auto-resolves conflicts on data files in favour of main). Prerequisite for a reliable republish whenever new commits were merged on GitHub since your last push.",
   },
 ];
 

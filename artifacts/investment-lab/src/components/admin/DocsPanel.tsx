@@ -23,6 +23,7 @@ export interface DocsPanelGithub {
 
 interface DocsPanelProps {
   github?: DocsPanelGithub;
+  directWrite?: boolean;
 }
 
 // Build a github.com URL pointing at a specific file on the base branch.
@@ -67,7 +68,7 @@ import {
     type FileInventoryGroup,
   } from "./DocsPanel.parts";
 
-  export function DocsPanel({ github }: DocsPanelProps) {
+  export function DocsPanel({ github, directWrite = false }: DocsPanelProps) {
     const { lang, t } = useAdminT();
 
     const repo = repoUrl(github);
@@ -84,16 +85,44 @@ import {
     return (
       <div data-testid="card-docs-panel" className="space-y-5 text-sm">
         <p className="text-muted-foreground">
-          {t({
-            de: 'Diese Seite kennt mehrere verschiedene Wege, Daten zu ändern. Jeder hat ein anderes Ziel, einen anderen Sichtbarkeitsbereich und eine andere Latenz, bis Endnutzer die Änderung sehen. Vor dem Klick auf „Pull request öffnen" lohnt sich ein Blick darauf, welcher Flow gerade läuft.',
-            en: "This page exposes several distinct ways to change data. Each one has a different target, scope of visibility, and latency before end users see the change. Worth a glance before clicking 'Open pull request' to confirm which flow is running.",
-          })}
+          {t(
+            directWrite
+              ? {
+                  de: "Im Workspace gilt der Direkt-Schreib-Modus: Katalog-Aktionen werden sofort in die Daten-Dateien geschrieben. Die Detail-Flows weiter unten beschreiben das Verhalten der Live-Produktion (PR-Modus) — gut zum Nachschlagen, aber im Tagesgeschäft im Workspace nicht relevant. Die Reihenfolge fürs Veröffentlichen steht im grünen Kasten.",
+                  en: "In the workspace the admin runs in direct-write mode: catalog actions are written straight to the data files. The detailed flows further down describe how things behave in live production (PR mode) — useful as a reference, but not part of the day-to-day workspace flow. The publish recipe lives in the green callout below.",
+                }
+              : {
+                  de: 'Diese Seite kennt mehrere verschiedene Wege, Daten zu ändern. Jeder hat ein anderes Ziel, einen anderen Sichtbarkeitsbereich und eine andere Latenz, bis Endnutzer die Änderung sehen. Vor dem Klick auf „Pull request öffnen" lohnt sich ein Blick darauf, welcher Flow gerade läuft.',
+                  en: "This page exposes several distinct ways to change data. Each one has a different target, scope of visibility, and latency before end users see the change. Worth a glance before clicking 'Open pull request' to confirm which flow is running.",
+                },
+          )}
         </p>
 
         <AfterMergeCallout
           autoMergeRunsUrl={autoMergeRunsUrl}
           allPrsUrl={allPrsUrl}
+          directWrite={directWrite}
         />
+
+        {directWrite && (
+          <details
+            className="rounded-md border border-border bg-muted/30 px-3 py-2 text-xs"
+            data-testid="docs-prod-flows-collapsible"
+          >
+            <summary className="cursor-pointer font-medium text-muted-foreground">
+              {t({
+                de: "Über die Detail-Flows unten (Produktions-Fallback, PR-Modus)",
+                en: "About the detailed flows below (production fallback, PR mode)",
+              })}
+            </summary>
+            <p className="mt-2 text-muted-foreground">
+              {t({
+                de: "Die nachfolgenden Abschnitte gelten nur, wenn der api-server NICHT im Direkt-Schreib-Modus läuft (also in der publizierten Cloud-Run-Variante). Im Workspace bleiben sie als Nachschlage-Referenz sichtbar — funktional spielen sie hier keine Rolle.",
+                en: "The sections that follow only apply when the api-server is NOT in direct-write mode (i.e. the published Cloud Run build). They stay visible in the workspace as a reference — they don't drive anything here.",
+              })}
+            </p>
+          </details>
+        )}
   
       <FlowSection
             number={1}
@@ -592,10 +621,17 @@ import {
           <Separator />
 
           <p className="text-xs text-muted-foreground">
-            {t({
-              de: 'Reihenfolge in der Praxis: Flow 1 + 1b + 2 öffnen Pull Requests (review, merge, redeploy); 1b spart einen Pull Request pro Alternative ein. Flow 3 öffnet einen Pull Request für Default-Werte. Flow 4 ist eine reine Browser-Einstellung. Flow 5 läuft automatisch. Flow 6 (Workspace-Sync) hilft direkt nach einem Merge, damit der Server die neuen Daten sieht.',
-              en: "Practical order: flows 1 + 1b + 2 open Pull Requests (review, merge, redeploy); 1b saves one Pull Request per alternative. Flow 3 opens a Pull Request for default values. Flow 4 is a pure browser-only setting. Flow 5 runs on its own. Flow 6 (workspace sync) helps right after a merge so the server sees the new data.",
-            })}
+            {t(
+              directWrite
+                ? {
+                    de: "Im Workspace ersetzt der Direkt-Schreib-Modus die Flows 1, 1b, 2 und 3 — du speicherst und republishst (siehe grüner Kasten oben). Flow 4 bleibt eine reine Browser-Einstellung, Flow 5 (monatlicher Cron) läuft unabhängig auf GitHub Actions, Flow 6 (Workspace-Sync) ist im Workspace-UI ausgeblendet — der Sync läuft via bin/sync-with-main.sh.",
+                    en: "In the workspace direct-write mode replaces flows 1, 1b, 2 and 3 — you save and republish (see green callout above). Flow 4 is still a pure browser-only setting, flow 5 (monthly cron) runs on its own on GitHub Actions, and flow 6 (workspace sync) is hidden from the workspace UI — sync now happens via bin/sync-with-main.sh.",
+                  }
+                : {
+                    de: 'Reihenfolge in der Praxis: Flow 1 + 1b + 2 öffnen Pull Requests (review, merge, redeploy); 1b spart einen Pull Request pro Alternative ein. Flow 3 öffnet einen Pull Request für Default-Werte. Flow 4 ist eine reine Browser-Einstellung. Flow 5 läuft automatisch. Flow 6 (Workspace-Sync) hilft direkt nach einem Merge, damit der Server die neuen Daten sieht.',
+                    en: "Practical order: flows 1 + 1b + 2 open Pull Requests (review, merge, redeploy); 1b saves one Pull Request per alternative. Flow 3 opens a Pull Request for default values. Flow 4 is a pure browser-only setting. Flow 5 runs on its own. Flow 6 (workspace sync) helps right after a merge so the server sees the new data.",
+                  },
+            )}
           </p>
 
           <Separator />
@@ -606,10 +642,17 @@ import {
               de: "Datei-Referenz: ETF-Pflege",
               en: "File reference: ETF maintenance",
             })}
-            intro={t({
-              de: "Vollständige Liste der Dateien, die ein Operator (oder Pull-Request-Reviewer) für die Pflege des Katalogs, des Look-through-Pools und der Refresh-Jobs anfasst. Die Pfade sind GitHub-relativ; pro Zeile gibt es einen Direktlink, sobald GITHUB_OWNER/REPO am api-server gesetzt sind.",
-              en: "Full list of files an operator (or pull-request reviewer) touches when maintaining the catalog, look-through pool and refresh jobs. Paths are GitHub-relative; each row links straight to GitHub once GITHUB_OWNER/REPO is set on the api-server.",
-            })}
+            intro={t(
+              directWrite
+                ? {
+                    de: "Vollständige Liste der Dateien, die der Admin (im Direkt-Schreib-Modus) auf der Workspace-Festplatte anfasst — bzw. die ein PR-Reviewer in der Produktions-Variante sieht. Die Pfade sind GitHub-relativ; pro Zeile gibt es einen Direktlink, sobald GITHUB_OWNER/REPO am api-server gesetzt sind.",
+                    en: "Full list of files the admin (in direct-write mode) edits on the workspace disk — or that a PR reviewer sees in the production variant. Paths are GitHub-relative; each row links straight to GitHub once GITHUB_OWNER/REPO is set on the api-server.",
+                  }
+                : {
+                    de: "Vollständige Liste der Dateien, die ein Operator (oder Pull-Request-Reviewer) für die Pflege des Katalogs, des Look-through-Pools und der Refresh-Jobs anfasst. Die Pfade sind GitHub-relativ; pro Zeile gibt es einen Direktlink, sobald GITHUB_OWNER/REPO am api-server gesetzt sind.",
+                    en: "Full list of files an operator (or pull-request reviewer) touches when maintaining the catalog, look-through pool and refresh jobs. Paths are GitHub-relative; each row links straight to GitHub once GITHUB_OWNER/REPO is set on the api-server.",
+                  },
+            )}
             groups={buildEtfMaintenanceFileGroups(t)}
             buildFileUrl={(path) => fileUrl(github, path)}
             githubLabel={t({ de: "Auf GitHub öffnen", en: "Open on GitHub" })}
