@@ -319,17 +319,26 @@ test.describe("ExplainPortfolio · bring-your-own-ETFs (mobile)", () => {
         analysis.getByText(/home bias analysis|home-bias-analyse/i).first(),
       ).toBeVisible();
 
+      // The card now starts collapsed (only title + verdict badge +
+      // summary line are visible at rest). The CardDescription that
+      // carries the per-currency `homeMarketLabel` lives inside the
+      // collapsible block, so we have to click "Show details" before
+      // asserting on it. Match either locale's button label.
+      await analysis
+        .getByRole("button", { name: /show details|details anzeigen/i })
+        .first()
+        .click();
+
       // The CardDescription template interpolates the per-currency
       // `homeMarketLabel` from `HOME_LABEL`. Asserting the rendered
       // description contains the expected label catches a regression in
       // either the i18n template (`build.homeBias.desc`) or the
-      // `HOME_LABEL`/`HOME_GEO_KEYS` wiring on the Explain side. The
-      // description text node sits next to the title inside the same
-      // card header, so we scope the search to elements that also
-      // mention the base code in parens — that's the literal `({base})`
-      // substring of the `build.homeBias.desc` template — to avoid false
-      // positives from pros/cons bullets or other cards that may also
-      // mention the home country.
+      // `HOME_LABEL`/`HOME_GEO_KEYS` wiring on the Explain side. We
+      // scope the search to elements that also mention the base code in
+      // parens — that's the literal `({base})` substring of the
+      // `build.homeBias.desc` template — to avoid false positives from
+      // pros/cons bullets or other cards that may also mention the
+      // home country.
       await expect(
         analysis
           .getByText(homeLabelRegex)
