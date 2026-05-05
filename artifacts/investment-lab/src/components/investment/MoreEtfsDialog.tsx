@@ -89,7 +89,7 @@ export function MoreEtfsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-lg"
+        className="max-w-lg sm:max-w-2xl lg:max-w-4xl"
         data-testid={`more-etfs-dialog-${bucket}`}
       >
         <DialogHeader>

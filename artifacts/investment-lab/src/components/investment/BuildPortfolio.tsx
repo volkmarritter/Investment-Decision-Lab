@@ -1364,12 +1364,20 @@ export function BuildPortfolio() {
                                               ? "0"
                                               : String(etf.selectedSlot)
                                           }
-                                          onValueChange={(v) =>
+                                          onValueChange={(v) => {
+                                            // Sentinel: the trailing
+                                            // "More ETFs (N)" item opens
+                                            // the pool dialog instead of
+                                            // committing a slot change.
+                                            if (v === "__more__") {
+                                              setMoreEtfsBucket(etf.bucket);
+                                              return;
+                                            }
                                             setETFSelection(
                                               etf.catalogKey!,
                                               Number(v) as ETFSlot,
-                                            )
-                                          }
+                                            );
+                                          }}
                                         >
                                           <SelectTrigger
                                             className="h-7 px-2 text-xs gap-1.5 w-auto min-w-[180px] max-w-[280px] font-medium border-dashed hover:border-solid focus:border-solid"
@@ -1414,6 +1422,22 @@ export function BuildPortfolio() {
                                                 </div>
                                               </SelectItem>
                                             ))}
+                                            {poolOptions.length > 0 && (
+                                              <SelectItem
+                                                key={`${etf.catalogKey}-__more__`}
+                                                value="__more__"
+                                                data-testid={`etf-picker-option-more-${etf.bucket}`}
+                                              >
+                                                <div className="flex items-center gap-1.5 text-emerald-700 dark:text-emerald-400">
+                                                  <span className="font-medium text-xs">
+                                                    {t("build.impl.moreEtfs.button")} ({poolOptions.length})
+                                                  </span>
+                                                  <span className="text-[10px] text-muted-foreground">
+                                                    {t("build.impl.moreEtfs.tooltip")}
+                                                  </span>
+                                                </div>
+                                              </SelectItem>
+                                            )}
                                           </SelectContent>
                                         </Select>
                                       ) : (
