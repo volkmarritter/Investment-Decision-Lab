@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { SavedScenariosUI } from "./SavedScenariosUI";
 import { GeoExposureMap } from "./GeoExposureMap";
+import { HomeBiasAnalysis } from "./HomeBiasAnalysis";
 import { AllocationGroupSummary } from "./AllocationGroupSummary";
 
 import { Button } from "@/components/ui/button";
@@ -1772,6 +1773,32 @@ export function ComparePortfolios() {
                       </div>
                     </CardContent>
                   </Card>
+                )}
+
+                {/* Home Bias Analysis (Look-Through) — per side, gated on
+                 *  lookThroughView AND non-USD base (USD-base portfolios skip
+                 *  the card because "home" framing collapses against the
+                 *  global default, mirroring the Build tab). HomeBiasAnalysis
+                 *  renders its own Card chrome, so we let the helper place
+                 *  them side-by-side without an outer wrapping Card. The
+                 *  whole section disappears when neither side qualifies. */}
+                {inputA && inputB && outputA && outputB &&
+                  ((inputA.lookThroughView && inputA.baseCurrency !== "USD") ||
+                   (inputB.lookThroughView && inputB.baseCurrency !== "USD")) && (
+                  <div data-testid="compare-home-bias-section">
+                    {renderLookThroughSection(
+                      inputA.lookThroughView && inputA.baseCurrency !== "USD",
+                      inputB.lookThroughView && inputB.baseCurrency !== "USD",
+                      (side) => (
+                        <HomeBiasAnalysis
+                          etfs={(side === "A" ? outputA : outputB).etfImplementation}
+                          baseCurrency={(side === "A" ? inputA : inputB).baseCurrency}
+                          lookThroughView={(side === "A" ? inputA : inputB).lookThroughView}
+                        />
+                      ),
+                      "compare-home-bias-mobile-toggle",
+                    )}
+                  </div>
                 )}
 
                 {/* Look-Through Analysis — gated per side on lookThroughView.
