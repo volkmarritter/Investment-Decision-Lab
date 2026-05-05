@@ -1624,7 +1624,20 @@ export function BuildPortfolio() {
                 {/* Scenario Stress Test */}
                 <StressTest allocation={output.allocation} baseCurrency={watchedBaseCcy} />
 
-                {/* Section 7: Learning Insights */}
+                {/* Fee Estimator */}
+                <FeeEstimator 
+                  allocation={output.allocation} 
+                  horizonYears={form.getValues().horizon} 
+                  baseCurrency={form.getValues().baseCurrency}
+                  hedged={form.getValues().includeCurrencyHedging}
+                  etfImplementations={output.etfImplementation}
+                />
+
+                {/* Learning Insights — kept as the very last block in the
+                 *  Build flow so the synthesised "what to take away" copy
+                 *  closes the page after every quantitative card has had
+                 *  its turn. Build-only (Explain doesn't synthesize
+                 *  learning copy). */}
                 <div className="space-y-3">
                   <h3 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
                     <BookOpen className="h-4 w-4" /> {t("build.learning.title")}
@@ -1640,15 +1653,6 @@ export function BuildPortfolio() {
                     ))}
                   </div>
                 </div>
-
-                {/* Fee Estimator */}
-                <FeeEstimator 
-                  allocation={output.allocation} 
-                  horizonYears={form.getValues().horizon} 
-                  baseCurrency={form.getValues().baseCurrency}
-                  hedged={form.getValues().includeCurrencyHedging}
-                  etfImplementations={output.etfImplementation}
-                />
               </>
             )}
             <DisclaimerPdfBlock />
