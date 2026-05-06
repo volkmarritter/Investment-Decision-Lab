@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-This repository is a pnpm TypeScript monorepo centered on an investment-analysis web application. The main production application is the React-based Investment Lab (`artifacts/investment-lab`) backed by an Express API server (`artifacts/api-server`). The API provides a public ETF preview endpoint and a token-gated admin API that can read workspace data files and open GitHub pull requests using repository credentials. A separate `marketing-deck` artifact exists as a static React slide deck. `mockup-sandbox` is a development-only sandbox and is out of scope unless production reachability is demonstrated.
+This repository is a pnpm TypeScript monorepo centered on an investment-analysis web application. The main production application is the React-based Investment Lab (`artifacts/investment-lab`) backed by an Express API server (`artifacts/api-server`). The API provides a public ETF preview endpoint and a token-gated admin API that can read workspace data files and open GitHub pull requests using repository credentials. `mockup-sandbox` is a development-only sandbox and is out of scope unless production reachability is demonstrated.
 
 ## Assets
 
@@ -29,7 +29,7 @@ This repository is a pnpm TypeScript monorepo centered on an investment-analysis
 - **Highest-risk server areas**: `artifacts/api-server/src/routes/admin.ts`, `artifacts/api-server/src/lib/github.ts`, `artifacts/api-server/src/lib/workspace-sync.ts`, `artifacts/api-server/src/routes/etf-preview.ts`, `artifacts/api-server/src/lib/etf-scrape.ts`.
 - **Public surface**: `GET /api/healthz`, `GET /api/etf-preview/:isin`.
 - **Admin surface**: all `/api/admin/*` routes plus the `/admin` SPA path in `artifacts/investment-lab`.
-- **Usually dev-only / low-priority**: `artifacts/mockup-sandbox/**`, tests, local scripts unless a production route invokes them; `marketing-deck` is static and lower risk unless it handles privileged data or cross-origin messaging with the main app.
+- **Usually dev-only / low-priority**: `artifacts/mockup-sandbox/**`, tests, local scripts unless a production route invokes them.
 
 ## Threat Categories
 
