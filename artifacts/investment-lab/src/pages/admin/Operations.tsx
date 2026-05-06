@@ -28,7 +28,7 @@ import {
   RecentRunsCard,
 } from "@/components/admin/DataUpdates";
 
-type SubKey = "sync" | "prs" | "changes" | "runs" | "freshness";
+type SubKey = "sync" | "prs" | "compare" | "changes" | "runs" | "freshness";
 
 export default function Operations() {
   const { t } = useAdminT();
@@ -40,7 +40,13 @@ export default function Operations() {
     // exists when the server edits etfs.ts in place) and the Pull-requests
     // sub-tab (no PRs to track).
     ...(directWrite
-      ? []
+      ? [
+          {
+            to: "/admin/operations/compare",
+            label: t({ de: "Dateivergleich", en: "File compare" }),
+            testid: "tab-operations-compare",
+          },
+        ]
       : [
           {
             to: "/admin/operations/sync",
@@ -73,26 +79,30 @@ export default function Operations() {
   const resolved: SubKey =
     location === "/admin/operations/prs"
       ? "prs"
-      : location === "/admin/operations/changes"
-        ? "changes"
-        : location === "/admin/operations/runs"
-          ? "runs"
-          : location === "/admin/operations/freshness"
-            ? "freshness"
-            : location === "/admin/operations/sync"
-              ? "sync"
-              : // Default landing: in direct-write the sync tab is gone, so
-                // land on "changes" (the most useful operator surface).
-                directWrite
-                ? "changes"
-                : "sync";
+      : location === "/admin/operations/compare"
+        ? "compare"
+        : location === "/admin/operations/changes"
+          ? "changes"
+          : location === "/admin/operations/runs"
+            ? "runs"
+            : location === "/admin/operations/freshness"
+              ? "freshness"
+              : location === "/admin/operations/sync"
+                ? "sync"
+                : // Default landing: in direct-write the sync tab is gone, so
+                  // land on "changes" (the most useful operator surface).
+                  directWrite
+                  ? "changes"
+                  : "sync";
 
   // In direct-write mode the sync/prs tabs are hidden from the nav. If the
-  // user lands on those URLs via a stale bookmark, fall back to "changes" so
-  // we never render a panel whose tab is invisible.
+  // user lands on those URLs via a stale bookmark, fall back to the
+  // File-compare sub-tab (closest equivalent — it's what used to live
+  // inside the Workspace-sync panel) so we never render a panel whose
+  // tab is invisible.
   const active: SubKey =
     directWrite && (resolved === "sync" || resolved === "prs")
-      ? "changes"
+      ? "compare"
       : resolved;
 
   const description: Record<SubKey, string> = {
@@ -103,6 +113,10 @@ export default function Operations() {
     prs: t({
       de: "Alle offenen Admin-Pull-Requests, gefiltert nach Branch-Präfix.",
       en: "Every open admin pull request, filtered by branch prefix.",
+    }),
+    compare: t({
+      de: "Workspace-Dateien byteweise gegen GitHub main vergleichen — zeigt, ob ein bin/sync-with-main.sh + Republish nötig ist.",
+      en: "Compare workspace files byte-for-byte against GitHub main — shows whether a bin/sync-with-main.sh + republish is needed.",
     }),
     changes: t({
       de: "Letzte Pool-Refresh-Änderungen pro ISIN, mit Werten vorher/nachher.",
@@ -153,6 +167,7 @@ export default function Operations() {
           </div>
         )}
         {active === "prs" && <OperationsPrsTab />}
+        {active === "compare" && <FileCompareViewer />}
         {active === "changes" && <ChangesTab />}
         {active === "runs" && <RunsTab />}
         {active === "freshness" && <FreshnessTab />}
