@@ -27,6 +27,7 @@
 import { useMemo } from "react";
 import { useT } from "@/lib/i18n";
 import { useEtfInfo } from "@/lib/useEtfInfo";
+import { getBucketKeyForIsin, getBucketMeta } from "@/lib/etfs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -139,6 +140,34 @@ export function EtfInfoPreview({
     return Object.keys(out).length > 0 ? out : null;
   }, [merged, currentName, currentCurrency, currentTerBps]);
 
+  // Task #155 — when the typed ISIN already lives in the curated catalog,
+  // surface a friendly hint pointing the operator to the bucket-tree
+  // entry above so they don't have to use the manual-entry path. Only
+  // fires for true catalog matches; pool-only look-through hits don't
+  // count (they aren't selectable in the tree). Must be declared BEFORE
+  // any early return — otherwise the hook order changes the moment
+  // `isValidIsin` flips and React throws "Rendered more hooks than
+  // during the previous render."
+  const catalogBucket = useMemo(() => {
+    if (!info.catalogInstrument) return null;
+    const bucketKey = getBucketKeyForIsin(isin);
+    if (!bucketKey) return null;
+    const meta = getBucketMeta(bucketKey);
+    if (!meta) return null;
+    const hedgeSuffix = meta.hedged
+      ? de
+        ? ` (${meta.hedgeCurrency ?? ""}${meta.hedgeCurrency ? "-" : ""}gehedgt)`
+        : ` (${meta.hedgeCurrency ?? ""}${meta.hedgeCurrency ? "-" : ""}hedged)`
+      : "";
+    const synthSuffix = meta.synthetic
+      ? de
+        ? " · synthetisch"
+        : " · synthetic"
+      : "";
+    const label = `${meta.assetClass} — ${meta.region}${hedgeSuffix}${synthSuffix}`;
+    return { bucketKey, label, assetClass: meta.assetClass };
+  }, [info.catalogInstrument, isin, de]);
+
   if (!info.isValidIsin) return null;
 
   const hasMaster = !!(
@@ -202,6 +231,18 @@ export function EtfInfoPreview({
           </a>
         )}
       </div>
+
+      {catalogBucket && (
+        <div
+          className="text-[11px] text-sky-700 dark:text-sky-400"
+          data-testid={`etf-info-catalog-hint-${rowIndex}`}
+        >
+          {tx(
+            `Dieser ETF ist bereits im Katalog (Bucket: ${catalogBucket.label}). Du kannst ihn auch direkt aus der Baumansicht oben hinzufügen — eine manuelle Eingabe ist dafür nicht nötig.`,
+            `This ETF is already in the catalog (bucket: ${catalogBucket.label}). You can also add it directly from the tree view above instead of as a manual entry.`,
+          )}
+        </div>
+      )}
 
       {info.scrapeError && !info.catalogInstrument && !hasPool && (
         <Alert variant="destructive" className="py-2">
