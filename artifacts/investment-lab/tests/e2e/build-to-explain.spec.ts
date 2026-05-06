@@ -40,13 +40,20 @@ test("Send to Explain copies the Build portfolio into the Explain workspace, wit
   // workspace must reflect it so the receiver lands in the same mode.
   expect(parsed.lookThroughView).toBe(true);
 
-  // Each persisted position should have a non-empty ISIN and a
-  // positive weight (the converter drops empty/zero rows).
+  // Each persisted position should have a positive weight (the
+  // converter drops zero-weight rows). ETF rows must carry a non-empty
+  // ISIN; the first-class Cash sentinel row (Task #182) intentionally
+  // has no ISIN — it's recognised by `bucketKey === "Cash"` instead.
   for (const p of parsed.positions) {
     expect(typeof p.isin).toBe("string");
-    expect(p.isin.length).toBeGreaterThan(0);
     expect(typeof p.weight).toBe("number");
     expect(p.weight).toBeGreaterThan(0);
+    if (p.bucketKey === "Cash") {
+      expect(p.isin).toBe("");
+      expect(typeof p.cashCurrency).toBe("string");
+    } else {
+      expect(p.isin.length).toBeGreaterThan(0);
+    }
   }
 
   // First Explain row should now be visible in the editor.

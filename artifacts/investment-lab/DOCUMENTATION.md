@@ -627,6 +627,27 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+### 2026-05 (send-to-explain-cash — Task #182)
+
+Build's **Send to Explain** hand-off now includes the portfolio's Cash
+slice. Previously the converter only mapped `etfImplementation` rows,
+so Cash (which has no ISIN and is excluded from that table) was
+dropped — Explain ended up with a portfolio that summed to less than
+100%.
+
+- `buildToExplainWorkspace` in `src/lib/explainCompare.ts` now also
+  reads `output.allocation` for the Cash row (`assetClass === "Cash"`)
+  and, when its weight is > 0, appends a Cash sentinel position
+  (`isin: ""`, `bucketKey: EXPLAIN_CASH_BUCKET_SENTINEL`,
+  `cashCurrency: input.baseCurrency`). Build inputs with 0% Cash add
+  no row (no zero-weight noise). The receiving `ExplainPortfolio`
+  ingestion path needed no changes — it already accepts the Cash
+  sentinel + `cashCurrency` shape from manual adds and the file
+  round-trip.
+- Two new cases in `tests/buildToExplain.test.ts` cover the non-zero
+  Cash → sentinel-row + currency assertion (and total-weight
+  preservation) and the 0% Cash → no Cash row assertion.
+
 ### 2026-05 (slot-tag-tooltips — Task #167)
 
 Added hover/tap tooltips to the **Default / Alternative / Pool** slot

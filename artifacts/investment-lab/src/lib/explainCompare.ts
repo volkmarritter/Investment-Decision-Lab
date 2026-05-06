@@ -31,7 +31,10 @@ import type {
   PortfolioInput,
   PortfolioOutput,
 } from "./types";
-import { synthesizePersonalPortfolio } from "./personalPortfolio";
+import {
+  EXPLAIN_CASH_BUCKET_SENTINEL,
+  synthesizePersonalPortfolio,
+} from "./personalPortfolio";
 import { defaultExchangeFor } from "./exchange";
 import type { Lang } from "./i18n";
 import {
@@ -252,7 +255,7 @@ export function buildToExplainWorkspace(
   input: PortfolioInput,
   output: PortfolioOutput,
 ): ExplainWorkspace {
-  const positions = output.etfImplementation
+  const positions: ExplainWorkspace["positions"] = output.etfImplementation
     .filter((row) => !!row.isin && row.weight > 0)
     .map((row) => {
       // Prefer the engine-provided catalog key. When absent (off-catalog
@@ -268,6 +271,21 @@ export function buildToExplainWorkspace(
       }
       return { isin: row.isin, bucketKey, weight: row.weight };
     });
+  // Task #182 — Cash is excluded from `etfImplementation` (no ISIN, no
+  // catalog bucket) but Build's allocation does carry a first-class
+  // Cash row. Mirror it into the Explain workspace as a Cash sentinel
+  // position denominated in the Build input's baseCurrency, so the
+  // hand-off preserves the full 100% allocation. Skip when Build has
+  // 0% Cash to avoid zero-weight noise.
+  const cashRow = output.allocation.find((a) => a.assetClass === "Cash");
+  if (cashRow && cashRow.weight > 0) {
+    positions.push({
+      isin: "",
+      bucketKey: EXPLAIN_CASH_BUCKET_SENTINEL,
+      weight: cashRow.weight,
+      cashCurrency: input.baseCurrency,
+    });
+  }
   return {
     v: 1,
     baseCurrency: input.baseCurrency,
