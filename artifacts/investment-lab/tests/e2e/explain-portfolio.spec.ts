@@ -259,6 +259,94 @@ test.describe("ExplainPortfolio · bring-your-own-ETFs (mobile)", () => {
     },
   ];
 
+  // Task #161 — clickable ISIN affordance in Explain rows opens the
+  // shared ETFDetailsDialog (the same one Build mounts). Catalog rows
+  // get the button as soon as the picker resolves; closing the dialog
+  // must leave the editor's state (positions, weights, expanded groups)
+  // untouched.
+  test("clicking an Explain row's ISIN opens the shared ETF Details dialog and closes cleanly", async ({
+    page,
+    context,
+  }) => {
+    await context.clearCookies();
+    await openExplainTab(page);
+    await page.evaluate(() =>
+      window.localStorage.removeItem("investment-lab.explainPortfolio.v1"),
+    );
+    await page.reload();
+    await dismissWelcomeIfPresent(page);
+    await page.getByRole("tab", { name: /explain my portfolio/i }).tap();
+
+    await addCatalogRow(page, 0, ISIN_USA, BUCKET_USA, GROUP_EQUITY);
+    await setRowWeight(page, 0, "100");
+
+    const isinButton = page.getByTestId(`explain-etf-isin-button-${BUCKET_USA}`);
+    await expect(isinButton).toBeVisible();
+    await expect(isinButton).toContainText(ISIN_USA);
+    await isinButton.scrollIntoViewIfNeeded();
+    await isinButton.click({ force: true });
+
+    const dialog = page.getByTestId("etf-details-dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText(ISIN_USA);
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await waitForRadixOverlayRelease(page);
+
+    // Editor state preserved across the dialog open/close.
+    await expect(page.getByTestId("explain-row-0")).toBeVisible();
+    await expect(page.getByTestId("explain-weight-0")).toHaveValue("100");
+    await expect(
+      page.getByTestId(`explain-etf-isin-button-${BUCKET_USA}`),
+    ).toBeVisible();
+  });
+
+  // Task #161 — manual rows whose typed ISIN happens to match a
+  // registered catalog instrument should also expose the clickable
+  // ISIN affordance (testid `explain-etf-isin-button-manual-${idx}`).
+  // Off-catalog manual ISINs intentionally do NOT get the button —
+  // that path is already covered indirectly by the manual-asset-class
+  // test above (it uses LU0000000123, no button asserted, no failure).
+  test("a manual row with a catalog-registered ISIN exposes the clickable ISIN affordance", async ({
+    page,
+    context,
+  }) => {
+    await context.clearCookies();
+    await openExplainTab(page);
+    await page.evaluate(() =>
+      window.localStorage.removeItem("investment-lab.explainPortfolio.v1"),
+    );
+    await page.reload();
+    await dismissWelcomeIfPresent(page);
+    await page.getByRole("tab", { name: /explain my portfolio/i }).tap();
+
+    await page.getByTestId("explain-add-manual").tap();
+    const manualIsin = page.getByTestId("explain-manual-isin-0");
+    await expect(manualIsin).toBeVisible();
+    await manualIsin.fill(ISIN_FI);
+
+    const manualButton = page.getByTestId("explain-etf-isin-button-manual-0");
+    await expect(manualButton).toBeVisible();
+    await expect(manualButton).toContainText(ISIN_FI);
+    await manualButton.scrollIntoViewIfNeeded();
+    await manualButton.click({ force: true });
+
+    const dialog = page.getByTestId("etf-details-dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText(ISIN_FI);
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await waitForRadixOverlayRelease(page);
+
+    // Manual row + typed ISIN preserved across the open/close cycle.
+    await expect(manualIsin).toHaveValue(ISIN_FI);
+    await expect(
+      page.getByTestId("explain-etf-isin-button-manual-0"),
+    ).toBeVisible();
+  });
+
   for (const { code, homeLabelRegex } of NON_USD_BASES) {
     test(`switching Explain to ${code} shows Home Bias with the ${code} home market`, async ({
       page,

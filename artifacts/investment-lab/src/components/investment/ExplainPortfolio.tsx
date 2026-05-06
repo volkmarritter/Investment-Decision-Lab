@@ -62,6 +62,7 @@ import {
   getInstrumentRole,
   getInstrumentAltIndex,
   inferAssetClassRegionFromInstrument,
+  pickDefaultListing,
 } from "@/lib/etfs";
 import {
   slotBadgeClassName,
@@ -82,6 +83,8 @@ import type { InstrumentRecord } from "@/lib/etfs";
 import type { RiskRegime } from "@/lib/metrics";
 import { useT } from "@/lib/i18n";
 
+import { ETFDetailsDialog } from "./ETFDetailsDialog";
+import type { ETFImplementation } from "@/lib/types";
 import { CurrentAllocationCard } from "./CurrentAllocationCard";
 import { PortfolioMetrics } from "./PortfolioMetrics";
 import { MonteCarloSimulation } from "./MonteCarloSimulation";
@@ -385,6 +388,14 @@ interface PositionRowProps {
   // isin AND seeds manualMeta with name/currency/terBps in one shot so
   // the operator only has to set the weight.
   onPickUnassignedInstrument: (record: Readonly<InstrumentRecord>) => void;
+  // Task #161 — when the row's ISIN resolves to a known catalog
+  // instrument, the synthesizer publishes a full ETFImplementation row
+  // for it. Pass it down so the ISIN can be rendered as a clickable
+  // affordance that opens the same ETFDetailsDialog Build uses. `null`
+  // for unresolved/empty rows — the button is suppressed in that case
+  // and the existing manual-entry preview behaviour is preserved.
+  detailsEtf: ETFImplementation | null;
+  onOpenDetails: (etf: ETFImplementation) => void;
   rowIndex: number;
 }
 
@@ -417,9 +428,18 @@ function PositionRow({
   onManualMetaChange,
   onManualMetaQuickFill,
   onPickUnassignedInstrument,
+  detailsEtf,
+  onOpenDetails,
   rowIndex,
 }: PositionRowProps) {
+  const { t } = useT();
   const isManual = !!position.manualMeta;
+  // Task #161 — testid scope: catalog rows use the bucket key (matches
+  // Build's `etf-isin-button-${bucket}` convention scoped under Explain);
+  // manual rows fall back to the row index since they have no bucket.
+  const isinButtonTestId = position.bucketKey
+    ? `explain-etf-isin-button-${position.bucketKey}`
+    : `explain-etf-isin-button-manual-${rowIndex}`;
   return (
     <div
       className="space-y-2"
@@ -482,6 +502,27 @@ function PositionRow({
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>
+      {/* Task #161 — clickable ISIN affordance, mirroring Build's
+          `etf-isin-button-*`. Only rendered when the row's ISIN
+          resolves to an ETFImplementation row (catalog instruments
+          always; manual entries only when the typed ISIN matches a
+          registered instrument). For unresolved manual ISINs we keep
+          the existing inline EtfInfoPreview behaviour below. */}
+      {detailsEtf && (
+        <div className="pl-1">
+          <button
+            type="button"
+            onClick={() => onOpenDetails(detailsEtf)}
+            className="inline-flex items-center gap-1 px-1.5 py-0.5 -mx-1.5 rounded text-[11px] font-mono text-muted-foreground hover:bg-muted/60 hover:text-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring transition-colors"
+            data-testid={isinButtonTestId}
+            title={t("build.impl.isin.openDetails")}
+            aria-label={`${t("build.impl.isin.openDetails")} — ${detailsEtf.isin}`}
+          >
+            <span>{detailsEtf.isin}</span>
+            <Search className="h-3 w-3 opacity-60 shrink-0" />
+          </button>
+        </div>
+      )}
       {isManual && position.manualMeta && (() => {
         // The Region selector is only meaningful for asset classes
         // whose geographic exposure carries analytical signal — Equity,
@@ -570,6 +611,10 @@ export function ExplainPortfolio() {
   );
 
   const [riskRegime, setRiskRegime] = useState<RiskRegime>("normal");
+
+  // Task #161 — single ETFDetailsDialog mount controlled by this state,
+  // mirroring Build's pattern. Set from PositionRow's ISIN button click.
+  const [detailsEtf, setDetailsEtf] = useState<ETFImplementation | null>(null);
 
   // Per-asset-class expand override. `undefined` for an asset class means
   // "use the smart default" (open iff any bucket inside it has a position).
@@ -784,6 +829,53 @@ export function ExplainPortfolio() {
       ),
     [state.positions, state.baseCurrency, lang],
   );
+
+  // Task #161 — index ETFImplementation rows by ISIN so PositionRow can
+  // render a clickable ISIN button matching Build's affordance. The
+  // affordance must be available for ANY row whose ISIN resolves to a
+  // registered catalog instrument, regardless of weight (the synthesizer
+  // skips weight===0 rows, so we can't rely on it as the sole source).
+  // Strategy: start from the synthesizer's full rows (these carry the
+  // best-quality metadata + ticker/exchange picked from listings) and
+  // then top up with synthetic minimal rows for any other catalog ISIN
+  // present in state.positions (covers zero-weight catalog rows AND
+  // manual rows whose ISIN happens to match a registered instrument).
+  // For unresolved off-catalog manual ISINs there's no entry here — the
+  // button is suppressed and the existing inline preview path is
+  // preserved.
+  const etfByIsin = useMemo(() => {
+    const m = new Map<string, ETFImplementation>();
+    for (const e of portfolio.etfImplementation) {
+      if (e.isin && getInstrumentByIsin(e.isin)) m.set(e.isin, e);
+    }
+    for (const p of state.positions) {
+      if (!p.isin || m.has(p.isin)) continue;
+      const inst = getInstrumentByIsin(p.isin);
+      if (!inst) continue;
+      const { ticker, exchange } = pickDefaultListing(inst);
+      m.set(p.isin, {
+        bucket: "",
+        assetClass: "",
+        weight: Number.isFinite(p.weight) ? p.weight : 0,
+        intent: "",
+        exampleETF: inst.name,
+        rationale: "",
+        isin: inst.isin,
+        ticker,
+        exchange,
+        terBps: inst.terBps,
+        domicile: inst.domicile,
+        replication: inst.replication,
+        distribution: inst.distribution,
+        currency: inst.currency,
+        comment: inst.comment,
+        catalogKey: p.bucketKey ?? null,
+        selectedSlot: 0,
+        selectableOptions: [],
+      });
+    }
+    return m;
+  }, [portfolio.etfImplementation, state.positions]);
 
   const totalSum = useMemo(() => {
     let s = 0;
@@ -1249,6 +1341,12 @@ export function ExplainPortfolio() {
                                         onPickUnassignedInstrument={(rec) =>
                                           pickUnassignedInstrumentForRow(i, rec)
                                         }
+                                        detailsEtf={
+                                          state.positions[i].isin
+                                            ? etfByIsin.get(state.positions[i].isin) ?? null
+                                            : null
+                                        }
+                                        onOpenDetails={setDetailsEtf}
                                       />
                                     ))}
                                   </div>
@@ -1298,6 +1396,12 @@ export function ExplainPortfolio() {
                         onPickUnassignedInstrument={(rec) =>
                           pickUnassignedInstrumentForRow(i, rec)
                         }
+                        detailsEtf={
+                          state.positions[i].isin
+                            ? etfByIsin.get(state.positions[i].isin) ?? null
+                            : null
+                        }
+                        onOpenDetails={setDetailsEtf}
                       />
                     ))}
                   </div>
@@ -1340,6 +1444,12 @@ export function ExplainPortfolio() {
                         onPickUnassignedInstrument={(rec) =>
                           pickUnassignedInstrumentForRow(i, rec)
                         }
+                        detailsEtf={
+                          state.positions[i].isin
+                            ? etfByIsin.get(state.positions[i].isin) ?? null
+                            : null
+                        }
+                        onOpenDetails={setDetailsEtf}
                       />
                     ))}
                   </div>
@@ -1596,6 +1706,19 @@ export function ExplainPortfolio() {
           />
         </div>
       )}
+
+      {/* Task #161 — single ETFDetailsDialog mount controlled by
+          `detailsEtf`, mirroring BuildPortfolio.tsx. Closing returns to
+          Explain with no state loss (selections, weights, expanded
+          groups all unchanged) since the dialog is purely presentational
+          and lives outside the editor's tree. */}
+      <ETFDetailsDialog
+        etf={detailsEtf}
+        open={!!detailsEtf}
+        onOpenChange={(o) => {
+          if (!o) setDetailsEtf(null);
+        }}
+      />
     </div>
   );
 }

@@ -627,6 +627,34 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+### 2026-05 (explain-clickable-isin) — clickable ISIN in Explain opens the ETF Details dialog
+
+Brings Build's ISIN affordance to the Explain tab. Every Explain row
+whose ISIN resolves to a registered catalog instrument now renders the
+ISIN as a small button (with a `Search` icon) below the picker /
+manual-input row. Clicking it opens the existing `ETFDetailsDialog`
+(fund characteristics + look-through baskets + top holdings) — the same
+component Build mounts. Manual-ISIN rows expose the button when the
+typed ISIN matches a registered instrument; for unknown ISINs the
+existing inline `EtfInfoPreview` behaviour is preserved untouched.
+
+- Wired into `src/components/investment/ExplainPortfolio.tsx`:
+  - new `detailsEtf` state + single `<ETFDetailsDialog>` mount,
+    mirroring Build's pattern;
+  - `etfByIsin` map built from `portfolio.etfImplementation` and
+    filtered through `getInstrumentByIsin` so unresolved off-catalog
+    manual rows don't get a dead button;
+  - `PositionRow` gains `detailsEtf` + `onOpenDetails` props and
+    renders the clickable ISIN button with testid
+    `explain-etf-isin-button-${bucketKey}` (catalog rows) or
+    `explain-etf-isin-button-manual-${rowIndex}` (manual rows).
+- Reuses the existing i18n key `build.impl.isin.openDetails` for the
+  tooltip / aria-label so no new translation work.
+- E2E coverage: `tests/e2e/explain-portfolio.spec.ts` now opens the
+  dialog from a catalog row and asserts `etf-details-dialog` is
+  visible, then closes it and asserts the editor state (selections,
+  weights, expanded groups) survives.
+
 ### 2026-05 (explain-current-allocation-card) — "Current Allocation" donut card on Explain tab
 
 Mirrors Build's "Target Asset Allocation" card on the Explain tab as the
