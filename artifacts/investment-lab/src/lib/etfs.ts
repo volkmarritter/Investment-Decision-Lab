@@ -2692,6 +2692,23 @@ export function getBucketMeta(bucketKey: string): BucketMeta | undefined {
   return BUCKET_META_CACHE[bucketKey];
 }
 
+// Task #156 — every INSTRUMENTS row whose getInstrumentRole() is
+// "unassigned" (i.e. registered in INSTRUMENTS but absent from every
+// BUCKETS slot — default OR alternative OR pool). Sorted alphabetically
+// by name so the user-facing picker is stable. Returned values are
+// shallow copies of the raw InstrumentRecord — no bucket join, since
+// these rows by definition have no bucket.
+export function listUnassignedInstruments(): ReadonlyArray<Readonly<InstrumentRecord>> {
+  const rows: InstrumentRecord[] = [];
+  for (const isin of Object.keys(INSTRUMENTS)) {
+    if (getInstrumentRole(isin) === "unassigned") {
+      rows.push(INSTRUMENTS[isin]);
+    }
+  }
+  rows.sort((a, b) => a.name.localeCompare(b.name));
+  return rows;
+}
+
 export function listInstruments(): ReadonlyArray<
   Readonly<InstrumentRecord & { bucketKey: string; bucketMeta: BucketMeta }>
 > {

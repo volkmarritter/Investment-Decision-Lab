@@ -9,7 +9,12 @@ import {
   EM_CURRENCIES_KEY,
   XAU_GOLD_KEY,
 } from "../src/lib/lookthrough";
-import { getETFDetails, getCatalogEntry } from "../src/lib/etfs";
+import {
+  getETFDetails,
+  getCatalogEntry,
+  listUnassignedInstruments,
+  getInstrumentRole,
+} from "../src/lib/etfs";
 import { runStressTest, runReverseStressTest, SCENARIOS } from "../src/lib/scenarios";
 import { estimateFees, getETFTer } from "../src/lib/fees";
 import { buildAiPrompt } from "../src/lib/aiPrompt";
@@ -3777,6 +3782,34 @@ describe("Lieferung 2 — Student-t sampler statistical properties", () => {
       const t = runMonteCarlo(allocation, 10, 100_000, { ...opts, tailModel: "studentT", studentTDf: df });
       // Heavier-than-Gauss tails ⇒ deeper CVaR99. Gap shrinks as df↑30.
       expect(t.cvar99Final).toBeLessThan(gauss.cvar99Final);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task #156 — listUnassignedInstruments
+// ---------------------------------------------------------------------------
+describe("listUnassignedInstruments", () => {
+  it("returns only instruments whose role is 'unassigned'", () => {
+    const rows = listUnassignedInstruments();
+    for (const r of rows) {
+      expect(getInstrumentRole(r.isin)).toBe("unassigned");
+    }
+  });
+
+  it("is sorted alphabetically by name (stable order for the picker)", () => {
+    const rows = listUnassignedInstruments();
+    for (let i = 1; i < rows.length; i++) {
+      expect(rows[i].name.localeCompare(rows[i - 1].name)).toBeGreaterThanOrEqual(0);
+    }
+  });
+
+  it("never includes any default / alternative / pool ISIN", () => {
+    const rows = listUnassignedInstruments();
+    const isins = new Set(rows.map((r) => r.isin));
+    for (const isin of isins) {
+      const role = getInstrumentRole(isin);
+      expect(role === "default" || role === "alternative" || role === "pool").toBe(false);
     }
   });
 });

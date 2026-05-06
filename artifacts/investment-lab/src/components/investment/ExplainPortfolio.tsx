@@ -70,6 +70,8 @@ import {
 } from "@/lib/personalPortfolio";
 import { parseDecimalInput } from "@/lib/manualWeights";
 import { EtfInfoPreview, type QuickFillValues } from "@/components/explain/EtfInfoPreview";
+import { UnassignedInstrumentPicker } from "@/components/explain/UnassignedInstrumentPicker";
+import type { InstrumentRecord } from "@/lib/etfs";
 import type { RiskRegime } from "@/lib/metrics";
 import { useT } from "@/lib/i18n";
 
@@ -342,6 +344,11 @@ interface PositionRowProps {
   // never overwrites operator input — see EtfInfoPreview for the gating
   // logic).
   onManualMetaQuickFill: (values: QuickFillValues) => void;
+  // Task #156 — fill an off-catalog row from an unassigned INSTRUMENTS
+  // entry (registered but not slotted into any bucket). Atomic: sets
+  // isin AND seeds manualMeta with name/currency/terBps in one shot so
+  // the operator only has to set the weight.
+  onPickUnassignedInstrument: (record: Readonly<InstrumentRecord>) => void;
   rowIndex: number;
 }
 
@@ -373,6 +380,7 @@ function PositionRow({
   onManualIsinChange,
   onManualMetaChange,
   onManualMetaQuickFill,
+  onPickUnassignedInstrument,
   rowIndex,
 }: PositionRowProps) {
   const isManual = !!position.manualMeta;
@@ -383,15 +391,26 @@ function PositionRow({
     >
       <div className="grid grid-cols-[1fr_5.5rem_2rem] gap-2 items-center">
         {isManual ? (
-          <Input
-            type="text"
-            placeholder="ISIN (e.g. IE00B5BMR087)"
-            className="h-9 text-sm font-mono"
-            value={position.isin}
-            onChange={(e) => onManualIsinChange(e.target.value.trim().toUpperCase())}
-            aria-label="manual ISIN"
-            data-testid={`explain-manual-isin-${rowIndex}`}
-          />
+          // Task #156 — picker over unassigned INSTRUMENTS sits next to
+          // the free-form ISIN input. Picking pre-fills isin + meta in
+          // one shot; typing still works for true off-catalog ISINs.
+          <div className="flex items-center gap-1.5 min-w-0">
+            <UnassignedInstrumentPicker
+              excludeIsins={excludeIsins}
+              currentIsin={position.isin}
+              onPick={onPickUnassignedInstrument}
+              testId={`explain-unassigned-picker-${rowIndex}`}
+            />
+            <Input
+              type="text"
+              placeholder="ISIN (e.g. IE00B5BMR087)"
+              className="h-9 text-sm font-mono min-w-0 flex-1"
+              value={position.isin}
+              onChange={(e) => onManualIsinChange(e.target.value.trim().toUpperCase())}
+              aria-label="manual ISIN"
+              data-testid={`explain-manual-isin-${rowIndex}`}
+            />
+          </div>
         ) : (
           <IsinPicker
             value={position.isin}
@@ -614,6 +633,37 @@ export function ExplainPortfolio() {
       positions: s.positions.map((p, i) =>
         i === index ? { ...p, isin, bucketKey: bk, manualMeta: undefined } : p,
       ),
+    }));
+  }
+
+  // Task #156 — atomic fill of an off-catalog row from an unassigned
+  // INSTRUMENTS entry. Sets isin AND seeds manualMeta in one setState
+  // so the row never flickers through an inconsistent half-filled
+  // state. assetClass/region default to Equity/Global because
+  // unassigned rows have no bucket to derive geography from; the
+  // existing Select dropdowns let the user adjust afterward.
+  function pickUnassignedInstrumentForRow(
+    index: number,
+    rec: Readonly<InstrumentRecord>,
+  ) {
+    setState((s) => ({
+      ...s,
+      positions: s.positions.map((p, i) => {
+        if (i !== index) return p;
+        const cur = p.manualMeta ?? { assetClass: "Equity", region: "Global" };
+        return {
+          ...p,
+          isin: rec.isin,
+          bucketKey: "",
+          manualMeta: {
+            assetClass: cur.assetClass,
+            region: cur.region,
+            name: rec.name,
+            currency: rec.currency,
+            terBps: rec.terBps,
+          },
+        };
+      }),
     }));
   }
 
@@ -1169,6 +1219,9 @@ export function ExplainPortfolio() {
                                         onManualMetaQuickFill={(values) =>
                                           quickFillManualMeta(i, values)
                                         }
+                                        onPickUnassignedInstrument={(rec) =>
+                                          pickUnassignedInstrumentForRow(i, rec)
+                                        }
                                       />
                                     ))}
                                   </div>
@@ -1215,6 +1268,9 @@ export function ExplainPortfolio() {
                         onManualMetaQuickFill={(values) =>
                           quickFillManualMeta(i, values)
                         }
+                        onPickUnassignedInstrument={(rec) =>
+                          pickUnassignedInstrumentForRow(i, rec)
+                        }
                       />
                     ))}
                   </div>
@@ -1253,6 +1309,9 @@ export function ExplainPortfolio() {
                         }
                         onManualMetaQuickFill={(values) =>
                           quickFillManualMeta(i, values)
+                        }
+                        onPickUnassignedInstrument={(rec) =>
+                          pickUnassignedInstrumentForRow(i, rec)
                         }
                       />
                     ))}

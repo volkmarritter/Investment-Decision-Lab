@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-05-05 (drop-orphan-staging-concept)
+Last updated: 2026-05 (explain-manual-unassigned-picker)
 
 ---
 
@@ -626,6 +626,18 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-05 (explain-manual-unassigned-picker) — pick unassigned catalog ETFs in Explain manual entry
+
+- **Operator-Wunsch (Task #156):** Im Explain-Tab ist das Free-Form-ISIN-Feld in der Gruppe „Manuell erfasst (nicht im Katalog)" oft die schnellste Eingabe für einen ETF, der zwar in INSTRUMENTS registriert, aber (noch) keinem Bucket zugeordnet ist. Statt die ISIN von Hand abzutippen soll daneben ein kleiner Picker stehen, der genau die „unassigned"-Instrumente listet. Auswahl füllt isin + manualMeta (Name, Währung, TER) atomar in einem Klick.
+- **Code-Änderungen:**
+  - Neuer Helper `listUnassignedInstruments()` in `src/lib/etfs.ts` — iteriert INSTRUMENTS, filtert via `getInstrumentRole(isin) === "unassigned"`, sortiert alphabetisch nach Name.
+  - Neues Komponenten-Modul `src/components/explain/UnassignedInstrumentPicker.tsx` (Popover + Command) — mit `excludeIsins` (bereits im Workspace verwendete ISINs werden ausgeblendet) und Empty-State „No unassigned ETFs in the catalog" / „Keine ungebundenen ETFs im Katalog".
+  - `ExplainPortfolio.tsx` `PositionRow`: Manual-Branch zeigt jetzt `[Picker | Free-Form-Input]` nebeneinander statt nur den Input. Picker-Test-ID `explain-unassigned-picker-${rowIndex}`. Free-Form-Eingabe für echte off-catalog-ISINs bleibt unverändert.
+  - Neuer Handler `pickUnassignedInstrumentForRow` (atomar: setzt `isin` + `manualMeta` mit name/currency/terBps; assetClass/region default Equity/Global, da unassigned-Rows keine Bucket-Geographie haben — die existierenden Selects unter der Zeile lassen den User das nachträglich anpassen).
+  - 3 i18n-Keys (EN+DE): `explain.manual.unassigned.{label,search,empty}`.
+  - 3 neue Unit-Tests in `tests/engine.test.ts` für den Helper (Rolle, Sortierung, kein Overlap mit default/alt/pool).
+- **Verifikation:** Typecheck PASS, Unit-Tests grün (621 / 621 = 618 vorher + 3 neue).
 
 ### 2026-05 (build-picker-slot-badge) — always-visible Default/Alt N/Pool tag with consistent colours
 
