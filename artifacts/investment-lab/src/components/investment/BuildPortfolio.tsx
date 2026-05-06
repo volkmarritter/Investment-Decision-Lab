@@ -40,6 +40,11 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
 import { MaximisableSection } from "./MaximisableSection";
+import {
+  getSlotKind,
+  slotBadgeClassName,
+  slotBadgeVariant,
+} from "./etfSlotBadge";
 import { cn } from "@/lib/utils";
 
 import { PortfolioInput, PortfolioOutput, ValidationResult } from "@/lib/types";
@@ -1342,8 +1347,17 @@ export function BuildPortfolio() {
                                     !!etf.catalogKey &&
                                     etf.selectableOptions.length > 1;
                                   if (!showPicker) return etf.exampleETF;
-                                  const selectedKind =
-                                    etf.selectableOptions[etf.selectedSlot]?.kind;
+                                  const selectedSlotIdx = etf.selectedSlot;
+                                  const selectedKind = getSlotKind(
+                                    etf.selectableOptions,
+                                    selectedSlotIdx,
+                                  );
+                                  const slotBadgeLabel =
+                                    selectedKind === "default"
+                                      ? t("build.impl.picker.default")
+                                      : selectedKind === "pool"
+                                        ? t("build.impl.picker.pool")
+                                        : `${t("build.impl.picker.altShort")} ${selectedSlotIdx}`;
                                   const poolCount = etf.selectableOptions.filter(
                                     (o) => o.kind === "pool",
                                   ).length;
@@ -1370,11 +1384,16 @@ export function BuildPortfolio() {
                                         </SelectTrigger>
                                         <SelectContent className="max-h-[60vh]">
                                           {etf.selectableOptions.map((opt, idx) => {
-                                            const isDefault = idx === 0;
-                                            const isPool = opt.kind === "pool";
-                                            const altIndex = isPool
-                                              ? -1
-                                              : idx; // alts use 1..altCount
+                                            const optKind = getSlotKind(
+                                              etf.selectableOptions,
+                                              idx,
+                                            );
+                                            const optLabel =
+                                              optKind === "default"
+                                                ? t("build.impl.picker.default")
+                                                : optKind === "pool"
+                                                  ? t("build.impl.picker.pool")
+                                                  : `${t("build.impl.picker.alt")} ${idx}`;
                                             return (
                                               <SelectItem
                                                 key={`${etf.catalogKey}-${idx}`}
@@ -1387,22 +1406,10 @@ export function BuildPortfolio() {
                                                       {opt.name}
                                                     </span>
                                                     <Badge
-                                                      variant={
-                                                        isDefault
-                                                          ? "secondary"
-                                                          : "outline"
-                                                      }
-                                                      className={
-                                                        isPool
-                                                          ? "text-[9px] px-1.5 py-0 h-4 shrink-0 border-emerald-600 text-emerald-700 dark:text-emerald-400"
-                                                          : "text-[9px] px-1.5 py-0 h-4 shrink-0"
-                                                      }
+                                                      variant={slotBadgeVariant(optKind)}
+                                                      className={slotBadgeClassName(optKind)}
                                                     >
-                                                      {isDefault
-                                                        ? t("build.impl.picker.default")
-                                                        : isPool
-                                                          ? t("build.impl.picker.pool")
-                                                          : `${t("build.impl.picker.alt")} ${altIndex}`}
+                                                      {optLabel}
                                                     </Badge>
                                                   </div>
                                                   <span className="text-[10px] text-muted-foreground font-mono">
@@ -1426,15 +1433,13 @@ export function BuildPortfolio() {
                                           )}
                                         </SelectContent>
                                       </Select>
-                                      {selectedKind === "pool" && (
-                                        <Badge
-                                          variant="outline"
-                                          className="text-[9px] px-1.5 py-0 h-4 border-emerald-600 text-emerald-700 dark:text-emerald-400"
-                                          data-testid={`etf-picker-pool-badge-${etf.bucket}`}
-                                        >
-                                          {t("build.impl.picker.pool")}
-                                        </Badge>
-                                      )}
+                                      <Badge
+                                        variant={slotBadgeVariant(selectedKind)}
+                                        className={slotBadgeClassName(selectedKind)}
+                                        data-testid={`etf-picker-slot-badge-${etf.bucket}`}
+                                      >
+                                        {slotBadgeLabel}
+                                      </Badge>
                                     </div>
                                   );
                                 })()}

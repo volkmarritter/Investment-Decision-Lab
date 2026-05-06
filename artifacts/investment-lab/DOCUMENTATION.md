@@ -627,6 +627,18 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+### 2026-05 (build-picker-slot-badge) — always-visible Default/Alt N/Pool tag with consistent colours
+
+- **Operator-Wunsch (Task #154):** „Im Build-Tab soll rechts neben jedem ETF-Dropdown immer ein Tag stehen, das auf einen Blick zeigt, ob der gerade gewählte ETF der Bucket-Default, eine kuratierte Alternative oder ein Pool-ETF ist." Der Tag erschien bisher nur, wenn ein Pool-ETF gewählt war.
+- **Visual-Schema (Build-Tab):** Default → neutral (`Badge variant="secondary"`, keine Farbklassen), Alternative → grün (`outline` + `border-emerald-600 text-emerald-700 dark:text-emerald-400`), Pool → orange (`outline` + `border-orange-600 text-orange-700 dark:text-orange-400`). Trigger-Tag-Text: „Default" / „Standard" für Slot 0, „Alt N" (EN) / „Alt. N" (DE) für Alternative-Slots, „Pool" für Pool-Slots. In-Dropdown-Item-Badges nutzen weiterhin den langen Begriff „Alternative N" mit derselben grünen Farbe; Pool-Items wechseln von Grün auf Orange, damit Trigger und Dropdown visuell zusammenpassen.
+- **Code-Änderungen:**
+  - Neuer Pure-Helper `src/components/investment/etfSlotBadge.ts` (`getSlotKind`, `slotBadgeVariant`, `slotBadgeClassName`) — wird sowohl für das Trigger-Tag als auch für die In-Dropdown-Item-Badges genutzt.
+  - `src/components/investment/BuildPortfolio.tsx` (Picker-Block ~Zeile 1334-1448): „nur-bei-Pool"-Badge ersetzt durch immer sichtbares Tag mit `data-testid="etf-picker-slot-badge-${etf.bucket}"`. SelectItem-Badges nutzen jetzt die Helper-Funktionen statt der alten hand-codierten Klassen.
+  - `src/lib/i18n.tsx`: neuer Key `build.impl.picker.altShort` (EN „Alt", DE „Alt.").
+  - Neuer Unit-Test `tests/etfSlotBadge.test.ts` (9 Cases) sichert die Slot-Index-→-Kind-Mappings und die korrekten Farb-Klassen pro Kind.
+- **Out of scope (separate Aufgabe — Task #160):** Explain-Tab-IsinPicker bekommt das gleiche Tag-Schema in einer Folge-Aufgabe. PDF-Report und Compare-Tab bleiben unverändert.
+- **Verifikation:** Typecheck PASS, 627 / 627 Unit-Tests grün (618 vorher + 9 neue).
+
 ### 2026-05-05 (drop-orphan-staging-concept) — collapse "orphan-staged" into plain catalog state
 
 - **Operator-Wunsch:** „Ich will nur ETFs, und entweder sind sie in einem Bucket oder nicht. Wenn sie in einem Bucket sind, haben sie ein Tag: default, Alt 1-n, oder pool." → Der zusätzliche Status „orphan-staged" (eingeführt durch den 2026-05-01-Bulk-Add) wird abgeschafft. Es gibt nur noch zwei Zustände: **in einem Bucket** (mit Slot-Tag default | alternative[i] | pool[j]) oder **nicht in einem Bucket**. Die Pflicht-Review-Schranke „bulk-added Instrumente dürfen nicht ohne Review zum Default/Alt werden" entfällt — der Operator entscheidet nun frei pro ISIN, wann immer er möchte.
