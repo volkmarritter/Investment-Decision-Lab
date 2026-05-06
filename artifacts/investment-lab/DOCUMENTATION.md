@@ -627,7 +627,6 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
-<<<<<<< HEAD
 ### 2026-05 (explain-role-badges-unified-colors) — Default/Alt N/Pool badges in Explain, unified color scheme
 
 - Explain's per-bucket IsinPicker now renders the **full** Default / Alt N / Pool role badge for every option (not just pool entries). Default ETF → neutral "Default" badge; curated alternatives → green "Alt 1", "Alt 2", … numbered by their 1-based slot order in the bucket's `alternatives` array; extended-universe pool → orange "Pool" badge. Build's picker dropdown and trigger-side badge already use the same `slotBadgeClassName` / `slotBadgeVariant` helpers, so the two surfaces are now visually consistent (alt = green, pool = orange, default = neutral) — the Pool badge in particular is now orange everywhere it appears (Build trigger, Build dropdown row, Build pool hint, Explain picker), no longer green.
@@ -641,13 +640,12 @@ Append a new entry whenever functionality changes. Newest first.
 - **Lösung:** `BucketRowsTable.tsx` bekommt in der bisher leeren Aktions-Spalte (rechts neben „Entfernen") für JEDE Zeile (Default, Alt, Pool) einen kleinen Ghost-Button „Look-through". Beim Klick öffnet sich der bereits existierende `EtfLookthroughDialog` (derselbe, der oben für Pool-only-Zeilen verwendet wird) für die ISIN dieser Zeile, mit Top-Holdings / Geo / Sektor / Currency und justETF-Deeplink. Hat eine ISIN keine Look-through-Daten, sagt der Dialog explizit „Keine LT-Daten" — die existierende „Fehlende Daten holen"-Sammelaktion im Header bleibt der Weg, um sie nachzuziehen.
 - **Implementierung:** Eine einzige `useState`-Slot `openLt: { isin, name } | null` pro Tabelle (eine pro Bucket); der Dialog wird einmalig unter `<table>` gerendert und mit der zuletzt geklickten ISIN befüllt — kein N-fach-DOM, keine zusätzlichen Re-Mounts. Bestehende „Entfernen"-Buttons (Alt/Pool) bleiben unverändert. Test-ID `button-tree-lookthrough-${isin}` folgt dem bestehenden Schema (gleicher Name wie auf den Pool-only-Zeilen — die beiden Surfaces sind nie gleichzeitig sichtbar, da sie in verschiedenen Bereichen des Trees liegen).
 - **Verifikation:** Typecheck PASS, Unit-Tests grün, e2e PASS (kein Selector verändert).
-=======
+
 ### 2026-05 (explain-manual-catalog-hint) — hint when manual ISIN is already in the catalog
 
 - **Operator-Wunsch (Task #155):** Wenn im Explain-Tab in der Gruppe „Manuell erfasst (nicht im Katalog)" eine ISIN getippt wird, die bereits im kuratierten Katalog liegt (grünes „im Katalog"-Badge), zeigt die `EtfInfoPreview`-Karte jetzt einen freundlichen, informationsfarbenen Hinweis an, der den Bucket beim Namen nennt (Asset-Klasse — Region, inkl. hedged/synthetic-Suffix wo relevant) und darauf hinweist, dass der ETF auch direkt aus der Baumansicht oben hinzugefügt werden kann — eine manuelle Eingabe ist dafür nicht nötig.
 - **Code-Änderungen:** `EtfInfoPreview.tsx` importiert `getBucketKeyForIsin` und `getBucketMeta` aus `etfs.ts`, baut ein Memo `catalogBucket`, das nur dann gesetzt wird, wenn `info.catalogInstrument` UND eine Bucket-Zuordnung existieren (Pool-only-Look-Through-Treffer triggern den Hinweis nicht), und rendert eine bilinguale `text-sky-700`-Zeile mit Test-ID `etf-info-catalog-hint-${rowIndex}` direkt unter den Badges. Bestehender Manual-Row-Flow bleibt unverändert — rein advisorisch, kein Auto-Convert.
 - **Tests:** Neue Komponenten-Suite `tests/etfInfoPreviewCatalogHint.test.tsx` (3 Cases) — Hinweis sichtbar bei Katalog-Treffer (samt korrektem Bucket-Label "Equity — USA"), versteckt bei Off-Catalog-ISIN, versteckt bei Pool-only-Look-Through ohne Katalog-Eintrag. Suite jetzt 651 Cases, alle grün.
->>>>>>> d9cb84e (Task #155 — Hint when manual ISIN is already in catalog)
 
 ### 2026-05 (explain-manual-unassigned-picker) — pick unassigned catalog ETFs in Explain manual entry
 

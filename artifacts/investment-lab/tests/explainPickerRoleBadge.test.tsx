@@ -79,8 +79,24 @@ describe("Explain picker role badge — Task #160", () => {
     expect(el.className).not.toMatch(/orange/);
   });
 
-  it("returns null altIndex for default and pool ISINs", () => {
+  it("renders an orange 'Pool' badge for an extended-universe pool entry", () => {
+    // IE00B4L5Y983 (iShares Core MSCI World) lives in a bucket pool —
+    // not as default, not as a curated alternative. Pool badge must be
+    // orange (matching Build's pool indicator), with the existing
+    // isin-option-pool-badge-${isin} test-id preserved.
+    const isin = "IE00B4L5Y983";
+    const { getByTestId } = render(<RoleBadge isin={isin} />);
+    const el = getByTestId(`isin-option-pool-badge-${isin}`);
+    expect(el.textContent).toBe("Pool");
+    expect(el.className).toMatch(/border-orange-600/);
+    expect(el.className).not.toMatch(/emerald/);
+  });
+
+  it("returns null altIndex for default, pool, and unregistered ISINs", () => {
+    // Default ISIN.
     expect(getInstrumentAltIndex("IE00B5BMR087")).toBeNull();
+    // Pool ISIN — must also return null since it isn't in alternatives.
+    expect(getInstrumentAltIndex("IE00B4L5Y983")).toBeNull();
     // An unregistered ISIN must also return null.
     expect(getInstrumentAltIndex("XX0000000000")).toBeNull();
   });
