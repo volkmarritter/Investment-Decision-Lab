@@ -34,6 +34,7 @@ import {
   type Replication,
 } from "./shared";
 import { DiffPanel } from "./DiffPanel";
+import { useAdminContext } from "./AdminContext";
 
 export function PreviewEditor({
   preview,
@@ -53,6 +54,7 @@ export function PreviewEditor({
   catalog: CatalogSummary | null;
 }) {
   const { t, lang } = useAdminT();
+  const { directWrite } = useAdminContext();
   const set = <K extends keyof AddEtfRequest>(k: K, v: AddEtfRequest[K]) =>
     onChange({ ...draft, [k]: v });
 
@@ -291,21 +293,33 @@ export function PreviewEditor({
         data-testid="button-submit-pr"
       >
         {submitting
-          ? t({ de: "Pull Request wird geöffnet …", en: "Opening pull request …" })
+          ? directWrite
+            ? t({ de: "Speichere …", en: "Saving …" })
+            : t({ de: "Pull Request wird geöffnet …", en: "Opening pull request …" })
           : blockedByDuplicate
             ? t({
                 de: "ISIN-Konflikt oben beheben, um fortzufahren",
                 en: "Resolve the ISIN conflict above to continue",
               })
             : classification?.state === "REPLACE"
-              ? t({
-                  de: "Pull Request öffnen: bestehenden Eintrag ersetzen",
-                  en: "Open pull request: replace existing entry",
-                })
-              : t({
-                  de: "Pull Request öffnen: zum Katalog hinzufügen",
-                  en: "Open pull request: add to catalog",
-                })}
+              ? directWrite
+                ? t({
+                    de: "Speichern: bestehenden Eintrag ersetzen",
+                    en: "Save: replace existing entry",
+                  })
+                : t({
+                    de: "Pull Request öffnen: bestehenden Eintrag ersetzen",
+                    en: "Open pull request: replace existing entry",
+                  })
+              : directWrite
+                ? t({
+                    de: "Speichern: zum Katalog hinzufügen",
+                    en: "Save: add to catalog",
+                  })
+                : t({
+                    de: "Pull Request öffnen: zum Katalog hinzufügen",
+                    en: "Open pull request: add to catalog",
+                  })}
       </Button>
     </div>
   );

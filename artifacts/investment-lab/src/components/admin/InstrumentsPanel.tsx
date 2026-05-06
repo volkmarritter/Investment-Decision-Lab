@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/select";
 import { Plus, RefreshCw, Trash2, Pencil } from "lucide-react";
 import { toast } from "sonner";
+import { useAdminContext } from "./AdminContext";
 import {
   DISTRIBUTIONS,
   EXCHANGES,
@@ -68,6 +69,7 @@ export function InstrumentsPanel({
   prefillIsin?: string | null;
 }) {
   const { t, lang } = useAdminT();
+  const { directWrite } = useAdminContext();
   const [rows, setRows] = useState<InstrumentRow[] | null>(null);
   const [loadErr, setLoadErr] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
@@ -111,9 +113,13 @@ export function InstrumentsPanel({
 
   async function handleRemove(row: InstrumentRow) {
     const confirmed = window.confirm(
-      lang === "de"
-        ? `Pull Request öffnen, der ${row.name} (${row.isin}) aus der Instrument-Registry entfernt?`
-        : `Open a pull request removing ${row.name} (${row.isin}) from the instrument registry?`,
+      directWrite
+        ? lang === "de"
+          ? `${row.name} (${row.isin}) aus der Instrument-Registry entfernen?`
+          : `Remove ${row.name} (${row.isin}) from the instrument registry?`
+        : lang === "de"
+          ? `Pull Request öffnen, der ${row.name} (${row.isin}) aus der Instrument-Registry entfernt?`
+          : `Open a pull request removing ${row.name} (${row.isin}) from the instrument registry?`,
     );
     if (!confirmed) return;
     try {
@@ -330,10 +336,17 @@ export function InstrumentsPanel({
                                   setMode({ kind: "edit", isin: row.isin })
                                 }
                                 data-testid={`button-instrument-edit-${row.isin}`}
-                                title={t({
-                                  de: "Metadaten bearbeiten (öffnet PR).",
-                                  en: "Edit metadata (opens a PR).",
-                                })}
+                                title={t(
+                                  directWrite
+                                    ? {
+                                        de: "Metadaten bearbeiten.",
+                                        en: "Edit metadata.",
+                                      }
+                                    : {
+                                        de: "Metadaten bearbeiten (öffnet PR).",
+                                        en: "Edit metadata (opens a PR).",
+                                      },
+                                )}
                               >
                                 <Pencil className="h-3 w-3" />
                               </Button>
@@ -351,10 +364,17 @@ export function InstrumentsPanel({
                                         de: "Bucket-Zuordnungen müssen zuerst entfernt werden.",
                                         en: "Detach bucket usages first.",
                                       })
-                                    : t({
-                                        de: "Instrument aus der Registry entfernen (öffnet PR).",
-                                        en: "Remove instrument from registry (opens a PR).",
-                                      })
+                                    : t(
+                                        directWrite
+                                          ? {
+                                              de: "Instrument aus der Registry entfernen.",
+                                              en: "Remove instrument from registry.",
+                                            }
+                                          : {
+                                              de: "Instrument aus der Registry entfernen (öffnet PR).",
+                                              en: "Remove instrument from registry (opens a PR).",
+                                            },
+                                      )
                                 }
                               >
                                 <Trash2 className="h-3 w-3" />
@@ -398,6 +418,7 @@ function InstrumentForm({
   githubConfigured: boolean;
 }) {
   const { t, lang } = useAdminT();
+  const { directWrite } = useAdminContext();
   const [draft, setDraft] = useState<AddInstrumentRequest>(() => {
     if (initial) {
       return {
@@ -674,10 +695,17 @@ function InstrumentForm({
       {errMsg && (
         <Alert variant="destructive">
           <AlertTitle className="text-xs">
-            {t({
-              de: "Pull Request konnte nicht geöffnet werden",
-              en: "Could not open Pull Request",
-            })}
+            {t(
+              directWrite
+                ? {
+                    de: "Speichern fehlgeschlagen",
+                    en: "Save failed",
+                  }
+                : {
+                    de: "Pull Request konnte nicht geöffnet werden",
+                    en: "Could not open Pull Request",
+                  },
+            )}
           </AlertTitle>
           <AlertDescription className="text-xs">{errMsg}</AlertDescription>
         </Alert>
@@ -702,8 +730,16 @@ function InstrumentForm({
         >
           {submitting && <RefreshCw className="h-3 w-3 animate-spin mr-1" />}
           {isEdit
-            ? t({ de: "Änderung als PR vorschlagen", en: "Propose edit as PR" })
-            : t({ de: "Anlegen als PR vorschlagen", en: "Propose create as PR" })}
+            ? t(
+                directWrite
+                  ? { de: "Änderung speichern", en: "Save changes" }
+                  : { de: "Änderung als PR vorschlagen", en: "Propose edit as PR" },
+              )
+            : t(
+                directWrite
+                  ? { de: "Instrument anlegen", en: "Create instrument" }
+                  : { de: "Anlegen als PR vorschlagen", en: "Propose create as PR" },
+              )}
         </Button>
       </div>
     </div>

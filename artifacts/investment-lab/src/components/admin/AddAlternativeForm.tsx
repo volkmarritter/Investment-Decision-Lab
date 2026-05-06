@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/select";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import { useAdminContext } from "./AdminContext";
 import {
   DISTRIBUTIONS,
   EXCHANGES,
@@ -48,6 +49,7 @@ export function AddAlternativeForm({
   presetInfo?: ReactNode;
 }) {
   const { t, lang } = useAdminT();
+  const { directWrite } = useAdminContext();
   const [draft, setDraft] = useState<AddBucketAlternativeRequest>(() => {
     const base = blankAlternativeDraft();
     return {
@@ -238,10 +240,15 @@ export function AddAlternativeForm({
                   de: "Hole Stammdaten von justETF …",
                   en: "Fetching base data from justETF …",
                 })
-              : t({
-                  de: "Felder geprüft? Speichern öffnet einen Pull-Request, der die ISIN dem Bucket als Alternative zuordnet.",
-                  en: "Fields look right? Saving opens a pull request that attaches the ISIN to the bucket as an alternative.",
-                })}
+              : directWrite
+                ? t({
+                    de: "Felder geprüft? Speichern ordnet die ISIN dem Bucket als Alternative zu.",
+                    en: "Fields look right? Saving attaches the ISIN to the bucket as an alternative.",
+                  })
+                : t({
+                    de: "Felder geprüft? Speichern öffnet einen Pull-Request, der die ISIN dem Bucket als Alternative zuordnet.",
+                    en: "Fields look right? Saving opens a pull request that attaches the ISIN to the bucket as an alternative.",
+                  })}
           </div>
           <Button
             size="sm"
@@ -251,10 +258,12 @@ export function AddAlternativeForm({
           >
             {submitting
               ? t({ de: "Speichere …", en: "Saving …" })
-              : t({
-                  de: "Speichern (Pull Request öffnen)",
-                  en: "Save (open Pull Request)",
-                })}
+              : directWrite
+                ? t({ de: "Speichern", en: "Save" })
+                : t({
+                    de: "Speichern (Pull Request öffnen)",
+                    en: "Save (open Pull Request)",
+                  })}
           </Button>
         </div>
       )}
@@ -468,11 +477,18 @@ export function AddAlternativeForm({
           data-testid={`button-submit-alt-${parentKey}`}
         >
           {submitting
-            ? t({ de: "Pull Request wird geöffnet …", en: "Opening Pull Request …" })
-            : t({
-                de: "Pull Request öffnen: Alternative hinzufügen",
-                en: "Open Pull Request: add alternative",
-              })}
+            ? directWrite
+              ? t({ de: "Speichere …", en: "Saving …" })
+              : t({ de: "Pull Request wird geöffnet …", en: "Opening Pull Request …" })
+            : directWrite
+              ? t({
+                  de: "Speichern: Alternative hinzufügen",
+                  en: "Save: add alternative",
+                })
+              : t({
+                  de: "Pull Request öffnen: Alternative hinzufügen",
+                  en: "Open Pull Request: add alternative",
+                })}
         </Button>
       </div>
     </div>
