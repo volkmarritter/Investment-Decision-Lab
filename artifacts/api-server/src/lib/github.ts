@@ -1836,38 +1836,16 @@ export async function openAddBucketAlternativePr(
   // concurrent merge).
   lookthroughIncluded: boolean;
 }> {
-  if (!githubConfigured()) {
-    throw new Error(
-      "GitHub PR creation is not configured. Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO.",
-    );
-  }
-  const owner = process.env.GITHUB_OWNER!;
-  const repo = process.env.GITHUB_REPO!;
-  const base = process.env.GITHUB_BASE_BRANCH ?? "main";
-  const octokit = new Octokit({ auth: process.env.GITHUB_PAT });
+  // Task #170 (2026-05): route through the unified
+  // fetchEtfsBase / commitEtfsChange helpers so direct-write mode
+  // writes locally instead of always opening a PR. The shape of the
+  // function (signature, return type, look-through bundling, error
+  // messages) is unchanged — only the low-level read/write path now
+  // mirrors openAttachBucketAlternativePr.
+  const baseRead = await fetchEtfsBase();
+  const currentContent = baseRead.content;
 
-  // 1. Read the current etfs.ts on the base branch.
-  const { data: baseRef } = await octokit.git.getRef({
-    owner,
-    repo,
-    ref: `heads/${base}`,
-  });
-  const baseSha = baseRef.object.sha;
-
-  const { data: fileMeta } = await octokit.repos.getContent({
-    owner,
-    repo,
-    path: ETFS_FILE_PATH,
-    ref: baseSha,
-  });
-  if (Array.isArray(fileMeta) || fileMeta.type !== "file") {
-    throw new Error(`Unexpected GitHub response for ${ETFS_FILE_PATH}.`);
-  }
-  const currentContent = Buffer.from(fileMeta.content, "base64").toString(
-    "utf8",
-  );
-
-  // 2. Inject the alternative. Translate the typed status into the same
+  // 1. Inject the alternative. Translate the typed status into the same
   // exception shape the route handler expects (so the operator sees a
   // useful error message rather than a stack trace).
   const result = injectAlternative(currentContent, parentKey, entry);
@@ -1885,28 +1863,17 @@ export async function openAddBucketAlternativePr(
     );
   }
 
-  // 2b. Build the look-through file change in-memory (if requested).
-  // We read the JSON from the same baseSha so the multi-file commit
-  // sits on a consistent snapshot. The merge helper skips ISINs that
-  // are already in `overrides` or `pool` — that's the race-window
-  // case (another PR landed between admin.ts's pre-flight read and
-  // ours), and it's the only reason `lookthroughIncluded` may flip
-  // back to false here.
+  // 2. Build the look-through file change in-memory (if requested).
+  // We read the JSON from the same base snapshot so the multi-file
+  // commit (or local multi-file write) sits on a consistent view.
+  // The merge helper skips ISINs that are already in `overrides` or
+  // `pool` — that's the race-window case (another PR landed between
+  // admin.ts's pre-flight read and ours), and it's the only reason
+  // `lookthroughIncluded` may flip back to false here.
   let lookthroughIncluded = false;
   let nextLookthroughContent: string | null = null;
   if (lookthroughEntry) {
-    const { data: ltMeta } = await octokit.repos.getContent({
-      owner,
-      repo,
-      path: LOOKTHROUGH_OVERRIDES_FILE_PATH,
-      ref: baseSha,
-    });
-    if (Array.isArray(ltMeta) || ltMeta.type !== "file") {
-      throw new Error(
-        `Unexpected GitHub response for ${LOOKTHROUGH_OVERRIDES_FILE_PATH}.`,
-      );
-    }
-    const ltCurrent = Buffer.from(ltMeta.content, "base64").toString("utf8");
+    const { content: ltCurrent } = await fetchLookthroughBase(baseRead);
     const merged = mergeLookthroughEntries({
       currentContent: ltCurrent,
       entries: [lookthroughEntry],
@@ -1917,56 +1884,29 @@ export async function openAddBucketAlternativePr(
     }
   }
 
-  // 3. Create the branch — or auto-recover a stale leftover (Task #48).
-  const branch = `add-alt/${entry.isin.toLowerCase()}`;
-  await ensureFreshBranch({ octokit, owner, repo, branch, baseSha });
-
-  // 4. Commit the modified file(s). When the look-through bundle is
-  // active, both files land in ONE commit via commitMultiFile (Task
-  // #122) so the resulting PR is a single review surface.
-  const commitMessage = `Add ${entry.name} (${entry.isin}) as alternative under ${parentKey}${lookthroughIncluded ? " (with look-through data)" : ""}`;
-  if (lookthroughIncluded && nextLookthroughContent !== null) {
-    await commitMultiFile({
-      octokit,
-      owner,
-      repo,
-      branch,
-      baseSha,
-      message: commitMessage,
-      files: [
-        { path: ETFS_FILE_PATH, content: result.content },
-        {
-          path: LOOKTHROUGH_OVERRIDES_FILE_PATH,
-          content: nextLookthroughContent,
-        },
-      ],
-    });
-  } else {
-    await octokit.repos.createOrUpdateFileContents({
-      owner,
-      repo,
-      path: ETFS_FILE_PATH,
-      branch,
-      message: commitMessage,
-      content: Buffer.from(result.content, "utf8").toString("base64"),
-      sha: fileMeta.sha,
-    });
-  }
-
-  // 5. Open the PR.
+  // 3. Commit (or write locally in direct-write mode) and open the PR.
+  // commitEtfsChange returns {url:"", number:0} when running locally,
+  // matching the contract the admin route + UI already expect.
   const renderedBlock = renderAlternativeBlock(entry, "      ");
-  const { data: pr } = await octokit.pulls.create({
-    owner,
-    repo,
-    head: branch,
-    base,
-    title: `Add ${entry.name} (${entry.isin}) as alternative under ${parentKey}`,
+  const title = `Add ${entry.name} (${entry.isin}) as alternative under ${parentKey}${lookthroughIncluded ? " (with look-through data)" : ""}`;
+  const pr = await commitEtfsChange({
+    base: baseRead,
+    newContent: result.content,
+    branch: `add-alt/${entry.isin.toLowerCase()}`,
+    title,
     body: buildAlternativePrBody(parentKey, entry, renderedBlock, {
       lookthroughIncluded,
     }),
+    extraFile:
+      lookthroughIncluded && nextLookthroughContent !== null
+        ? {
+            path: LOOKTHROUGH_OVERRIDES_FILE_PATH,
+            content: nextLookthroughContent,
+          }
+        : undefined,
   });
 
-  return { url: pr.html_url, number: pr.number, lookthroughIncluded };
+  return { ...pr, lookthroughIncluded };
 }
 
 // ---------------------------------------------------------------------------
