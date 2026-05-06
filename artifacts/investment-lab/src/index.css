@@ -219,14 +219,3 @@
     @apply font-sans antialiased bg-background text-foreground;
   }
 }
-
-/* Task #183 — desktop nav active-tab visibility.
-   The shadcn TabsTrigger defaults to `data-[state=active]:bg-background`
-   which blends into the sticky header (also bg-background). Force the
-   active tab in the top nav to use the primary fill so the user can
-   actually see which section they're in. Scoped via the testid so the
-   admin sub-tabs and other Tabs in the app keep their default look. */
-[data-testid="nav-bar-header"] [data-state="active"] {
-  background-color: hsl(var(--primary)) !important;
-  color: hsl(var(--primary-foreground)) !important;
-}

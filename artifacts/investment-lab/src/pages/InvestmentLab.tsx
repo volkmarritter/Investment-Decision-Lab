@@ -141,8 +141,10 @@ function useNavSignals(): Record<"build" | "compare" | "explain", boolean> {
 // inside <Tabs> so Radix wires keyboard nav and aria-selected.
 function HeaderTabBar({
   signals,
+  current,
 }: {
   signals: Record<"build" | "compare" | "explain", boolean>;
+  current: TabValue;
 }) {
   const { t } = useT();
   return (
@@ -153,6 +155,7 @@ function HeaderTabBar({
       {NAV_TABS.map((def, idx) => {
         const Icon = def.icon;
         const hasDot = def.signalKey !== null && signals[def.signalKey];
+        const isActive = current === def.value;
         // Subtle vertical separator between adjacent tabs (rendered as a
         // ::before pseudo-element on every item except the first). Using
         // `before:` keeps the divider out of the grid track sizing so the
@@ -161,6 +164,17 @@ function HeaderTabBar({
           idx === 0
             ? ""
             : "before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-5 before:w-px before:bg-border/60";
+        // Inline style for the active fill — bypasses Tailwind/twMerge
+        // specificity battles with the shadcn TabsTrigger defaults
+        // entirely. Inline styles always win over class-based rules
+        // unless something explicitly uses !important on the same
+        // property, which nothing in our stack does for these.
+        const activeStyle: React.CSSProperties | undefined = isActive
+          ? {
+              backgroundColor: "hsl(var(--primary))",
+              color: "hsl(var(--primary-foreground))",
+            }
+          : undefined;
         return (
           <Tooltip key={def.value}>
             <TooltipTrigger asChild>
@@ -168,6 +182,7 @@ function HeaderTabBar({
                 value={def.value}
                 data-testid={def.testid}
                 aria-label={t(def.labelKey)}
+                style={activeStyle}
                 className={`relative flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 min-w-0 px-1 sm:px-3 py-2 text-[11px] sm:text-sm whitespace-normal text-center leading-tight break-words text-muted-foreground hover:text-foreground hover:bg-muted/60 data-[state=active]:font-semibold data-[state=active]:shadow-md ${dividerCls}`}
               >
                 <span className="relative inline-flex shrink-0">
@@ -378,7 +393,7 @@ export default function InvestmentLab() {
            *  Hidden on mobile; the fixed bottom bar takes over there. */}
           <div className="hidden sm:block border-t border-border/60 bg-background/95">
             <div className="container mx-auto px-4 py-2 flex justify-center">
-              <HeaderTabBar signals={signals} />
+              <HeaderTabBar signals={signals} current={tab} />
             </div>
           </div>
         </header>
