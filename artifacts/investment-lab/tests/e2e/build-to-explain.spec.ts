@@ -2,38 +2,46 @@ import { test, expect } from "@playwright/test";
 import { dismissWelcomeIfPresent } from "./utils";
 
 // Task #175 — Build → Explain handoff. The Build tab auto-generates an
-// example portfolio shortly after the welcome dialog dismisses, so by the
-// time we tap "Send to Explain" the button has a portfolio to send.
+// example portfolio shortly after the welcome dialog dismisses, so by
+// the time the Send-to-Explain button enables it has a portfolio to
+// send. Covers two paths: silent first-load when Explain is empty, and
+// confirm-and-replace when Explain already carries content.
 
-test("Send to Explain copies the Build portfolio into the Explain workspace", async ({
+const EXPLAIN_LS_KEY = "investment-lab.explainPortfolio.v1";
+
+test("Send to Explain copies the Build portfolio into the Explain workspace, with the confirm path on second send", async ({
   page,
 }) => {
   await page.goto("/");
   await dismissWelcomeIfPresent(page);
 
-  // Wait for the auto-generated portfolio to render the results header
-  // (the Send-to-Explain button only appears alongside the export buttons
-  // once `output && validation.isValid`).
+  // Wait for the auto-generated portfolio so the button enables.
   const sendBtn = page.getByTestId("build-send-to-explain");
   await expect(sendBtn).toBeVisible({ timeout: 15_000 });
+  await expect(sendBtn).toBeEnabled({ timeout: 15_000 });
   await sendBtn.scrollIntoViewIfNeeded();
   await sendBtn.tap();
 
-  // First-load case: the Explain workspace is empty by default, so no
-  // confirm dialog should pop up. We immediately land on Explain.
+  // First-load case: Explain workspace is empty by default → no confirm
+  // dialog; we land directly on Explain with the workspace replaced.
   await expect(page).toHaveURL(/[?&]tab=explain\b/);
 
-  // The receiver replaces state and persists to localStorage. Inspect
-  // the persisted shape directly so the assertion doesn't depend on
-  // catalog-specific UI labels.
-  const persisted = await page.evaluate(() => {
-    return window.localStorage.getItem("investment-lab.explainPortfolio.v1");
-  });
+  const persisted = await page.evaluate(
+    (k) => window.localStorage.getItem(k),
+    EXPLAIN_LS_KEY,
+  );
   expect(persisted).not.toBeNull();
   const parsed = JSON.parse(persisted as string);
   expect(parsed.v).toBe(1);
   expect(Array.isArray(parsed.positions)).toBe(true);
   expect(parsed.positions.length).toBeGreaterThan(0);
+
+  // lookThroughView toggle parity: Build's default is `true`, the
+  // workspace must reflect it so the receiver lands in the same mode.
+  expect(parsed.lookThroughView).toBe(true);
+
+  // Each persisted position should have a non-empty ISIN and a
+  // positive weight (the converter drops empty/zero rows).
   for (const p of parsed.positions) {
     expect(typeof p.isin).toBe("string");
     expect(p.isin.length).toBeGreaterThan(0);
@@ -41,24 +49,44 @@ test("Send to Explain copies the Build portfolio into the Explain workspace", as
     expect(p.weight).toBeGreaterThan(0);
   }
 
-  // At least one Explain row should be visible (the tree of buckets
-  // expands smart-default for any populated asset class).
-  await expect(page.getByTestId("explain-row-0")).toBeVisible({
-    timeout: 10_000,
-  });
+  // First Explain row should now be visible in the editor.
+  const firstRow = page.getByTestId("explain-row-0");
+  await expect(firstRow).toBeVisible({ timeout: 10_000 });
 
-  // Now the workspace has content: a second Send-from-Build click should
-  // open the replace-with-confirm AlertDialog instead of overwriting
-  // silently. Switch back to Build via tab nav.
+  // The first persisted ISIN should be rendered somewhere inside the
+  // first row (clickable badge, manual input, or row label) — confirms
+  // the persisted state actually reached the rendered editor.
+  const firstIsin = parsed.positions[0].isin as string;
+  await expect(firstRow).toContainText(firstIsin);
+
+  // Second pass: workspace now has content → tapping Send should open
+  // the replace-with-confirm AlertDialog, and confirming it should
+  // re-apply the workspace cleanly.
   await page.getByRole("tab", { name: /build portfolio/i }).tap();
   await expect(sendBtn).toBeVisible();
+  await expect(sendBtn).toBeEnabled();
   await sendBtn.scrollIntoViewIfNeeded();
   await sendBtn.tap();
 
   const dialog = page.getByTestId("build-send-to-explain-dialog");
   await expect(dialog).toBeVisible();
-  // Cancel keeps us on Build with the dialog dismissed and Explain
-  // localStorage untouched.
-  await page.getByTestId("build-send-to-explain-cancel").tap();
+  await page.getByTestId("build-send-to-explain-confirm").tap();
   await expect(dialog).toBeHidden();
+  await expect(page).toHaveURL(/[?&]tab=explain\b/);
+
+  // Confirmed replace landed: workspace is still well-formed and the
+  // Explain editor still shows the first row + same ISIN.
+  const after = await page.evaluate(
+    (k) => window.localStorage.getItem(k),
+    EXPLAIN_LS_KEY,
+  );
+  const afterParsed = JSON.parse(after as string);
+  expect(afterParsed.positions.length).toBeGreaterThan(0);
+  expect(afterParsed.lookThroughView).toBe(true);
+  await expect(page.getByTestId("explain-row-0")).toBeVisible({
+    timeout: 10_000,
+  });
+  await expect(page.getByTestId("explain-row-0")).toContainText(
+    afterParsed.positions[0].isin as string,
+  );
 });

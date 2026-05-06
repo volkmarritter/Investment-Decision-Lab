@@ -2681,7 +2681,7 @@ function decodeBucketKey(key: string): BucketMeta {
   return { key, assetClass, region, hedged, hedgeCurrency, synthetic };
 }
 
-const BUCKET_META_CACHE: Record<string, BucketMeta> = (() => {
+export const BUCKET_META_CACHE: Record<string, BucketMeta> = (() => {
   const m: Record<string, BucketMeta> = {};
   for (const key of Object.keys(BUCKETS)) m[key] = decodeBucketKey(key);
   return m;

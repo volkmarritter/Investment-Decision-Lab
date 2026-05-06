@@ -672,17 +672,15 @@ export function ExplainPortfolio() {
       };
       setState(next);
       syncDraftsFromPositions(next.positions);
-      toast.success(
-        lang === "de"
-          ? "Aus Build geladen"
-          : "Loaded from Build",
-      );
+      // Sender (BuildPortfolio) emits the single localized success toast
+      // with the position count — no receiver-side toast here, otherwise
+      // users would see two stacked notifications for the same hand-off.
     };
     const pending = takePendingExplainLoadRequest();
     if (pending) apply(pending.workspace);
     return subscribeExplainLoadRequests((req) => apply(req.workspace));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lang]);
+  }, []);
 
   function parseDraft(s: string): number {
     if (!s.trim()) return 0;

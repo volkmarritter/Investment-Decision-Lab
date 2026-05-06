@@ -34,6 +34,11 @@ import type {
 import { synthesizePersonalPortfolio } from "./personalPortfolio";
 import { defaultExchangeFor } from "./exchange";
 import type { Lang } from "./i18n";
+import {
+  ALL_BUCKET_KEYS,
+  BUCKET_META_CACHE,
+  getBucketKeyForIsin,
+} from "./etfs";
 
 // ---------------------------------------------------------------------------
 // Channel 1: current Explain workspace
@@ -172,17 +177,53 @@ export function subscribeExplainLoadRequests(
  * across with the simple field rename `includeCurrencyHedging` → `hedged`;
  * `riskAppetite`, `horizon`, `baseCurrency`, `lookThroughView` are 1:1.
  */
+// Build a `${assetClass} - ${region}` → bucketKey lookup so rows whose
+// `catalogKey` is null (off-catalog or stale) can still be placed in the
+// correct Explain bucket via their human-readable bucket label. Built
+// lazily to avoid a top-level circular-import hazard with `etfs.ts`.
+let _bucketLabelToKey: Record<string, string> | null = null;
+function bucketLabelToKey(label: string): string | null {
+  if (!_bucketLabelToKey) {
+    const m: Record<string, string> = {};
+    // Multiple bucket keys can share the same `${assetClass} - ${region}`
+    // label when hedged / synthetic variants exist (e.g. `Equity-USA` and
+    // `Equity-USA-GBP` both decode to "Equity - USA"). Prefer the plain
+    // (non-hedged, non-synthetic) variant so a generic Build row lands
+    // in the canonical bucket.
+    for (const k of ALL_BUCKET_KEYS) {
+      const meta = BUCKET_META_CACHE[k];
+      if (!meta) continue;
+      const label = `${meta.assetClass} - ${meta.region}`;
+      const isPlain = !meta.hedged && !meta.synthetic;
+      if (isPlain || !(label in m)) {
+        m[label] = k;
+      }
+    }
+    _bucketLabelToKey = m;
+  }
+  return _bucketLabelToKey[label] ?? null;
+}
+
 export function buildToExplainWorkspace(
   input: PortfolioInput,
   output: PortfolioOutput,
 ): ExplainWorkspace {
   const positions = output.etfImplementation
     .filter((row) => !!row.isin && row.weight > 0)
-    .map((row) => ({
-      isin: row.isin,
-      bucketKey: row.catalogKey ?? "",
-      weight: row.weight,
-    }));
+    .map((row) => {
+      // Prefer the engine-provided catalog key. When absent (off-catalog
+      // or stale row), fall back to a label match against the catalog.
+      // Last resort: ISIN→bucket lookup. Empty string means "Unassigned"
+      // group in the Explain tree.
+      let bucketKey = row.catalogKey ?? "";
+      if (!bucketKey && row.bucket) {
+        bucketKey = bucketLabelToKey(row.bucket) ?? "";
+      }
+      if (!bucketKey && row.isin) {
+        bucketKey = getBucketKeyForIsin(row.isin) ?? "";
+      }
+      return { isin: row.isin, bucketKey, weight: row.weight };
+    });
   return {
     v: 1,
     baseCurrency: input.baseCurrency,

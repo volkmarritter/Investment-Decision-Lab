@@ -927,6 +927,57 @@ export function BuildPortfolio() {
                     {t("build.btn.copyAiPrompt.tooltip")}
                   </TooltipContent>
                 </Tooltip>
+
+                {/* Send-to-Explain (Task #175). Always rendered alongside
+                 *  Generate / Copy AI Prompt so the disabled state is
+                 *  visible before any portfolio has been built; tooltip
+                 *  switches to a "generate first" hint while disabled. */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="w-full inline-block">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        className="w-full"
+                        size="sm"
+                        disabled={!output || !validation?.isValid}
+                        data-testid="build-send-to-explain"
+                        onClick={() => {
+                          if (!output) return;
+                          const existing = getLastExplainWorkspace();
+                          if (explainWorkspaceHasContent(existing)) {
+                            setSendToExplainOpen(true);
+                            return;
+                          }
+                          const current = form.getValues();
+                          const parsed: PortfolioInput = {
+                            ...current,
+                            horizon: Number(current.horizon),
+                            targetEquityPct: Number(current.targetEquityPct),
+                            numETFs: Number(current.numETFs),
+                            numETFsMin: Number(current.numETFsMin ?? current.numETFs),
+                          };
+                          const ws = buildToExplainWorkspace(parsed, output);
+                          requestExplainLoadFromBuild(ws);
+                          navigateToTab("explain");
+                          toast.success(
+                            t("build.btn.sendToExplain.toast", {
+                              count: ws.positions.length,
+                            }),
+                          );
+                        }}
+                      >
+                        <ArrowRight className="h-4 w-4 mr-2" />
+                        {t("build.btn.sendToExplain")}
+                      </Button>
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-xs">
+                    {!output || !validation?.isValid
+                      ? t("build.btn.sendToExplain.disabled.tooltip")
+                      : t("build.btn.sendToExplain.tooltip")}
+                  </TooltipContent>
+                </Tooltip>
               </form>
             </Form>
           </CardContent>
@@ -955,43 +1006,6 @@ export function BuildPortfolio() {
               <h2 className="text-2xl font-bold tracking-tight">Portfolio Results</h2>
               {output && validation.isValid && (
                 <div className="flex flex-wrap items-center gap-2">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          if (!output) return;
-                          const existing = getLastExplainWorkspace();
-                          if (explainWorkspaceHasContent(existing)) {
-                            setSendToExplainOpen(true);
-                            return;
-                          }
-                          const current = form.getValues();
-                          const parsed: PortfolioInput = {
-                            ...current,
-                            horizon: Number(current.horizon),
-                            targetEquityPct: Number(current.targetEquityPct),
-                            numETFs: Number(current.numETFs),
-                            numETFsMin: Number(current.numETFsMin ?? current.numETFs),
-                          };
-                          requestExplainLoadFromBuild(
-                            buildToExplainWorkspace(parsed, output),
-                          );
-                          navigateToTab("explain");
-                          toast.success(t("build.btn.sendToExplain.toast"));
-                        }}
-                        disabled={!output}
-                        data-testid="build-send-to-explain"
-                      >
-                        <ArrowRight className="h-4 w-4 mr-2" />
-                        {t("build.btn.sendToExplain")}
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent className="max-w-xs">
-                      {t("build.btn.sendToExplain.tooltip")}
-                    </TooltipContent>
-                  </Tooltip>
                   <Button
                     variant="outline"
                     size="sm"
@@ -1867,12 +1881,15 @@ export function BuildPortfolio() {
                   numETFs: Number(current.numETFs),
                   numETFsMin: Number(current.numETFsMin ?? current.numETFs),
                 };
-                requestExplainLoadFromBuild(
-                  buildToExplainWorkspace(parsed, output),
-                );
+                const ws = buildToExplainWorkspace(parsed, output);
+                requestExplainLoadFromBuild(ws);
                 setSendToExplainOpen(false);
                 navigateToTab("explain");
-                toast.success(t("build.btn.sendToExplain.toast"));
+                toast.success(
+                  t("build.btn.sendToExplain.toast", {
+                    count: ws.positions.length,
+                  }),
+                );
               }}
             >
               {t("build.sendToExplain.dialog.confirm")}
