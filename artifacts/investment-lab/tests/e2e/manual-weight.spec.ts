@@ -15,7 +15,7 @@ test.describe("BuildPortfolio · manual weight cell (mobile)", () => {
 
     // The Build tab is the default. Trigger a portfolio build so the
     // ETF Implementation table renders.
-    const generate = page.getByRole("button", { name: /generate portfolio/i });
+    const generate = page.getByRole("button", { name: /build portfolio/i });
     await expect(generate).toBeVisible();
     await generate.click();
 
@@ -69,7 +69,7 @@ test.describe("BuildPortfolio · manual weight cell (mobile)", () => {
     // Smoke check that the build tab is visible by default and can render
     // the ETF Implementation table on a mobile viewport — the precondition
     // for every other manual-weight regression we care about.
-    const generate = page.getByRole("button", { name: /generate portfolio/i });
+    const generate = page.getByRole("button", { name: /build portfolio/i });
     await expect(generate).toBeVisible();
     await generate.click();
 

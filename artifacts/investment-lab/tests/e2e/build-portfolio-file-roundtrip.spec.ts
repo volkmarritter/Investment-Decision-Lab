@@ -44,7 +44,7 @@ test.describe("BuildPortfolio · scenario file round-trip", () => {
 
     // Build tab is the default. Generate a portfolio so the ETF Implementation
     // table renders and the Save buttons enable.
-    const generate = page.getByRole("button", { name: /generate portfolio/i });
+    const generate = page.getByRole("button", { name: /build portfolio/i });
     await expect(generate).toBeVisible();
     await generate.tap();
 

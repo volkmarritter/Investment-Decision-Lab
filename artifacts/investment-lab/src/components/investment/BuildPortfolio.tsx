@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
-import { AlertCircle, CheckCircle2, ChevronDown, Info, Target, ShieldAlert, BookOpen, ArrowRight, Download, Loader2, RotateCcw, ClipboardCopy, X, Minus, Plus, Search } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronDown, Info, Target, ShieldAlert, BookOpen, ArrowRight, Download, Loader2, RotateCcw, ClipboardCopy, X, Minus, Plus, Search, PieChart as PieChartIcon } from "lucide-react";
 import {
   loadManualWeights,
   setManualWeight,
@@ -925,9 +925,8 @@ export function BuildPortfolio() {
                   <TooltipTrigger asChild>
                     <Button
                       type="button"
-                      variant="outline"
+                      variant="secondary"
                       className="w-full"
-                      size="sm"
                       onClick={async () => {
                         const current = form.getValues();
                         const parsed: PortfolioInput = {
@@ -964,14 +963,13 @@ export function BuildPortfolio() {
                     <span className="w-full inline-block">
                       <Button
                         type="button"
-                        variant="outline"
+                        variant="secondary"
                         className="w-full"
-                        size="sm"
                         disabled={!output || !validation?.isValid}
                         data-testid="build-send-to-explain"
                         onClick={handleSendToExplainClick}
                       >
-                        <ArrowRight className="h-4 w-4 mr-2" />
+                        <PieChartIcon className="h-4 w-4 mr-2" />
                         {t("build.btn.sendToExplain")}
                       </Button>
                     </span>
@@ -1819,8 +1817,8 @@ export function BuildPortfolio() {
                       onClick={handleSendToExplainClick}
                       data-testid="build-next-cta-button"
                     >
+                      <PieChartIcon className="h-4 w-4 mr-2" />
                       {t("build.nextCta.button")}
-                      <ArrowRight className="h-4 w-4 ml-2" />
                     </Button>
                   </CardContent>
                 </Card>
