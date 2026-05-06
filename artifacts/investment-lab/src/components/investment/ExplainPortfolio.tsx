@@ -415,6 +415,7 @@ const MANUAL_REGIONS = [
   "Emerging Markets",
   "Japan",
   "Asia Pacific ex-Japan",
+  "Thematic",
 ];
 
 function PositionRow({
