@@ -627,7 +627,59 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
-<<<<<<< HEAD
+### 2026-05 (explain-cash-pseudo-group — Task #174)
+
+Added a first-class **Cash** pseudo-group at the top of the Explain
+tab's bucket-tree editor that mirrors Build's first-class Cash slider.
+
+- New sentinel `EXPLAIN_CASH_BUCKET_SENTINEL = "Cash"` exported from
+  `src/lib/personalPortfolio.ts`. The sentinel is intentionally NOT
+  registered in `BUCKETS` / `ALL_BUCKET_KEYS` (it's a pseudo-bucket).
+- `PersonalPosition` gained an optional `cashCurrency?: BaseCurrency`
+  field. `resolveSleeve` maps a Cash sentinel row to
+  `{assetClass: "Cash", region: cashCurrency ?? "Global"}` so the
+  synthesizer threads it through the standard allocation pipeline
+  (matching Build's `portfolio.ts:337` shape where the Cash sleeve
+  region is the workspace base currency).
+- Editor: rendered as the canonical first asset-class group (above
+  Equity / Fixed Income / …). The `[+]` button (testid
+  `explain-add-in-bucket-Cash`) appends a row directly without
+  opening any IsinPicker. The row shows weight + currency Select
+  (USD / EUR / CHF / GBP) + delete — no ISIN, no role badge, no
+  look-through, no PositionRow chrome. Smart-default expand: open
+  iff at least one Cash row already exists.
+- Manual-entry asset-class options no longer include "Cash" — the
+  pseudo-group is the canonical entry point now. Legacy rows with
+  `manualMeta.assetClass === "Cash"` are migrated into the sentinel
+  shape on workspace load (both the in-component `loadState` and the
+  shared `savedExplainPortfolios.sanitizeWorkspace` path used by
+  saved portfolios + file import).
+- Validation: `runExplainValidation` skips the "Row has no ETF
+  selected" check for Cash sentinel rows (they're ISIN-less by
+  design). All other downstream checks already operate on
+  `positions.filter(p => !!p.isin)` so they naturally bypass Cash.
+- `explainWorkspaceHasContent` and `cloneWorkspace` in
+  `explainCompare.ts` were updated so a Cash-only workspace is
+  treated as non-empty and `cashCurrency` round-trips through the
+  Compare-handoff clone path.
+- i18n: new keys `explain.btn.addCashPosition`, `explain.tree.cash.desc`,
+  `explain.cash.currency.label` (DE + EN). Existing
+  `explain.assetClass.Cash` is reused for the group header.
+- Tests:
+  - Unit (`tests/engine.test.ts`, new "Explain Cash sentinel" block):
+    sleeve mapping with explicit `cashCurrency`, "Global" fallback,
+    no-ETF-selected exemption, `explainWorkspaceHasContent`
+    Cash-only positivity, equity-cap denominator unaffected.
+  - E2E (`tests/e2e/explain-portfolio.spec.ts`, new "Cash
+    pseudo-group" test): `[+]` adds row directly without picker,
+    weight contributes to total, sentinel shape persists across
+    reload (no ISIN, no manualMeta, optional `cashCurrency`).
+- **Build / engine / PDF / admin: unchanged.** This is a
+  presentation + persistence change scoped to the Explain editor
+  and its synthesizer wiring — Build's Cash slider, the portfolio
+  engine, the PDF report renderer, and the admin catalog UI all
+  remain on their existing code paths.
+
 ### 2026-05 (build-to-explain-handoff) — "Send to Explain" button on Build tab
 
 Mirrors the existing Explain → Compare handoff pattern so a generated

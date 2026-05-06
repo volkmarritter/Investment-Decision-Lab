@@ -334,7 +334,15 @@ export function explainWorkspaceToSlotPortfolio(
   lang: Lang = "en",
 ): ExplainSlotPortfolio {
   const synth = synthesizePersonalPortfolio(
-    workspace.positions.filter((p) => !!p.isin && p.weight > 0),
+    // Task #174 — Cash sentinel rows have no ISIN by design but must
+    // still contribute their weight to the slot's allocation, otherwise
+    // a Cash-only or Cash-mixed Explain workspace silently loses its
+    // cash slice when handed off to Compare. Mirror the same inclusion
+    // rule used by Explain's own synthesizer call.
+    workspace.positions.filter(
+      (p) =>
+        p.weight > 0 && (!!p.isin || p.bucketKey === "Cash"),
+    ),
     workspace.baseCurrency,
     lang,
   );
@@ -392,7 +400,11 @@ export function explainWorkspaceHasContent(
   workspace: ExplainWorkspace | null,
 ): boolean {
   if (!workspace) return false;
-  return workspace.positions.some((p) => !!p.isin && p.weight > 0);
+  // Task #174 — a Cash sentinel row (bucketKey === "Cash", no ISIN)
+  // is a fully-specified position too, even though it has no ISIN.
+  return workspace.positions.some(
+    (p) => p.weight > 0 && (!!p.isin || p.bucketKey === "Cash"),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -411,6 +423,7 @@ function cloneWorkspace(ws: ExplainWorkspace): ExplainWorkspace {
       isin: p.isin,
       bucketKey: p.bucketKey,
       weight: p.weight,
+      ...(p.cashCurrency ? { cashCurrency: p.cashCurrency } : {}),
       ...(p.manualMeta ? { manualMeta: { ...p.manualMeta } } : {}),
     })),
   };

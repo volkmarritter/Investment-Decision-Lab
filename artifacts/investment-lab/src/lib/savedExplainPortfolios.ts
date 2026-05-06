@@ -64,6 +64,13 @@ function sanitizeWorkspace(raw: unknown): ExplainWorkspace | null {
           bucketKey: pos.bucketKey,
           weight: pos.weight,
         };
+        // Task #174 — preserve the optional Cash sentinel currency on
+        // round-trip (saved-portfolio export/import + autosave). Same
+        // BaseCurrency whitelist used elsewhere; an unknown value is
+        // dropped and resolveSleeve falls back to "Global".
+        if (VALID_CURRENCIES.includes(pos.cashCurrency as BaseCurrency)) {
+          out.cashCurrency = pos.cashCurrency as BaseCurrency;
+        }
         if (
           pos.manualMeta &&
           typeof pos.manualMeta === "object" &&
@@ -83,6 +90,19 @@ function sanitizeWorkspace(raw: unknown): ExplainWorkspace | null {
               ? { terBps: pos.manualMeta.terBps }
               : {}),
           };
+        }
+        // Task #174 — also migrate legacy Cash manual entries here
+        // (file-import path mirrors loadState in ExplainPortfolio.tsx).
+        if (out.manualMeta?.assetClass === "Cash") {
+          if (
+            !out.cashCurrency &&
+            VALID_CURRENCIES.includes(out.manualMeta.currency as BaseCurrency)
+          ) {
+            out.cashCurrency = out.manualMeta.currency as BaseCurrency;
+          }
+          out.bucketKey = "Cash";
+          out.isin = "";
+          delete out.manualMeta;
         }
         return out;
       })

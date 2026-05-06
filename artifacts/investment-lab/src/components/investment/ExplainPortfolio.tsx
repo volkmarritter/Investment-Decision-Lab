@@ -71,6 +71,7 @@ import {
 } from "./etfSlotBadge";
 import {
   PersonalPosition,
+  EXPLAIN_CASH_BUCKET_SENTINEL,
   assetClassNeedsRegion,
   normalizeWeights,
   runExplainValidation,
@@ -164,6 +165,11 @@ function loadState(): PersistedState {
                 bucketKey: p.bucketKey,
                 weight: p.weight,
               };
+              const validBaseCurrency = (v: unknown): v is BaseCurrency =>
+                v === "USD" || v === "EUR" || v === "CHF" || v === "GBP";
+              if (validBaseCurrency(p.cashCurrency)) {
+                out.cashCurrency = p.cashCurrency;
+              }
               if (
                 p.manualMeta &&
                 typeof p.manualMeta === "object" &&
@@ -177,6 +183,23 @@ function loadState(): PersistedState {
                   ...(typeof p.manualMeta.currency === "string" ? { currency: p.manualMeta.currency } : {}),
                   ...(typeof p.manualMeta.terBps === "number" ? { terBps: p.manualMeta.terBps } : {}),
                 };
+              }
+              // Task #174 — migrate legacy Cash positions that were entered
+              // through the manual-entry path (`manualMeta.assetClass ===
+              // "Cash"`) into the new first-class Cash sentinel form. The
+              // sentinel rows have `bucketKey === "Cash"`, no manualMeta,
+              // and an optional `cashCurrency` derived from the legacy
+              // `manualMeta.currency` (or left undefined to fall back to
+              // the workspace's baseCurrency at render time). This keeps
+              // every saved workspace re-opening cleanly without forcing
+              // the user to re-enter their cash slice.
+              if (out.manualMeta?.assetClass === "Cash") {
+                if (!out.cashCurrency && validBaseCurrency(out.manualMeta.currency)) {
+                  out.cashCurrency = out.manualMeta.currency;
+                }
+                out.bucketKey = EXPLAIN_CASH_BUCKET_SENTINEL;
+                out.isin = "";
+                delete out.manualMeta;
               }
               return out;
             })
@@ -401,13 +424,17 @@ interface PositionRowProps {
   rowIndex: number;
 }
 
+// Task #174 — Cash is no longer a manual-entry asset class option:
+// it has its own first-class pseudo-group at the top of the tree
+// (see `addCashPosition` and the Cash render block in the editor).
+// Picking "Cash" here would create a row that gets migrated into the
+// sentinel form on the next reload anyway, which is a confusing UX.
 const MANUAL_ASSET_CLASSES = [
   "Equity",
   "Fixed Income",
   "Real Estate",
   "Commodities",
   "Digital Assets",
-  "Cash",
 ];
 const MANUAL_REGIONS = [
   "Global",
@@ -714,6 +741,39 @@ export function ExplainPortfolio() {
     setWeightDrafts((d) => [...d, ""]);
   }
 
+  // Task #174 — first-class Cash row. Pure non-ETF asset class with
+  // weight + currency, no ISIN, no catalog bucket, no IsinPicker. The
+  // sentinel `bucketKey === "Cash"` (see `EXPLAIN_CASH_BUCKET_SENTINEL`)
+  // is recognised by `resolveSleeve` in personalPortfolio.ts and is
+  // explicitly NOT registered in BUCKETS / ALL_BUCKET_KEYS in etfs.ts.
+  // `cashCurrency` defaults to the workspace base currency, mirroring
+  // how Build derives the Cash sleeve region from `input.baseCurrency`
+  // in portfolio.ts:337.
+  function addCashPosition() {
+    setState((s) => ({
+      ...s,
+      positions: [
+        ...s.positions,
+        {
+          isin: "",
+          bucketKey: EXPLAIN_CASH_BUCKET_SENTINEL,
+          weight: 0,
+          cashCurrency: s.baseCurrency,
+        },
+      ],
+    }));
+    setWeightDrafts((d) => [...d, ""]);
+  }
+
+  function setCashCurrency(index: number, currency: BaseCurrency) {
+    setState((s) => ({
+      ...s,
+      positions: s.positions.map((p, i) =>
+        i === index ? { ...p, cashCurrency: currency } : p,
+      ),
+    }));
+  }
+
   function addManualPosition() {
     setState((s) => ({
       ...s,
@@ -854,7 +914,19 @@ export function ExplainPortfolio() {
   const portfolio = useMemo(
     () =>
       synthesizePersonalPortfolio(
-        state.positions.filter((p) => !!p.isin && p.weight > 0),
+        // Task #174 — Cash sentinel rows have no ISIN by design but
+        // still contribute their weight to the allocation via
+        // `resolveSleeve` (mapped to {Cash | <currency>}). Keep them
+        // in the synthesizer input alongside ISIN-bearing rows so the
+        // analysis reflects the cash slice; the synthesizer itself
+        // only emits an etfImplementation row when there's a real
+        // catalog hit or manualMeta, so Cash rows naturally don't
+        // pollute the ETF table.
+        state.positions.filter(
+          (p) =>
+            p.weight > 0 &&
+            (!!p.isin || p.bucketKey === EXPLAIN_CASH_BUCKET_SENTINEL),
+        ),
         state.baseCurrency,
         lang,
       ),
@@ -989,16 +1061,33 @@ export function ExplainPortfolio() {
     [state.positions],
   );
 
+  // Task #174 — first-class Cash rows live in their own pseudo-group at
+  // the top of the tree. Identified purely by the sentinel bucketKey so
+  // they're cleanly excluded from both `positionsByBucket` (catalog
+  // groups) and `unassignedRowIndices` (legacy tail) below.
+  const cashRowIndices = useMemo(
+    () =>
+      state.positions
+        .map((p, i) =>
+          p.bucketKey === EXPLAIN_CASH_BUCKET_SENTINEL && !p.manualMeta ? i : -1,
+        )
+        .filter((i) => i >= 0),
+    [state.positions],
+  );
+
   // Unassigned tail-group: non-manual rows whose `bucketKey` is empty OR
   // points at a bucket the catalog has since dropped/renamed. Both must
   // surface so the user can re-bucket or delete them; otherwise persisted
   // workspaces silently lose visibility on those positions across catalog
-  // updates.
+  // updates. Cash sentinel rows are intentionally excluded — they have
+  // their own dedicated group at the top of the tree.
   const unassignedRowIndices = useMemo(
     () =>
       state.positions
         .map((p, i) =>
-          !p.manualMeta && (!p.bucketKey || !validBucketKeys.has(p.bucketKey))
+          !p.manualMeta &&
+          p.bucketKey !== EXPLAIN_CASH_BUCKET_SENTINEL &&
+          (!p.bucketKey || !validBucketKeys.has(p.bucketKey))
             ? i
             : -1,
         )
@@ -1272,6 +1361,154 @@ export function ExplainPortfolio() {
                   bucket inside (populated or empty) with its own scoped
                   picker via the per-bucket [+] button. */}
               <div className="space-y-1.5" data-testid="explain-bucket-tree">
+                {/* Task #174 — first-class Cash pseudo-group. Sits at the
+                    top of the tree to mirror Build's canonical asset-class
+                    order (Cash → Fixed Income → Equity → …, see
+                    `ASSET_CLASS_ORDER` in personalPortfolio.ts:39). Cash
+                    is NOT a catalog bucket — its sentinel `bucketKey ===
+                    "Cash"` is recognised by `resolveSleeve` but is not in
+                    `BUCKETS` / `ALL_BUCKET_KEYS`. The [+] button adds rows
+                    directly without opening any picker (no ISIN, no role
+                    badge, no look-through controls — see CashPositionRow
+                    below). Smart-default expand mirrors the catalog
+                    groups: open iff at least one cash row already exists.
+                */}
+                {(() => {
+                  const cashSummaryWeight = rowsWeightSum(cashRowIndices);
+                  const cashSmartDefault = cashRowIndices.length > 0;
+                  const cashExpanded =
+                    expandedGroups[EXPLAIN_CASH_BUCKET_SENTINEL] ?? cashSmartDefault;
+                  return (
+                    <div
+                      key={EXPLAIN_CASH_BUCKET_SENTINEL}
+                      className="rounded border bg-card/40"
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          toggleGroup(EXPLAIN_CASH_BUCKET_SENTINEL, cashSmartDefault)
+                        }
+                        className="w-full flex items-center justify-between gap-2 px-2.5 py-2 text-left hover:bg-muted/40 rounded"
+                        aria-expanded={cashExpanded}
+                        data-state={cashExpanded ? "open" : "closed"}
+                        data-testid="explain-group-cash"
+                      >
+                        <span className="flex items-center gap-1.5 min-w-0">
+                          <ChevronRight
+                            className={`h-3.5 w-3.5 shrink-0 transition-transform ${
+                              cashExpanded ? "rotate-90" : ""
+                            }`}
+                          />
+                          <span className="text-xs font-semibold uppercase tracking-wide truncate">
+                            {assetClassLabel("Cash")}
+                          </span>
+                        </span>
+                        <span className="flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+                          <span className="font-mono">
+                            {cashSummaryWeight.toFixed(1)}%
+                          </span>
+                        </span>
+                      </button>
+                      {cashExpanded && (
+                        <div className="px-2.5 pb-2 pt-0.5 space-y-2.5">
+                          <div
+                            className="space-y-1.5"
+                            data-testid="explain-bucket-Cash"
+                          >
+                            <div className="flex items-center justify-between gap-2 text-xs pl-4">
+                              <span className="text-muted-foreground truncate">
+                                {t("explain.tree.cash.desc")}
+                              </span>
+                              <div className="flex items-center gap-1.5 shrink-0">
+                                <span
+                                  className={`font-mono text-[11px] ${
+                                    cashSummaryWeight > 0 ? "" : "opacity-50"
+                                  }`}
+                                >
+                                  {cashSummaryWeight.toFixed(1)}%
+                                </span>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="icon"
+                                  className="h-6 w-6 text-muted-foreground hover:text-primary"
+                                  onClick={addCashPosition}
+                                  aria-label={t("explain.btn.addCashPosition")}
+                                  title={t("explain.btn.addCashPosition")}
+                                  data-testid={`explain-add-in-bucket-${EXPLAIN_CASH_BUCKET_SENTINEL}`}
+                                >
+                                  <Plus className="h-3.5 w-3.5" />
+                                </Button>
+                              </div>
+                            </div>
+                            {cashRowIndices.length > 0 && (
+                              <div className="space-y-2 pl-4">
+                                {cashRowIndices.map((i) => {
+                                  const p = state.positions[i];
+                                  return (
+                                    <div
+                                      key={i}
+                                      className="space-y-2"
+                                      data-testid={`explain-row-${i}`}
+                                    >
+                                      <div className="grid grid-cols-[1fr_5.5rem_2rem] gap-2 items-center">
+                                        <Select
+                                          value={p.cashCurrency ?? state.baseCurrency}
+                                          onValueChange={(v) =>
+                                            setCashCurrency(i, v as BaseCurrency)
+                                          }
+                                        >
+                                          <SelectTrigger
+                                            className="h-9 text-sm"
+                                            data-testid={`explain-cash-currency-${i}`}
+                                            aria-label={t("explain.cash.currency.label")}
+                                          >
+                                            <SelectValue />
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="USD">USD</SelectItem>
+                                            <SelectItem value="EUR">EUR</SelectItem>
+                                            <SelectItem value="CHF">CHF</SelectItem>
+                                            <SelectItem value="GBP">GBP</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                        <Input
+                                          type="text"
+                                          inputMode="decimal"
+                                          enterKeyHint="next"
+                                          autoComplete="off"
+                                          autoCorrect="off"
+                                          spellCheck={false}
+                                          className="h-9 text-sm font-mono text-right"
+                                          placeholder="0"
+                                          value={weightDrafts[i] ?? ""}
+                                          onChange={(e) => setWeightDraft(i, e.target.value)}
+                                          aria-label="weight"
+                                          data-testid={`explain-weight-${i}`}
+                                        />
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="icon"
+                                          onClick={() => removePosition(i)}
+                                          className="h-9 w-9 text-muted-foreground hover:text-destructive"
+                                          aria-label="remove"
+                                          data-testid={`explain-remove-${i}`}
+                                        >
+                                          <Trash2 className="h-4 w-4" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 {bucketsByAssetClass.map(([assetClass, buckets]) => {
                   const summary = assetClassSummary(buckets);
                   // Smart-default: a group expands automatically iff at

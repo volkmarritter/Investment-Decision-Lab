@@ -3813,3 +3813,245 @@ describe("listUnassignedInstruments", () => {
     }
   });
 });
+
+// ============================================================================
+// Task #174 — Explain tab first-class Cash pseudo-group
+// ============================================================================
+//
+// The Cash row in Explain is NOT a real catalog bucket. It is keyed by the
+// sentinel `bucketKey === "Cash"` (`EXPLAIN_CASH_BUCKET_SENTINEL`) which is
+// recognised by `resolveSleeve` and routed through the synthesizer the same
+// way Build's first-class Cash slider feeds into portfolio.ts. These tests
+// cover allocation contribution, validation exemption, and the legacy
+// `manualMeta.assetClass === "Cash"` migration on workspace load.
+import {
+  synthesizePersonalPortfolio,
+  runExplainValidation,
+  EXPLAIN_CASH_BUCKET_SENTINEL,
+  type PersonalPosition,
+} from "../src/lib/personalPortfolio";
+import { explainWorkspaceHasContent } from "../src/lib/explainCompare";
+
+describe("Explain Cash sentinel (Task #174)", () => {
+  it("synthesizer maps the Cash sentinel into a {Cash | <currency>} sleeve", () => {
+    const positions: PersonalPosition[] = [
+      { isin: "IE00B5BMR087", bucketKey: "Equity-USA", weight: 70 },
+      {
+        isin: "",
+        bucketKey: EXPLAIN_CASH_BUCKET_SENTINEL,
+        weight: 30,
+        cashCurrency: "EUR",
+      },
+    ];
+    const out = synthesizePersonalPortfolio(positions, "USD", "en");
+    const cash = out.allocation.find((a) => a.assetClass === "Cash");
+    expect(cash).toBeDefined();
+    expect(cash!.region).toBe("EUR");
+    expect(cash!.weight).toBe(30);
+    // Cash row never produces an etfImplementation entry — there is no
+    // ISIN and no manualMeta.
+    const cashRows = out.etfImplementation.filter(
+      (r) => r.assetClass === "Cash",
+    );
+    expect(cashRows.length).toBe(0);
+  });
+
+  it("Cash sentinel without explicit currency falls back to 'Global' region", () => {
+    const positions: PersonalPosition[] = [
+      { isin: "IE00B5BMR087", bucketKey: "Equity-USA", weight: 80 },
+      { isin: "", bucketKey: EXPLAIN_CASH_BUCKET_SENTINEL, weight: 20 },
+    ];
+    const out = synthesizePersonalPortfolio(positions, "CHF", "en");
+    const cash = out.allocation.find((a) => a.assetClass === "Cash");
+    expect(cash).toBeDefined();
+    expect(cash!.region).toBe("Global");
+  });
+
+  it("validation does NOT raise 'Row has no ETF selected' for Cash sentinel rows", () => {
+    const positions: PersonalPosition[] = [
+      { isin: "IE00B5BMR087", bucketKey: "Equity-USA", weight: 50 },
+      {
+        isin: "",
+        bucketKey: EXPLAIN_CASH_BUCKET_SENTINEL,
+        weight: 50,
+        cashCurrency: "USD",
+      },
+    ];
+    const v = runExplainValidation(positions, "Moderate", "USD", "en");
+    const noEtf = v.errors.find((e) =>
+      /no ETF selected|ohne ausgewählten ETF/i.test(e.message),
+    );
+    expect(noEtf).toBeUndefined();
+    // Sum is 100 and no per-row issues, so the workspace must validate.
+    expect(v.isValid).toBe(true);
+  });
+
+  it("explainWorkspaceHasContent recognises a Cash-only workspace as non-empty", () => {
+    expect(
+      explainWorkspaceHasContent({
+        v: 1,
+        baseCurrency: "USD",
+        riskAppetite: "Moderate",
+        horizon: 10,
+        hedged: false,
+        lookThroughView: true,
+        positions: [
+          {
+            isin: "",
+            bucketKey: EXPLAIN_CASH_BUCKET_SENTINEL,
+            weight: 100,
+            cashCurrency: "USD",
+          },
+        ],
+      }),
+    ).toBe(true);
+  });
+
+  it("Cash slice still counts toward the equity-cap denominator (no double-count)", () => {
+    // 60% equity + 40% cash on a Moderate profile (cap 70%) → no warning.
+    const v = runExplainValidation(
+      [
+        { isin: "IE00B5BMR087", bucketKey: "Equity-USA", weight: 60 },
+        {
+          isin: "",
+          bucketKey: EXPLAIN_CASH_BUCKET_SENTINEL,
+          weight: 40,
+          cashCurrency: "USD",
+        },
+      ],
+      "Moderate",
+      "USD",
+      "en",
+    );
+    const overCap = v.warnings.find((w) =>
+      /risk-asset weight|risiko-aktien-quote/i.test(w.message),
+    );
+    expect(overCap).toBeUndefined();
+  });
+});
+
+describe("Explain Cash sentinel — handoff & migration (Task #174)", () => {
+  it("explainWorkspaceToSlotPortfolio retains the Cash sentinel slice in the Compare slot allocation", async () => {
+    const { explainWorkspaceToSlotPortfolio } = await import(
+      "../src/lib/explainCompare"
+    );
+    const slot = explainWorkspaceToSlotPortfolio(
+      {
+        v: 1,
+        baseCurrency: "USD",
+        riskAppetite: "Moderate",
+        horizon: 10,
+        hedged: false,
+        lookThroughView: true,
+        positions: [
+          { isin: "IE00B5BMR087", bucketKey: "Equity-USA", weight: 60 },
+          {
+            isin: "",
+            bucketKey: EXPLAIN_CASH_BUCKET_SENTINEL,
+            weight: 40,
+            cashCurrency: "EUR",
+          },
+        ],
+      },
+      "en",
+    );
+    const cash = slot.output.allocation.find((a) => a.assetClass === "Cash");
+    expect(cash).toBeDefined();
+    expect(cash!.weight).toBe(40);
+    expect(cash!.region).toBe("EUR");
+    // Cash never produces an etfImplementation row.
+    expect(
+      slot.output.etfImplementation.find((r) => r.assetClass === "Cash"),
+    ).toBeUndefined();
+  });
+
+  it("explainWorkspaceToSlotPortfolio handles a Cash-only workspace (allocation has only Cash)", async () => {
+    const { explainWorkspaceToSlotPortfolio } = await import(
+      "../src/lib/explainCompare"
+    );
+    const slot = explainWorkspaceToSlotPortfolio(
+      {
+        v: 1,
+        baseCurrency: "CHF",
+        riskAppetite: "Low",
+        horizon: 5,
+        hedged: false,
+        lookThroughView: true,
+        positions: [
+          {
+            isin: "",
+            bucketKey: EXPLAIN_CASH_BUCKET_SENTINEL,
+            weight: 100,
+            cashCurrency: "CHF",
+          },
+        ],
+      },
+      "en",
+    );
+    expect(slot.output.allocation.length).toBe(1);
+    expect(slot.output.allocation[0].assetClass).toBe("Cash");
+    expect(slot.output.allocation[0].weight).toBe(100);
+  });
+
+  it("sanitizeWorkspace migrates legacy manual Cash entries (manualMeta.assetClass='Cash') into the sentinel form and carries cashCurrency over from manualMeta.currency", async () => {
+    // Drive the sanitize path via the public listSavedExplainPortfolios
+    // entry. Seed localStorage with a legacy-shaped workspace and assert
+    // the loaded shape is the new sentinel form.
+    const { listSavedExplainPortfolios } = await import(
+      "../src/lib/savedExplainPortfolios"
+    );
+    const seeded = [
+      {
+        id: "legacy-cash-1",
+        name: "Legacy Cash",
+        createdAt: 1700000000000,
+        workspace: {
+          v: 1,
+          baseCurrency: "USD",
+          riskAppetite: "Moderate",
+          horizon: 10,
+          hedged: false,
+          lookThroughView: true,
+          positions: [
+            {
+              isin: "FAKE-CASH-ISIN",
+              bucketKey: "",
+              weight: 25,
+              manualMeta: {
+                assetClass: "Cash",
+                region: "Global",
+                currency: "EUR",
+              },
+            },
+          ],
+        },
+      },
+    ];
+    // engine.test.ts runs in the node env (no jsdom), so stub a minimal
+    // localStorage on globalThis.window for the duration of this test.
+    const store = new Map<string, string>();
+    (globalThis as { window?: unknown }).window = {
+      localStorage: {
+        getItem: (k: string) => store.get(k) ?? null,
+        setItem: (k: string, v: string) => void store.set(k, v),
+        removeItem: (k: string) => void store.delete(k),
+      },
+    };
+    try {
+      store.set(
+        "investment-lab.savedExplainPortfolios.v1",
+        JSON.stringify(seeded),
+      );
+      const loaded = listSavedExplainPortfolios();
+      expect(loaded.length).toBe(1);
+      const pos = loaded[0].workspace.positions[0];
+      expect(pos.bucketKey).toBe("Cash");
+      expect(pos.isin).toBe("");
+      expect(pos.manualMeta).toBeUndefined();
+      expect(pos.cashCurrency).toBe("EUR");
+      expect(pos.weight).toBe(25);
+    } finally {
+      delete (globalThis as { window?: unknown }).window;
+    }
+  });
+});

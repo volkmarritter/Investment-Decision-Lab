@@ -17,10 +17,28 @@ import {
 } from "./types";
 import type { Lang } from "./i18n";
 
+// Sentinel `bucketKey` value reserved for first-class Cash positions
+// in the Explain editor. Cash is NOT a catalog bucket (it has no ISIN
+// and isn't listed in BUCKETS / ALL_BUCKET_KEYS in `etfs.ts`); the
+// Explain UI renders it as its own pseudo-group at the top of the
+// tree, mirroring Build's first-class Cash slider. resolveSleeve
+// recognises this sentinel and maps it to `{assetClass:"Cash",
+// region:<cashCurrency or "Global">}` so the synthesizer threads it
+// into the standard allocation pipeline. Keep the literal exactly
+// "Cash" — `loadState` in `ExplainPortfolio.tsx` migrates legacy
+// `manualMeta.assetClass === "Cash"` rows by writing this same value
+// into `bucketKey`.
+export const EXPLAIN_CASH_BUCKET_SENTINEL = "Cash" as const;
+
 export interface PersonalPosition {
   isin: string;
   bucketKey: string;
   weight: number;
+  // Per-row currency for Cash sentinel rows (`bucketKey === "Cash"`).
+  // Undefined for all other rows. Drives the sleeve region for the
+  // synthesizer (`Cash | <currency>`) the same way Build derives Cash
+  // region from `input.baseCurrency` in `portfolio.ts`.
+  cashCurrency?: BaseCurrency;
   manualMeta?: {
     assetClass: string;
     region: string;
@@ -80,6 +98,15 @@ function round1(n: number): number {
 function resolveSleeve(
   p: PersonalPosition,
 ): { assetClass: string; region: string } | undefined {
+  // First-class Cash sentinel: bucketKey === "Cash" but no real catalog
+  // bucket exists for it. Map to {Cash | <currency or Global>} so the
+  // synthesizer routes it into the standard allocation pipeline (same
+  // shape Build emits via portfolio.ts:337 where region = baseCurrency
+  // for Cash sleeves). Falling through to getBucketMeta would return
+  // undefined and silently drop the position.
+  if (p.bucketKey === EXPLAIN_CASH_BUCKET_SENTINEL) {
+    return { assetClass: "Cash", region: p.cashCurrency ?? "Global" };
+  }
   if (p.bucketKey) {
     const meta = getBucketMeta(p.bucketKey);
     if (meta) return { assetClass: meta.assetClass, region: meta.region };
@@ -272,6 +299,12 @@ export function runExplainValidation(
   }
 
   for (const p of positions) {
+    // Task #174 — Cash sentinel rows are intentionally ISIN-less; they
+    // represent a non-ETF asset class (`bucketKey === "Cash"` is mapped
+    // to a sleeve directly by `resolveSleeve`). Skipping them here
+    // avoids a spurious "Row has no ETF selected" error that would
+    // block analysis on every cash slice.
+    if (p.bucketKey === EXPLAIN_CASH_BUCKET_SENTINEL) continue;
     if (!p.isin && Number.isFinite(p.weight) && p.weight > 0) {
       errors.push({
         message: de

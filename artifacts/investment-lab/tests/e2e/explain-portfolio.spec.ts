@@ -181,6 +181,80 @@ test.describe("ExplainPortfolio · bring-your-own-ETFs (mobile)", () => {
     await expect(page.getByTestId("explain-total")).toContainText(/100(\.0)?\s*%/);
   });
 
+  // Task #174 — first-class Cash pseudo-group at the top of the bucket
+  // tree. Cash is NOT a real catalog bucket: the [+] button just appends
+  // a Cash sentinel row (no picker, no ISIN). The row exposes a currency
+  // Select + weight input + delete, contributes its weight to the
+  // synthesizer's allocation via the Cash sleeve, and persists its
+  // sentinel shape (`bucketKey === "Cash"`, no manualMeta) across
+  // reload.
+  test("Cash pseudo-group: [+] adds a row directly, currency persists, allocation reflects the cash slice", async ({
+    page,
+    context,
+  }) => {
+    await context.clearCookies();
+    await openExplainTab(page);
+    await page.evaluate(() =>
+      window.localStorage.removeItem("investment-lab.explainPortfolio.v1"),
+    );
+    await page.reload();
+    await dismissWelcomeIfPresent(page);
+    await page.getByRole("tab", { name: /explain my portfolio/i }).tap();
+
+    // First add a non-Cash position so the workspace has something
+    // alongside Cash and validation can clear (sum = 100%).
+    await addCatalogRow(page, 0, ISIN_USA, BUCKET_USA, GROUP_EQUITY);
+
+    // The Cash group sits at the very top of the tree (canonical
+    // asset-class order). It's empty initially, so the chevron is
+    // closed by smart-default; expand it before tapping [+].
+    const cashToggle = page.getByTestId("explain-group-cash");
+    await expect(cashToggle).toBeVisible();
+    await cashToggle.scrollIntoViewIfNeeded();
+    if ((await cashToggle.getAttribute("data-state")) === "closed") {
+      await cashToggle.tap();
+    }
+
+    const cashAdd = page.getByTestId("explain-add-in-bucket-Cash");
+    await expect(cashAdd).toBeVisible();
+    await cashAdd.tap();
+
+    // Cash row appears at index 1; no picker is rendered.
+    await expect(page.getByTestId("explain-picker-1")).toHaveCount(0);
+    await expect(page.getByTestId("explain-cash-currency-1")).toBeVisible();
+
+    await setRowWeight(page, 0, "70");
+    await setRowWeight(page, 1, "30");
+    await expect(page.getByTestId("explain-total")).toContainText(/100(\.0)?\s*%/);
+
+    // Analysis renders (no "Row has no ETF selected" error from the
+    // Cash row — that exemption is the whole point of the sentinel).
+    await expect(page.getByTestId("explain-analysis")).toBeVisible();
+
+    // Cash row persisted in sentinel form: bucketKey "Cash", empty isin,
+    // no manualMeta, optional cashCurrency.
+    const stored = JSON.parse(
+      (await page.evaluate(() =>
+        window.localStorage.getItem("investment-lab.explainPortfolio.v1"),
+      )) ?? "{}",
+    );
+    const cashRow = stored.positions.find(
+      (p: { bucketKey?: string }) => p.bucketKey === "Cash",
+    );
+    expect(cashRow).toBeDefined();
+    expect(cashRow.isin).toBe("");
+    expect(cashRow.manualMeta).toBeUndefined();
+    expect(typeof cashRow.cashCurrency === "string" || cashRow.cashCurrency === undefined).toBe(true);
+    expect(cashRow.weight).toBe(30);
+
+    // Reload and verify the row survives + remains a Cash sentinel row.
+    await page.reload();
+    await dismissWelcomeIfPresent(page);
+    await page.getByRole("tab", { name: /explain my portfolio/i }).tap();
+    await expect(page.getByTestId("explain-cash-currency-1")).toBeVisible();
+    await expect(page.getByTestId("explain-total")).toContainText(/100(\.0)?\s*%/);
+  });
+
   test("manual ISIN entry produces an analysis with user-supplied asset class", async ({
     page,
     context,
