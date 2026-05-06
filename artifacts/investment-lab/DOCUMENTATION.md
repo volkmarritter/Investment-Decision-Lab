@@ -636,8 +636,10 @@ Append a new entry whenever functionality changes. Newest first.
   - `ExplainPortfolio.tsx` `PositionRow`: Manual-Branch zeigt jetzt `[Picker | Free-Form-Input]` nebeneinander statt nur den Input. Picker-Test-ID `explain-unassigned-picker-${rowIndex}`. Free-Form-Eingabe für echte off-catalog-ISINs bleibt unverändert.
   - Neuer Handler `pickUnassignedInstrumentForRow` (atomar: setzt `isin` + `manualMeta` mit name/currency/terBps; assetClass/region default Equity/Global, da unassigned-Rows keine Bucket-Geographie haben — die existierenden Selects unter der Zeile lassen den User das nachträglich anpassen).
   - 3 i18n-Keys (EN+DE): `explain.manual.unassigned.{label,search,empty}`.
-  - 3 neue Unit-Tests in `tests/engine.test.ts` für den Helper (Rolle, Sortierung, kein Overlap mit default/alt/pool).
-- **Verifikation:** Typecheck PASS, Unit-Tests grün (621 / 621 = 618 vorher + 3 neue).
+  - **Auto-Klassifikation beim Pick:** neuer Helper `inferAssetClassRegionFromInstrument(rec)` in `etfs.ts` parst Name + Comment per Keyword-Heuristik (Bond/REIT/Gold/Bitcoin → Asset Class; S&P/EURO STOXX/Nikkei/EM/CHF → Region) und wird vom Pick-Handler genutzt, sodass der User nach dem Pick direkt eine plausible Asset-Klasse + Region sieht. Hatte der User vor dem Pick bereits eine nicht-Default-Wahl (≠ Equity/Global) für die Zeile getroffen, gewinnt seine Wahl. Die Selects unter der Zeile bleiben unverändert für Korrekturen.
+  - **Row-aware Exclusion:** Picker bekommt `currentIsin?: string` Prop — die ISIN der eigenen Zeile bleibt im Picker wählbar, auch wenn sie in `excludeIsins` (=alle Workspace-ISINs) steht. Dieselbe Konvention wie `IsinPicker` — nur ISINs aus ANDEREN Zeilen werden ausgeblendet.
+  - **Tests:** 3 Helper-Unit-Tests in `tests/engine.test.ts` + 15 neue Tests in `tests/unassignedInstrumentPicker.test.tsx` (4 Komponenten-Render-Tests via @testing-library/react: Render-Liste, Exclusion, current-row-Allowance, onPick-Payload; 11 `inferAssetClassRegionFromInstrument`-Cases pro Asset-Class und Region).
+- **Verifikation:** Typecheck PASS, Unit-Tests grün (645 / 645 = 627 vorher + 18 neue).
 
 ### 2026-05 (build-picker-slot-badge) — always-visible Default/Alt N/Pool tag with consistent colours
 

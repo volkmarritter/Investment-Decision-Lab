@@ -2696,8 +2696,8 @@ export function getBucketMeta(bucketKey: string): BucketMeta | undefined {
 // "unassigned" (i.e. registered in INSTRUMENTS but absent from every
 // BUCKETS slot — default OR alternative OR pool). Sorted alphabetically
 // by name so the user-facing picker is stable. Returned values are
-// shallow copies of the raw InstrumentRecord — no bucket join, since
-// these rows by definition have no bucket.
+// the raw InstrumentRecord references (Readonly-typed) — no bucket
+// join, since these rows by definition have no bucket.
 export function listUnassignedInstruments(): ReadonlyArray<Readonly<InstrumentRecord>> {
   const rows: InstrumentRecord[] = [];
   for (const isin of Object.keys(INSTRUMENTS)) {
@@ -2707,6 +2707,68 @@ export function listUnassignedInstruments(): ReadonlyArray<Readonly<InstrumentRe
   }
   rows.sort((a, b) => a.name.localeCompare(b.name));
   return rows;
+}
+
+// Task #156 — best-effort guess of (assetClass, region) for an
+// unassigned INSTRUMENTS row when the user picks it in the Explain
+// manual editor. The catalog has no first-class assetClass/region
+// fields per instrument (those normally come from the bucket the ISIN
+// is slotted into), so we fall back to keyword-matching the
+// human-readable `name` + `comment`. Output is always one of
+// MANUAL_ASSET_CLASSES × MANUAL_REGIONS in ExplainPortfolio.tsx — if
+// no rule fires, we return Equity / Global as a safe default. The
+// user can still override both via the existing dropdowns under the
+// row, so a wrong guess is at most one click of correction.
+export function inferAssetClassRegionFromInstrument(
+  rec: Pick<InstrumentRecord, "name" | "comment" | "currency">,
+): { assetClass: string; region: string } {
+  const hay = `${rec.name} ${rec.comment}`.toLowerCase();
+
+  // ---- assetClass ------------------------------------------------------
+  let assetClass = "Equity";
+  if (
+    /\b(bond|bonds|treasury|govt|aggregate bond|inflation-linked|fallen angels|money market|gilt|fixed income)\b/.test(
+      hay,
+    )
+  ) {
+    assetClass = "Fixed Income";
+  } else if (/\b(reit|reits|real estate|epra|nareit)\b/.test(hay)) {
+    assetClass = "Real Estate";
+  } else if (/\b(bitcoin|ether|ethereum|crypto|blockchain)\b/.test(hay)) {
+    assetClass = "Digital Assets";
+  } else if (
+    /\b(gold|silver|platinum|palladium|bullion|commodities|broad commodity)\b/.test(
+      hay,
+    )
+  ) {
+    assetClass = "Commodities";
+  }
+
+  // ---- region (only meaningful for Equity / Fixed Income / Real Estate)
+  let region = "Global";
+  if (assetClass === "Equity" || assetClass === "Fixed Income" || assetClass === "Real Estate") {
+    if (/\b(switzerland|swiss|smi|spi)\b/.test(hay) || rec.currency === "CHF") {
+      region = "Switzerland";
+    } else if (/\b(emerging markets|em equity|em bond|emerging|em\b)\b/.test(hay)) {
+      region = "Emerging Markets";
+    } else if (/\b(japan|nikkei|topix)\b/.test(hay)) {
+      region = "Japan";
+    } else if (
+      /\b(europe|european|eurozone|euro stoxx|euro corp|ftse 100|uk\b|britain|germany|france|italy|spain|dax|cac)\b/.test(
+        hay,
+      )
+    ) {
+      region = "Europe";
+    } else if (
+      /\b(usa|u\.s\.|united states|s&p 500|sp500|nasdaq|russell|us equity|us bond|us aggregate|us core|us treasury)\b/.test(
+        hay,
+      )
+    ) {
+      region = "USA";
+    }
+  }
+
+  return { assetClass, region };
 }
 
 export function listInstruments(): ReadonlyArray<

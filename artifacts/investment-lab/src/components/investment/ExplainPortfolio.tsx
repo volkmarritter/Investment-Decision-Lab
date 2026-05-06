@@ -60,6 +60,7 @@ import {
   getInstrumentByIsin,
   listInstruments,
   getInstrumentRole,
+  inferAssetClassRegionFromInstrument,
 } from "@/lib/etfs";
 import {
   PersonalPosition,
@@ -639,9 +640,11 @@ export function ExplainPortfolio() {
   // Task #156 — atomic fill of an off-catalog row from an unassigned
   // INSTRUMENTS entry. Sets isin AND seeds manualMeta in one setState
   // so the row never flickers through an inconsistent half-filled
-  // state. assetClass/region default to Equity/Global because
-  // unassigned rows have no bucket to derive geography from; the
-  // existing Select dropdowns let the user adjust afterward.
+  // state. assetClass/region are guessed from the instrument's name +
+  // comment (see inferAssetClassRegionFromInstrument); if the user
+  // had already chosen a non-default class/region for this row, that
+  // explicit choice wins over the guess. The dropdowns under the row
+  // let the user override either field afterward.
   function pickUnassignedInstrumentForRow(
     index: number,
     rec: Readonly<InstrumentRecord>,
@@ -650,14 +653,19 @@ export function ExplainPortfolio() {
       ...s,
       positions: s.positions.map((p, i) => {
         if (i !== index) return p;
-        const cur = p.manualMeta ?? { assetClass: "Equity", region: "Global" };
+        const guess = inferAssetClassRegionFromInstrument(rec);
+        const cur = p.manualMeta;
+        // Preserve a user-picked class/region only if it isn't the
+        // generic Equity/Global default — otherwise prefer the guess.
+        const userPickedClass =
+          cur && !(cur.assetClass === "Equity" && cur.region === "Global");
         return {
           ...p,
           isin: rec.isin,
           bucketKey: "",
           manualMeta: {
-            assetClass: cur.assetClass,
-            region: cur.region,
+            assetClass: userPickedClass ? cur!.assetClass : guess.assetClass,
+            region: userPickedClass ? cur!.region : guess.region,
             name: rec.name,
             currency: rec.currency,
             terBps: rec.terBps,
