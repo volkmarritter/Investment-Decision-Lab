@@ -56,6 +56,7 @@ type NavTabDef = {
   value: TabValue;
   icon: typeof Layers;
   labelKey: string;
+  shortLabelKey: string;
   subtitleKey: string;
   signalKey: "build" | "compare" | "explain" | null;
   testid: string;
@@ -65,6 +66,7 @@ const NAV_TABS: ReadonlyArray<NavTabDef> = [
     value: "build",
     icon: Layers,
     labelKey: "tab.build",
+    shortLabelKey: "tab.build.short",
     subtitleKey: "nav.build.subtitle",
     signalKey: "build",
     testid: "nav-tab-build",
@@ -73,6 +75,7 @@ const NAV_TABS: ReadonlyArray<NavTabDef> = [
     value: "compare",
     icon: Scale,
     labelKey: "tab.compare",
+    shortLabelKey: "tab.compare.short",
     subtitleKey: "nav.compare.subtitle",
     signalKey: "compare",
     testid: "nav-tab-compare",
@@ -81,6 +84,7 @@ const NAV_TABS: ReadonlyArray<NavTabDef> = [
     value: "explain",
     icon: PieChart,
     labelKey: "tab.explain",
+    shortLabelKey: "tab.explain.short",
     subtitleKey: "nav.explain.subtitle",
     signalKey: "explain",
     testid: "nav-tab-explain",
@@ -89,6 +93,7 @@ const NAV_TABS: ReadonlyArray<NavTabDef> = [
     value: "methodology",
     icon: BookOpen,
     labelKey: "tab.methodology",
+    shortLabelKey: "tab.methodology.short",
     subtitleKey: "nav.methodology.subtitle",
     signalKey: null,
     testid: "nav-tab-methodology",
@@ -145,16 +150,25 @@ function HeaderTabBar({
       className="grid w-full max-w-3xl grid-cols-4 h-auto gap-1 p-1"
       data-testid="nav-bar-header"
     >
-      {NAV_TABS.map((def) => {
+      {NAV_TABS.map((def, idx) => {
         const Icon = def.icon;
         const hasDot = def.signalKey !== null && signals[def.signalKey];
+        // Subtle vertical separator between adjacent tabs (rendered as a
+        // ::before pseudo-element on every item except the first). Using
+        // `before:` keeps the divider out of the grid track sizing so the
+        // four columns stay perfectly equal-width.
+        const dividerCls =
+          idx === 0
+            ? ""
+            : "before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-5 before:w-px before:bg-border/60";
         return (
           <Tooltip key={def.value}>
             <TooltipTrigger asChild>
               <TabsTrigger
                 value={def.value}
                 data-testid={def.testid}
-                className="flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 min-w-0 px-1 sm:px-3 py-2 text-[11px] sm:text-sm whitespace-normal text-center leading-tight break-words"
+                aria-label={t(def.labelKey)}
+                className={`relative flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 min-w-0 px-1 sm:px-3 py-2 text-[11px] sm:text-sm whitespace-normal text-center leading-tight break-words ${dividerCls}`}
               >
                 <span className="relative inline-flex shrink-0">
                   <Icon className="h-4 w-4 shrink-0" />
@@ -167,7 +181,20 @@ function HeaderTabBar({
                   )}
                 </span>
                 <span className="flex flex-col items-center sm:items-start min-w-0">
-                  <span className="truncate">{t(def.labelKey)}</span>
+                  {/* Short label (default); hidden once there's room for the
+                      full "… Portfolio(s)" version at md+. */}
+                  <span
+                    className="md:hidden truncate"
+                    data-testid={`nav-label-${def.value}`}
+                  >
+                    {t(def.shortLabelKey)}
+                  </span>
+                  <span
+                    className="hidden md:inline truncate"
+                    data-testid={`nav-label-${def.value}-full`}
+                  >
+                    {t(def.labelKey)}
+                  </span>
                   <span
                     className="hidden lg:inline text-[10px] font-normal text-muted-foreground leading-tight"
                     data-testid={`nav-subtitle-${def.value}`}
@@ -178,7 +205,7 @@ function HeaderTabBar({
               </TabsTrigger>
             </TooltipTrigger>
             <TooltipContent side="bottom" className="max-w-xs">
-              {t(def.subtitleKey)}
+              {t(def.labelKey)} — {t(def.subtitleKey)}
             </TooltipContent>
           </Tooltip>
         );
@@ -209,10 +236,14 @@ function MobileTabBar({
       className="grid grid-cols-4 h-auto w-full gap-0 p-1"
       data-testid="nav-bar-bottom"
     >
-      {NAV_TABS.map((def) => {
+      {NAV_TABS.map((def, idx) => {
         const Icon = def.icon;
         const hasDot = def.signalKey !== null && signals[def.signalKey];
         const isActive = current === def.value;
+        const dividerCls =
+          idx === 0
+            ? ""
+            : "before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-6 before:w-px before:bg-border/60";
         // Deliberately NO Tooltip wrapper here — on touch devices Radix
         // Tooltip's first-tap-shows-tooltip behavior + the trigger's
         // pointer-event proxy can swallow the navigation tap. The
@@ -226,10 +257,11 @@ function MobileTabBar({
             type="button"
             role="tab"
             aria-selected={isActive}
-            title={t(def.subtitleKey)}
+            aria-label={t(def.labelKey)}
+            title={`${t(def.labelKey)} — ${t(def.subtitleKey)}`}
             data-testid={`${def.testid}-mobile`}
             onClick={() => onSelect(def.value)}
-            className={`flex flex-col items-center justify-center gap-0.5 min-w-0 px-1 py-1.5 text-[10px] leading-tight rounded-md transition-colors ${
+            className={`relative flex flex-col items-center justify-center gap-0.5 min-w-0 px-1 py-1.5 text-[10px] leading-tight rounded-md transition-colors ${dividerCls} ${
               isActive
                 ? "bg-background text-foreground shadow-sm font-semibold"
                 : "text-muted-foreground hover:text-foreground"
@@ -245,7 +277,7 @@ function MobileTabBar({
                 />
               )}
             </span>
-            <span className="truncate">{t(def.labelKey)}</span>
+            <span className="truncate">{t(def.shortLabelKey)}</span>
           </button>
         );
       })}

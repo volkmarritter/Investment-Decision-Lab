@@ -19,6 +19,10 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "tab.compare": "Compare Portfolios",
     "tab.explain": "Explain My Portfolio",
     "tab.methodology": "Methodology",
+    "tab.build.short": "Build",
+    "tab.compare.short": "Compare",
+    "tab.explain.short": "Explain",
+    "tab.methodology.short": "Methodology",
 
     // Persistent four-module nav (Task #183) — each tab gets a single
     // short subtitle clause that doubles as the desktop sm+ tagline next
@@ -695,6 +699,10 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "tab.compare": "Portfolios Vergleichen",
     "tab.explain": "Portfolio Erklären",
     "tab.methodology": "Methodik",
+    "tab.build.short": "Erstellen",
+    "tab.compare.short": "Vergleichen",
+    "tab.explain.short": "Erklären",
+    "tab.methodology.short": "Methodik",
 
     // Persistent vier-Modul-Navigation (Task #183).
     "nav.build.subtitle": "Von Grund auf entwerfen",
