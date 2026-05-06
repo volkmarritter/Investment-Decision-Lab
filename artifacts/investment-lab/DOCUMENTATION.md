@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-05 (explain-manual-unassigned-picker)
+Last updated: 2026-05 (admin-tree-bucketed-lookthrough)
 
 ---
 
@@ -626,6 +626,13 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-05 (admin-tree-bucketed-lookthrough) — Look-through dialog reachable for bucketed ETFs
+
+- **Operator-Wunsch (Task #158):** Im Admin → Catalog → Browse-Baum zeigte die Spalte „LT-Status" zwar Data OK / Stale / Daten fehlen für jede Default-/Alt-/Pool-Zeile innerhalb eines Buckets, ließ sich aber nicht öffnen — der Look-through-Dialog (Top-Holdings, Geo, Sektor, Currency, justETF-Deeplink) war bisher nur über die „Pool-only"-Zeilen oben (Unclassified) erreichbar.
+- **Lösung:** `BucketRowsTable.tsx` bekommt in der bisher leeren Aktions-Spalte (rechts neben „Entfernen") für JEDE Zeile (Default, Alt, Pool) einen kleinen Ghost-Button „Look-through". Beim Klick öffnet sich der bereits existierende `EtfLookthroughDialog` (derselbe, der oben für Pool-only-Zeilen verwendet wird) für die ISIN dieser Zeile, mit Top-Holdings / Geo / Sektor / Currency und justETF-Deeplink. Hat eine ISIN keine Look-through-Daten, sagt der Dialog explizit „Keine LT-Daten" — die existierende „Fehlende Daten holen"-Sammelaktion im Header bleibt der Weg, um sie nachzuziehen.
+- **Implementierung:** Eine einzige `useState`-Slot `openLt: { isin, name } | null` pro Tabelle (eine pro Bucket); der Dialog wird einmalig unter `<table>` gerendert und mit der zuletzt geklickten ISIN befüllt — kein N-fach-DOM, keine zusätzlichen Re-Mounts. Bestehende „Entfernen"-Buttons (Alt/Pool) bleiben unverändert. Test-ID `button-tree-lookthrough-${isin}` folgt dem bestehenden Schema (gleicher Name wie auf den Pool-only-Zeilen — die beiden Surfaces sind nie gleichzeitig sichtbar, da sie in verschiedenen Bereichen des Trees liegen).
+- **Verifikation:** Typecheck PASS, Unit-Tests grün, e2e PASS (kein Selector verändert).
 
 ### 2026-05 (explain-manual-unassigned-picker) — pick unassigned catalog ETFs in Explain manual entry
 

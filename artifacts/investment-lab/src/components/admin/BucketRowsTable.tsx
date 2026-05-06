@@ -4,6 +4,7 @@
 // tree.
 // ----------------------------------------------------------------------------
 
+import { useState } from "react";
 import type {
   AlternativeEntrySummary,
   CatalogEntrySummary,
@@ -12,6 +13,7 @@ import type {
 import { useAdminT } from "@/lib/admin-i18n";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EtfLookthroughDialog } from "@/components/investment/EtfLookthroughDialog";
 import { LookthroughStatusBadge, PoolSourceBadge } from "./badges";
 import { AsOfCell } from "./shared";
 
@@ -37,7 +39,16 @@ export function BucketRowsTable({
   onRemovePool: (parentKey: string, isin: string, name: string) => void;
   githubConfigured: boolean;
 }) {
-  const { t, lang } = useAdminT();
+  const { t } = useAdminT();
+  // Task #158 — single shared dialog state for the per-row "Look-through"
+  // trigger. Only one dialog can be open at a time across the table; the
+  // EtfLookthroughDialog is rendered once below the table and re-targets
+  // its `isin`/`name` props based on which row was clicked. Keeps the DOM
+  // light (no N hidden dialogs) and matches the open/close pattern used
+  // by UnclassifiedRow above.
+  const [openLt, setOpenLt] = useState<{ isin: string; name: string } | null>(
+    null,
+  );
   const rows: Array<{
     role: "default" | "alt" | "pool";
     name: string;
@@ -132,6 +143,20 @@ export function BucketRowsTable({
                   />
                 </td>
                 <td className="px-2 py-1 text-right">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => setOpenLt({ isin: r.isin, name: r.name })}
+                    className="h-7 px-2 text-xs"
+                    data-testid={`button-tree-lookthrough-${r.isin}`}
+                    title={t({
+                      de: "Look-through-Daten ansehen",
+                      en: "View look-through data",
+                    })}
+                  >
+                    {t({ de: "Look-through", en: "Look-through" })}
+                  </Button>
                   {r.role === "alt" && githubConfigured && (
                     <Button
                       type="button"
@@ -162,6 +187,14 @@ export function BucketRowsTable({
           })}
         </tbody>
       </table>
+      <EtfLookthroughDialog
+        isin={openLt?.isin ?? null}
+        name={openLt?.name ?? null}
+        open={openLt !== null}
+        onOpenChange={(o) => {
+          if (!o) setOpenLt(null);
+        }}
+      />
     </div>
   );
 }
