@@ -169,10 +169,14 @@ function HeaderTabBar({
         // entirely. Inline styles always win over class-based rules
         // unless something explicitly uses !important on the same
         // property, which nothing in our stack does for these.
+        // Soft primary tint — matches the icon chip in the header
+        // (`bg-primary/10 text-primary`) so the active tab reads as
+        // "current section" without the loud full-blue fill.
         const activeStyle: React.CSSProperties | undefined = isActive
           ? {
-              backgroundColor: "hsl(var(--primary))",
-              color: "hsl(var(--primary-foreground))",
+              backgroundColor: "hsl(var(--primary) / 0.12)",
+              color: "hsl(var(--primary))",
+              boxShadow: "inset 0 -2px 0 0 hsl(var(--primary))",
             }
           : undefined;
         return (
