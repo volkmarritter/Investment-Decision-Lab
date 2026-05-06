@@ -102,6 +102,8 @@ import {
   navigateToTab,
   requestCompareLoadFromExplain,
   setLastExplainWorkspace,
+  subscribeExplainLoadRequests,
+  takePendingExplainLoadRequest,
   type CompareSlotName,
 } from "@/lib/explainCompare";
 import {
@@ -651,6 +653,36 @@ export function ExplainPortfolio() {
       setLastExplainWorkspace(null);
     };
   }, []);
+
+  // Receive "Send to Explain" requests from the Build tab (Task #175).
+  // Mirrors the request/take/subscribe pattern Compare uses for the
+  // Explain → Compare direction. We drain any pending request that
+  // arrived before this component mounted, then keep the subscription
+  // alive for in-session sends. Replacing state goes through the same
+  // [state]-watching saveState effect above so the new workspace is
+  // persisted to localStorage and republished to other tabs.
+  useEffect(() => {
+    const apply = (workspace: ExplainWorkspace) => {
+      const next: PersistedState = {
+        ...workspace,
+        positions: workspace.positions.map((p) => ({
+          ...p,
+          ...(p.manualMeta ? { manualMeta: { ...p.manualMeta } } : {}),
+        })),
+      };
+      setState(next);
+      syncDraftsFromPositions(next.positions);
+      toast.success(
+        lang === "de"
+          ? "Aus Build geladen"
+          : "Loaded from Build",
+      );
+    };
+    const pending = takePendingExplainLoadRequest();
+    if (pending) apply(pending.workspace);
+    return subscribeExplainLoadRequests((req) => apply(req.workspace));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lang]);
 
   function parseDraft(s: string): number {
     if (!s.trim()) return 0;

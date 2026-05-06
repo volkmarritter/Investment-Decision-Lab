@@ -627,6 +627,42 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+### 2026-05 (build-to-explain-handoff) — "Send to Explain" button on Build tab
+
+Mirrors the existing Explain → Compare handoff pattern so a generated
+Build portfolio can be carried into the Explain tab for position-level
+editing without re-entering everything by hand.
+
+- New helper `buildToExplainWorkspace(input, output)` in
+  `src/lib/explainCompare.ts` converts a `PortfolioInput` /
+  `PortfolioOutput` pair into the Explain `ExplainWorkspace` shape:
+  copies `baseCurrency`, `riskAppetite`, `horizon`,
+  `lookThroughView`, renames `includeCurrencyHedging` → `hedged`,
+  and maps each `etfImplementation` row to a `PersonalPosition`
+  (`isin`, `bucketKey: row.catalogKey ?? ""`, `weight`). Drops empty-ISIN
+  and zero-weight rows so off-catalog suggestions never poison Explain.
+- New cross-tab channel `requestExplainLoadFromBuild` /
+  `takePendingExplainLoadRequest` / `subscribeExplainLoadRequests`
+  (same pattern as the existing Explain→Compare load channel).
+  `ExplainPortfolio` mounts a `useEffect` that drains any pending
+  request on mount and subscribes for live ones, applies the workspace
+  via `setState` + `syncDraftsFromPositions`, and toasts
+  "Loaded from Build" / "Aus Build geladen".
+- New "Send to Explain" outline button in the BuildPortfolio results
+  header (next to the PDF buttons), gated on `output && validation.isValid`.
+  Replace-with-confirm contract: if the existing Explain workspace
+  already contains content (`explainWorkspaceHasContent`), an
+  `AlertDialog` asks the operator to confirm; otherwise the workspace
+  is replaced silently. After replace, the active tab switches to
+  Explain and a success toast fires.
+- I18n keys added (EN+DE): `build.btn.sendToExplain`,
+  `build.btn.sendToExplain.tooltip`, `build.btn.sendToExplain.toast`,
+  `build.sendToExplain.dialog.{title,body,cancel,confirm}`.
+- Tests: new unit suite `tests/buildToExplain.test.ts` (3 cases) for
+  the converter (settings copy, bucketKey mapping, drop empty/zero
+  rows). New e2e `tests/e2e/build-to-explain.spec.ts` covering the
+  silent first-load path and the second-click confirm dialog.
+
 ### 2026-05 (explain-clickable-isin) — clickable ISIN in Explain opens the ETF Details dialog
 
 Brings Build's ISIN affordance to the Explain tab. Every Explain row

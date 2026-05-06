@@ -119,6 +119,82 @@ export function subscribeCompareLoadRequests(
 }
 
 // ---------------------------------------------------------------------------
+// Channel 3: one-shot "send to explain" request (Build → Explain, Task #175)
+// ---------------------------------------------------------------------------
+//
+// Mirror of channels 1 + 2 above but in the opposite direction: the Build
+// tab synthesises an `ExplainWorkspace` from its current `{input, output}`
+// pair via `buildToExplainWorkspace` and dispatches it here. Explain
+// drains it on mount/subscription via `takePendingExplainLoadRequest` so
+// a tab switch back to Build doesn't replay an old request.
+
+export interface ExplainLoadRequest {
+  workspace: ExplainWorkspace;
+}
+
+const EXPLAIN_LOAD_EVENT = "idl-build-to-explain-request";
+let pendingExplainRequest: ExplainLoadRequest | null = null;
+
+export function requestExplainLoadFromBuild(workspace: ExplainWorkspace): void {
+  if (typeof window === "undefined") return;
+  pendingExplainRequest = { workspace: cloneWorkspace(workspace) };
+  window.dispatchEvent(
+    new CustomEvent(EXPLAIN_LOAD_EVENT, { detail: pendingExplainRequest }),
+  );
+}
+
+export function takePendingExplainLoadRequest(): ExplainLoadRequest | null {
+  const req = pendingExplainRequest;
+  pendingExplainRequest = null;
+  return req ? { workspace: cloneWorkspace(req.workspace) } : null;
+}
+
+export function subscribeExplainLoadRequests(
+  cb: (req: ExplainLoadRequest) => void,
+): () => void {
+  if (typeof window === "undefined") return () => {};
+  const handler = (e: Event) => {
+    const detail = (e as CustomEvent).detail as ExplainLoadRequest | null;
+    if (!detail) return;
+    pendingExplainRequest = null;
+    cb({ workspace: cloneWorkspace(detail.workspace) });
+  };
+  window.addEventListener(EXPLAIN_LOAD_EVENT, handler);
+  return () => window.removeEventListener(EXPLAIN_LOAD_EVENT, handler);
+}
+
+/**
+ * Convert a Build-tab `{input, output}` pair into an Explain workspace.
+ * Each ETFImplementation row becomes one PersonalPosition (catalog row;
+ * `manualMeta` left undefined). Empty-isin rows or zero-weight rows are
+ * dropped because they are never operator-set on Build (the engine always
+ * picks a concrete instrument and weight). Workspace settings are copied
+ * across with the simple field rename `includeCurrencyHedging` → `hedged`;
+ * `riskAppetite`, `horizon`, `baseCurrency`, `lookThroughView` are 1:1.
+ */
+export function buildToExplainWorkspace(
+  input: PortfolioInput,
+  output: PortfolioOutput,
+): ExplainWorkspace {
+  const positions = output.etfImplementation
+    .filter((row) => !!row.isin && row.weight > 0)
+    .map((row) => ({
+      isin: row.isin,
+      bucketKey: row.catalogKey ?? "",
+      weight: row.weight,
+    }));
+  return {
+    v: 1,
+    baseCurrency: input.baseCurrency,
+    riskAppetite: input.riskAppetite,
+    horizon: input.horizon,
+    hedged: input.includeCurrencyHedging,
+    lookThroughView: input.lookThroughView,
+    positions,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Tab navigation helper
 // ---------------------------------------------------------------------------
 //

@@ -79,6 +79,23 @@ import { DisclaimerPdfBlock } from "./Disclaimer";
 import { PortfolioReport } from "./PortfolioReport";
 import { useT } from "@/lib/i18n";
 import { exportEtfImplementationXlsx } from "@/lib/exportEtfImplementationXlsx";
+import {
+  buildToExplainWorkspace,
+  explainWorkspaceHasContent,
+  getLastExplainWorkspace,
+  navigateToTab,
+  requestExplainLoadFromBuild,
+} from "@/lib/explainCompare";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 const defaultValues: PortfolioInput = {
   baseCurrency: "CHF",
@@ -113,6 +130,10 @@ export function BuildPortfolio() {
   const [isExporting, setIsExporting] = useState(false);
   const [isExportingDetailed, setIsExportingDetailed] = useState(false);
   const [numETFsMode, setNumETFsMode] = useState<"auto" | "manual">("auto");
+  // Send-to-Explain confirm dialog (Task #175). Only opens when there's
+  // already non-empty content in the Explain workspace; an empty workspace
+  // is overwritten without prompting.
+  const [sendToExplainOpen, setSendToExplainOpen] = useState(false);
   const [detailsEtf, setDetailsEtf] = useState<import("@/lib/types").ETFImplementation | null>(null);
   // Persisted open/closed state for the "Rationale & Key Risks" collapsible
   // (Task #85). Hydrated synchronously from localStorage so the first render
@@ -934,6 +955,43 @@ export function BuildPortfolio() {
               <h2 className="text-2xl font-bold tracking-tight">Portfolio Results</h2>
               {output && validation.isValid && (
                 <div className="flex flex-wrap items-center gap-2">
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          if (!output) return;
+                          const existing = getLastExplainWorkspace();
+                          if (explainWorkspaceHasContent(existing)) {
+                            setSendToExplainOpen(true);
+                            return;
+                          }
+                          const current = form.getValues();
+                          const parsed: PortfolioInput = {
+                            ...current,
+                            horizon: Number(current.horizon),
+                            targetEquityPct: Number(current.targetEquityPct),
+                            numETFs: Number(current.numETFs),
+                            numETFsMin: Number(current.numETFsMin ?? current.numETFs),
+                          };
+                          requestExplainLoadFromBuild(
+                            buildToExplainWorkspace(parsed, output),
+                          );
+                          navigateToTab("explain");
+                          toast.success(t("build.btn.sendToExplain.toast"));
+                        }}
+                        disabled={!output}
+                        data-testid="build-send-to-explain"
+                      >
+                        <ArrowRight className="h-4 w-4 mr-2" />
+                        {t("build.btn.sendToExplain")}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-xs">
+                      {t("build.btn.sendToExplain.tooltip")}
+                    </TooltipContent>
+                  </Tooltip>
                   <Button
                     variant="outline"
                     size="sm"
@@ -1780,6 +1838,48 @@ export function BuildPortfolio() {
           </motion.div>
         )}
       </div>
+
+      {/* Send-to-Explain confirm dialog (Task #175). Shown only when the
+       *  Explain workspace already carries non-empty content; an empty
+       *  workspace is replaced silently. Replace-with-confirm contract
+       *  mirrors the rest of the lab's "load into …" affordances. */}
+      <AlertDialog open={sendToExplainOpen} onOpenChange={setSendToExplainOpen}>
+        <AlertDialogContent data-testid="build-send-to-explain-dialog">
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("build.sendToExplain.dialog.title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("build.sendToExplain.dialog.body")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="build-send-to-explain-cancel">
+              {t("build.sendToExplain.dialog.cancel")}
+            </AlertDialogCancel>
+            <AlertDialogAction
+              data-testid="build-send-to-explain-confirm"
+              onClick={() => {
+                if (!output) return;
+                const current = form.getValues();
+                const parsed: PortfolioInput = {
+                  ...current,
+                  horizon: Number(current.horizon),
+                  targetEquityPct: Number(current.targetEquityPct),
+                  numETFs: Number(current.numETFs),
+                  numETFsMin: Number(current.numETFsMin ?? current.numETFs),
+                };
+                requestExplainLoadFromBuild(
+                  buildToExplainWorkspace(parsed, output),
+                );
+                setSendToExplainOpen(false);
+                navigateToTab("explain");
+                toast.success(t("build.btn.sendToExplain.toast"));
+              }}
+            >
+              {t("build.sendToExplain.dialog.confirm")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
