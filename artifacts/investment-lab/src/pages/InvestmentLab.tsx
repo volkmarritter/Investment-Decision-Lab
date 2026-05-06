@@ -168,7 +168,7 @@ function HeaderTabBar({
                 value={def.value}
                 data-testid={def.testid}
                 aria-label={t(def.labelKey)}
-                className={`relative flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 min-w-0 px-1 sm:px-3 py-2 text-[11px] sm:text-sm whitespace-normal text-center leading-tight break-words text-muted-foreground hover:text-foreground hover:bg-muted/60 data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:font-semibold data-[state=active]:shadow-md data-[state=active]:hover:bg-primary data-[state=active]:hover:text-primary-foreground ${dividerCls}`}
+                className={`relative flex flex-col sm:flex-row items-center justify-center gap-1 sm:gap-2 min-w-0 px-1 sm:px-3 py-2 text-[11px] sm:text-sm whitespace-normal text-center leading-tight break-words text-muted-foreground hover:text-foreground hover:bg-muted/60 data-[state=active]:font-semibold data-[state=active]:shadow-md ${dividerCls}`}
               >
                 <span className="relative inline-flex shrink-0">
                   <Icon className="h-4 w-4 shrink-0" />
@@ -263,7 +263,7 @@ function MobileTabBar({
             onClick={() => onSelect(def.value)}
             className={`relative flex flex-col items-center justify-center gap-0.5 min-w-0 px-1 py-1.5 text-[10px] leading-tight rounded-md transition-colors ${dividerCls} ${
               isActive
-                ? "bg-primary text-primary-foreground shadow-md font-semibold"
+                ? "bg-background text-foreground shadow-md ring-1 ring-border font-semibold"
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
