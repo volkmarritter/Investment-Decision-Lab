@@ -168,6 +168,8 @@ export function ConsolidatedEtfTreePanel({
         if (entry.isin) s.add(entry.isin.toUpperCase());
         for (const alt of entry.alternatives ?? [])
           if (alt.isin) s.add(alt.isin.toUpperCase());
+        for (const poolEntry of entry.pool ?? [])
+          if (poolEntry.isin) s.add(poolEntry.isin.toUpperCase());
       }
     }
     return s;
