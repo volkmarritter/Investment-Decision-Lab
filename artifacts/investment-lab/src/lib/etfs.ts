@@ -2151,7 +2151,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
   }),
   "FixedIncome-Global-EUR": B({
     default: "IE00BDBRDM35",
-    alternatives: ["IE00BG47KB92", "LU0290355717"],
+    alternatives: [],
     pool: [],
   }),
   "FixedIncome-Global-CHF": B({
@@ -2179,17 +2179,17 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "Equity-Technology": B({
     default: "IE00B3WJKG14",
     alternatives: ["IE00B53SZB19", "IE00BM67HT60"],
-    pool: ["IE0032077012", "IE00BMFKG444", "IE00BYVQ9F29", "LU1681038243", "IE00BYZK4552", "IE00BLCHJB90"],
+    pool: ["IE0032077012", "IE00BMFKG444", "IE00BYVQ9F29", "IE00BYZK4552"],
   }),
   "Equity-Healthcare": B({
     default: "IE00BYZK4776",
     alternatives: ["IE00BM67HK77", "IE00B43HR379"],
-    pool: ["IE00B4K6B022", "IE00BJ5JNZ06", "IE00BMW42181"],
+    pool: ["IE00BJ5JNZ06", "IE00BMW42181"],
   }),
   "Equity-Sustainability": B({
     default: "IE00B1XNHC34",
-    alternatives: ["IE00BFNM3J75", "IE00BLRB0242"],
-    pool: ["IE00BHZPJ569", "IE00BFNM3P36"],
+    alternatives: ["IE00BLRB0242"],
+    pool: [],
   }),
   "Equity-Cybersecurity": B({
     default: "IE00BG0J4C88",
