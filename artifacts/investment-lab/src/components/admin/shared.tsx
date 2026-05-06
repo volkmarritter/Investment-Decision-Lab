@@ -129,7 +129,12 @@ export function buildDraftFromPreview(p: PreviewResponse): AddEtfRequest {
     replication: normalizeReplication(f.replication),
     distribution: normalizeDistribution(f.distribution),
     currency: typeof f.currency === "string" ? (f.currency as string) : "EUR",
-    comment: "",
+    // Task #165 — seed Comment from justETF's "Investment objective"
+    // when present. Operator can still overwrite before save.
+    comment:
+      typeof f.description === "string" && f.description.trim()
+        ? (f.description as string)
+        : "",
     listings,
     defaultExchange,
     aumMillionsEUR:
@@ -165,6 +170,15 @@ export function mergePreviewIntoAlternativeDraft(
     (Object.keys(mergedListings)[0] as Exchange | undefined) ??
     current.defaultExchange ??
     "LSE";
+  // Task #165 — seed Comment from the scraped "Investment objective"
+  // ONLY when the operator hasn't typed anything yet. Manual edits
+  // always win on a re-prefill.
+  const mergedComment =
+    current.comment && current.comment.trim()
+      ? current.comment
+      : typeof f.description === "string" && f.description.trim()
+        ? (f.description as string)
+        : current.comment;
   return {
     ...current,
     name: typeof f.name === "string" ? (f.name as string) : current.name,
@@ -181,6 +195,7 @@ export function mergePreviewIntoAlternativeDraft(
       typeof f.currency === "string"
         ? (f.currency as string)
         : current.currency,
+    comment: mergedComment,
     listings: mergedListings,
     defaultExchange,
   };

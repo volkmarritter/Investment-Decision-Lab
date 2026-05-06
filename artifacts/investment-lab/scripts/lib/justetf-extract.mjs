@@ -226,6 +226,39 @@ export const PREVIEW_EXTRACTORS = {
     if (!v) return undefined;
     return v;
   },
+  // Task #165 — short fund description scraped from justETF's
+  // "Investment objective" / "Anlageziel" block, used to seed the
+  // Comment field in the admin add-ETF flows so operators don't have
+  // to hand-write that field for every new ETF. We strip HTML tags,
+  // collapse whitespace, decode the few entities justETF uses, and
+  // cap the result at 500 chars (long enough for a 2-3 sentence
+  // summary, short enough that it doesn't blow up tooltips). The
+  // capture pattern walks at most ~400 chars between the heading and
+  // the first <p> so we don't cross-match into unrelated sections
+  // when justETF restructures the panel.
+  description: (html) => {
+    const m =
+      html.match(
+        /Investment\s+objective[\s\S]{0,400}?<p[^>]*>([\s\S]{20,3000}?)<\/p>/i,
+      ) ||
+      html.match(
+        /Anlageziel[\s\S]{0,400}?<p[^>]*>([\s\S]{20,3000}?)<\/p>/i,
+      );
+    if (!m) return undefined;
+    let text = m[1]
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&nbsp;/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!text || text.length < 20) return undefined;
+    if (text.length > 500) text = text.slice(0, 497).trimEnd() + "…";
+    return text;
+  },
 };
 
 // Normalises the CLI `--mode` flag into the value written to

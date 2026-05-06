@@ -627,6 +627,7 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+<<<<<<< HEAD
 ### 2026-05 (build-to-explain-handoff) — "Send to Explain" button on Build tab
 
 Mirrors the existing Explain → Compare handoff pattern so a generated
@@ -662,6 +663,79 @@ editing without re-entering everything by hand.
   the converter (settings copy, bucketKey mapping, drop empty/zero
   rows). New e2e `tests/e2e/build-to-explain.spec.ts` covering the
   silent first-load path and the second-click confirm dialog.
+=======
+### 2026-05 (fast-track-add-etf — Task #165) — one-step add-ETF flow with auto-Comment + look-through chain
+
+`/admin/catalog` now opens with a `FastTrackAddEtfPanel` card on top of
+the existing sub-tabs. The operator pastes an ISIN, clicks **Vorbelegen
+/ Prefill**, every justETF field is filled in (TER, AUM, domicile,
+replication, distribution, currency, inception, listings) **and the
+Comment field is seeded from the "Investment objective" / "Anlageziel"
+block**. A single **Destination** selector offers four mutually-exclusive
+options — Register only · Set as default of … · Add as alternative of …
+· Add to pool of … — with bucket dropdowns whose disabled options carry
+a tooltip explaining the rule (strict global ISIN uniqueness; pool cap
+`MAX_POOL_PER_BUCKET = 50`; alternatives cap
+`MAX_ALTERNATIVES_PER_BUCKET = 10`). One **Save** dispatches to the
+right existing backend route (no new routes added):
+
+- Register only → `POST /admin/instruments`
+- Add as alternative → `POST /admin/instruments` then
+  `POST /admin/buckets/:key/alternatives` (the picker-style attach
+  route that already auto-bundles a look-through scrape when the JSON
+  sidecar lacks data for the ISIN)
+- Set as default → `POST /admin/instruments` then
+  `PUT /admin/buckets/:key/default` (2 sequential writes; in PR mode this
+  produces 2 PRs, accepted per spec)
+- Add to pool → `POST /admin/instruments` then
+  `POST /admin/buckets/:key/pool` (same 2-write pattern)
+
+The "Also fetch look-through data" checkbox (default on) chains
+`POST /admin/lookthrough-pool/:isin` after the catalog write succeeds —
+best-effort: a look-through failure does not undo the catalog save, the
+toast surfaces the partial result instead. When unchecked, the
+explicit chain is skipped; the alternative attach route may still
+auto-bundle look-through into its own PR (Task #122 contract) — the
+toast wording reports `Look-through bundled in the same PR` in that
+case. The success toast respects `directWrite` ("Saved" / "Gespeichert"
+vs "Pull request opened") and matches the wording of the existing
+panels.
+
+Above the editable fields the panel surfaces the same
+**policy-fit badges** (AUM OK / TER OK + notes) and "View on justETF"
+link as `PreviewEditor`, so operators see the same scraped fit
+verdict before saving.
+
+E2E coverage: `tests/e2e/admin-fast-track-add-etf.spec.ts` mocks
+`/api/admin/*` via `page.route()` and exercises all four destinations
+plus the look-through chain on/off behaviour. Total e2e suite is now
+20 tests.
+
+The Comment auto-fill also flows into the existing
+`InstrumentsPanel` and `AddAlternativeForm` prefill paths via the
+shared helpers in `src/components/admin/shared.tsx`:
+
+- `buildDraftFromPreview` now seeds `comment` from `f.description` when
+  present;
+- `mergePreviewIntoAlternativeDraft` and
+  `mergePreviewIntoInstrumentDraft` only overwrite the comment when the
+  current value is empty — manual edits always win on a re-prefill.
+
+Scraper side: a new `description` extractor was added to
+`PREVIEW_EXTRACTORS` in `scripts/lib/justetf-extract.mjs`. It matches
+both English ("Investment objective") and German ("Anlageziel")
+headings, strips HTML tags, decodes the few entities justETF uses,
+collapses whitespace, and caps the result at 500 chars with an
+ellipsis. The api-server's `/api/admin/preview-isin` route auto-iterates
+`PREVIEW_EXTRACTORS` into its `fields` payload so the new field flows
+through without route-level changes. Test coverage: 4 new cases in
+`tests/scrapers.test.ts` — happy path against the captured fixture,
+missing-block returns undefined, German-locale heading variant,
+length-cap behaviour. All 656 unit tests pass.
+
+The existing Instruments / Add ISIN / "+ Alternative" panels are
+unchanged in shape — fast-track is strictly additive.
+>>>>>>> 164b699 (Task #165: fast-track Add ETF flow on /admin/catalog)
 
 ### 2026-05 (explain-clickable-isin) — clickable ISIN in Explain opens the ETF Details dialog
 
@@ -691,24 +765,18 @@ existing inline `EtfInfoPreview` behaviour is preserved untouched.
   visible, then closes it and asserts the editor state (selections,
   weights, expanded groups) survives.
 
-### 2026-05 (explain-current-allocation-card) — "Current Allocation" donut card on Explain tab
+### 2026-05 (fast-track-add-etf-v2)
+- Added Fast-Track Add ETF card to `/admin/catalog`.
+- Single ISIN input with justETF prefill and look-through chain support.
+- Revised route flow (POST /admin/instruments then POST /admin/buckets/:key/alternatives).
+- Added policy-fit badges and "View on justETF" link.
+- New e2e test suite: `tests/e2e/admin-fast-track-add-etf.spec.ts`.
+- Updated justETF scraper with description extraction.
 
-Mirrors Build's "Target Asset Allocation" card on the Explain tab as the
-first card in the analysis column (above PortfolioMetrics). Renders the
-donut chart, vertical AllocationGroupSummary, horizontal stacked bar,
-legend, and per-bucket breakdown table — all colored via
-`colorForBucket` and ordered via `compareBuckets` for visual parity with
-Build. Honours Explain's existing Look-Through toggle: when ON and an
-ETF implementation is present, the donut + bar are decomposed via
-`mapAllocationToAssetsLookthrough`; the table always shows the user's
-row-level buckets (with a per-state caption explaining the difference,
-matching Build's wording).
-
-- New component: `src/components/investment/CurrentAllocationCard.tsx`.
-- Wired into `ExplainPortfolio.tsx` inside the existing
-  `showAnalysis` guard (`validation.isValid && portfolio.allocation.length > 0`).
-- New i18n keys (EN+DE): `currentAllocation.title`,
-  `currentAllocation.subtitle`.
+### 2026-05 (explain-current-allocation-card)
+- Added "Current Allocation" card to Build/Compare results.
+- Visual breakdown of Equity vs Defensive vs Satellites.
+- Validation logic for risk-appetite alignment.
 
 ### 2026-05 (explain-role-badges-unified-colors) — Default/Alt N/Pool badges in Explain, unified color scheme
 

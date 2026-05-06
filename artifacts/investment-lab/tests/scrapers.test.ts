@@ -20,6 +20,7 @@ import path from "node:path";
 import {
   CORE_EXTRACTORS,
   LISTINGS_EXTRACTORS,
+  PREVIEW_EXTRACTORS,
   VENUE_MAP,
   lastRefreshedModeFor,
 } from "../scripts/refresh-justetf.mjs";
@@ -74,6 +75,39 @@ describe("refresh-justetf CORE_EXTRACTORS", () => {
     expect(CORE_EXTRACTORS.distribution(empty)).toBeUndefined();
     expect(CORE_EXTRACTORS.replication(empty)).toBeUndefined();
     expect(CORE_EXTRACTORS.inceptionDate(empty)).toBeUndefined();
+  });
+});
+
+describe("refresh-justetf PREVIEW_EXTRACTORS.description (Task #165)", () => {
+  // The "Investment objective" block in profile-core-fields.html is
+  // the canonical happy-path fixture.
+  const html = fx("profile-core-fields.html");
+
+  it("extracts the investment-objective paragraph as a clean string", () => {
+    const out = PREVIEW_EXTRACTORS.description(html);
+    expect(typeof out).toBe("string");
+    expect(out as string).toMatch(/MSCI World index/);
+    // No HTML tags or stray entities should leak through.
+    expect(out as string).not.toMatch(/[<>]/);
+  });
+
+  it("returns undefined when the block is missing", () => {
+    expect(PREVIEW_EXTRACTORS.description("<html><body><h1>x</h1></body></html>")).toBeUndefined();
+  });
+
+  it("matches the German 'Anlageziel' heading too", () => {
+    const de =
+      "<section><h2>Anlageziel</h2><p>Der Fonds bildet die Wertentwicklung des MSCI-World-Index ab.</p></section>";
+    const out = PREVIEW_EXTRACTORS.description(de);
+    expect(out as string).toMatch(/MSCI-World-Index/);
+  });
+
+  it("caps the result at 500 characters with an ellipsis", () => {
+    const long =
+      "<h2>Investment objective</h2><p>" + "x".repeat(2000) + "</p>";
+    const out = PREVIEW_EXTRACTORS.description(long) as string;
+    expect(out.length).toBeLessThanOrEqual(500);
+    expect(out.endsWith("…")).toBe(true);
   });
 });
 

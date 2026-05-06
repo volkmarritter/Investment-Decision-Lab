@@ -9,6 +9,7 @@ import { ConsolidatedEtfTreePanel } from "@/components/admin/ConsolidatedEtfTree
 import { SuggestIsinPanel } from "@/components/admin/SuggestIsinPanel";
 import { BatchAddAlternativesPanel } from "@/components/admin/BatchAddAlternativesPanel";
 import { InstrumentsPanel } from "@/components/admin/InstrumentsPanel";
+import { FastTrackAddEtfPanel } from "@/components/admin/FastTrackAddEtfPanel";
 
 export default function Catalog() {
   const { t } = useAdminT();
@@ -115,6 +116,15 @@ export default function Catalog() {
         description={description}
         primaryAction={primaryAction}
         testid="header-admin-catalog"
+      />
+      {/* Task #165 — fast-track landing card, visible from every Catalog
+          sub-tab so the operator can paste-and-save without first
+          navigating to a specific tab. The dedicated panels below stay
+          available for edge cases (batch, manual edit, look-through-only,
+          register-only with no destination dropdown, …). */}
+      <FastTrackAddEtfPanel
+        catalog={catalog}
+        githubConfigured={githubConfigured}
       />
       <SubTabNav tabs={tabs} testid="subnav-catalog" />
       <div data-testid={`subpage-catalog-${active}`}>
