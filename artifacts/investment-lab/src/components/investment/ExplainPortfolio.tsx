@@ -82,6 +82,7 @@ import type { InstrumentRecord } from "@/lib/etfs";
 import type { RiskRegime } from "@/lib/metrics";
 import { useT } from "@/lib/i18n";
 
+import { CurrentAllocationCard } from "./CurrentAllocationCard";
 import { PortfolioMetrics } from "./PortfolioMetrics";
 import { MonteCarloSimulation } from "./MonteCarloSimulation";
 import { FeeEstimator } from "./FeeEstimator";
@@ -1495,6 +1496,20 @@ export function ExplainPortfolio() {
         // Insights) are intentionally absent — Explain doesn't pick ETFs and
         // doesn't synthesize learning copy.
         <div className="space-y-6" data-testid="explain-analysis">
+          {/* Task #162 — "Current Allocation" mirrors Build's Target
+           *  Asset Allocation card (donut + group summary + stacked bar
+           *  + per-bucket table). Renders as the first analysis card so
+           *  users see the structural composition before drilling into
+           *  the risk/return story below. Honors the existing Look-
+           *  Through toggle (decomposes pie + bar via the ETF holdings
+           *  when ON; the table always shows the user's row buckets). */}
+          <CurrentAllocationCard
+            allocation={portfolio.allocation}
+            etfImplementation={portfolio.etfImplementation}
+            baseCurrency={state.baseCurrency}
+            lookThroughView={state.lookThroughView}
+          />
+
           <CurrencyOverview
             etfs={portfolio.etfImplementation}
             baseCurrency={state.baseCurrency}
