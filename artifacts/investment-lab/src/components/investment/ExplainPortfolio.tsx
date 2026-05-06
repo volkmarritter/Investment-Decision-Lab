@@ -65,10 +65,9 @@ import {
   pickDefaultListing,
 } from "@/lib/etfs";
 import {
-  slotBadgeClassName,
-  slotBadgeVariant,
   type SlotKind,
 } from "./etfSlotBadge";
+import { SlotTagBadge } from "./SlotTagBadge";
 import {
   PersonalPosition,
   EXPLAIN_CASH_BUCKET_SENTINEL,
@@ -366,13 +365,11 @@ function IsinPicker({ value, onPick, excludeIsins, testId, restrictToBucketKey }
                                   ? `isin-option-pool-badge-${r.isin}`
                                   : `isin-option-alt-badge-${r.isin}`;
                             return (
-                              <Badge
-                                variant={slotBadgeVariant(kind)}
-                                className={slotBadgeClassName(kind)}
-                                data-testid={testId}
-                              >
-                                {label}
-                              </Badge>
+                              <SlotTagBadge
+                                kind={kind}
+                                label={label}
+                                testId={testId}
+                              />
                             );
                           })()}
                         </div>

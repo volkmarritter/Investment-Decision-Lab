@@ -40,11 +40,8 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
 import { MaximisableSection } from "./MaximisableSection";
-import {
-  getSlotKind,
-  slotBadgeClassName,
-  slotBadgeVariant,
-} from "./etfSlotBadge";
+import { getSlotKind } from "./etfSlotBadge";
+import { SlotTagBadge } from "./SlotTagBadge";
 import { cn } from "@/lib/utils";
 
 import { PortfolioInput, PortfolioOutput, ValidationResult } from "@/lib/types";
@@ -1477,12 +1474,10 @@ export function BuildPortfolio() {
                                                     <span className="font-medium text-xs">
                                                       {opt.name}
                                                     </span>
-                                                    <Badge
-                                                      variant={slotBadgeVariant(optKind)}
-                                                      className={slotBadgeClassName(optKind)}
-                                                    >
-                                                      {optLabel}
-                                                    </Badge>
+                                                    <SlotTagBadge
+                                                      kind={optKind}
+                                                      label={optLabel}
+                                                    />
                                                   </div>
                                                   <span className="text-[10px] text-muted-foreground font-mono">
                                                     {opt.isin} ·{" "}
@@ -1505,13 +1500,11 @@ export function BuildPortfolio() {
                                           )}
                                         </SelectContent>
                                       </Select>
-                                      <Badge
-                                        variant={slotBadgeVariant(selectedKind)}
-                                        className={slotBadgeClassName(selectedKind)}
-                                        data-testid={`etf-picker-slot-badge-${etf.bucket}`}
-                                      >
-                                        {slotBadgeLabel}
-                                      </Badge>
+                                      <SlotTagBadge
+                                        kind={selectedKind}
+                                        label={slotBadgeLabel}
+                                        testId={`etf-picker-slot-badge-${etf.bucket}`}
+                                      />
                                     </div>
                                   );
                                 })()}

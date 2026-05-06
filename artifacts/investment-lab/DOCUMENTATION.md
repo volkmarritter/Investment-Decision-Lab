@@ -627,6 +627,26 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+### 2026-05 (slot-tag-tooltips — Task #167)
+
+Added hover/tap tooltips to the **Default / Alternative / Pool** slot
+tags rendered in Build and Explain. Plain-language copy is provided in
+EN + DE via three new `slotTag.tooltip.*` keys in `src/lib/i18n.tsx`.
+
+- New shared component `src/components/investment/SlotTagBadge.tsx`
+  wraps the existing slot `<Badge>` (preserving its `variant` /
+  `className` from `etfSlotBadge.ts`) inside the app's standard
+  Radix `<Tooltip>` so behaviour matches the rest of the app
+  (hover, focus, and touch via long-press).
+- Wired into Build's two slot-tag render sites in
+  `BuildPortfolio.tsx` — the inline tag next to the per-bucket
+  `<Select>` trigger and the per-option tag inside the unified
+  picker dropdown — and into Explain's per-bucket tag in
+  `ExplainPortfolio.tsx` (the `getInstrumentRole`-driven badge).
+- Existing slot colors (default = secondary, alternative = green,
+  pool = orange) and layout are unchanged; only the tooltip
+  affordance is added.
+
 ### 2026-05 (explain-cash-pseudo-group — Task #174)
 
 Added a first-class **Cash** pseudo-group at the top of the Explain

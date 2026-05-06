@@ -567,6 +567,9 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "build.impl.moreEtfs.empty": "No matching ETFs in this pool.",
     "build.impl.moreEtfs.disclaimer": "Pool entries — not curated recommendations.",
     "build.impl.moreEtfs.close": "Close",
+    "slotTag.tooltip.default": "The bucket's standard ETF. Used automatically unless you pick a different one.",
+    "slotTag.tooltip.alternative": "A curated alternative for this bucket — vetted to fit the same role as the default.",
+    "slotTag.tooltip.pool": "An extended-universe ETF assigned to this bucket. Available as an additional choice but not part of the curated default/alternative shortlist.",
 
     // Monte Carlo
     "mc.title": "Monte Carlo Simulation",
@@ -1217,6 +1220,9 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "build.impl.moreEtfs.empty": "Keine passenden ETFs im Pool.",
     "build.impl.moreEtfs.disclaimer": "Pool-Einträge — keine kuratierten Empfehlungen.",
     "build.impl.moreEtfs.close": "Schließen",
+    "slotTag.tooltip.default": "Der Standard-ETF dieses Buckets. Wird automatisch verwendet, sofern Sie keinen anderen wählen.",
+    "slotTag.tooltip.alternative": "Eine kuratierte Alternative für diesen Bucket — geprüft, um die gleiche Rolle wie der Standard zu erfüllen.",
+    "slotTag.tooltip.pool": "Ein ETF aus dem erweiterten Universum dieses Buckets. Zusätzlich wählbar, aber nicht Teil der kuratierten Standard-/Alternative-Auswahl.",
 
     // Monte Carlo
     "mc.title": "Monte-Carlo-Simulation",
