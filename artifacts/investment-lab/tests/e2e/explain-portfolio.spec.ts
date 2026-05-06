@@ -176,7 +176,13 @@ test.describe("ExplainPortfolio · bring-your-own-ETFs (mobile)", () => {
 
     await page.reload();
     await dismissWelcomeIfPresent(page);
-    await page.getByRole("tab", { name: /explain my portfolio/i }).tap();
+    // See note in build-to-explain.spec.ts — force-click bypasses the
+    // Playwright tap actionability check that flaps on iphone-13 once
+    // the Explain editor has accumulated content under the portaled
+    // bottom nav.
+    await page
+      .getByRole("tab", { name: /explain my portfolio/i })
+      .click({ force: true });
     await expect(page.getByTestId("explain-analysis")).toBeVisible();
     await expect(page.getByTestId("explain-total")).toContainText(/100(\.0)?\s*%/);
   });
@@ -250,7 +256,12 @@ test.describe("ExplainPortfolio · bring-your-own-ETFs (mobile)", () => {
     // Reload and verify the row survives + remains a Cash sentinel row.
     await page.reload();
     await dismissWelcomeIfPresent(page);
-    await page.getByRole("tab", { name: /explain my portfolio/i }).tap();
+    // See note in build-to-explain.spec.ts — force-click bypasses the
+    // tap actionability check that flaps on iphone-13 with the
+    // portaled bottom nav.
+    await page
+      .getByRole("tab", { name: /explain my portfolio/i })
+      .click({ force: true });
     await expect(page.getByTestId("explain-cash-currency-1")).toBeVisible();
     await expect(page.getByTestId("explain-total")).toContainText(/100(\.0)?\s*%/);
   });

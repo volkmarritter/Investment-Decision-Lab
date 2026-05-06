@@ -20,6 +20,15 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "tab.explain": "Explain My Portfolio",
     "tab.methodology": "Methodology",
 
+    // Persistent four-module nav (Task #183) — each tab gets a single
+    // short subtitle clause that doubles as the desktop sm+ tagline next
+    // to the label and as the hover tooltip on both the desktop sticky
+    // header bar and the mobile fixed bottom bar.
+    "nav.build.subtitle": "Design from scratch",
+    "nav.compare.subtitle": "A vs B side-by-side",
+    "nav.explain.subtitle": "Bring your own ETFs",
+    "nav.methodology.subtitle": "How the engine thinks",
+
     // Welcome dialog (Task #96) — shown shortly after the app shell mounts
     // to explain that an example portfolio has been auto-generated and the
     // user is free to change inputs and build their own.
@@ -194,6 +203,12 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "build.sendToExplain.dialog.body": "Your Explain tab already contains positions. Sending this Build portfolio will replace them with the ETFs from this generated portfolio.",
     "build.sendToExplain.dialog.cancel": "Cancel",
     "build.sendToExplain.dialog.confirm": "Replace and open Explain",
+    // Task #183 — bottom-of-results CTA card on Build that promotes the
+    // Build → Explain handoff (mirror in Explain below for the Compare
+    // direction). Reuses the existing send-to-explain handler.
+    "build.nextCta.title": "Next: Analyse in Explain",
+    "build.nextCta.body": "Hand this generated portfolio to the Explain tab to adjust individual ETFs and weights, or test what-if changes.",
+    "build.nextCta.button": "Open in Explain",
     "build.btn.exportPdf": "PDF report",
     "build.btn.exportPdfDetailed": "Detailed PDF",
     "build.btn.exportingPdf": "Generating PDF…",
@@ -304,6 +319,12 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "explain.btn.sendToCompare": "Send to Compare…",
     "explain.btn.sendToCompare.slotA": "Load into Portfolio A",
     "explain.btn.sendToCompare.slotB": "Load into Portfolio B",
+    // Task #183 — bottom-of-report inline CTA promoting the Explain →
+    // Compare handoff. Reuses the existing send-to-compare slot
+    // dropdown; this card just gives it a prominent home below the
+    // analysis cards instead of only living in the editor header.
+    "explain.nextCta.title": "Next: Compare against another portfolio",
+    "explain.nextCta.body": "Send this workspace to Slot A or Slot B on the Compare tab to view structural differences side-by-side.",
     "explain.picker.placeholder": "Select an ETF…",
     "explain.picker.search": "Search by name, ISIN, currency…",
     "explain.picker.empty": "No matching instruments.",
@@ -675,6 +696,12 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "tab.explain": "Portfolio Erklären",
     "tab.methodology": "Methodik",
 
+    // Persistent vier-Modul-Navigation (Task #183).
+    "nav.build.subtitle": "Von Grund auf entwerfen",
+    "nav.compare.subtitle": "A vs. B im Direktvergleich",
+    "nav.explain.subtitle": "Eigene ETFs einbringen",
+    "nav.methodology.subtitle": "Wie die Engine denkt",
+
     // Welcome dialog (Task #96) — shown shortly after the app shell mounts
     // to explain that an example portfolio has been auto-generated and the
     // user is free to change inputs and build their own.
@@ -849,6 +876,9 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "build.sendToExplain.dialog.body": "Im Tab Erklären sind bereits Positionen vorhanden. Wenn du dieses Build-Portfolio sendest, werden sie durch die ETFs aus diesem generierten Portfolio ersetzt.",
     "build.sendToExplain.dialog.cancel": "Abbrechen",
     "build.sendToExplain.dialog.confirm": "Ersetzen und Erklären öffnen",
+    "build.nextCta.title": "Nächster Schritt: In Erklären analysieren",
+    "build.nextCta.body": "Übergeben Sie dieses generierte Portfolio an den Erklären-Tab, um einzelne ETFs und Gewichte anzupassen oder Was-wäre-wenn-Änderungen zu testen.",
+    "build.nextCta.button": "In Erklären öffnen",
     "build.btn.exportPdf": "PDF-Report",
     "build.btn.exportPdfDetailed": "Ausführlicher PDF-Report",
     "build.btn.exportingPdf": "PDF wird erstellt…",
@@ -959,6 +989,8 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "explain.btn.sendToCompare": "An Vergleichen senden …",
     "explain.btn.sendToCompare.slotA": "In Portfolio A laden",
     "explain.btn.sendToCompare.slotB": "In Portfolio B laden",
+    "explain.nextCta.title": "Nächster Schritt: Mit einem anderen Portfolio vergleichen",
+    "explain.nextCta.body": "Senden Sie diesen Arbeitsbereich an Slot A oder Slot B im Vergleichen-Tab, um strukturelle Unterschiede direkt nebeneinander zu sehen.",
     "explain.picker.placeholder": "ETF auswählen…",
     "explain.picker.search": "Suche nach Name, ISIN, Währung…",
     "explain.picker.empty": "Keine passenden Instrumente.",

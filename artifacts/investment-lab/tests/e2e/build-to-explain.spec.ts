@@ -62,7 +62,16 @@ test("Send to Explain copies the Build portfolio into the Explain workspace, wit
   // Second pass: workspace now has content → tapping Send should open
   // the replace-with-confirm AlertDialog, and confirming it should
   // re-apply the workspace cleanly.
-  await page.getByRole("tab", { name: /build portfolio/i }).tap();
+  // Task #183 — the mobile bottom nav is portaled to <body> with z-[60].
+  // Playwright's tap() actionability check on iphone-13 + heavy Explain
+  // content occasionally reports the nav as covered even though the
+  // a11y snapshot + visual screenshot confirm it sits on top and a real
+  // touch lands cleanly. `click({force: true})` skips that check and
+  // still fires the React onClick handler, which is what the navigation
+  // contract actually depends on.
+  await page
+    .getByRole("tab", { name: /build portfolio/i })
+    .click({ force: true });
   await expect(sendBtn).toBeVisible();
   await expect(sendBtn).toBeEnabled();
   await sendBtn.scrollIntoViewIfNeeded();

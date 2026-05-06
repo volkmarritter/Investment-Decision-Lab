@@ -143,6 +143,36 @@ export function BuildPortfolio() {
   const pdfRef = useRef<HTMLDivElement>(null);
   const pdfDetailedRef = useRef<HTMLDivElement>(null);
 
+  // Task #183 — extracted from the inline send-to-explain button so the
+  // bottom-of-results "Next: Analyse in Explain" CTA can reuse the exact
+  // same handoff (replace-with-confirm if Explain already has content,
+  // silent overwrite otherwise). Keeping the logic in one place avoids
+  // drift between the two entry points.
+  function handleSendToExplainClick() {
+    if (!output) return;
+    const existing = getLastExplainWorkspace();
+    if (explainWorkspaceHasContent(existing)) {
+      setSendToExplainOpen(true);
+      return;
+    }
+    const current = form.getValues();
+    const parsed: PortfolioInput = {
+      ...current,
+      horizon: Number(current.horizon),
+      targetEquityPct: Number(current.targetEquityPct),
+      numETFs: Number(current.numETFs),
+      numETFsMin: Number(current.numETFsMin ?? current.numETFs),
+    };
+    const ws = buildToExplainWorkspace(parsed, output);
+    requestExplainLoadFromBuild(ws);
+    navigateToTab("explain");
+    toast.success(
+      t("build.btn.sendToExplain.toast", {
+        count: ws.positions.length,
+      }),
+    );
+  }
+
   // Auto-adjust the Number of ETFs to match the natural bucket count whenever
   // the user toggles satellite asset classes (Commodities, REITs, Crypto) or
   // changes the Thematic tilt — but only as long as they haven't manually
@@ -939,30 +969,7 @@ export function BuildPortfolio() {
                         size="sm"
                         disabled={!output || !validation?.isValid}
                         data-testid="build-send-to-explain"
-                        onClick={() => {
-                          if (!output) return;
-                          const existing = getLastExplainWorkspace();
-                          if (explainWorkspaceHasContent(existing)) {
-                            setSendToExplainOpen(true);
-                            return;
-                          }
-                          const current = form.getValues();
-                          const parsed: PortfolioInput = {
-                            ...current,
-                            horizon: Number(current.horizon),
-                            targetEquityPct: Number(current.targetEquityPct),
-                            numETFs: Number(current.numETFs),
-                            numETFsMin: Number(current.numETFsMin ?? current.numETFs),
-                          };
-                          const ws = buildToExplainWorkspace(parsed, output);
-                          requestExplainLoadFromBuild(ws);
-                          navigateToTab("explain");
-                          toast.success(
-                            t("build.btn.sendToExplain.toast", {
-                              count: ws.positions.length,
-                            }),
-                          );
-                        }}
+                        onClick={handleSendToExplainClick}
                       >
                         <ArrowRight className="h-4 w-4 mr-2" />
                         {t("build.btn.sendToExplain")}
@@ -1784,6 +1791,39 @@ export function BuildPortfolio() {
                     ))}
                   </div>
                 </div>
+
+                {/* Task #183 — bottom-of-results "Next" CTA promoting the
+                 *  Build → Explain handoff. Mirrors the Editor sidebar's
+                 *  send-to-explain button (same handler) but gives it a
+                 *  prominent home at the natural reading exit so users
+                 *  who read top-to-bottom discover the cross-tab flow
+                 *  without having to scroll back up the sidebar. */}
+                <Card
+                  className="border-primary/30 bg-primary/5"
+                  data-testid="build-next-cta"
+                >
+                  <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div className="space-y-1 min-w-0">
+                      <div className="text-sm font-semibold text-primary">
+                        {t("build.nextCta.title")}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {t("build.nextCta.body")}
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="shrink-0"
+                      disabled={!output || !validation?.isValid}
+                      onClick={handleSendToExplainClick}
+                      data-testid="build-next-cta-button"
+                    >
+                      {t("build.nextCta.button")}
+                      <ArrowRight className="h-4 w-4 ml-2" />
+                    </Button>
+                  </CardContent>
+                </Card>
               </>
             )}
             <DisclaimerPdfBlock />

@@ -1969,6 +1969,56 @@ export function ExplainPortfolio() {
             hedged={state.hedged}
             etfImplementations={portfolio.etfImplementation}
           />
+
+          {/* Task #183 — inline bottom-of-report CTA promoting the
+           *  Explain → Compare handoff. Reuses the existing
+           *  sendToCompare(slot) handler (same one wired to the
+           *  editor-header dropdown) so the slot persistence /
+           *  navigation contract is identical. Disabled mirrors
+           *  `canSendToCompare` from the header button. */}
+          <Card
+            className="border-primary/30 bg-primary/5"
+            data-testid="explain-next-cta"
+          >
+            <CardContent className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="space-y-1 min-w-0">
+                <div className="text-sm font-semibold text-primary">
+                  {t("explain.nextCta.title")}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {t("explain.nextCta.body")}
+                </div>
+              </div>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="shrink-0"
+                    disabled={!canSendToCompare}
+                    data-testid="explain-next-cta-button"
+                  >
+                    <Scale className="mr-1.5 h-3 w-3" />
+                    {t("explain.btn.sendToCompare")}
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem
+                    onSelect={() => sendToCompare("A")}
+                    data-testid="explain-next-cta-slot-a"
+                  >
+                    {t("explain.btn.sendToCompare.slotA")}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    onSelect={() => sendToCompare("B")}
+                    data-testid="explain-next-cta-slot-b"
+                  >
+                    {t("explain.btn.sendToCompare.slotB")}
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </CardContent>
+          </Card>
         </div>
       )}
 
