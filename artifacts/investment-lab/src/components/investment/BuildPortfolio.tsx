@@ -1434,7 +1434,7 @@ export function BuildPortfolio() {
                                     (o) => o.kind === "pool",
                                   ).length;
                                   return (
-                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                    <div className="flex items-center gap-1.5 flex-nowrap min-w-0">
                                       <Select
                                         value={String(etf.selectedSlot)}
                                         onValueChange={(v) =>
@@ -1445,7 +1445,7 @@ export function BuildPortfolio() {
                                         }
                                       >
                                         <SelectTrigger
-                                          className="h-7 px-2 text-xs gap-1.5 w-auto min-w-[180px] max-w-[280px] font-medium border-dashed hover:border-solid focus:border-solid"
+                                          className="h-7 px-2 text-xs gap-1.5 w-auto min-w-0 max-w-[280px] flex-shrink font-medium border-dashed hover:border-solid focus:border-solid"
                                           data-testid={`etf-picker-${etf.bucket}`}
                                           title={t("build.impl.picker.label")}
                                           aria-label={`${t("build.impl.picker.label")} — ${etf.bucket}`}
