@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-05 (explain-role-badges-unified-colors)
+Last updated: 2026-05 (explain-current-allocation-card)
 
 ---
 
@@ -626,6 +626,25 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-05 (explain-current-allocation-card) — "Current Allocation" donut card on Explain tab
+
+Mirrors Build's "Target Asset Allocation" card on the Explain tab as the
+first card in the analysis column (above PortfolioMetrics). Renders the
+donut chart, vertical AllocationGroupSummary, horizontal stacked bar,
+legend, and per-bucket breakdown table — all colored via
+`colorForBucket` and ordered via `compareBuckets` for visual parity with
+Build. Honours Explain's existing Look-Through toggle: when ON and an
+ETF implementation is present, the donut + bar are decomposed via
+`mapAllocationToAssetsLookthrough`; the table always shows the user's
+row-level buckets (with a per-state caption explaining the difference,
+matching Build's wording).
+
+- New component: `src/components/investment/CurrentAllocationCard.tsx`.
+- Wired into `ExplainPortfolio.tsx` inside the existing
+  `showAnalysis` guard (`validation.isValid && portfolio.allocation.length > 0`).
+- New i18n keys (EN+DE): `currentAllocation.title`,
+  `currentAllocation.subtitle`.
 
 ### 2026-05 (explain-role-badges-unified-colors) — Default/Alt N/Pool badges in Explain, unified color scheme
 
