@@ -472,7 +472,7 @@ function PositionRow({
       className="space-y-2"
       data-testid={`explain-row-${rowIndex}`}
     >
-      <div className="grid grid-cols-[1fr_5.5rem_2rem] gap-2 items-center">
+      <div className="grid grid-cols-[minmax(0,22rem)_5.5rem_2rem] gap-2 items-center">
         {isManual ? (
           // Task #156 — picker over unassigned INSTRUMENTS sits next to
           // the free-form ISIN input. Picking pre-fills isin + meta in
@@ -1186,9 +1186,15 @@ export function ExplainPortfolio() {
         <AlertDescription>{t("explain.intro.desc")}</AlertDescription>
       </Alert>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-6">
+      <div
+        className={`grid grid-cols-1 gap-6 ${
+          showAnalysis ? "lg:grid-cols-12" : ""
+        }`}
+      >
 
-        <div className="space-y-6">
+        <div
+          className={`space-y-6 ${showAnalysis ? "lg:col-span-5" : ""}`}
+        >
           <Card>
             <CardHeader>
               <CardTitle>{t("explain.settings.title")}</CardTitle>
@@ -1448,7 +1454,7 @@ export function ExplainPortfolio() {
                                       className="space-y-2"
                                       data-testid={`explain-row-${i}`}
                                     >
-                                      <div className="grid grid-cols-[1fr_5.5rem_2rem] gap-2 items-center">
+                                      <div className="grid grid-cols-[minmax(0,22rem)_5.5rem_2rem] gap-2 items-center">
                                         <Select
                                           value={p.cashCurrency ?? state.baseCurrency}
                                           onValueChange={(v) =>
@@ -1779,7 +1785,9 @@ export function ExplainPortfolio() {
         </div>
 
 
-        <div className="space-y-6">
+        <div
+          className={`space-y-6 ${showAnalysis ? "lg:col-span-7" : ""}`}
+        >
           <Card className="overflow-hidden border-2">
             <div
               className={`h-2 w-full ${
@@ -1860,8 +1868,6 @@ export function ExplainPortfolio() {
               )}
             </CardContent>
           </Card>
-        </div>
-      </div>
 
       {showAnalysis && (
         // Analysis-block order mirrors BuildPortfolio.tsx (L1559-L1643) so the
@@ -2021,6 +2027,8 @@ export function ExplainPortfolio() {
           </Card>
         </div>
       )}
+        </div>
+      </div>
 
       {/* Task #161 — single ETFDetailsDialog mount controlled by
           `detailsEtf`, mirroring BuildPortfolio.tsx. Closing returns to
