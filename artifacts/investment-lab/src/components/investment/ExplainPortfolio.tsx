@@ -1089,22 +1089,6 @@ export function ExplainPortfolio() {
                     <RotateCcw className="mr-1.5 h-3 w-3" />
                     {t("explain.btn.reset")}
                   </Button>
-                  {/* Promoted to filled primary so the manual-entry path is
-                   *  visually peer to (not buried beside) the catalog-pick
-                   *  flow. The catalog sleeves below remain a perfectly
-                   *  valid second path; this button just gives users who
-                   *  already know their ISIN a one-click on-ramp instead
-                   *  of forcing them to expand a sleeve first. */}
-                  <Button
-                    type="button"
-                    size="sm"
-                    onClick={addManualPosition}
-                    className="h-9 text-sm font-medium shadow-sm"
-                    data-testid="explain-add-manual"
-                  >
-                    <Plus className="mr-1.5 h-4 w-4" />
-                    {t("explain.btn.addManual")}
-                  </Button>
                 </div>
               </div>
               {/* Save/Load slot UI — independent localStorage namespace from
@@ -1361,6 +1345,24 @@ export function ExplainPortfolio() {
                   </div>
                 </div>
               )}
+
+              {/* "Add manual ISIN" lives directly under the bucket tree so
+                  the affordance sits next to where new manual rows land
+                  (the Manual entries pseudo-group at the tail of the
+                  tree). Promoted to filled primary so the manual-entry
+                  path is visually peer to the catalog-pick flow. */}
+              <div className="pt-1">
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={addManualPosition}
+                  className="h-9 text-sm font-medium shadow-sm"
+                  data-testid="explain-add-manual"
+                >
+                  <Plus className="mr-1.5 h-4 w-4" />
+                  {t("explain.btn.addManual")}
+                </Button>
+              </div>
 
               {state.positions.length > 0 && (
                 <>
