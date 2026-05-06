@@ -60,8 +60,14 @@ import {
   getInstrumentByIsin,
   listInstruments,
   getInstrumentRole,
+  getInstrumentAltIndex,
   inferAssetClassRegionFromInstrument,
 } from "@/lib/etfs";
+import {
+  slotBadgeClassName,
+  slotBadgeVariant,
+  type SlotKind,
+} from "./etfSlotBadge";
 import {
   PersonalPosition,
   assetClassNeedsRegion,
@@ -300,18 +306,46 @@ function IsinPicker({ value, onPick, excludeIsins, testId, restrictToBucketKey }
                       <div className="flex flex-col gap-0.5 min-w-0 flex-1">
                         <div className="flex items-center gap-1.5">
                           <span className="text-xs font-medium truncate">{r.name}</span>
-                          {/* Task #149 — flag pool entries so the operator can
-                              tell curated alternatives apart from the broader
-                              extended-universe pool while picking. */}
-                          {getInstrumentRole(r.isin) === "pool" && (
-                            <Badge
-                              variant="outline"
-                              className="text-[9px] px-1.5 py-0 h-4 shrink-0 border-emerald-600 text-emerald-700 dark:text-emerald-400"
-                              data-testid={`isin-option-pool-badge-${r.isin}`}
-                            >
-                              {t("explain.picker.pool")}
-                            </Badge>
-                          )}
+                          {/* Task #160 — full Default / Alt N / Pool role
+                              badge, sharing the same color helpers as
+                              Build's picker (alt = green, pool = orange,
+                              default = neutral). Numbering for "Alt N"
+                              matches the bucket's alternatives slot
+                              order (1..altCount). */}
+                          {(() => {
+                            const role = getInstrumentRole(r.isin);
+                            if (role !== "default" && role !== "alternative" && role !== "pool") {
+                              return null;
+                            }
+                            const kind: SlotKind =
+                              role === "default"
+                                ? "default"
+                                : role === "pool"
+                                  ? "pool"
+                                  : "alternative";
+                            const altIdx = role === "alternative" ? getInstrumentAltIndex(r.isin) : null;
+                            const label =
+                              role === "default"
+                                ? t("explain.picker.default")
+                                : role === "pool"
+                                  ? t("explain.picker.pool")
+                                  : `${t("explain.picker.alt")} ${altIdx ?? ""}`.trim();
+                            const testId =
+                              role === "default"
+                                ? `isin-option-default-badge-${r.isin}`
+                                : role === "pool"
+                                  ? `isin-option-pool-badge-${r.isin}`
+                                  : `isin-option-alt-badge-${r.isin}`;
+                            return (
+                              <Badge
+                                variant={slotBadgeVariant(kind)}
+                                className={slotBadgeClassName(kind)}
+                                data-testid={testId}
+                              >
+                                {label}
+                              </Badge>
+                            );
+                          })()}
                         </div>
                         <span className="text-[11px] text-muted-foreground font-mono">
                           {r.isin} · {r.currency} · {(r.terBps / 100).toFixed(2)}% TER

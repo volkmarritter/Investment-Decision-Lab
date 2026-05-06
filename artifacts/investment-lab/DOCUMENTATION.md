@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-05 (admin-tree-bucketed-lookthrough / explain-manual-catalog-hint)
+Last updated: 2026-05 (explain-role-badges-unified-colors)
 
 ---
 
@@ -628,6 +628,13 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 Append a new entry whenever functionality changes. Newest first.
 
 <<<<<<< HEAD
+### 2026-05 (explain-role-badges-unified-colors) — Default/Alt N/Pool badges in Explain, unified color scheme
+
+- Explain's per-bucket IsinPicker now renders the **full** Default / Alt N / Pool role badge for every option (not just pool entries). Default ETF → neutral "Default" badge; curated alternatives → green "Alt 1", "Alt 2", … numbered by their 1-based slot order in the bucket's `alternatives` array; extended-universe pool → orange "Pool" badge. Build's picker dropdown and trigger-side badge already use the same `slotBadgeClassName` / `slotBadgeVariant` helpers, so the two surfaces are now visually consistent (alt = green, pool = orange, default = neutral) — the Pool badge in particular is now orange everywhere it appears (Build trigger, Build dropdown row, Build pool hint, Explain picker), no longer green.
+- New helper `getInstrumentAltIndex(isin)` in `src/lib/etfs.ts` returns the 1-based alt slot index inside the ISIN's bucket, or `null` for default / pool / unassigned ISINs. Used by Explain's badge composer; Build keeps deriving the index from the picker's slot index directly.
+- New i18n strings `explain.picker.default` (EN "Default" / DE "Standard") and `explain.picker.alt` (EN "Alt" / DE "Alt.") reused with the existing `explain.picker.pool`. New stable test-ids: `isin-option-default-badge-${isin}`, `isin-option-alt-badge-${isin}`; `isin-option-pool-badge-${isin}` is unchanged.
+- New unit test `tests/explainPickerRoleBadge.test.tsx` locks in the badge label, color class, and test-id per role, plus the alt-index numbering contract.
+
 ### 2026-05 (admin-tree-bucketed-lookthrough) — Look-through dialog reachable for bucketed ETFs
 
 - **Operator-Wunsch (Task #158):** Im Admin → Catalog → Browse-Baum zeigte die Spalte „LT-Status" zwar Data OK / Stale / Daten fehlen für jede Default-/Alt-/Pool-Zeile innerhalb eines Buckets, ließ sich aber nicht öffnen — der Look-through-Dialog (Top-Holdings, Geo, Sektor, Currency, justETF-Deeplink) war bisher nur über die „Pool-only"-Zeilen oben (Unclassified) erreichbar.

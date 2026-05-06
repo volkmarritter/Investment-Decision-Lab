@@ -2627,6 +2627,19 @@ export function getInstrumentRole(isin: string): InstrumentRole {
   return "unassigned";
 }
 
+// Task #160 — 1-based slot index of an alternative within its bucket
+// (so the Explain picker can render "Alt 1", "Alt 2", … matching the
+// numbering Build uses in the inline <Select>). Returns null for
+// default / pool / unassigned ISINs.
+export function getInstrumentAltIndex(isin: string): number | null {
+  const bucketKey = ISIN_TO_BUCKET[isin];
+  if (!bucketKey) return null;
+  const assignment = BUCKETS[bucketKey];
+  if (!assignment) return null;
+  const idx = assignment.alternatives.indexOf(isin);
+  return idx >= 0 ? idx + 1 : null;
+}
+
 function decodeBucketKey(key: string): BucketMeta {
   const HEDGE_SUFFIXES: ReadonlyArray<"-EUR" | "-CHF" | "-GBP"> = [
     "-EUR",
