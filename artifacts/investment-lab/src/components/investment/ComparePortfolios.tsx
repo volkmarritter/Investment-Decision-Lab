@@ -45,6 +45,7 @@ import {
   explainWorkspaceToSlotPortfolio,
   getLastExplainWorkspace,
   subscribeCompareLoadRequests,
+  setCompareSlotsState,
   subscribeLastExplainWorkspace,
   takePendingCompareLoadRequest,
 } from "@/lib/explainCompare";
@@ -298,6 +299,29 @@ export function ComparePortfolios() {
   const [etfSelectionsB, setEtfSelectionsB] = useState<Record<string, ETFSlot> | undefined>(undefined);
 
   const [hasGenerated, setHasGenerated] = useState(false);
+
+  // Publish a Slot A / Slot B "has content" signal so the InvestmentLab nav
+  // can render its content-indicator dot from real Compare state (not from a
+  // proxy of Build/Explain content). A slot counts as filled when any of:
+  //   * Slot A is currently linked-to-Build (mirrors Build's input);
+  //   * the slot has been sourced from an Explain workspace; OR
+  //   * the slot has produced a computed PortfolioOutput.
+  // The store deduplicates so this fires sparingly.
+  useEffect(() => {
+    setCompareSlotsState({
+      A: linked || explainSourceA !== null || outputA !== null,
+      B: explainSourceB !== null || outputB !== null,
+    });
+  }, [linked, explainSourceA, explainSourceB, outputA, outputB]);
+  useEffect(() => {
+    return () => {
+      // On unmount, clear so a stale dot doesn't linger when the lab is torn
+      // down. (Compare is forceMount'ed in production, so this only matters
+      // for tests / HMR.)
+      setCompareSlotsState({ A: false, B: false });
+    };
+  }, []);
+
   // Shared Crisis-Σ toggles (Task #99). Per-side state so each portfolio's
   // Monte Carlo + Risk-&-Performance tiles stay in lockstep — and both the
   // mobile A/B-tabbed instances and the desktop side-by-side instances

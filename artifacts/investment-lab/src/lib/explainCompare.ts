@@ -74,6 +74,50 @@ export function subscribeLastExplainWorkspace(
 }
 
 // ---------------------------------------------------------------------------
+// Channel 1b: Compare-tab slot content presence
+// ---------------------------------------------------------------------------
+//
+// Drives the nav "content indicator" dot on the Compare tab. ComparePortfolios
+// republishes this whenever Slot A or Slot B gains or loses real content
+// (linked-to-Build, sourced-from-Explain, has computed output, or has a
+// loaded saved scenario). Any consumer (e.g. the InvestmentLab nav) can
+// subscribe without reaching into Compare's component-local state.
+
+export interface CompareSlotsState {
+  A: boolean;
+  B: boolean;
+}
+
+const COMPARE_SLOTS_EVENT = "idl-compare-slots-state-changed";
+let compareSlotsState: CompareSlotsState = { A: false, B: false };
+
+export function setCompareSlotsState(next: CompareSlotsState): void {
+  if (typeof window === "undefined") return;
+  if (next.A === compareSlotsState.A && next.B === compareSlotsState.B) return;
+  compareSlotsState = { A: next.A, B: next.B };
+  window.dispatchEvent(
+    new CustomEvent(COMPARE_SLOTS_EVENT, { detail: { ...compareSlotsState } }),
+  );
+}
+
+export function getCompareSlotsState(): CompareSlotsState {
+  return { ...compareSlotsState };
+}
+
+export function subscribeCompareSlotsState(
+  cb: (s: CompareSlotsState) => void,
+): () => void {
+  if (typeof window === "undefined") return () => {};
+  const handler = (e: Event) => {
+    const detail = (e as CustomEvent).detail as CompareSlotsState | null;
+    if (!detail) return;
+    cb({ A: detail.A, B: detail.B });
+  };
+  window.addEventListener(COMPARE_SLOTS_EVENT, handler);
+  return () => window.removeEventListener(COMPARE_SLOTS_EVENT, handler);
+}
+
+// ---------------------------------------------------------------------------
 // Channel 2: one-shot "send to compare" request
 // ---------------------------------------------------------------------------
 

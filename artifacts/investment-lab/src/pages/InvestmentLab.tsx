@@ -23,7 +23,9 @@ import { DisclaimerFooter } from "@/components/investment/Disclaimer";
 import { biconContactMailto } from "@/lib/brand";
 import {
   explainWorkspaceHasContent,
+  getCompareSlotsState,
   getLastExplainWorkspace,
+  subscribeCompareSlotsState,
   subscribeLastExplainWorkspace,
   subscribeNavigateTab,
 } from "@/lib/explainCompare";
@@ -95,11 +97,11 @@ const NAV_TABS: ReadonlyArray<NavTabDef> = [
 
 // Subscribes to the cross-tab content-presence channels in
 // lib/settings.ts and lib/explainCompare.ts so the dot indicators can
-// flip on/off without prop drilling. Compare's "has content" is a
-// proxy: it lights up whenever Build has published at least once OR
-// Explain has any usable workspace, since either of those will
-// populate at least one of Compare's two slots when the user lands
-// there. Methodology has no content signal.
+// flip on/off without prop drilling. Compare's "has content" reads
+// the dedicated Compare-slots channel republished by ComparePortfolios
+// — a slot is "filled" when it's linked-to-Build, sourced from an
+// Explain workspace, or has produced an output. Methodology has no
+// content signal.
 function useNavSignals(): Record<"build" | "compare" | "explain", boolean> {
   const [buildHas, setBuildHas] = useState<boolean>(
     () => getLastBuildInput() !== null,
@@ -107,6 +109,7 @@ function useNavSignals(): Record<"build" | "compare" | "explain", boolean> {
   const [explainHas, setExplainHas] = useState<boolean>(() =>
     explainWorkspaceHasContent(getLastExplainWorkspace()),
   );
+  const [compareSlots, setCompareSlots] = useState(() => getCompareSlotsState());
   useEffect(
     () => subscribeLastBuildInput((v) => setBuildHas(v !== null)),
     [],
@@ -118,13 +121,14 @@ function useNavSignals(): Record<"build" | "compare" | "explain", boolean> {
       ),
     [],
   );
+  useEffect(() => subscribeCompareSlotsState((s) => setCompareSlots(s)), []);
   return useMemo(
     () => ({
       build: buildHas,
-      compare: buildHas || explainHas,
+      compare: compareSlots.A || compareSlots.B,
       explain: explainHas,
     }),
-    [buildHas, explainHas],
+    [buildHas, explainHas, compareSlots],
   );
 }
 
