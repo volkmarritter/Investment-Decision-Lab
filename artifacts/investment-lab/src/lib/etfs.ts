@@ -2767,6 +2767,19 @@ export function getInstrumentAltIndex(isin: string): number | null {
   return idx >= 0 ? idx + 1 : null;
 }
 
+// Task #194 — 1-based slot index of a pool entry within its bucket
+// (so the Explain picker can sort pool rows in catalog insertion
+// order, independent of any name-sorted upstream source). Returns
+// null for default / alternative / unassigned ISINs.
+export function getInstrumentPoolIndex(isin: string): number | null {
+  const bucketKey = ISIN_TO_BUCKET[isin];
+  if (!bucketKey) return null;
+  const assignment = BUCKETS[bucketKey];
+  if (!assignment?.pool) return null;
+  const idx = assignment.pool.indexOf(isin);
+  return idx >= 0 ? idx + 1 : null;
+}
+
 function decodeBucketKey(key: string): BucketMeta {
   const HEDGE_SUFFIXES: ReadonlyArray<"-EUR" | "-CHF" | "-GBP"> = [
     "-EUR",

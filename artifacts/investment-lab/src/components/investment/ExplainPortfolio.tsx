@@ -61,6 +61,7 @@ import {
   listInstruments,
   getInstrumentRole,
   getInstrumentAltIndex,
+  getInstrumentPoolIndex,
   inferAssetClassRegionFromInstrument,
   pickDefaultListing,
 } from "@/lib/etfs";
@@ -219,6 +220,50 @@ function saveState(state: PersistedState) {
   }
 }
 
+// Picker row shape: only the fields the comparator actually reads.
+// Decoupled from `listInstruments()`'s full row type so this helper is
+// trivially reusable in tests without dragging in BucketMeta/listings.
+export interface PickerRowForSort {
+  isin: string;
+  name: string;
+}
+
+const PICKER_ROLE_RANK: Record<string, number> = {
+  default: 0,
+  alternative: 1,
+  pool: 2,
+  unassigned: 3,
+};
+
+// Within-bucket comparator used by the Explain ISIN picker.
+// Default → Alt 1..N (catalog slot order) → Pool (catalog insertion
+// order via getInstrumentPoolIndex — independent of the upstream
+// listInstruments() name-sort) → Unassigned. Name is the final
+// tiebreak for default/unassigned rows.
+export function comparePickerRows(
+  a: PickerRowForSort,
+  b: PickerRowForSort,
+): number {
+  const roleA = getInstrumentRole(a.isin);
+  const roleB = getInstrumentRole(b.isin);
+  const ra = PICKER_ROLE_RANK[roleA] ?? 4;
+  const rb = PICKER_ROLE_RANK[roleB] ?? 4;
+  if (ra !== rb) return ra - rb;
+  if (roleA === "alternative" && roleB === "alternative") {
+    const ia = getInstrumentAltIndex(a.isin) ?? Number.MAX_SAFE_INTEGER;
+    const ib = getInstrumentAltIndex(b.isin) ?? Number.MAX_SAFE_INTEGER;
+    if (ia !== ib) return ia - ib;
+    return a.name.localeCompare(b.name);
+  }
+  if (roleA === "pool" && roleB === "pool") {
+    const ia = getInstrumentPoolIndex(a.isin) ?? Number.MAX_SAFE_INTEGER;
+    const ib = getInstrumentPoolIndex(b.isin) ?? Number.MAX_SAFE_INTEGER;
+    if (ia !== ib) return ia - ib;
+    return a.name.localeCompare(b.name);
+  }
+  return a.name.localeCompare(b.name);
+}
+
 interface IsinPickerProps {
   value: string | null;
   onPick: (isin: string) => void;
@@ -250,21 +295,15 @@ function IsinPicker({ value, onPick, excludeIsins, testId, restrictToBucketKey }
       m.set(c.bucketKey, list);
     }
     // Within each bucket: order rows by role (default → alternative →
-    // pool → unassigned), then alphabetically by name as a stable
-    // tiebreak so operators always see the curated picks first.
-    const roleRank: Record<string, number> = {
-      default: 0,
-      alternative: 1,
-      pool: 2,
-      unassigned: 3,
-    };
+    // pool → unassigned). Within the same role, preserve the curated
+    // catalog ordering — alternatives sort by their slot index
+    // (Alt 1 → Alt N), pool entries keep their catalog insertion order
+    // (Array.sort is stable in modern JS, so returning 0 there
+    // preserves the order from `candidates`/`listInstruments()`).
+    // Comparator extracted as a top-level export so `tests/` can
+    // regression-test the order without rendering the picker.
     for (const [, rows] of m) {
-      rows.sort((a, b) => {
-        const ra = roleRank[getInstrumentRole(a.isin)] ?? 4;
-        const rb = roleRank[getInstrumentRole(b.isin)] ?? 4;
-        if (ra !== rb) return ra - rb;
-        return a.name.localeCompare(b.name);
-      });
+      rows.sort(comparePickerRows);
     }
     return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [candidates]);

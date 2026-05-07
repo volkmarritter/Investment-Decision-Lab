@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-05 (explain-current-allocation-card)
+Last updated: 2026-05 (explain-picker-alt-sort-by-slot)
 
 ---
 
@@ -626,6 +626,33 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-05 (explain-picker-alt-sort-by-slot — Task #194)
+
+Explain's per-row ISIN picker (`IsinPicker` in
+`src/components/investment/ExplainPortfolio.tsx`) now sorts the rows
+inside each bucket group by their **catalog role and slot order**
+instead of alphabetically by name. The order is:
+
+1. **Default** (one row),
+2. **Alt 1, Alt 2, …, Alt N** in the order they appear in the
+   bucket's `alternatives` array (matches the numbering Build's
+   inline `<Select>` and the per-row Alt-N badges already use),
+3. **Pool** entries in their catalog (insertion) order — preserved
+   via `Array.sort` stability,
+4. **Unassigned** rows (alphabetical name tiebreak).
+
+Previously the code re-sorted everything inside the same role
+alphabetically by name, so e.g. for `Equity-USA` the alternatives
+showed up as SPDR → UBS → Vanguard rather than Vanguard (Alt 1) →
+SPDR (Alt 2) → UBS (Alt 3). The bucket-group ordering is unchanged
+(groups stay alphabetical by `bucketKey`); Build's picker is
+unchanged (it already iterated catalog slot order).
+
+Implementation: the comparator was extracted as a top-level export
+`comparePickerRows` in the same file (with a tiny `PickerRowForSort`
+type) so the regression test in `tests/engine.test.ts` can exercise
+the order against real catalog data without rendering the picker.
 
 ### 2026-05 (cash-mu-display-per-currency — Task #192)
 

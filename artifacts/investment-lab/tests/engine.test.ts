@@ -14,7 +14,10 @@ import {
   getCatalogEntry,
   listUnassignedInstruments,
   getInstrumentRole,
+  getInstrumentAltIndex,
+  getInstrumentPoolIndex,
 } from "../src/lib/etfs";
+import { comparePickerRows } from "../src/components/investment/ExplainPortfolio";
 import { runStressTest, runReverseStressTest, SCENARIOS } from "../src/lib/scenarios";
 import { estimateFees, getETFTer } from "../src/lib/fees";
 import { buildAiPrompt } from "../src/lib/aiPrompt";
@@ -4191,5 +4194,102 @@ describe("Explain Cash sentinel — handoff & migration (Task #174)", () => {
     } finally {
       delete (globalThis as { window?: unknown }).window;
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Task #194 — Explain ISIN-picker sort order: Default → Alt 1..N (catalog
+// slot order) → Pool (catalog insertion order) → Unassigned. Previously
+// alphabetised within the same role, which silently re-ordered the
+// curated alternatives.
+// ---------------------------------------------------------------------------
+describe("comparePickerRows — Explain picker sort order", () => {
+  // Equity-USA's curated alternatives are intentionally non-alphabetical
+  // by name (Vanguard / SPDR / UBS), so this bucket is a perfect fixture
+  // for asserting that slot order — not name order — wins.
+  const EQUITY_USA = "Equity-USA";
+  const DEFAULT_ISIN = "IE00B5BMR087"; // iShares Core S&P 500
+  const ALT1 = "IE00BFMXXD54"; // Vanguard S&P 500
+  const ALT2 = "IE00B6YX5C33"; // SPDR S&P 500
+  const ALT3 = "LU0136234654"; // UBS MSCI USA
+
+  it("Equity-USA fixture exercises a real slot-vs-alphabetical mismatch", () => {
+    // Sanity gate: if a catalog edit ever moves these ISINs out of
+    // Equity-USA or re-orders the alternatives array, this test
+    // becomes meaningless — fail loudly so the maintainer fixes it.
+    expect(getInstrumentRole(DEFAULT_ISIN)).toBe("default");
+    expect(getInstrumentRole(ALT1)).toBe("alternative");
+    expect(getInstrumentRole(ALT2)).toBe("alternative");
+    expect(getInstrumentRole(ALT3)).toBe("alternative");
+    expect(getInstrumentAltIndex(ALT1)).toBe(1);
+    expect(getInstrumentAltIndex(ALT2)).toBe(2);
+    expect(getInstrumentAltIndex(ALT3)).toBe(3);
+    const def = getCatalogEntry(EQUITY_USA)!;
+    expect(def.isin).toBe(DEFAULT_ISIN);
+  });
+
+  it("orders default first, then alternatives by 1-based slot index, ignoring name", () => {
+    // Names that would alphabetise as SPDR < UBS < Vanguard if the old
+    // bug were still in place — slot order is V → S → U.
+    const rows = [
+      { isin: ALT3, name: "UBS MSCI USA UCITS ETF USD dis" },
+      { isin: ALT2, name: "SPDR S&P 500 UCITS" },
+      { isin: DEFAULT_ISIN, name: "iShares Core S&P 500 UCITS" },
+      { isin: ALT1, name: "Vanguard S&P 500 UCITS" },
+    ];
+    rows.sort(comparePickerRows);
+    expect(rows.map((r) => r.isin)).toEqual([
+      DEFAULT_ISIN, // role rank 0
+      ALT1, // alt 1
+      ALT2, // alt 2
+      ALT3, // alt 3
+    ]);
+  });
+
+  it("orders pool entries by catalog insertion order regardless of input order", () => {
+    // Equity-USA pool: ["IE0031442068", "IE00B6YX5D40", "IE00BD4TXW66"]
+    // Sanity-check the catalog still matches the test's assumption.
+    expect(getInstrumentPoolIndex("IE0031442068")).toBe(1);
+    expect(getInstrumentPoolIndex("IE00B6YX5D40")).toBe(2);
+    expect(getInstrumentPoolIndex("IE00BD4TXW66")).toBe(3);
+    // Feed in REVERSE catalog order with names whose alphabetical
+    // order is yet a third permutation — the comparator must use the
+    // pool index, not stable-sort baseline and not the name.
+    const rows = [
+      { isin: "IE00BD4TXW66", name: "A-name-third-in-pool" },
+      { isin: "IE00B6YX5D40", name: "Z-name-second-in-pool" },
+      { isin: "IE0031442068", name: "M-name-first-in-pool" },
+    ];
+    for (const r of rows) {
+      expect(getInstrumentRole(r.isin)).toBe("pool");
+    }
+    const sorted = [...rows].sort(comparePickerRows);
+    expect(sorted.map((r) => r.isin)).toEqual([
+      "IE0031442068",
+      "IE00B6YX5D40",
+      "IE00BD4TXW66",
+    ]);
+  });
+
+  it("orders mixed roles default → alternative → pool", () => {
+    const rows = [
+      { isin: "IE00BD4TXW66", name: "pool entry" },
+      { isin: ALT2, name: "SPDR S&P 500 UCITS" },
+      { isin: DEFAULT_ISIN, name: "iShares Core S&P 500 UCITS" },
+      { isin: ALT1, name: "Vanguard S&P 500 UCITS" },
+    ];
+    rows.sort(comparePickerRows);
+    expect(rows.map((r) => getInstrumentRole(r.isin))).toEqual([
+      "default",
+      "alternative",
+      "alternative",
+      "pool",
+    ]);
+    expect(rows.map((r) => r.isin)).toEqual([
+      DEFAULT_ISIN,
+      ALT1,
+      ALT2,
+      "IE00BD4TXW66",
+    ]);
   });
 });
