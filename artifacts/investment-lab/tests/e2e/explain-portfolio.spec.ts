@@ -514,4 +514,68 @@ test.describe("ExplainPortfolio · bring-your-own-ETFs (mobile)", () => {
       ).toBeVisible();
     });
   }
+
+  // Task #201 — regression for the Task #196 fix: when a single bucket holds
+  // more than one ETF in Explain, the Fee Estimator's per-bucket TER row
+  // must show the weight-averaged TER across those ETFs (not last-write-wins
+  // and not one of the individual TERs). Drives the actual UI flow:
+  //   Explain → add 2 ETFs in Equity-USA → FeeEstimator row.
+  // Picks two known catalog ETFs that share the Equity-USA bucket but have
+  // different TERs (IE00B5BMR087 = 7 bps, IE00B6YX5C33 = 3 bps), splits 40%
+  // / 30% so the bucket totals 70% with expected TER
+  // (40*7 + 30*3) / 70 = 5.2857… bps → rendered as "5.3" by `terBps.toFixed(1)`.
+  // The remaining 30% goes to a Fixed Income bucket so the analysis (and
+  // therefore the Fee Estimator) actually mounts under the default High
+  // risk profile's equity cap.
+  test("Fee Estimator weight-averages TER when one bucket holds two ETFs", async ({
+    page,
+    context,
+  }) => {
+    await context.clearCookies();
+    await openExplainTab(page);
+    await page.evaluate(() =>
+      window.localStorage.removeItem("investment-lab.explainPortfolio.v1"),
+    );
+    await page.reload();
+    await dismissWelcomeIfPresent(page);
+    await page.getByRole("tab", { name: /explain my portfolio/i }).tap();
+
+    // Two ETFs in the SAME bucket (Equity-USA) with different TERs.
+    const ISIN_USA_A = "IE00B5BMR087"; // 7 bps (default)
+    const ISIN_USA_B = "IE00B6YX5C33"; // 3 bps (alternative)
+
+    await addCatalogRow(page, 0, ISIN_USA_A, BUCKET_USA, GROUP_EQUITY);
+    // Second add in the same bucket — IsinPicker is `restrictToBucketKey`-
+    // scoped and `excludeIsins` hides the already-picked ISIN_USA_A, so the
+    // scoped picker still surfaces ISIN_USA_B.
+    await addCatalogRow(page, 1, ISIN_USA_B, BUCKET_USA, GROUP_EQUITY);
+    await addCatalogRow(page, 2, ISIN_FI, BUCKET_FI, GROUP_FI);
+
+    await setRowWeight(page, 0, "40");
+    await setRowWeight(page, 1, "30");
+    await setRowWeight(page, 2, "30");
+    await expect(page.getByTestId("explain-total")).toContainText(/100(\.0)?\s*%/);
+
+    const analysis = page.getByTestId("explain-analysis");
+    await expect(analysis).toBeVisible();
+
+    // The Fee Estimator's per-bucket breakdown table renders one row per
+    // asset-class label (e.g. "Equity - USA"). Locate the row by its text
+    // and assert it shows the weight-averaged TER, not 7.0 / 3.0 / 5.0.
+    const usaRow = analysis.getByRole("row", { name: /Equity - USA/ });
+    await expect(usaRow).toBeVisible();
+    // The accessible row text concatenates cells without separators
+    // ("Equity - USA70.0%5.33.7"), so we assert on the dedicated TER
+    // cell (the 3rd <td> after the bucket label and weight cells)
+    // rather than searching the row text — that way "5.3" can't be
+    // confused with adjacent digits from the contribution column.
+    const cells = usaRow.locator("td");
+    await expect(cells.nth(0)).toHaveText("Equity - USA");
+    await expect(cells.nth(1)).toHaveText("70.0%");
+    // (40*7 + 30*3) / 70 = 5.2857… → "5.3" via toFixed(1). Pinning the
+    // TER cell to exactly "5.3" catches both the original last-write-
+    // wins bug ("3.0" would survive) and any future regression that
+    // re-introduces a single-ETF-wins shortcut ("7.0").
+    await expect(cells.nth(2)).toHaveText("5.3");
+  });
 });
