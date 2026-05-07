@@ -128,6 +128,51 @@ describe("buildToExplainWorkspace", () => {
     expect(ws.positions[0].bucketKey).toBe("Equity-USA");
   });
 
+  it("appends a Cash sentinel position when allocation has non-zero Cash (Task #182)", () => {
+    const out: PortfolioOutput = {
+      allocation: [
+        { assetClass: "Cash", region: "EUR", weight: 8 },
+        { assetClass: "Equity", region: "USA", weight: 60 },
+        { assetClass: "Fixed Income", region: "Global", weight: 32 },
+      ],
+      etfImplementation: [
+        makeRow({ isin: "IE00B5BMR087", catalogKey: "Equity-USA", weight: 60 }),
+        makeRow({ isin: "IE00B3F81409", catalogKey: "FixedIncome-Global", weight: 32 }),
+      ],
+      rationale: [],
+      risks: [],
+      learning: [],
+    };
+    const ws = buildToExplainWorkspace(baseInput, out);
+    expect(ws.positions).toHaveLength(3);
+    const cash = ws.positions[ws.positions.length - 1];
+    expect(cash).toEqual({
+      isin: "",
+      bucketKey: "Cash",
+      weight: 8,
+      cashCurrency: "EUR",
+    });
+    const total = ws.positions.reduce((s, p) => s + p.weight, 0);
+    expect(total).toBeCloseTo(100, 5);
+  });
+
+  it("does not append a Cash row when allocation has 0% Cash (Task #182)", () => {
+    const out: PortfolioOutput = {
+      allocation: [
+        { assetClass: "Equity", region: "USA", weight: 100 },
+      ],
+      etfImplementation: [
+        makeRow({ isin: "IE00B5BMR087", catalogKey: "Equity-USA", weight: 100 }),
+      ],
+      rationale: [],
+      risks: [],
+      learning: [],
+    };
+    const ws = buildToExplainWorkspace(baseInput, out);
+    expect(ws.positions).toHaveLength(1);
+    expect(ws.positions.some((p) => p.bucketKey === "Cash")).toBe(false);
+  });
+
   it("falls back to ISIN→bucket lookup when catalogKey is null and label is unknown", () => {
     // Vanguard FTSE All-World UCITS — a catalog default for Equity-Global.
     const out: PortfolioOutput = {

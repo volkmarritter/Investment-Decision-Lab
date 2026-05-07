@@ -508,6 +508,49 @@ export function subscribeLastBuildInput(
   return () => window.removeEventListener(LAST_BUILD_INPUT_EVENT, handler);
 }
 
+// ----------------------------------------------------------------------------
+// Channel: "Build has been driven by the user" flag (Task #186)
+// ----------------------------------------------------------------------------
+//
+// Distinct from `lastBuildInput` above. The auto-generate-on-mount path
+// (Task #96) publishes a real input snapshot so Compare's "default-on
+// link to Build" UX still works on first arrival — but the nav-bar
+// content-indicator dot must NOT light up just because Build silently
+// auto-generated the example portfolio. This flag is true ONLY when the
+// user has explicitly asked Build to do something (clicked the Generate
+// button, loaded a saved scenario), and is reset to false on the Build
+// reset/refresh button.
+//
+// The InvestmentLab nav-signal hook reads this for the Build dot, and
+// ComparePortfolios reads it for the Compare dot's "linked counts as
+// content" gate, so neither can flash on first paint.
+// ----------------------------------------------------------------------------
+const LAST_BUILD_USER_DRIVEN_EVENT = "idl-last-build-user-driven-changed";
+let lastBuildUserDriven = false;
+
+export function setLastBuildUserDriven(v: boolean): void {
+  if (typeof window === "undefined") return;
+  if (lastBuildUserDriven === v) return;
+  lastBuildUserDriven = v;
+  window.dispatchEvent(
+    new CustomEvent(LAST_BUILD_USER_DRIVEN_EVENT, { detail: v }),
+  );
+}
+
+export function getLastBuildUserDriven(): boolean {
+  return lastBuildUserDriven;
+}
+
+export function subscribeLastBuildUserDriven(
+  cb: (v: boolean) => void,
+): () => void {
+  if (typeof window === "undefined") return () => {};
+  const handler = (e: Event) => cb((e as CustomEvent).detail as boolean);
+  window.addEventListener(LAST_BUILD_USER_DRIVEN_EVENT, handler);
+  return () =>
+    window.removeEventListener(LAST_BUILD_USER_DRIVEN_EVENT, handler);
+}
+
 const LAST_BUILD_MANUAL_WEIGHTS_EVENT = "idl-last-build-manual-weights-changed";
 let lastBuildManualWeights: Record<string, number> | null = null;
 
@@ -533,6 +576,88 @@ export function subscribeLastBuildManualWeights(
   };
   window.addEventListener(LAST_BUILD_MANUAL_WEIGHTS_EVENT, handler);
   return () => window.removeEventListener(LAST_BUILD_MANUAL_WEIGHTS_EVENT, handler);
+}
+
+// ----------------------------------------------------------------------------
+// Channel: one-shot "generate the sample portfolio" request (Task #187)
+// ----------------------------------------------------------------------------
+//
+// Build no longer auto-generates the sample portfolio on mount. Instead the
+// welcome dialog's OK click in InvestmentLab dispatches this event, which
+// BuildPortfolio subscribes to and runs the same generate path it uses for
+// an explicit "Generate Portfolio" click (sets the user-driven flag so the
+// nav-bar dots light up). One-shot — there's no pending state to drain on
+// late subscription because the welcome dialog is the only producer and it
+// fires after BuildPortfolio has already mounted (forceMount under Tabs).
+// ----------------------------------------------------------------------------
+const REQUEST_BUILD_SAMPLE_EVENT = "idl-request-build-sample";
+
+export function requestBuildSampleGeneration(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(REQUEST_BUILD_SAMPLE_EVENT));
+}
+
+export function subscribeRequestBuildSampleGeneration(
+  cb: () => void,
+): () => void {
+  if (typeof window === "undefined") return () => {};
+  const handler = () => cb();
+  window.addEventListener(REQUEST_BUILD_SAMPLE_EVENT, handler);
+  return () =>
+    window.removeEventListener(REQUEST_BUILD_SAMPLE_EVENT, handler);
+}
+
+// ----------------------------------------------------------------------------
+// One-shot nav-dot flash flag (Task #187)
+// ----------------------------------------------------------------------------
+//
+// On the very first welcome-dialog dismissal in this browser the Build and
+// Compare nav dots animate briefly to draw the user's attention. On every
+// subsequent load the dots are static. Persisted in localStorage so a hard
+// refresh in the same tab does not re-trigger it; cleared only by clearing
+// site data.
+const NAV_DOTS_FLASHED_KEY = "idl.navDotsFlashedOnce";
+
+export function getNavDotsFlashedOnce(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    return window.localStorage.getItem(NAV_DOTS_FLASHED_KEY) === "true";
+  } catch {
+    return true;
+  }
+}
+
+export function markNavDotsFlashedOnce(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(NAV_DOTS_FLASHED_KEY, "true");
+  } catch {
+    /* ignore quota / disabled storage */
+  }
+}
+
+// Task #188 — sibling one-shot for the brief hint tooltip that points at the
+// Build dot the first time it flashes. Same per-browser semantics as the dot
+// flash above; persisted under its own key so the two cues can be reset
+// independently if we ever want to re-introduce one without the other.
+const NAV_DOTS_HINT_SHOWN_KEY = "idl.navDotsHintShownOnce";
+
+export function getNavDotsHintShownOnce(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    return window.localStorage.getItem(NAV_DOTS_HINT_SHOWN_KEY) === "true";
+  } catch {
+    return true;
+  }
+}
+
+export function markNavDotsHintShownOnce(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(NAV_DOTS_HINT_SHOWN_KEY, "true");
+  } catch {
+    /* ignore quota / disabled storage */
+  }
 }
 
 // ----------------------------------------------------------------------------

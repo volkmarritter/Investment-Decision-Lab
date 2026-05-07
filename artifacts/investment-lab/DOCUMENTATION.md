@@ -627,6 +627,126 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+### 2026-05 (nav-dot-build-hint — Task #188)
+
+Layered a small one-shot tooltip on top of the Task #187 nav-dot
+flash. Right after the welcome dialog is dismissed for the very
+first time in this browser, alongside the existing 1.2 s dot-flash
+animation, a Radix tooltip pinned above the **Build** tab pops
+open for ~3 s with the localized hint "Your sample portfolio is
+ready in Build" / "Ihr Beispielportfolio ist in „Erstellen" bereit"
+(i18n key `nav.hint.build`). The hint is dismissed by:
+
+1. The 3 s timeout firing,
+2. Pressing **Esc**, or
+3. Tapping anywhere on the page (a single capture-phase
+   `pointerdown` listener with `once: true` — taps on the Build
+   tab itself both navigate AND clear the hint in one gesture).
+
+One-shot persistence lives in a sibling localStorage key
+`idl.navDotsHintShownOnce` with `get/markNavDotsHintShownOnce` in
+`src/lib/settings.ts`, deliberately separate from
+`navDotsFlashedOnce` so the two cues can be reset independently.
+
+Both nav surfaces are wired:
+
+- **Desktop header** (`HeaderTabBar`): the existing per-tab
+  `<Tooltip>` is switched to `open: true` when the Build tab is
+  the hint target, and its `<TooltipContent>` swaps to the hint
+  text (with `data-testid="nav-hint-build"`).
+- **Mobile bottom bar** (`MobileTabBar`): the Build button is
+  unwrapped by default (preserving the original "no Tooltip on
+  touch" behaviour to avoid swallowing taps), but conditionally
+  wrapped in a `<Tooltip open>` for the ~3 s the hint is showing
+  (`data-testid="nav-hint-build-mobile"`, side="top").
+
+### 2026-05 (per-bucket-lookthrough-backfill)
+
+Added a per-bucket variant of the catalog tree's existing global
+"Fetch missing data" backfill. Each bucket header in
+`/admin/catalog/browse` now carries a `Fetch LT (N)` button that
+shows the count of ISINs in that bucket without look-through data
+and is disabled when N=0 (with a "covered" tooltip). Clicking it
+triggers the same justETF scrape pipeline as the global header
+button — sequential ~5s/ISIN scrape, validate that all four fields
+(top holdings, geo, sector, currency) are non-empty, then write to
+`lookthrough.overrides.json`'s `pool` section either via direct
+write (workspace) or one combined PR (production).
+
+Backend: new `POST /admin/buckets/:key/backfill-lookthrough` route
+in `artifacts/api-server/src/routes/admin.ts`. Same body shape as
+the global handler plus a `bucketKey` echo. Candidate set is the
+bucket's default + alternatives + pool ISINs, de-duplicated and
+filtered against `overrides ∪ pool` coverage. 404 on unknown
+bucket key.
+
+Frontend: `backfillBucketLookthrough(bucketKey)` added to
+`src/lib/admin-api.ts`. `ConsolidatedEtfTreePanel` got a
+`bucketBackfillingKey` lock (one bucket at a time, justETF
+politeness) and a `runBucketBackfill` handler that surfaces results
+via toast (success / partial-failure warning / empty / error)
+instead of the inline alert the global header uses — bucket runs
+are typically <5 ISINs so a transient toast is enough; the per-row
+LT-status badges refresh on the existing `prsRefreshKey` bump.
+
+### 2026-05 (nav-dot-user-driven — Task #186)
+
+Fixed three nav-bar content-indicator dot misbehaviours:
+
+1. **Build dot stayed lit after reset.** The reset/refresh button on
+   Build flipped `hasGenerated` back to `false` but never republished
+   the cross-tab Build channels, so the dot kept showing.
+2. **Compare dot lit up on fresh load.** Compare's `linked` flag
+   default-on'd against Build's auto-generated example portfolio,
+   which immediately reported a "filled" Slot A to the nav.
+3. **Dots flashed on first paint.** The above two combined with
+   subscribe-effect timing produced visible blink-in/blink-out.
+
+Implementation: a new `lastBuildUserDriven` channel in
+`src/lib/settings.ts` (with `set/get/subscribe` siblings to the
+existing `lastBuildInput` channel). The flag is set to `true` only
+on the explicit user-driven Build paths (`onSubmit` — covers both
+the **Build Portfolio** button click and saved-scenario load), and
+explicitly back to `false` on the Build reset button (alongside a
+defensive `setLastBuildInput(null)` so Compare's link mirror also
+stops echoing the discarded input). The auto-generate-on-mount path
+(Task #96) deliberately leaves the flag at its initial `false`.
+
+`InvestmentLab.useNavSignals` now seeds and subscribes
+`buildHas` from `getLastBuildUserDriven()` instead of
+`getLastBuildInput() !== null`. `ComparePortfolios` subscribes to the
+same channel and gates its Slot A "filled" calculation on
+`(linked && buildUserDriven) || …` — so auto-link to an
+auto-generated Build no longer triggers the Compare dot, but a real
+user-driven Build still does. The Compare "Linked / Re-link" badge is
+unchanged (still keyed off `hasBuildPublished`); only the nav-dot
+contract was tightened.
+
+Regression test: `tests/buildUserDrivenSignal.test.ts` (3 cases) —
+fresh-load default `false`, set/clear round-trip, and dedup'd
+subscribe stream.
+
+### 2026-05 (send-to-explain-cash — Task #182)
+
+Build's **Send to Explain** hand-off now includes the portfolio's Cash
+slice. Previously the converter only mapped `etfImplementation` rows,
+so Cash (which has no ISIN and is excluded from that table) was
+dropped — Explain ended up with a portfolio that summed to less than
+100%.
+
+- `buildToExplainWorkspace` in `src/lib/explainCompare.ts` now also
+  reads `output.allocation` for the Cash row (`assetClass === "Cash"`)
+  and, when its weight is > 0, appends a Cash sentinel position
+  (`isin: ""`, `bucketKey: EXPLAIN_CASH_BUCKET_SENTINEL`,
+  `cashCurrency: input.baseCurrency`). Build inputs with 0% Cash add
+  no row (no zero-weight noise). The receiving `ExplainPortfolio`
+  ingestion path needed no changes — it already accepts the Cash
+  sentinel + `cashCurrency` shape from manual adds and the file
+  round-trip.
+- Two new cases in `tests/buildToExplain.test.ts` cover the non-zero
+  Cash → sentinel-row + currency assertion (and total-weight
+  preservation) and the 0% Cash → no Cash row assertion.
+
 ### 2026-05 (slot-tag-tooltips — Task #167)
 
 Added hover/tap tooltips to the **Default / Alternative / Pool** slot

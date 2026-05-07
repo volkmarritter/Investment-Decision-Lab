@@ -2067,6 +2067,181 @@ router.post("/admin/backfill-lookthrough-pool", async (_req, res) => {
   }
 });
 
+// POST /admin/buckets/:key/backfill-lookthrough — per-bucket variant of
+// the global backfill above. Same scrape pipeline (justETF, sequential,
+// one combined PR / direct write), but the candidate set is just the
+// ISINs of ONE bucket: its default + all alternatives + all pool
+// entries. Useful when an operator has just attached a handful of new
+// ETFs to a single bucket and wants the look-through tiles populated
+// without scanning the entire catalog (≪ catalog scan, faster).
+router.post("/admin/buckets/:key/backfill-lookthrough", async (req, res) => {
+  if (!directWriteMode() && !githubConfigured()) {
+    res.status(503).json({
+      error: "github_not_configured",
+      message: "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
+    });
+    return;
+  }
+
+  const bucketKey = String(req.params.key);
+
+  // 1. Look up the bucket and collect its ISINs (default + alternatives
+  //    + pool), de-duplicated and uppercased to match the LT key style.
+  let bucketIsins: string[];
+  try {
+    const catalog = await loadCatalog();
+    const entry = catalog[bucketKey];
+    if (!entry) {
+      res.status(404).json({
+        error: "bucket_not_found",
+        message: `Unknown bucket key: ${bucketKey}`,
+      });
+      return;
+    }
+    const set = new Set<string>();
+    if (entry.isin) set.add(entry.isin.toUpperCase());
+    for (const alt of entry.alternatives ?? []) {
+      if (alt?.isin) set.add(alt.isin.toUpperCase());
+    }
+    for (const poolItem of entry.pool ?? []) {
+      if (poolItem?.isin) set.add(poolItem.isin.toUpperCase());
+    }
+    bucketIsins = [...set];
+  } catch (err) {
+    res.status(500).json({
+      error: "catalog_parse_failed",
+      message: err instanceof Error ? err.message : String(err),
+    });
+    return;
+  }
+
+  // 2. Filter to those NOT already covered by look-through data
+  //    (overrides ∪ pool — same coverage rule as the global backfill).
+  const sources = await readLookthroughSources();
+  const have = new Set([
+    ...Object.keys(sources.overrides),
+    ...Object.keys(sources.pool),
+  ]);
+  const missing = bucketIsins.filter((i) => !have.has(i));
+
+  if (missing.length === 0) {
+    res.json({
+      ok: true,
+      bucketKey,
+      scanned: bucketIsins.length,
+      missing: 0,
+      attempted: [],
+      added: [],
+      skippedAlreadyPresent: [],
+      scrapeFailures: [],
+    });
+    return;
+  }
+
+  // 3. Scrape each missing ISIN sequentially (justETF rate-limit
+  //    politeness). Identical validation to the global handler above.
+  type ScrapeFailure = { isin: string; reason: string };
+  const entries: Array<{ isin: string; entry: LookthroughPoolEntry }> = [];
+  const scrapeFailures: ScrapeFailure[] = [];
+  for (const isin of missing) {
+    try {
+      const scraped = await scrapeLookthrough(isin);
+      const top = scraped.topHoldings;
+      const geo = scraped.geo;
+      const sector = scraped.sector;
+      const currency = scraped.currency;
+      if (
+        !top ||
+        top.length === 0 ||
+        !geo ||
+        Object.keys(geo).length === 0 ||
+        !sector ||
+        Object.keys(sector).length === 0 ||
+        !currency
+      ) {
+        const missingFields = [
+          (!top || top.length === 0) && "Top-Holdings",
+          (!geo || Object.keys(geo).length === 0) && "Geo",
+          (!sector || Object.keys(sector).length === 0) && "Sektor",
+          !currency && "Währung",
+        ]
+          .filter(Boolean)
+          .join(", ");
+        scrapeFailures.push({
+          isin,
+          reason: `Scrape unvollständig — fehlende Felder: ${missingFields}`,
+        });
+        continue;
+      }
+      entries.push({
+        isin,
+        entry: {
+          ...(scraped.name ? { name: scraped.name } : {}),
+          topHoldings: top,
+          topHoldingsAsOf: scraped.asOf,
+          geo,
+          sector,
+          currency,
+          breakdownsAsOf: scraped.asOf,
+          _source: scraped.sourceUrl,
+          _addedAt: scraped.asOf,
+          _addedVia: `admin/buckets/${bucketKey}/backfill-lookthrough`,
+        },
+      });
+    } catch (err) {
+      scrapeFailures.push({
+        isin,
+        reason: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  if (entries.length === 0) {
+    res.status(422).json({
+      error: "no_complete_scrapes",
+      message: `Keine der ${missing.length} fehlenden ISINs in Bucket ${bucketKey} lieferte vollständige Look-through-Daten. Kein PR geöffnet.`,
+      bucketKey,
+      scanned: bucketIsins.length,
+      missing: missing.length,
+      attempted: missing,
+      scrapeFailures,
+    });
+    return;
+  }
+
+  // 4. One PR (or direct write) with all complete entries.
+  try {
+    const pr = await openBulkAddLookthroughPoolPr({ entries });
+    res.json({
+      ok: true,
+      bucketKey,
+      scanned: bucketIsins.length,
+      missing: missing.length,
+      attempted: missing,
+      added: pr.added,
+      skippedAlreadyPresent: pr.skippedAlreadyPresent,
+      scrapeFailures,
+      prUrl: pr.url,
+      prNumber: pr.number,
+    });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (/already exists/i.test(msg)) {
+      res.status(409).json({
+        error: "pr_already_open",
+        message: msg,
+        scrapeFailures,
+      });
+      return;
+    }
+    res.status(502).json({
+      error: "pr_creation_failed",
+      message: msg,
+      scrapeFailures,
+    });
+  }
+});
+
 type LookthroughEntryShape = {
   // Optional in the on-disk shape because pool-only entries write it
   // (auto-refresh persists the justETF profile name) but legacy

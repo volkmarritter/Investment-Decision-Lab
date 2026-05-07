@@ -36,8 +36,10 @@ import { getAllETFSelections, type ETFSlot } from "@/lib/etfSelection";
 import {
   getLastBuildInput,
   getLastBuildManualWeights,
+  getLastBuildUserDriven,
   subscribeLastBuildInput,
   subscribeLastBuildManualWeights,
+  subscribeLastBuildUserDriven,
 } from "@/lib/settings";
 import {
   type CompareSlotName,
@@ -300,19 +302,36 @@ export function ComparePortfolios() {
 
   const [hasGenerated, setHasGenerated] = useState(false);
 
+  // Track Build's "user-driven" flag for the nav-dot gate below. This is
+  // distinct from `hasBuildPublished` above (which gates the "Linked /
+  // Re-link" badge): the badge should still appear once Build has any
+  // value, but the Compare nav-dot must NOT light up just because Slot A
+  // mirrored Build's silent auto-generated example. Task #186.
+  const [buildUserDriven, setBuildUserDriven] = useState<boolean>(
+    () => getLastBuildUserDriven(),
+  );
+  useEffect(
+    () => subscribeLastBuildUserDriven((v) => setBuildUserDriven(v)),
+    [],
+  );
+
   // Publish a Slot A / Slot B "has content" signal so the InvestmentLab nav
   // can render its content-indicator dot from real Compare state (not from a
   // proxy of Build/Explain content). A slot counts as filled when any of:
-  //   * Slot A is currently linked-to-Build (mirrors Build's input);
+  //   * Slot A is currently linked-to-Build AND Build is user-driven
+  //     (Task #186 — auto-generated Build alone must not light the dot);
   //   * the slot has been sourced from an Explain workspace; OR
   //   * the slot has produced a computed PortfolioOutput.
   // The store deduplicates so this fires sparingly.
   useEffect(() => {
     setCompareSlotsState({
-      A: linked || explainSourceA !== null || outputA !== null,
+      A:
+        (linked && buildUserDriven) ||
+        explainSourceA !== null ||
+        outputA !== null,
       B: explainSourceB !== null || outputB !== null,
     });
-  }, [linked, explainSourceA, explainSourceB, outputA, outputB]);
+  }, [linked, buildUserDriven, explainSourceA, explainSourceB, outputA, outputB]);
   useEffect(() => {
     return () => {
       // On unmount, clear so a stale dot doesn't linger when the lab is torn

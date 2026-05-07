@@ -32,6 +32,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "nav.compare.subtitle": "A vs B side-by-side",
     "nav.explain.subtitle": "Bring your own ETFs",
     "nav.methodology.subtitle": "How the engine thinks",
+    "nav.hint.build": "Your sample portfolio is ready in Build",
 
     // Welcome dialog (Task #96) — shown shortly after the app shell mounts
     // to explain that an example portfolio has been auto-generated and the
@@ -709,6 +710,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "nav.compare.subtitle": "A vs. B im Direktvergleich",
     "nav.explain.subtitle": "Eigene ETFs einbringen",
     "nav.methodology.subtitle": "Wie die Engine denkt",
+    "nav.hint.build": "Ihr Beispielportfolio ist in „Erstellen“ bereit",
 
     // Welcome dialog (Task #96) — shown shortly after the app shell mounts
     // to explain that an example portfolio has been auto-generated and the

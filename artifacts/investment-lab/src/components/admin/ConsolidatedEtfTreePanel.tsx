@@ -52,6 +52,12 @@ export function ConsolidatedEtfTreePanel({
     prUrl?: string;
     prNumber?: number;
   } | null>(null);
+  // Per-bucket backfill (2026-05). Keyed by bucket key — at most one
+  // bucket-scoped scrape runs at a time so we don't fan out parallel
+  // justETF requests (politeness + 1-2s/scrape ≪ visible UX cost).
+  const [bucketBackfillingKey, setBucketBackfillingKey] = useState<
+    string | null
+  >(null);
 
   const [expandedClasses, setExpandedClasses] = useState<Set<string>>(() => {
     try {
@@ -266,6 +272,68 @@ export function ConsolidatedEtfTreePanel({
       setPrsRefreshKey((k) => k + 1);
     } finally {
       setBackfilling(false);
+    }
+  }
+
+  // Per-bucket variant of the header backfill (2026-05). Same scrape
+  // pipeline server-side, but the candidate set is just one bucket's
+  // ISINs (default + alternatives + pool). Surfaces the result via
+  // toast (success/empty/failure) instead of the inline Alert the
+  // header backfill uses — bucket-scoped runs are typically <5 ISINs
+  // so a transient toast is enough; the per-row LT-status badges
+  // refresh on prsRefreshKey bump.
+  async function runBucketBackfill(bucketKey: string) {
+    setBucketBackfillingKey(bucketKey);
+    try {
+      const r = await adminApi.backfillBucketLookthrough(bucketKey);
+      const directWrite = r.prNumber === 0 || !r.prUrl;
+      if (r.added.length > 0) {
+        toast.success(
+          directWrite
+            ? lang === "de"
+              ? `${r.added.length} Look-through-Eintr${r.added.length === 1 ? "ag" : "äge"} für Bucket ${bucketKey} gespeichert`
+              : `Saved look-through data for ${r.added.length} ISIN${r.added.length === 1 ? "" : "s"} in bucket ${bucketKey}`
+            : lang === "de"
+              ? `Pull Request #${r.prNumber} für Bucket ${bucketKey} mit ${r.added.length} ISIN${r.added.length === 1 ? "" : "s"} geöffnet`
+              : `Pull Request #${r.prNumber} opened for bucket ${bucketKey} with ${r.added.length} ISIN${r.added.length === 1 ? "" : "s"}`,
+          directWrite || !r.prUrl
+            ? undefined
+            : {
+                action: {
+                  label: t({ de: "Öffnen", en: "Open" }),
+                  onClick: () => window.open(r.prUrl, "_blank"),
+                },
+              },
+        );
+        if (r.scrapeFailures.length > 0) {
+          toast.warning(
+            lang === "de"
+              ? `${r.scrapeFailures.length} ISIN${r.scrapeFailures.length === 1 ? "" : "s"} fehlgeschlagen: ${r.scrapeFailures.map((f) => f.isin).join(", ")}`
+              : `${r.scrapeFailures.length} ISIN${r.scrapeFailures.length === 1 ? "" : "s"} failed: ${r.scrapeFailures.map((f) => f.isin).join(", ")}`,
+          );
+        }
+        setPrsRefreshKey((k) => k + 1);
+      } else if (r.missing === 0) {
+        toast.success(
+          lang === "de"
+            ? `Bucket ${bucketKey}: alle ${r.scanned} ISINs haben bereits Look-through-Daten.`
+            : `Bucket ${bucketKey}: all ${r.scanned} ISINs already have look-through data.`,
+        );
+      } else {
+        toast.error(
+          lang === "de"
+            ? `Bucket ${bucketKey}: keiner der ${r.missing} fehlenden ISINs lieferte vollständige Daten.`
+            : `Bucket ${bucketKey}: none of the ${r.missing} missing ISINs returned complete data.`,
+        );
+      }
+    } catch (e: unknown) {
+      toast.error(
+        lang === "de"
+          ? `Bucket-Backfill fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`
+          : `Bucket backfill failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    } finally {
+      setBucketBackfillingKey(null);
     }
   }
 
@@ -740,6 +808,22 @@ export function ConsolidatedEtfTreePanel({
                           alts.length >= MAX_ALTERNATIVES_PER_BUCKET;
                         const poolAtCap =
                           bucketPoolEntries.length >= MAX_POOL_PER_BUCKET;
+                        // Per-bucket missing-LT count (2026-05). The button
+                        // only makes sense when this bucket actually has
+                        // ISINs without look-through data; if 0, render
+                        // disabled with a "covered" tooltip so operators
+                        // still see it (don't hide — silent absence is
+                        // more confusing than a disabled button).
+                        const bucketIsinList = [
+                          entry.isin,
+                          ...alts.map((a) => a.isin),
+                          ...bucketPoolEntries.map((p) => p.isin),
+                        ];
+                        const missingLtCount = bucketIsinList.filter(
+                          (i) => i && !poolByIsin.has(i.toUpperCase()),
+                        ).length;
+                        const thisBucketBackfilling =
+                          bucketBackfillingKey === leaf.key;
                         return (
                           <div
                             key={leaf.key}
@@ -913,6 +997,52 @@ export function ConsolidatedEtfTreePanel({
                                             de: "Neues Instrument …",
                                             en: "New instrument …",
                                           })}
+                                    </Button>
+                                    {/* Per-bucket Look-through backfill
+                                        (2026-05). Only enabled when this
+                                        bucket has at least one ISIN without
+                                        LT data — same scrape pipeline as
+                                        the header "Fetch missing data" but
+                                        scoped to this bucket. */}
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() =>
+                                        void runBucketBackfill(leaf.key)
+                                      }
+                                      disabled={
+                                        thisBucketBackfilling ||
+                                        missingLtCount === 0 ||
+                                        bucketBackfillingKey !== null
+                                      }
+                                      data-testid={`button-tree-backfill-bucket-${leaf.key}`}
+                                      title={
+                                        missingLtCount === 0
+                                          ? t({
+                                              de: "Alle ISINs in diesem Bucket haben bereits Look-through-Daten.",
+                                              en: "All ISINs in this bucket already have look-through data.",
+                                            })
+                                          : t({
+                                              de: `Look-through-Daten für ${missingLtCount} fehlende ISIN${missingLtCount === 1 ? "" : "s"} in diesem Bucket nachziehen (~${missingLtCount * 5}s).`,
+                                              en: `Scrape look-through data for ${missingLtCount} missing ISIN${missingLtCount === 1 ? "" : "s"} in this bucket (~${missingLtCount * 5}s).`,
+                                            })
+                                      }
+                                    >
+                                      {thisBucketBackfilling ? (
+                                        <>
+                                          <RefreshCw className="h-3 w-3 animate-spin mr-1" />
+                                          {t({
+                                            de: "Läuft …",
+                                            en: "Running …",
+                                          })}
+                                        </>
+                                      ) : (
+                                        t({
+                                          de: `LT holen (${missingLtCount})`,
+                                          en: `Fetch LT (${missingLtCount})`,
+                                        })
+                                      )}
                                     </Button>
                                   </>
                                 )}

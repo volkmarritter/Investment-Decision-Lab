@@ -54,9 +54,11 @@ import {
   setLastAllocation,
   setLastEtfImplementation,
   setLastBuildInput,
+  setLastBuildUserDriven,
   setLastBuildManualWeights,
   getBuildRationaleRisksOpen,
   setBuildRationaleRisksOpen,
+  subscribeRequestBuildSampleGeneration,
 } from "@/lib/settings";
 import { StressTest } from "./StressTest";
 import { FeeEstimator } from "./FeeEstimator";
@@ -268,7 +270,15 @@ export function BuildPortfolio() {
   // current snapshot and then keep streaming updates via form.watch so
   // mid-edit changes show up live in a linked Slot A.
   useEffect(() => {
-    if (!hasGenerated) return;
+    if (!hasGenerated) {
+      // Task #186 hardening: any path that flips hasGenerated back to
+      // false (today only the reset button, but future paths too)
+      // should not leave a stale snapshot on the cross-tab channel.
+      // Reset already calls setLastBuildInput(null) explicitly; this
+      // is a defense-in-depth backstop.
+      setLastBuildInput(null);
+      return;
+    }
     setLastBuildInput(form.getValues() as unknown as Record<string, unknown>);
     const sub = form.watch((value) => {
       setLastBuildInput(value as unknown as Record<string, unknown>);
@@ -410,22 +420,32 @@ export function BuildPortfolio() {
   // react-hook-form passes `(data, event)` to the submit callback, so we
   // wrap generatePortfolio in a single-arg adapter to keep the default
   // (scroll-to-results) behaviour for explicit user submissions.
+  // Task #186: this is the user-driven path (Generate button click and
+  // saved-scenario load both funnel through here), so flip the user-
+  // driven flag so the nav-bar Build dot can light up. The auto-mount
+  // path further down deliberately does NOT set this flag.
   const onSubmit = (data: PortfolioInput) => {
+    setLastBuildUserDriven(true);
     generatePortfolio(data, { scrollToResults: true });
   };
 
-  // Auto-generate an example portfolio on first mount (Task #96) so first-
-  // time visitors see the full output instead of the empty "Ready to Build"
-  // state. Reuses the same generate path as a real button click — including
-  // validation, output state, manual-weights snapshotting and the cross-tab
-  // broadcast — but with scroll suppressed so the user stays at the top of
-  // the page. Guarded by a ref so the effect runs exactly once even under
-  // React StrictMode's double-invoke in development.
-  const didAutoGenerateRef = useRef(false);
+  // Task #187 — Build no longer auto-generates the sample portfolio on
+  // mount. Instead the welcome dialog's OK click in InvestmentLab fires
+  // a one-shot `requestBuildSampleGeneration()` event that we subscribe
+  // to here. We run the same generate path used by an explicit
+  // "Generate Portfolio" click — including the user-driven flag flip
+  // so the nav-bar Build/Compare dots light up — but with scroll
+  // suppressed so the user stays at the top of the page. A ref guards
+  // against double-fire from React StrictMode's double-invoke of
+  // effects in development.
+  const didSampleGenerateRef = useRef(false);
   useEffect(() => {
-    if (didAutoGenerateRef.current) return;
-    didAutoGenerateRef.current = true;
-    generatePortfolio(form.getValues(), { scrollToResults: false });
+    return subscribeRequestBuildSampleGeneration(() => {
+      if (didSampleGenerateRef.current) return;
+      didSampleGenerateRef.current = true;
+      setLastBuildUserDriven(true);
+      generatePortfolio(form.getValues(), { scrollToResults: false });
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -488,6 +508,16 @@ export function BuildPortfolio() {
                         setValidation(null);
                         setHasGenerated(false);
                         setNumETFsMode("auto");
+                        // Task #186: clear the cross-tab Build channels too.
+                        // Until reset, the publish effect above kept the
+                        // module-level lastBuildInput populated; flipping
+                        // hasGenerated false alone won't republish, so the
+                        // nav-bar Build dot would stay lit and Compare would
+                        // still see a "linkable" Build state. Clear both
+                        // explicitly so the dot disappears immediately and
+                        // Compare's link mirror stops echoing stale data.
+                        setLastBuildInput(null);
+                        setLastBuildUserDriven(false);
                       }}
                       aria-label={lang === "de" ? "Auf Standardwerte zurücksetzen" : "Reset to defaults"}
                     >
@@ -544,6 +574,34 @@ export function BuildPortfolio() {
                 />
               </div>
             </div>
+
+            {/* Send-to-Explain (Task #185): hoisted out of the form to sit
+             *  prominently right after the save-slot UI. Always rendered so
+             *  the disabled state is visible before any portfolio has been
+             *  built; tooltip switches to a "generate first" hint while
+             *  disabled. */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="w-full inline-block">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full"
+                    disabled={!output || !validation?.isValid}
+                    data-testid="build-send-to-explain"
+                    onClick={handleSendToExplainClick}
+                  >
+                    <PieChartIcon className="h-4 w-4 mr-2" />
+                    {t("build.btn.sendToExplain")}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                {!output || !validation?.isValid
+                  ? t("build.btn.sendToExplain.disabled.tooltip")
+                  : t("build.btn.sendToExplain.tooltip")}
+              </TooltipContent>
+            </Tooltip>
           </CardHeader>
           <CardContent>
             <Form {...form}>
@@ -951,33 +1009,6 @@ export function BuildPortfolio() {
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs">
                     {t("build.btn.copyAiPrompt.tooltip")}
-                  </TooltipContent>
-                </Tooltip>
-
-                {/* Send-to-Explain (Task #175). Always rendered alongside
-                 *  Generate / Copy AI Prompt so the disabled state is
-                 *  visible before any portfolio has been built; tooltip
-                 *  switches to a "generate first" hint while disabled. */}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="w-full inline-block">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        className="w-full"
-                        disabled={!output || !validation?.isValid}
-                        data-testid="build-send-to-explain"
-                        onClick={handleSendToExplainClick}
-                      >
-                        <PieChartIcon className="h-4 w-4 mr-2" />
-                        {t("build.btn.sendToExplain")}
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    {!output || !validation?.isValid
-                      ? t("build.btn.sendToExplain.disabled.tooltip")
-                      : t("build.btn.sendToExplain.tooltip")}
                   </TooltipContent>
                 </Tooltip>
               </form>

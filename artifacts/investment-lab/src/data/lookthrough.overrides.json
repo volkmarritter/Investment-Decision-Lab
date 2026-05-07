@@ -8454,74 +8454,240 @@
       "_addedAt": "2026-05-07T06:25:12.446Z",
       "_addedVia": "admin/lookthrough-pool"
     },
-    "IE00BDBRT036": {
-      "name": "First Trust Nasdaq Clean Edge Green Energy UCITS ETF Acc",
+    "IE00B8J37J31": {
+      "name": "iShares MSCI Japan CHF Hedged UCITS ETF (Acc)",
       "topHoldings": [
         {
-          "name": "Monolithic Power Systems",
-          "pct": 7.91
+          "name": "Toyota Motor Corp.",
+          "pct": 4.09
         },
         {
-          "name": "First Solar",
-          "pct": 7.85
+          "name": "Mitsubishi UFJ Financial Group, Inc.",
+          "pct": 4
         },
         {
-          "name": "ON Semiconductor",
-          "pct": 7.7
+          "name": "Hitachi Ltd.",
+          "pct": 2.79
         },
         {
-          "name": "Tesla",
-          "pct": 7.63
+          "name": "Sony Group Corp.",
+          "pct": 2.69
         },
         {
-          "name": "Bloom Energy",
-          "pct": 7.19
+          "name": "Sumitomo Mitsui Financial Group, Inc.",
+          "pct": 2.5
         },
         {
-          "name": "Nextpower",
-          "pct": 4.74
+          "name": "Mitsubishi Corp.",
+          "pct": 2.34
         },
         {
-          "name": "Albemarle",
-          "pct": 4.15
+          "name": "Tokyo Electron Ltd.",
+          "pct": 2.27
         },
         {
-          "name": "Rivian Automotive",
-          "pct": 4.06
+          "name": "Advantest Corp.",
+          "pct": 2.13
         },
         {
-          "name": "Advanced Energy Inds",
-          "pct": 3.97
+          "name": "Mizuho Financial Group, Inc.",
+          "pct": 2.07
         },
         {
-          "name": "Acuity",
-          "pct": 3.84
+          "name": "Mitsui & Co., Ltd.",
+          "pct": 2.01
         }
       ],
-      "topHoldingsAsOf": "2026-05-07T06:27:44.892Z",
+      "topHoldingsAsOf": "2026-05-07T06:29:05.171Z",
       "geo": {
-        "United States": 86.93,
-        "Israel": 1.42,
-        "Other": 11.65
+        "Japan": 97.47,
+        "Other": 2.53
       },
       "sector": {
-        "Technology": 39.88,
-        "Industrials": 24.78,
-        "Consumer Discretionary": 11.8,
-        "Utilities": 5.75,
-        "Basic Materials": 4.91,
-        "Real Estate": 2.16,
-        "Energy": 0.55,
-        "Other": 10.17
+        "Industrials": 25.68,
+        "Financials": 17.43,
+        "Consumer Discretionary": 15.63,
+        "Technology": 12.96,
+        "Health Care": 6.61,
+        "Telecommunication": 6.51,
+        "Consumer Staples": 4.4,
+        "Basic Materials": 3.43,
+        "Real Estate": 2.37,
+        "Energy": 1.25,
+        "Utilities": 1.21,
+        "Other": 2.53
       },
       "currency": {
-        "USD": 86.93,
-        "ILS": 1.42,
-        "Other": 11.65
+        "JPY": 97.47,
+        "Other": 2.53
       },
-      "breakdownsAsOf": "2026-05-07T06:27:44.892Z",
-      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BDBRT036",
-      "_addedAt": "2026-05-07T06:27:44.892Z",
+      "breakdownsAsOf": "2026-05-07T06:29:05.171Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B8J37J31",
+      "_addedAt": "2026-05-07T06:29:05.171Z",
+      "_addedVia": "admin/lookthrough-pool"
+    },
+    "IE000GA3D489": {
+      "name": "ARK Innovation UCITS ETF USD Accumulating",
+      "topHoldings": [
+        {
+          "name": "Tesla",
+          "pct": 9.05
+        },
+        {
+          "name": "CRISPR Therapeutics",
+          "pct": 5.76
+        },
+        {
+          "name": "AMD",
+          "pct": 5.75
+        },
+        {
+          "name": "Robinhood Markets, Inc.",
+          "pct": 5.03
+        },
+        {
+          "name": "Circle Internet Group",
+          "pct": 4.42
+        },
+        {
+          "name": "Tempus AI, Inc.",
+          "pct": 4.31
+        },
+        {
+          "name": "Shopify, Inc.",
+          "pct": 4.25
+        },
+        {
+          "name": "Coinbase Global",
+          "pct": 4.09
+        },
+        {
+          "name": "Roku",
+          "pct": 3.96
+        },
+        {
+          "name": "Twist Bioscience",
+          "pct": 3.38
+        }
+      ],
+      "topHoldingsAsOf": "2026-05-07T06:32:31.836Z",
+      "geo": {
+        "United States": 68.33,
+        "Switzerland": 5.76,
+        "Canada": 5.41,
+        "Other": 20.5
+      },
+      "sector": {
+        "Health Care": 24.69,
+        "Technology": 19.37,
+        "Consumer Discretionary": 11.34,
+        "Financials": 9.68,
+        "Telecommunication": 9.21,
+        "Industrials": 4.05,
+        "Energy": 1.17,
+        "Other": 20.5
+      },
+      "currency": {
+        "USD": 68.33,
+        "CHF": 5.76,
+        "CAD": 5.41,
+        "Other": 20.5
+      },
+      "breakdownsAsOf": "2026-05-07T06:32:31.836Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE000GA3D489",
+      "_addedAt": "2026-05-07T06:32:31.836Z",
+      "_addedVia": "admin/lookthrough-pool"
+    },
+    "IE00B3VVMM84": {
+      "name": "Vanguard FTSE Emerging Markets UCITS ETF (USD) Distributing",
+      "topHoldings": [
+        {
+          "name": "Taiwan Semiconductor Manufacturing Co., Ltd.",
+          "pct": 14
+        },
+        {
+          "name": "Tencent Holdings Ltd.",
+          "pct": 4
+        },
+        {
+          "name": "Alibaba Group Holding Ltd.",
+          "pct": 2.84
+        },
+        {
+          "name": "Reliance Industries Ltd.",
+          "pct": 1.01
+        },
+        {
+          "name": "China Construction Bank Corp.",
+          "pct": 0.97
+        },
+        {
+          "name": "HDFC Bank Ltd.",
+          "pct": 0.91
+        },
+        {
+          "name": "Delta Electronics, Inc.",
+          "pct": 0.87
+        },
+        {
+          "name": "PDD Holdings",
+          "pct": 0.81
+        },
+        {
+          "name": "Hon Hai Precision Industry Co., Ltd.",
+          "pct": 0.75
+        },
+        {
+          "name": "Xiaomi Corp.",
+          "pct": 0.73
+        }
+      ],
+      "topHoldingsAsOf": "2026-05-07T08:23:42.736Z",
+      "geo": {
+        "China": 27.84,
+        "Taiwan": 24.67,
+        "India": 13.72,
+        "Brazil": 4.69,
+        "Saudi Arabia": 3.54,
+        "South Africa": 3.11,
+        "Mexico": 2.25,
+        "Malaysia": 1.67,
+        "United Arab Emirates": 1.47,
+        "Hong Kong": 1.24,
+        "Thailand": 1.22,
+        "Other": 14.58
+      },
+      "sector": {
+        "Technology": 24.82,
+        "Financials": 20.21,
+        "Consumer Discretionary": 10.08,
+        "Telecommunication": 7.66,
+        "Basic Materials": 7.33,
+        "Industrials": 5.84,
+        "Energy": 4.76,
+        "Consumer Staples": 3.64,
+        "Health Care": 2.91,
+        "Utilities": 2.66,
+        "Real Estate": 1.59,
+        "Other": 8.5
+      },
+      "currency": {
+        "CNY": 27.84,
+        "TWD": 24.67,
+        "INR": 13.72,
+        "BRL": 4.69,
+        "SAR": 3.54,
+        "ZAR": 3.11,
+        "MXN": 2.25,
+        "MYR": 1.67,
+        "AED": 1.47,
+        "HKD": 1.24,
+        "THB": 1.22,
+        "Other": 14.58
+      },
+      "breakdownsAsOf": "2026-05-07T08:23:42.736Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B3VVMM84",
+      "_addedAt": "2026-05-07T08:23:42.736Z",
       "_addedVia": "admin/lookthrough-pool"
     }
   }
