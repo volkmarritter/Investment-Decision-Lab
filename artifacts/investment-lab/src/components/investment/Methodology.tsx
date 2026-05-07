@@ -47,7 +47,7 @@ const SECTION_VERSIONS: Record<string, { version: string; month: string }> = {
   wht: { version: "v1.5", month: "Apr 2026" },
   "tail-realism": { version: "v1.6", month: "Apr 2026" },
   mc: { version: "v1.7", month: "Apr 2026" },
-  "manual-isin": { version: "v1.8", month: "May 2026" },
+  "manual-isin": { version: "v1.9", month: "May 2026" },
 };
 const sectionVersionShort = (id: string): string | undefined =>
   SECTION_VERSIONS[id]?.version;
@@ -543,8 +543,8 @@ export function Methodology() {
             ? "Monte-Carlo-Simulation mit Look-Through"
             : "Monte Carlo simulation with look-through";
           map["manual-isin"] = de
-            ? "Live-Vorschau & Pool-Look-Through für manuell erfasste ISINs"
-            : "Live preview & pool look-through for manually-entered ISINs";
+            ? "Katalog-Picker, Bucket-Hinweis & Live-Vorschau für manuell erfasste ISINs"
+            : "Catalog picker, bucket hint & live preview for manually-entered ISINs";
           return map;
         })()}
         de={de}
@@ -1675,8 +1675,8 @@ export function Methodology() {
         >
           <p className="text-sm text-muted-foreground">
             {de
-              ? "Im Tab Erklären lassen sich Positionen ausserhalb des kuratierten Katalogs erfassen, indem ISIN, Asset-Klasse, Region und Gewicht direkt eingegeben werden. Sobald die ISIN dem Format /^[A-Z]{2}[A-Z0-9]{9}\\d$/ entspricht, blendet die App eine kompakte Live-Vorschau direkt unter den Eingabefeldern ein — bevor die Position überhaupt gespeichert wird."
-              : "In the Explain tab, positions outside the curated catalog can be added by typing ISIN, asset class, region and weight directly. The moment the ISIN matches the format /^[A-Z]{2}[A-Z0-9]{9}\\d$/, the app shows a compact live preview right below the input fields — before the position is even committed."}
+              ? "Im Tab Erklären lassen sich Positionen ausserhalb des kuratierten Katalogs auf zwei Wegen erfassen: entweder durch direktes Tippen/Einfügen einer ISIN (plus Asset-Klasse, Region und Gewicht) oder über den Picker für nicht zugeordnete Katalog-Instrumente — letzterer übernimmt die ISIN aus der Auswahl und leitet Asset-Klasse und Region automatisch aus dem Instrumentennamen ab. Sobald die ISIN dem Format /^[A-Z]{2}[A-Z0-9]{9}\\d$/ entspricht, blendet die App eine kompakte Live-Vorschau direkt unter den Eingabefeldern ein — bevor die Position überhaupt gespeichert wird."
+              : "In the Explain tab, positions outside the curated catalog can be added in two ways: either by typing or pasting an ISIN directly (plus asset class, region and weight) or by selecting from the unassigned-catalog picker — the latter copies the ISIN from the selection and auto-infers asset class and region from the instrument name. The moment the ISIN matches the format /^[A-Z]{2}[A-Z0-9]{9}\\d$/, the app shows a compact live preview right below the input fields — before the position is even committed."}
           </p>
 
           <div className="rounded-md border bg-muted/30 p-3 space-y-2">
@@ -1706,6 +1706,9 @@ export function Methodology() {
               <li>{de
                 ? "Schaltfläche „Werte übernehmen“: füllt Name, Währung und TER in die Eingabefelder ein — aber nur dort, wo der Nutzer noch nichts eingetragen hat. Bestehende Eingaben werden nie überschrieben (zweifach abgesichert: in der Komponente und im State-Setter)."
                 : "“Use these values” button: copies name, currency and TER into the input fields — but only into fields the user hasn’t set. Existing inputs are never overwritten (double-gated in the component and the state setter)."}</li>
+              <li>{de
+                ? "Katalog-Bucket-Hinweis: ist die getippte ISIN bereits einem Bucket im Katalog zugeordnet (Default oder Alternative), erscheint eine hellblaue Hinweiszeile mit dem Bucket-Namen (Asset-Klasse — Region, inklusive Hedged-/Synthetic-Suffix) und dem Vorschlag, die Position über den Tree-Picker oben statt manuell zu erfassen. Hinweis: Pool-only-Treffer (Instrumente, die ausschließlich in der erweiterten Bucket-Pool-Liste, aber nicht als Default oder Alternative geführt werden) lösen diesen Hinweis bewusst nicht aus."
+                : "Catalog bucket hint: when the typed ISIN is already assigned to a bucket in the catalog (default or alternative), a sky-blue hint line shows the bucket name (asset class — region, including any hedged/synthetic suffix) and suggests using the tree picker above instead of entering it by hand. Note: pool-only hits (instruments that live only in a bucket’s extended pool but are neither default nor alternative) intentionally do NOT trigger this hint."}</li>
             </ul>
           </div>
 
