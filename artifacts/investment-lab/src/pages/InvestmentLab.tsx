@@ -243,7 +243,7 @@ function HeaderTabBar({
             </TooltipTrigger>
             <TooltipContent
               side="bottom"
-              className="max-w-xs"
+              className={`max-w-xs${isBuildHint ? " hidden sm:block" : ""}`}
               {...(isBuildHint
                 ? { "data-testid": "nav-hint-build" as const }
                 : {})}
@@ -342,7 +342,7 @@ function MobileTabBar({
               <TooltipTrigger asChild>{button}</TooltipTrigger>
               <TooltipContent
                 side="top"
-                className="max-w-xs"
+                className="max-w-xs sm:hidden"
                 data-testid="nav-hint-build-mobile"
               >
                 {t("nav.hint.build")}
