@@ -8453,6 +8453,78 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BD4TXW66",
       "_addedAt": "2026-05-07T06:25:12.446Z",
       "_addedVia": "admin/lookthrough-pool"
+    },
+    "IE00B8J37J31": {
+      "name": "iShares MSCI Japan CHF Hedged UCITS ETF (Acc)",
+      "topHoldings": [
+        {
+          "name": "Toyota Motor Corp.",
+          "pct": 4.09
+        },
+        {
+          "name": "Mitsubishi UFJ Financial Group, Inc.",
+          "pct": 4
+        },
+        {
+          "name": "Hitachi Ltd.",
+          "pct": 2.79
+        },
+        {
+          "name": "Sony Group Corp.",
+          "pct": 2.69
+        },
+        {
+          "name": "Sumitomo Mitsui Financial Group, Inc.",
+          "pct": 2.5
+        },
+        {
+          "name": "Mitsubishi Corp.",
+          "pct": 2.34
+        },
+        {
+          "name": "Tokyo Electron Ltd.",
+          "pct": 2.27
+        },
+        {
+          "name": "Advantest Corp.",
+          "pct": 2.13
+        },
+        {
+          "name": "Mizuho Financial Group, Inc.",
+          "pct": 2.07
+        },
+        {
+          "name": "Mitsui & Co., Ltd.",
+          "pct": 2.01
+        }
+      ],
+      "topHoldingsAsOf": "2026-05-07T06:29:05.171Z",
+      "geo": {
+        "Japan": 97.47,
+        "Other": 2.53
+      },
+      "sector": {
+        "Industrials": 25.68,
+        "Financials": 17.43,
+        "Consumer Discretionary": 15.63,
+        "Technology": 12.96,
+        "Health Care": 6.61,
+        "Telecommunication": 6.51,
+        "Consumer Staples": 4.4,
+        "Basic Materials": 3.43,
+        "Real Estate": 2.37,
+        "Energy": 1.25,
+        "Utilities": 1.21,
+        "Other": 2.53
+      },
+      "currency": {
+        "JPY": 97.47,
+        "Other": 2.53
+      },
+      "breakdownsAsOf": "2026-05-07T06:29:05.171Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B8J37J31",
+      "_addedAt": "2026-05-07T06:29:05.171Z",
+      "_addedVia": "admin/lookthrough-pool"
     }
   }
 }
