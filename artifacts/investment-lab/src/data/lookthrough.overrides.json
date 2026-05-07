@@ -8525,6 +8525,78 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B8J37J31",
       "_addedAt": "2026-05-07T06:29:05.171Z",
       "_addedVia": "admin/lookthrough-pool"
+    },
+    "IE000GA3D489": {
+      "name": "ARK Innovation UCITS ETF USD Accumulating",
+      "topHoldings": [
+        {
+          "name": "Tesla",
+          "pct": 9.05
+        },
+        {
+          "name": "CRISPR Therapeutics",
+          "pct": 5.76
+        },
+        {
+          "name": "AMD",
+          "pct": 5.75
+        },
+        {
+          "name": "Robinhood Markets, Inc.",
+          "pct": 5.03
+        },
+        {
+          "name": "Circle Internet Group",
+          "pct": 4.42
+        },
+        {
+          "name": "Tempus AI, Inc.",
+          "pct": 4.31
+        },
+        {
+          "name": "Shopify, Inc.",
+          "pct": 4.25
+        },
+        {
+          "name": "Coinbase Global",
+          "pct": 4.09
+        },
+        {
+          "name": "Roku",
+          "pct": 3.96
+        },
+        {
+          "name": "Twist Bioscience",
+          "pct": 3.38
+        }
+      ],
+      "topHoldingsAsOf": "2026-05-07T06:32:31.836Z",
+      "geo": {
+        "United States": 68.33,
+        "Switzerland": 5.76,
+        "Canada": 5.41,
+        "Other": 20.5
+      },
+      "sector": {
+        "Health Care": 24.69,
+        "Technology": 19.37,
+        "Consumer Discretionary": 11.34,
+        "Financials": 9.68,
+        "Telecommunication": 9.21,
+        "Industrials": 4.05,
+        "Energy": 1.17,
+        "Other": 20.5
+      },
+      "currency": {
+        "USD": 68.33,
+        "CHF": 5.76,
+        "CAD": 5.41,
+        "Other": 20.5
+      },
+      "breakdownsAsOf": "2026-05-07T06:32:31.836Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE000GA3D489",
+      "_addedAt": "2026-05-07T06:32:31.836Z",
+      "_addedVia": "admin/lookthrough-pool"
     }
   }
 }
