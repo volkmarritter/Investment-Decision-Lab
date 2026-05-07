@@ -1,4 +1,5 @@
 import { PortfolioOutput } from "./types";
+import { bucketOrderKey } from "./chartColors";
 
 export interface DiffRow {
   key: string;
@@ -57,7 +58,11 @@ export function diffPortfolios(a: PortfolioOutput, b: PortfolioOutput): Portfoli
     val.delta = val.b - val.a;
   }
 
-  const rows = Array.from(rowMap.values()).sort((r1, r2) => Math.abs(r2.delta) - Math.abs(r1.delta));
+  const rows = Array.from(rowMap.values()).sort((r1, r2) => {
+    const dr = bucketOrderKey(r1.key) - bucketOrderKey(r2.key);
+    if (dr !== 0) return dr;
+    return ((r2.a + r2.b) / 2) - ((r1.a + r1.b) / 2);
+  });
 
   const observations: string[] = [];
 

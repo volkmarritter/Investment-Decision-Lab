@@ -37,6 +37,7 @@ import {
 } from "../src/lib/metrics";
 import type { AssetAllocation, ETFImplementation } from "../src/lib/types";
 import { diffPortfolios } from "../src/lib/compare";
+import { bucketOrderKey } from "../src/lib/chartColors";
 import { analyzePortfolio } from "../src/lib/explain";
 
 const baseInput = (overrides: Partial<PortfolioInput> = {}): PortfolioInput => ({
@@ -1429,12 +1430,21 @@ describe("diffPortfolios", () => {
     expect(d.observations.some((o) => /digital assets/i.test(o))).toBe(true);
   });
 
-  it("rows are sorted by absolute delta descending", () => {
+  it("rows are sorted by canonical asset-class order (Cash → Fixed Income → Equity → Satellites), heaviest first within a group", () => {
     const a = buildPortfolio(baseInput({ riskAppetite: "Low", targetEquityPct: 30 }));
     const b = buildPortfolio(baseInput({ riskAppetite: "Very High", targetEquityPct: 95 }));
     const d = diffPortfolios(a, b);
     for (let i = 1; i < d.rows.length; i++) {
-      expect(Math.abs(d.rows[i - 1].delta)).toBeGreaterThanOrEqual(Math.abs(d.rows[i].delta));
+      const prev = d.rows[i - 1];
+      const cur = d.rows[i];
+      const prevRank = bucketOrderKey(prev.key);
+      const curRank = bucketOrderKey(cur.key);
+      expect(prevRank).toBeLessThanOrEqual(curRank);
+      if (prevRank === curRank) {
+        const prevAvg = (prev.a + prev.b) / 2;
+        const curAvg = (cur.a + cur.b) / 2;
+        expect(prevAvg).toBeGreaterThanOrEqual(curAvg);
+      }
     }
   });
 });
