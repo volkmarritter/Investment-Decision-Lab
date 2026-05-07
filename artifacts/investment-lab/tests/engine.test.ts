@@ -2250,6 +2250,88 @@ describe("CMA layered overrides", () => {
     expect(usd.expReturn - chf.expReturn).toBeCloseTo(expectedCashDelta, 10);
   });
 
+  it("cash μ blends per-row currency in Explain (cash-mu-per-currency phase 2, 2026-05)", async () => {
+    const { cashSleeveMu, portfolioReturn, computeMetrics, portfolioWhtDrag } =
+      await import("../src/lib/metrics");
+    const { getRiskFreeRate } = await import("../src/lib/settings");
+
+    // Explain synthesizes a cash row per cashCurrency: e.g. 50 % GBP +
+    // 50 % CHF cash with USD as the displayed base must price each row
+    // off its own RF, NOT off USD's RF for the whole sleeve.
+    const mixed: AssetAllocation[] = [
+      { assetClass: "Cash", region: "GBP", weight: 50 },
+      { assetClass: "Cash", region: "CHF", weight: 50 },
+    ];
+    const blended = cashSleeveMu(mixed, "USD");
+    expect(blended).toBeCloseTo(0.5 * getRiskFreeRate("GBP") + 0.5 * getRiskFreeRate("CHF"), 12);
+
+    // 100 % cash sleeve via portfolioReturn override → engine must use
+    // the per-row blend, not the USD RF.
+    const exp100Cash = [{ key: "cash" as const, weight: 1 }];
+    expect(portfolioReturn(exp100Cash, "USD", blended)).toBeCloseTo(blended!, 12);
+
+    // computeMetrics end-to-end: a portfolio with mixed-currency cash
+    // rows must shift expReturn by cashWeight × (blended − USD RF) vs
+    // the same allocation collapsed to a single USD-cash row. Other
+    // buckets are currency-agnostic in CMA so the only mover is cash.
+    const allocMixed: AssetAllocation[] = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Fixed Income", region: "Global", weight: 20 },
+      { assetClass: "Cash", region: "GBP", weight: 10 },
+      { assetClass: "Cash", region: "CHF", weight: 10 },
+    ];
+    const allocBaseline: AssetAllocation[] = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Fixed Income", region: "Global", weight: 20 },
+      { assetClass: "Cash", region: "USD", weight: 20 },
+    ];
+    const m1 = computeMetrics(allocMixed, "USD");
+    const m2 = computeMetrics(allocBaseline, "USD");
+    const blend20 = 0.5 * getRiskFreeRate("GBP") + 0.5 * getRiskFreeRate("CHF");
+    const expectedDelta = 0.20 * (blend20 - getRiskFreeRate("USD"));
+    expect(m1.expReturn - m2.expReturn).toBeCloseTo(expectedDelta, 10);
+
+    // Build's single cash row (region === baseCurrency) must degenerate
+    // to the existing per-currency RF — no behaviour change for Build.
+    const buildAlloc: AssetAllocation[] = [
+      { assetClass: "Equity", region: "USA", weight: 70 },
+      { assetClass: "Cash", region: "USD", weight: 30 },
+    ];
+    expect(cashSleeveMu(buildAlloc, "USD")).toBeCloseTo(getRiskFreeRate("USD"), 12);
+
+    // "Global" cash region (manual rows without explicit currency) falls
+    // back to baseCurrency so the legacy Build path is preserved.
+    const globalCash: AssetAllocation[] = [
+      { assetClass: "Cash", region: "Global", weight: 100 },
+    ];
+    expect(cashSleeveMu(globalCash, "EUR")).toBeCloseTo(getRiskFreeRate("EUR"), 12);
+
+    // No cash → undefined so callers can fall back to base RF cleanly.
+    const noCash: AssetAllocation[] = [
+      { assetClass: "Equity", region: "USA", weight: 100 },
+    ];
+    expect(cashSleeveMu(noCash, "USD")).toBeUndefined();
+
+    // Frontier semantics: the swept blended-mix points must keep
+    // pricing cash off the displayed baseCurrency (the abstract
+    // "what if we shifted to X % equity?" reference is NOT the user's
+    // allocation), but the `current` dot must reflect the per-row
+    // cash blend. Two USD-base allocations differing only in the cash
+    // sleeve (mixed-currency vs same-currency) must therefore have
+    // identical swept points but different `current.ret`.
+    const { computeFrontier } = await import("../src/lib/metrics");
+    const f1 = computeFrontier(allocMixed, "USD");
+    const f2 = computeFrontier(allocBaseline, "USD");
+    for (let i = 0; i < f1.points.length; i++) {
+      expect(f1.points[i].ret).toBeCloseTo(f2.points[i].ret, 12);
+    }
+    expect(f1.current.ret - f2.current.ret).toBeCloseTo(expectedDelta, 10);
+
+    // Touch the unused import so the linter stays happy and this test
+    // still imports the same surface as the phase-1 sibling above.
+    expect(typeof portfolioWhtDrag).toBe("function");
+  });
+
   it("path-based realized MDD obeys ordering invariants and is non-positive", async () => {
     const { runMonteCarlo } = await import("../src/lib/monteCarlo");
     // Mixed allocation so we have meaningful drawdown distribution

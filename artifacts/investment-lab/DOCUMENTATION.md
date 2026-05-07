@@ -663,6 +663,45 @@ a 60/30/10 portfolio shifts headline `expReturn` by exactly
 `0.10 × (RF_USD − RF_CHF) = 37.5 bps` between USD and CHF base —
 proving the cash sleeve is the only currency-sensitive contributor.
 
+**Phase 2 (per-row cash currency in Explain, 2026-05):** the Explain
+editor lets each cash row carry its own `cashCurrency`, so a portfolio
+displayed in USD can hold a GBP cash row + a CHF cash row at the same
+time. Phase 1 only honoured the displayed `baseCurrency`, which
+collapsed all cash rows to one currency — phase 2 prices each cash row
+off its own RF. Implementation: a new exported helper
+`cashSleeveMu(allocation, baseCurrency)` in `src/lib/metrics.ts`
+weight-averages `effectiveCashExpReturn(rowCcy)` across all cash rows
+(`region ∈ {USD, EUR, GBP, CHF}` → that currency; `"Global"` /
+unknown → falls back to `baseCurrency`). It returns `undefined` when
+there is no cash so callers can skip the blend cleanly. A new third
+parameter `cashMuOverride?: number` on `portfolioReturn` lets the
+user-portfolio engine callsites pass the per-row blend through:
+`computeMetrics`'s headline `r`, and `computeFrontier`'s `current`
+dot. **Crucially, the swept frontier mix points keep using
+`baseCurrency` only** — they represent an abstract "what if you
+shifted to X % equity?" reference, NOT the user's specific cash
+sleeve, so they must still re-price cash off the displayed currency
+(the legacy phase-1 behaviour every existing frontier test depended
+on). Monte Carlo's `runMonteCarlo` computes the same blend once at
+the top and threads it into both `muSigmaForKey` callsites
+(look-through path + region-only path via `bucketAssumption`'s new
+6th parameter), so MC paths and analytical metrics stay byte-identical
+with each other on the per-row blend. A manual cash CMA override
+collapses every per-row contribution to that override (override-wins
+preserved), and Build's single cash row (`region === baseCurrency`)
+degenerates to phase 1's behaviour, so neither flow regresses.
+
+Phase 2 regression test in `tests/engine.test.ts` (`cash μ blends
+per-row currency in Explain`) asserts (a) `cashSleeveMu` of a 50 % GBP
++ 50 % CHF cash sleeve equals `0.5×RF_GBP + 0.5×RF_CHF`, (b)
+`portfolioReturn` honours the override on a 100 % cash exposure, (c)
+`computeMetrics` on a 60/20/(10 GBP cash + 10 CHF cash) portfolio
+shifts headline `expReturn` vs the same allocation collapsed to a
+single 20 % USD cash row by exactly `0.20 × (blend − RF_USD)`, (d)
+Build's single same-currency cash row degenerates to the per-currency
+RF, (e) `"Global"` cash falls back to `baseCurrency`, and (f)
+no-cash portfolios return `undefined` so callers can skip the blend.
+
 ### 2026-05 (nav-dot-build-hint — Task #188)
 
 Layered a small one-shot tooltip on top of the Task #187 nav-dot

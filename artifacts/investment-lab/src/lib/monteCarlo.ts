@@ -8,6 +8,7 @@ import {
   RiskRegime,
   mapAllocationToAssetsLookthrough,
   effectiveCashExpReturn,
+  cashSleeveMu,
 } from "./metrics";
 
 /** Tail-distribution choice for the Monte-Carlo annual-return sampler.
@@ -106,6 +107,7 @@ function muSigmaForKey(
   hedged: boolean,
   baseCurrency: BaseCurrency,
   syntheticUsEffective: boolean,
+  cashMuOverride?: number,
 ): BucketAssumption {
   const cma = CMA[key];
   // Net of irrecoverable WHT on dividends — same drag definition used by
@@ -114,8 +116,16 @@ function muSigmaForKey(
   // is honoured here too, so MC and analytical views shift together when
   // the toggle flips. Cash uses the per-currency RF (or the user's manual
   // CMA override if set) so MC paths re-price with the displayed currency
-  // — see effectiveCashExpReturn() in metrics.ts.
-  const grossMu = key === "cash" ? effectiveCashExpReturn(baseCurrency) : cma.expReturn;
+  // — see effectiveCashExpReturn() in metrics.ts. When the caller pre-
+  // computes a per-row cash blend (Explain mixed-currency cash sleeves
+  // via cashSleeveMu()), it wins over the baseCurrency RF so MC and the
+  // analytical metric tile agree on the same blended cash μ.
+  const grossMu =
+    key === "cash"
+      ? cashMuOverride !== undefined
+        ? cashMuOverride
+        : effectiveCashExpReturn(baseCurrency)
+      : cma.expReturn;
   let mu = grossMu - whtDragForKey(key, baseCurrency, syntheticUsEffective);
   let sigma = cma.vol;
 
@@ -141,12 +151,14 @@ function bucketAssumption(
   hedged: boolean = false,
   baseCurrency: BaseCurrency = "USD",
   syntheticUsEffective: boolean = false,
+  cashMuOverride?: number,
 ): BucketAssumption {
   return muSigmaForKey(
     bucketKey(assetClass, region, baseCurrency),
     hedged,
     baseCurrency,
     syntheticUsEffective,
+    cashMuOverride,
   );
 }
 
@@ -257,6 +269,15 @@ export function runMonteCarlo(
   // up the χ²-construction loop.
   const studentTDf = Math.max(3, Math.min(100, Math.round(options.studentTDf ?? 5)));
 
+  // Per-row cash currency blend — see cashSleeveMu() in metrics.ts. When
+  // the Explain editor has cash rows in multiple currencies (e.g. 50 %
+  // GBP cash + 50 % USD cash with baseCurrency=USD), each prices off its
+  // own RF and the blend is the weight-average. Build's single cash row
+  // (region === baseCurrency) degenerates to effectiveCashExpReturn(base),
+  // so MC paths are byte-identical for the Build flow. undefined when
+  // there is no cash exposure → muSigmaForKey falls back to base RF.
+  const cashMu = cashSleeveMu(allocation, baseCurrency);
+
   let portfolioMu = 0;
 
   // Build per-bucket (weight, mu, sigma, key) so we can compute portfolio
@@ -292,7 +313,7 @@ export function runMonteCarlo(
       baseCurrency,
     );
     for (const e of exposures) {
-      const { mu, sigma } = muSigmaForKey(e.key, hedged, baseCurrency, syntheticUsEffective);
+      const { mu, sigma } = muSigmaForKey(e.key, hedged, baseCurrency, syntheticUsEffective, cashMu);
       buckets.push({ weight: e.weight, mu, sigma, key: e.key });
       portfolioMu += e.weight * mu;
     }
@@ -316,7 +337,7 @@ export function runMonteCarlo(
     }
     for (const a of expanded) {
       const w = a.weight / 100;
-      const { mu, sigma } = bucketAssumption(a.assetClass, a.region, hedged, baseCurrency, syntheticUsEffective);
+      const { mu, sigma } = bucketAssumption(a.assetClass, a.region, hedged, baseCurrency, syntheticUsEffective, cashMu);
       const key = bucketKey(a.assetClass, a.region, baseCurrency);
       buckets.push({ weight: w, mu, sigma, key });
       portfolioMu += w * mu;

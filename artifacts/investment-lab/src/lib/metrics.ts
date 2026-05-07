@@ -692,8 +692,47 @@ export function effectiveCashExpReturn(baseCurrency: BaseCurrency): number {
   return getRiskFreeRate(baseCurrency);
 }
 
-export function portfolioReturn(exp: AssetExposure[], baseCurrency?: BaseCurrency): number {
-  const cashMu = baseCurrency !== undefined ? effectiveCashExpReturn(baseCurrency) : CMA.cash.expReturn;
+// Per-row currency blend for the cash sleeve. Explain lets each cash
+// row carry its own currency (region === "USD" | "EUR" | "GBP" | "CHF",
+// or "Global" → falls back to baseCurrency); Build emits a single cash
+// row with region === baseCurrency. The blended μ is the weight-average
+// of the per-currency RFs (via effectiveCashExpReturn) across the cash
+// rows. Returns undefined when there is no cash exposure, so callers
+// can skip the per-row blend and fall back to the baseCurrency RF.
+// When a manual cash CMA override is active, effectiveCashExpReturn
+// returns the override regardless of currency, so the blend collapses
+// to that override value (override-wins semantics preserved).
+export function cashSleeveMu(
+  allocation: AssetAllocation[],
+  baseCurrency: BaseCurrency,
+): number | undefined {
+  let totalW = 0;
+  let weighted = 0;
+  for (const a of allocation) {
+    if (a.assetClass !== "Cash") continue;
+    const w = a.weight / 100;
+    if (w <= 0) continue;
+    const r = a.region;
+    const ccy: BaseCurrency =
+      r === "USD" || r === "EUR" || r === "GBP" || r === "CHF" ? r : baseCurrency;
+    weighted += w * effectiveCashExpReturn(ccy);
+    totalW += w;
+  }
+  if (totalW <= 0) return undefined;
+  return weighted / totalW;
+}
+
+export function portfolioReturn(
+  exp: AssetExposure[],
+  baseCurrency?: BaseCurrency,
+  cashMuOverride?: number,
+): number {
+  const cashMu =
+    cashMuOverride !== undefined
+      ? cashMuOverride
+      : baseCurrency !== undefined
+        ? effectiveCashExpReturn(baseCurrency)
+        : CMA.cash.expReturn;
   let r = 0;
   for (const e of exp) r += e.weight * (e.key === "cash" ? cashMu : CMA[e.key].expReturn);
   return r;
@@ -856,6 +895,12 @@ export function computeMetrics(
   const exp = etfImplementation
     ? mapAllocationToAssetsLookthrough(allocation, etfImplementation, baseCurrency)
     : mapAllocationToAssets(allocation, baseCurrency);
+  // Per-row cash currency blend (Explain): the cash sleeve's μ is the
+  // weight-average of the per-currency RFs of each cash row, so a
+  // GBP cash row prices off the GBP RF even when the displayed
+  // baseCurrency is USD. Build's single cash row degenerates to
+  // effectiveCashExpReturn(baseCurrency).
+  const cashMu = cashSleeveMu(allocation, baseCurrency);
   // Net of irrecoverable withholding-tax drag on dividends. Applied
   // symmetrically to the portfolio AND the benchmark so alpha /
   // outperformance aren't inflated by a tax the benchmark would also
@@ -868,7 +913,7 @@ export function computeMetrics(
   // when the user toggles into "crisis". Returns are NOT regime-shifted —
   // higher correlations don't mechanically change μ, only the dispersion
   // around it. So Sharpe and α drop honestly under crisis.
-  const r = portfolioReturn(exp, baseCurrency) - portfolioWhtDrag(exp, baseCurrency, syntheticUsEffective);
+  const r = portfolioReturn(exp, baseCurrency, cashMu) - portfolioWhtDrag(exp, baseCurrency, syntheticUsEffective);
   const v = portfolioVol(exp, riskRegime);
   const rB = portfolioReturn(BENCHMARK, baseCurrency) - portfolioWhtDrag(BENCHMARK, baseCurrency, false);
   const vB = portfolioVol(BENCHMARK, riskRegime);
@@ -998,6 +1043,13 @@ export function computeFrontier(
   const exp = etfImplementation
     ? mapAllocationToAssetsLookthrough(allocation, etfImplementation, baseCurrency)
     : mapAllocationToAssets(allocation, baseCurrency);
+  // Per-row cash currency blend — see computeMetrics for the rationale.
+  // Used ONLY for the user-specific `current` dot below. The swept
+  // frontier points represent an abstract "what if you shifted to X %
+  // equity?" reference and intentionally keep pricing cash off the
+  // displayed `baseCurrency` (legacy phase-1 behaviour) — the swept
+  // mix is not the user's specific cash sleeve.
+  const cashMu = cashSleeveMu(allocation, baseCurrency);
   const equityKeys: AssetKey[] = ["equity_us", "equity_eu", "equity_uk", "equity_ch", "equity_jp", "equity_em", "equity_thematic", "reits", "crypto"];
   const isEq = (k: AssetKey) => equityKeys.includes(k);
 
@@ -1025,6 +1077,12 @@ export function computeFrontier(
     // metric tile and rationale strings (see computeMetrics above). The
     // synthetic-US carve-out applies here too, so the curve faithfully shifts
     // up when the toggle flips.
+    // The swept frontier mix is the abstract "what if we shifted to X %
+    // equity / (100−X) % defensive?" reference — it is NOT the user's
+    // specific allocation, so its cash sleeve must price off the
+    // displayed `baseCurrency` (legacy phase-1 behaviour). Per-row cash
+    // currency only applies to the user's actual `current` portfolio
+    // (computed below) and to `computeMetrics`.
     const r = portfolioReturn(blended, baseCurrency) - portfolioWhtDrag(blended, baseCurrency, syntheticUsEffective);
     const v = portfolioVol(blended, riskRegime);
     points.push({
@@ -1036,7 +1094,7 @@ export function computeFrontier(
   }
 
   const currentEqPct = Math.round(eqWeightSum * 100);
-  const r = portfolioReturn(exp, baseCurrency) - portfolioWhtDrag(exp, baseCurrency, syntheticUsEffective);
+  const r = portfolioReturn(exp, baseCurrency, cashMu) - portfolioWhtDrag(exp, baseCurrency, syntheticUsEffective);
   const v = portfolioVol(exp, riskRegime);
   const current: FrontierPoint = {
     equityPct: currentEqPct,
