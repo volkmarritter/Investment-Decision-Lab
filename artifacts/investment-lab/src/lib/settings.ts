@@ -508,6 +508,49 @@ export function subscribeLastBuildInput(
   return () => window.removeEventListener(LAST_BUILD_INPUT_EVENT, handler);
 }
 
+// ----------------------------------------------------------------------------
+// Channel: "Build has been driven by the user" flag (Task #186)
+// ----------------------------------------------------------------------------
+//
+// Distinct from `lastBuildInput` above. The auto-generate-on-mount path
+// (Task #96) publishes a real input snapshot so Compare's "default-on
+// link to Build" UX still works on first arrival — but the nav-bar
+// content-indicator dot must NOT light up just because Build silently
+// auto-generated the example portfolio. This flag is true ONLY when the
+// user has explicitly asked Build to do something (clicked the Generate
+// button, loaded a saved scenario), and is reset to false on the Build
+// reset/refresh button.
+//
+// The InvestmentLab nav-signal hook reads this for the Build dot, and
+// ComparePortfolios reads it for the Compare dot's "linked counts as
+// content" gate, so neither can flash on first paint.
+// ----------------------------------------------------------------------------
+const LAST_BUILD_USER_DRIVEN_EVENT = "idl-last-build-user-driven-changed";
+let lastBuildUserDriven = false;
+
+export function setLastBuildUserDriven(v: boolean): void {
+  if (typeof window === "undefined") return;
+  if (lastBuildUserDriven === v) return;
+  lastBuildUserDriven = v;
+  window.dispatchEvent(
+    new CustomEvent(LAST_BUILD_USER_DRIVEN_EVENT, { detail: v }),
+  );
+}
+
+export function getLastBuildUserDriven(): boolean {
+  return lastBuildUserDriven;
+}
+
+export function subscribeLastBuildUserDriven(
+  cb: (v: boolean) => void,
+): () => void {
+  if (typeof window === "undefined") return () => {};
+  const handler = (e: Event) => cb((e as CustomEvent).detail as boolean);
+  window.addEventListener(LAST_BUILD_USER_DRIVEN_EVENT, handler);
+  return () =>
+    window.removeEventListener(LAST_BUILD_USER_DRIVEN_EVENT, handler);
+}
+
 const LAST_BUILD_MANUAL_WEIGHTS_EVENT = "idl-last-build-manual-weights-changed";
 let lastBuildManualWeights: Record<string, number> | null = null;
 

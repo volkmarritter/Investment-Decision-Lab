@@ -627,6 +627,43 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+### 2026-05 (nav-dot-user-driven — Task #186)
+
+Fixed three nav-bar content-indicator dot misbehaviours:
+
+1. **Build dot stayed lit after reset.** The reset/refresh button on
+   Build flipped `hasGenerated` back to `false` but never republished
+   the cross-tab Build channels, so the dot kept showing.
+2. **Compare dot lit up on fresh load.** Compare's `linked` flag
+   default-on'd against Build's auto-generated example portfolio,
+   which immediately reported a "filled" Slot A to the nav.
+3. **Dots flashed on first paint.** The above two combined with
+   subscribe-effect timing produced visible blink-in/blink-out.
+
+Implementation: a new `lastBuildUserDriven` channel in
+`src/lib/settings.ts` (with `set/get/subscribe` siblings to the
+existing `lastBuildInput` channel). The flag is set to `true` only
+on the explicit user-driven Build paths (`onSubmit` — covers both
+the **Build Portfolio** button click and saved-scenario load), and
+explicitly back to `false` on the Build reset button (alongside a
+defensive `setLastBuildInput(null)` so Compare's link mirror also
+stops echoing the discarded input). The auto-generate-on-mount path
+(Task #96) deliberately leaves the flag at its initial `false`.
+
+`InvestmentLab.useNavSignals` now seeds and subscribes
+`buildHas` from `getLastBuildUserDriven()` instead of
+`getLastBuildInput() !== null`. `ComparePortfolios` subscribes to the
+same channel and gates its Slot A "filled" calculation on
+`(linked && buildUserDriven) || …` — so auto-link to an
+auto-generated Build no longer triggers the Compare dot, but a real
+user-driven Build still does. The Compare "Linked / Re-link" badge is
+unchanged (still keyed off `hasBuildPublished`); only the nav-dot
+contract was tightened.
+
+Regression test: `tests/buildUserDrivenSignal.test.ts` (3 cases) —
+fresh-load default `false`, set/clear round-trip, and dedup'd
+subscribe stream.
+
 ### 2026-05 (send-to-explain-cash — Task #182)
 
 Build's **Send to Explain** hand-off now includes the portfolio's Cash

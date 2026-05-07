@@ -29,7 +29,10 @@ import {
   subscribeLastExplainWorkspace,
   subscribeNavigateTab,
 } from "@/lib/explainCompare";
-import { getLastBuildInput, subscribeLastBuildInput } from "@/lib/settings";
+import {
+  getLastBuildUserDriven,
+  subscribeLastBuildUserDriven,
+} from "@/lib/settings";
 
 const VALID_TABS = ["build", "compare", "explain", "methodology"] as const;
 type TabValue = (typeof VALID_TABS)[number];
@@ -108,15 +111,20 @@ const NAV_TABS: ReadonlyArray<NavTabDef> = [
 // Explain workspace, or has produced an output. Methodology has no
 // content signal.
 function useNavSignals(): Record<"build" | "compare" | "explain", boolean> {
+  // Task #186: nav-bar Build dot tracks the explicit user-driven flag,
+  // not the raw `lastBuildInput` channel. The auto-generate-on-mount
+  // path publishes a real input snapshot (so Compare's "default-on
+  // link to Build" UX still works), but we don't want the dot to
+  // light up just because the example portfolio rendered itself.
   const [buildHas, setBuildHas] = useState<boolean>(
-    () => getLastBuildInput() !== null,
+    () => getLastBuildUserDriven(),
   );
   const [explainHas, setExplainHas] = useState<boolean>(() =>
     explainWorkspaceHasContent(getLastExplainWorkspace()),
   );
   const [compareSlots, setCompareSlots] = useState(() => getCompareSlotsState());
   useEffect(
-    () => subscribeLastBuildInput((v) => setBuildHas(v !== null)),
+    () => subscribeLastBuildUserDriven((v) => setBuildHas(v)),
     [],
   );
   useEffect(

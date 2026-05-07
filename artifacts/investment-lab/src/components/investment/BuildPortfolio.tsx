@@ -54,6 +54,7 @@ import {
   setLastAllocation,
   setLastEtfImplementation,
   setLastBuildInput,
+  setLastBuildUserDriven,
   setLastBuildManualWeights,
   getBuildRationaleRisksOpen,
   setBuildRationaleRisksOpen,
@@ -410,7 +411,12 @@ export function BuildPortfolio() {
   // react-hook-form passes `(data, event)` to the submit callback, so we
   // wrap generatePortfolio in a single-arg adapter to keep the default
   // (scroll-to-results) behaviour for explicit user submissions.
+  // Task #186: this is the user-driven path (Generate button click and
+  // saved-scenario load both funnel through here), so flip the user-
+  // driven flag so the nav-bar Build dot can light up. The auto-mount
+  // path further down deliberately does NOT set this flag.
   const onSubmit = (data: PortfolioInput) => {
+    setLastBuildUserDriven(true);
     generatePortfolio(data, { scrollToResults: true });
   };
 
@@ -488,6 +494,16 @@ export function BuildPortfolio() {
                         setValidation(null);
                         setHasGenerated(false);
                         setNumETFsMode("auto");
+                        // Task #186: clear the cross-tab Build channels too.
+                        // Until reset, the publish effect above kept the
+                        // module-level lastBuildInput populated; flipping
+                        // hasGenerated false alone won't republish, so the
+                        // nav-bar Build dot would stay lit and Compare would
+                        // still see a "linkable" Build state. Clear both
+                        // explicitly so the dot disappears immediately and
+                        // Compare's link mirror stops echoing stale data.
+                        setLastBuildInput(null);
+                        setLastBuildUserDriven(false);
                       }}
                       aria-label={lang === "de" ? "Auf Standardwerte zurücksetzen" : "Reset to defaults"}
                     >
