@@ -8303,6 +8303,82 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B53L3W79",
       "_addedAt": "2026-05-07T06:22:21.779Z",
       "_addedVia": "admin/lookthrough-pool"
+    },
+    "IE000LXEN6X4": {
+      "name": "iShares EURO STOXX 50 ESG UCITS ETF EUR (Acc)",
+      "topHoldings": [
+        {
+          "name": "ASML Holding NV",
+          "pct": 9.79
+        },
+        {
+          "name": "Siemens AG",
+          "pct": 4.7
+        },
+        {
+          "name": "SAP SE",
+          "pct": 4.56
+        },
+        {
+          "name": "Schneider Electric SE",
+          "pct": 4.02
+        },
+        {
+          "name": "Banco Santander SA",
+          "pct": 3.9
+        },
+        {
+          "name": "Allianz SE",
+          "pct": 3.83
+        },
+        {
+          "name": "Iberdrola SA",
+          "pct": 3.43
+        },
+        {
+          "name": "Deutsche Telekom AG",
+          "pct": 3.42
+        },
+        {
+          "name": "LVMH Moët Hennessy Louis Vuitton SE",
+          "pct": 3.24
+        },
+        {
+          "name": "Siemens Energy AG",
+          "pct": 3.08
+        }
+      ],
+      "topHoldingsAsOf": "2026-05-07T06:23:17.996Z",
+      "geo": {
+        "Germany": 30.66,
+        "France": 29.7,
+        "Netherlands": 15.97,
+        "Spain": 11.91,
+        "Italy": 7.64,
+        "Finland": 2.07,
+        "Other": 2.05
+      },
+      "sector": {
+        "Financials": 27.92,
+        "Industrials": 18.58,
+        "Technology": 15.74,
+        "Consumer Discretionary": 13.08,
+        "Utilities": 5.47,
+        "Consumer Staples": 5.43,
+        "Health Care": 4.89,
+        "Basic Materials": 4.19,
+        "Telecommunication": 3.42,
+        "Energy": 0.21,
+        "Other": 1.08
+      },
+      "currency": {
+        "EUR": 97.95,
+        "Other": 2.05
+      },
+      "breakdownsAsOf": "2026-05-07T06:23:17.996Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE000LXEN6X4",
+      "_addedAt": "2026-05-07T06:23:17.996Z",
+      "_addedVia": "admin/lookthrough-pool"
     }
   }
 }
