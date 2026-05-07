@@ -32,9 +32,7 @@ import {
 import {
   getLastBuildUserDriven,
   getNavDotsFlashedOnce,
-  getNavDotsHintShownOnce,
   markNavDotsFlashedOnce,
-  markNavDotsHintShownOnce,
   requestBuildSampleGeneration,
   subscribeLastBuildUserDriven,
 } from "@/lib/settings";
@@ -441,14 +439,11 @@ export default function InvestmentLab() {
       // unrelated reasons (e.g. a tab change).
       window.setTimeout(() => setFlashDots(false), 1200);
     }
-    if (!getNavDotsHintShownOnce()) {
-      markNavDotsHintShownOnce();
-      setShowBuildHint(true);
-      hintTimerRef.current = window.setTimeout(() => {
-        hintTimerRef.current = null;
-        setShowBuildHint(false);
-      }, 3000);
-    }
+    setShowBuildHint(true);
+    hintTimerRef.current = window.setTimeout(() => {
+      hintTimerRef.current = null;
+      setShowBuildHint(false);
+    }, 3000);
   };
 
   const handleTabChange = (next: string) => {
