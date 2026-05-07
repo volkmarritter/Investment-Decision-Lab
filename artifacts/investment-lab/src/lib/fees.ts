@@ -42,7 +42,8 @@ export function estimateFees(
      * src/lib/portfolio.ts.
      */
     etfImplementations?: ReadonlyArray<
-      Pick<ETFImplementation, "bucket" | "terBps">
+      Pick<ETFImplementation, "bucket" | "terBps"> &
+        Partial<Pick<ETFImplementation, "weight">>
     >;
   } = {},
 ) {
@@ -51,9 +52,30 @@ export function estimateFees(
 
   const hedgingCostBps = options.hedged ? options.hedgingCostBps ?? 15 : 0;
   const terByBucket = new Map<string, number>();
+  const terWeightedSumByBucket = new Map<string, number>();
+  const terWeightTotalByBucket = new Map<string, number>();
   for (const e of options.etfImplementations ?? []) {
-    if (typeof e.terBps === "number" && Number.isFinite(e.terBps)) {
-      terByBucket.set(e.bucket, e.terBps);
+    if (typeof e.terBps !== "number" || !Number.isFinite(e.terBps)) continue;
+    // Treat missing/invalid weight as 1 so a single-ETF bucket still works
+    // (and so multi-ETF buckets without supplied weights degrade to a plain
+    // equal-weight average instead of silently dropping entries).
+    const w =
+      typeof e.weight === "number" && Number.isFinite(e.weight) && e.weight > 0
+        ? e.weight
+        : 1;
+    terWeightedSumByBucket.set(
+      e.bucket,
+      (terWeightedSumByBucket.get(e.bucket) ?? 0) + e.terBps * w
+    );
+    terWeightTotalByBucket.set(
+      e.bucket,
+      (terWeightTotalByBucket.get(e.bucket) ?? 0) + w
+    );
+  }
+  for (const [bucket, weightedSum] of terWeightedSumByBucket) {
+    const totalWeight = terWeightTotalByBucket.get(bucket) ?? 0;
+    if (totalWeight > 0) {
+      terByBucket.set(bucket, weightedSum / totalWeight);
     }
   }
 

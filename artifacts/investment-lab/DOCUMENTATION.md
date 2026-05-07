@@ -627,7 +627,31 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
-<<<<<<< HEAD
+### 2026-05 (fee-estimator-multi-etf-bucket-ter — Task #196)
+
+Fixed a TER calculation bug in the Fee Estimator table for buckets that
+hold more than one ETF (only reachable from Explain — Build emits one
+ETF per bucket by construction). Previously `estimateFees` in
+`src/lib/fees.ts` built `terByBucket` with a plain `Map.set` per
+implementation row, so when N ETFs shared a bucket the last one's TER
+silently overwrote the others while the allocation row already carried
+the **summed** weight. The bucket's effective TER was therefore
+arbitrary (last-write-wins) and ignored weights entirely.
+
+`estimateFees` now does a two-pass aggregation: it sums
+`terBps × weight` and `weight` per bucket from `etfImplementations`,
+then divides to get a true weight-averaged TER per bucket. A
+single-ETF bucket is unaffected (average of one entry equals that
+entry). The `etfImplementations` Pick was widened to include an
+optional `weight`; if a caller omits it the entry is treated as
+weight=1, so existing call sites that supplied only `bucket`+`terBps`
+keep working and degrade to a plain mean instead of dropping rows.
+
+Regression test: `tests/engine.test.ts` — "weight-averages TER across
+multiple ETFs in the same bucket" — covers the 10% @ 20 bps + 5% @ 60
+bps → 33.33 bps case from the task description plus a single-ETF
+sanity check.
+
 ### 2026-05 (explain-picker-alt-sort-by-slot — Task #194)
 
 Explain's per-row ISIN picker (`IsinPicker` in

@@ -920,6 +920,30 @@ describe("estimateFees", () => {
     expect(withPickedEtf.breakdown[0].terBps).toBe(35);
   });
 
+  // Regression for Task #196: when a single bucket holds multiple ETFs (as
+  // in Explain when the user adds more than one fund to the same bucket),
+  // the effective per-bucket TER must be a weight-average of each ETF's
+  // TER — not the last-write-wins value the original Map.set produced.
+  it("weight-averages TER across multiple ETFs in the same bucket", () => {
+    // 10% at 20 bps + 5% at 60 bps -> (10*20 + 5*60) / 15 = 33.333… bps
+    const alloc = [{ assetClass: "Equity", region: "USA", weight: 15 }];
+    const r = estimateFees(alloc, 10, 100_000, {
+      etfImplementations: [
+        { bucket: "Equity - USA", terBps: 20, weight: 10 },
+        { bucket: "Equity - USA", terBps: 60, weight: 5 },
+      ],
+    });
+    const eqRow = r.breakdown.find((b) => b.key === "Equity - USA")!;
+    expect(eqRow.terBps).toBeCloseTo((10 * 20 + 5 * 60) / 15, 5);
+    // Single-ETF bucket sanity: averaging one entry equals that entry.
+    const single = estimateFees(alloc, 10, 100_000, {
+      etfImplementations: [{ bucket: "Equity - USA", terBps: 42, weight: 15 }],
+    });
+    expect(
+      single.breakdown.find((b) => b.key === "Equity - USA")!.terBps
+    ).toBeCloseTo(42, 5);
+  });
+
   it("etfImplementations TER falls back to asset-class default for unmatched buckets (e.g. Cash)", () => {
     const alloc = [
       { assetClass: "Equity", region: "USA", weight: 50 },

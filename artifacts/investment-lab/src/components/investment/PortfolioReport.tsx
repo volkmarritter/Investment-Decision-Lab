@@ -925,7 +925,7 @@ function DetailedSections({
                     {row.weight.toFixed(1)}%
                   </td>
                   <td className="py-1 pr-2 text-right tabular-nums text-slate-700">
-                    {row.terBps}
+                    {row.terBps.toFixed(1)}
                   </td>
                   <td className="py-1 text-right tabular-nums font-semibold text-slate-900">
                     {row.contributionBps.toFixed(1)}

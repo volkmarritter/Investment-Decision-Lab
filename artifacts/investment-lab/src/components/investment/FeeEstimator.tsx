@@ -241,7 +241,7 @@ export function FeeEstimator({
                 <TableRow key={row.key}>
                   <TableCell className="font-medium text-sm">{row.key}</TableCell>
                   <TableCell className="text-right font-mono text-sm">{row.weight.toFixed(1)}%</TableCell>
-                  <TableCell className="text-right font-mono text-sm">{row.terBps}</TableCell>
+                  <TableCell className="text-right font-mono text-sm">{row.terBps.toFixed(1)}</TableCell>
                   <TableCell className="text-right font-mono text-sm">{(row.contributionBps).toFixed(1)}</TableCell>
                 </TableRow>
               ))}
