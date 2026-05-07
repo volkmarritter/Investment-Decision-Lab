@@ -32,7 +32,9 @@ import {
 import {
   getLastBuildUserDriven,
   getNavDotsFlashedOnce,
+  getNavDotsHintShownOnce,
   markNavDotsFlashedOnce,
+  markNavDotsHintShownOnce,
   requestBuildSampleGeneration,
   subscribeLastBuildUserDriven,
 } from "@/lib/settings";
@@ -154,10 +156,12 @@ function HeaderTabBar({
   signals,
   current,
   flashDots,
+  showBuildHint,
 }: {
   signals: Record<"build" | "compare" | "explain", boolean>;
   current: TabValue;
   flashDots: boolean;
+  showBuildHint: boolean;
 }) {
   const { t } = useT();
   return (
@@ -169,6 +173,7 @@ function HeaderTabBar({
         const Icon = def.icon;
         const hasDot = def.signalKey !== null && signals[def.signalKey];
         const isActive = current === def.value;
+        const isBuildHint = def.value === "build" && showBuildHint;
         // Subtle vertical separator between adjacent tabs (rendered as a
         // ::before pseudo-element on every item except the first). Using
         // `before:` keeps the divider out of the grid track sizing so the
@@ -193,7 +198,7 @@ function HeaderTabBar({
             }
           : undefined;
         return (
-          <Tooltip key={def.value}>
+          <Tooltip key={def.value} {...(isBuildHint ? { open: true } : {})}>
             <TooltipTrigger asChild>
               <TabsTrigger
                 value={def.value}
@@ -238,8 +243,16 @@ function HeaderTabBar({
                 </span>
               </TabsTrigger>
             </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-xs">
-              {t(def.labelKey)} — {t(def.subtitleKey)}
+            <TooltipContent
+              side="bottom"
+              className="max-w-xs"
+              {...(isBuildHint
+                ? { "data-testid": "nav-hint-build" as const }
+                : {})}
+            >
+              {isBuildHint
+                ? t("nav.hint.build")
+                : `${t(def.labelKey)} — ${t(def.subtitleKey)}`}
             </TooltipContent>
           </Tooltip>
         );
@@ -258,11 +271,13 @@ function MobileTabBar({
   onSelect,
   signals,
   flashDots,
+  showBuildHint,
 }: {
   current: TabValue;
   onSelect: (next: TabValue) => void;
   signals: Record<"build" | "compare" | "explain", boolean>;
   flashDots: boolean;
+  showBuildHint: boolean;
 }) {
   const { t } = useT();
   return (
@@ -276,6 +291,7 @@ function MobileTabBar({
         const Icon = def.icon;
         const hasDot = def.signalKey !== null && signals[def.signalKey];
         const isActive = current === def.value;
+        const isBuildHint = def.value === "build" && showBuildHint;
         const dividerCls =
           idx === 0
             ? ""
@@ -287,7 +303,11 @@ function MobileTabBar({
         // readers; sighted desktop users get the subtitle in the header
         // tab bar, sighted mobile users get the visible label below the
         // icon.
-        return (
+        // Task #188 — for the Build button we conditionally wrap in a
+        // controlled Tooltip ONLY while the one-shot hint is showing, so
+        // the touch-tap-swallowing concern above doesn't apply: the wrap
+        // exists for at most ~3s right after the welcome dismiss.
+        const button = (
           <button
             key={def.value}
             type="button"
@@ -318,6 +338,21 @@ function MobileTabBar({
             <span className="truncate">{t(def.shortLabelKey)}</span>
           </button>
         );
+        if (isBuildHint) {
+          return (
+            <Tooltip key={def.value} open>
+              <TooltipTrigger asChild>{button}</TooltipTrigger>
+              <TooltipContent
+                side="top"
+                className="max-w-xs"
+                data-testid="nav-hint-build-mobile"
+              >
+                {t("nav.hint.build")}
+              </TooltipContent>
+            </Tooltip>
+          );
+        }
+        return button;
       })}
     </div>
   );
@@ -353,6 +388,45 @@ export default function InvestmentLab() {
   // doesn't replay it. `didRequestSampleRef` guards against React
   // StrictMode's double-invoke firing the request (and the flash) twice.
   const [flashDots, setFlashDots] = useState(false);
+  // Task #188 — sibling one-shot to flashDots: a brief tooltip hint pointing
+  // at the Build dot that says "Your sample portfolio is ready in Build". Same
+  // per-browser semantics; dismissed by tap-anywhere / Esc / 3 s timeout.
+  const [showBuildHint, setShowBuildHint] = useState(false);
+  const hintTimerRef = useRef<number | null>(null);
+  const dismissBuildHint = () => {
+    if (hintTimerRef.current !== null) {
+      window.clearTimeout(hintTimerRef.current);
+      hintTimerRef.current = null;
+    }
+    setShowBuildHint(false);
+  };
+  useEffect(() => {
+    if (!showBuildHint) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") dismissBuildHint();
+    };
+    const onPointer = () => dismissBuildHint();
+    // `capture: true` so a tap on any nav button dismisses the hint
+    // BEFORE the button's own onClick fires (e.g. tapping the Build tab
+    // navigates AND clears the hint in one gesture). We pass a plain
+    // boolean as the third arg (not an options object) for both add and
+    // remove — keeps the listener-identity match simple and side-steps
+    // the `AddEventListenerOptions` vs `EventListenerOptions` type-shape
+    // mismatch on remove. The cleanup return below removes the listener
+    // when `showBuildHint` flips back to false (timeout, Esc, or pointer
+    // dismiss), so no `once: true` is needed.
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("pointerdown", onPointer, true);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("pointerdown", onPointer, true);
+    };
+  }, [showBuildHint]);
+  useEffect(() => {
+    return () => {
+      if (hintTimerRef.current !== null) window.clearTimeout(hintTimerRef.current);
+    };
+  }, []);
   const didRequestSampleRef = useRef(false);
   const handleWelcomeDismiss = () => {
     setWelcomeOpen(false);
@@ -366,6 +440,14 @@ export default function InvestmentLab() {
       // class drops off and won't re-apply on subsequent renders for
       // unrelated reasons (e.g. a tab change).
       window.setTimeout(() => setFlashDots(false), 1200);
+    }
+    if (!getNavDotsHintShownOnce()) {
+      markNavDotsHintShownOnce();
+      setShowBuildHint(true);
+      hintTimerRef.current = window.setTimeout(() => {
+        hintTimerRef.current = null;
+        setShowBuildHint(false);
+      }, 3000);
     }
   };
 
@@ -439,7 +521,12 @@ export default function InvestmentLab() {
            *  Hidden on mobile; the fixed bottom bar takes over there. */}
           <div className="hidden sm:block border-t border-border/60 bg-background/95">
             <div className="container mx-auto px-4 py-2 flex justify-center">
-              <HeaderTabBar signals={signals} current={tab} flashDots={flashDots} />
+              <HeaderTabBar
+                signals={signals}
+                current={tab}
+                flashDots={flashDots}
+                showBuildHint={showBuildHint}
+              />
             </div>
           </div>
         </header>
@@ -486,6 +573,7 @@ export default function InvestmentLab() {
                 onSelect={(next) => handleTabChange(next)}
                 signals={signals}
                 flashDots={flashDots}
+                showBuildHint={showBuildHint}
               />
             </div>
           </nav>,

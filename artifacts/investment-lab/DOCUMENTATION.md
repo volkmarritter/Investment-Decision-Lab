@@ -627,6 +627,39 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+### 2026-05 (nav-dot-build-hint — Task #188)
+
+Layered a small one-shot tooltip on top of the Task #187 nav-dot
+flash. Right after the welcome dialog is dismissed for the very
+first time in this browser, alongside the existing 1.2 s dot-flash
+animation, a Radix tooltip pinned above the **Build** tab pops
+open for ~3 s with the localized hint "Your sample portfolio is
+ready in Build" / "Ihr Beispielportfolio ist in „Erstellen" bereit"
+(i18n key `nav.hint.build`). The hint is dismissed by:
+
+1. The 3 s timeout firing,
+2. Pressing **Esc**, or
+3. Tapping anywhere on the page (a single capture-phase
+   `pointerdown` listener with `once: true` — taps on the Build
+   tab itself both navigate AND clear the hint in one gesture).
+
+One-shot persistence lives in a sibling localStorage key
+`idl.navDotsHintShownOnce` with `get/markNavDotsHintShownOnce` in
+`src/lib/settings.ts`, deliberately separate from
+`navDotsFlashedOnce` so the two cues can be reset independently.
+
+Both nav surfaces are wired:
+
+- **Desktop header** (`HeaderTabBar`): the existing per-tab
+  `<Tooltip>` is switched to `open: true` when the Build tab is
+  the hint target, and its `<TooltipContent>` swaps to the hint
+  text (with `data-testid="nav-hint-build"`).
+- **Mobile bottom bar** (`MobileTabBar`): the Build button is
+  unwrapped by default (preserving the original "no Tooltip on
+  touch" behaviour to avoid swallowing taps), but conditionally
+  wrapped in a `<Tooltip open>` for the ~3 s the hint is showing
+  (`data-testid="nav-hint-build-mobile"`, side="top").
+
 ### 2026-05 (per-bucket-lookthrough-backfill)
 
 Added a per-bucket variant of the catalog tree's existing global

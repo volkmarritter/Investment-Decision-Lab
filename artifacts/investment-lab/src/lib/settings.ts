@@ -636,6 +636,30 @@ export function markNavDotsFlashedOnce(): void {
   }
 }
 
+// Task #188 — sibling one-shot for the brief hint tooltip that points at the
+// Build dot the first time it flashes. Same per-browser semantics as the dot
+// flash above; persisted under its own key so the two cues can be reset
+// independently if we ever want to re-introduce one without the other.
+const NAV_DOTS_HINT_SHOWN_KEY = "idl.navDotsHintShownOnce";
+
+export function getNavDotsHintShownOnce(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    return window.localStorage.getItem(NAV_DOTS_HINT_SHOWN_KEY) === "true";
+  } catch {
+    return true;
+  }
+}
+
+export function markNavDotsHintShownOnce(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(NAV_DOTS_HINT_SHOWN_KEY, "true");
+  } catch {
+    /* ignore quota / disabled storage */
+  }
+}
+
 // ----------------------------------------------------------------------------
 // UI preference: Build tab "Rationale & Key Risks" collapsible open/closed.
 // ----------------------------------------------------------------------------
