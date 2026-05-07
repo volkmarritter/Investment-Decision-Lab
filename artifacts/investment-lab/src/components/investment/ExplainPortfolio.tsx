@@ -1325,9 +1325,8 @@ export function ExplainPortfolio() {
                   <DropdownMenuTrigger asChild>
                     <Button
                       type="button"
-                      variant="outline"
-                      size="sm"
-                      className="h-8 text-xs w-full sm:w-auto"
+                      variant="secondary"
+                      className="w-full"
                       disabled={!canSendToCompare}
                       data-testid="explain-send-to-compare"
                     >

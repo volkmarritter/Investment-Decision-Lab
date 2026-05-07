@@ -568,6 +568,34 @@ export function BuildPortfolio() {
                 />
               </div>
             </div>
+
+            {/* Send-to-Explain (Task #185): hoisted out of the form to sit
+             *  prominently right after the save-slot UI. Always rendered so
+             *  the disabled state is visible before any portfolio has been
+             *  built; tooltip switches to a "generate first" hint while
+             *  disabled. */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="w-full inline-block">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    className="w-full"
+                    disabled={!output || !validation?.isValid}
+                    data-testid="build-send-to-explain"
+                    onClick={handleSendToExplainClick}
+                  >
+                    <PieChartIcon className="h-4 w-4 mr-2" />
+                    {t("build.btn.sendToExplain")}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs">
+                {!output || !validation?.isValid
+                  ? t("build.btn.sendToExplain.disabled.tooltip")
+                  : t("build.btn.sendToExplain.tooltip")}
+              </TooltipContent>
+            </Tooltip>
           </CardHeader>
           <CardContent>
             <Form {...form}>
@@ -975,33 +1003,6 @@ export function BuildPortfolio() {
                   </TooltipTrigger>
                   <TooltipContent className="max-w-xs">
                     {t("build.btn.copyAiPrompt.tooltip")}
-                  </TooltipContent>
-                </Tooltip>
-
-                {/* Send-to-Explain (Task #175). Always rendered alongside
-                 *  Generate / Copy AI Prompt so the disabled state is
-                 *  visible before any portfolio has been built; tooltip
-                 *  switches to a "generate first" hint while disabled. */}
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <span className="w-full inline-block">
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        className="w-full"
-                        disabled={!output || !validation?.isValid}
-                        data-testid="build-send-to-explain"
-                        onClick={handleSendToExplainClick}
-                      >
-                        <PieChartIcon className="h-4 w-4 mr-2" />
-                        {t("build.btn.sendToExplain")}
-                      </Button>
-                    </span>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    {!output || !validation?.isValid
-                      ? t("build.btn.sendToExplain.disabled.tooltip")
-                      : t("build.btn.sendToExplain.tooltip")}
                   </TooltipContent>
                 </Tooltip>
               </form>
