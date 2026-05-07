@@ -8379,6 +8379,80 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE000LXEN6X4",
       "_addedAt": "2026-05-07T06:23:17.996Z",
       "_addedVia": "admin/lookthrough-pool"
+    },
+    "IE00BD4TXW66": {
+      "name": "UBS Core S&P 500 UCITS ETF USD acc",
+      "topHoldings": [
+        {
+          "name": "NVIDIA Corp.",
+          "pct": 7.56
+        },
+        {
+          "name": "Apple",
+          "pct": 6.65
+        },
+        {
+          "name": "Microsoft",
+          "pct": 4.9
+        },
+        {
+          "name": "Amazon.com, Inc.",
+          "pct": 3.63
+        },
+        {
+          "name": "Alphabet, Inc. A",
+          "pct": 2.99
+        },
+        {
+          "name": "Broadcom Inc.",
+          "pct": 2.62
+        },
+        {
+          "name": "Alphabet, Inc. C",
+          "pct": 2.39
+        },
+        {
+          "name": "Meta Platforms",
+          "pct": 2.23
+        },
+        {
+          "name": "Tesla",
+          "pct": 1.87
+        },
+        {
+          "name": "Berkshire Hathaway, Inc.",
+          "pct": 1.57
+        }
+      ],
+      "topHoldingsAsOf": "2026-05-07T06:25:12.446Z",
+      "geo": {
+        "United States": 95.04,
+        "Ireland": 1.43,
+        "Other": 3.53
+      },
+      "sector": {
+        "Technology": 33.86,
+        "Financials": 10.36,
+        "Telecommunication": 10.22,
+        "Consumer Discretionary": 9.98,
+        "Health Care": 9.3,
+        "Industrials": 8.3,
+        "Consumer Staples": 4.98,
+        "Energy": 4,
+        "Utilities": 2.53,
+        "Real Estate": 1.91,
+        "Basic Materials": 1.6,
+        "Other": 2.96
+      },
+      "currency": {
+        "USD": 95.04,
+        "EUR": 1.43,
+        "Other": 3.53
+      },
+      "breakdownsAsOf": "2026-05-07T06:25:12.446Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BD4TXW66",
+      "_addedAt": "2026-05-07T06:25:12.446Z",
+      "_addedVia": "admin/lookthrough-pool"
     }
   }
 }
