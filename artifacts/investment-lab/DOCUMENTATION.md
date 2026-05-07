@@ -812,24 +812,24 @@ no-cash portfolios return `undefined` so callers can skip the blend.
 Two welcome-dismiss polish tweaks, both now firing on every fresh
 app load (no per-browser or per-session silencing).
 
-(1) The Build tab's pie chart no longer relies on Recharts' silent
-default mount animation. A new `pieAnimateActive` state in
-`BuildPortfolio.tsx` (default `false`) gates the `<Pie>`'s
-`isAnimationActive` and the matching CSS keyframe
-`allocation-bar-sweep` (`scaleX(0) → scaleX(1)`, `transform-origin:
-left center`, 900 ms ease-out) on the horizontal stacked bar below
-it. The flag flips `true` when either (a) the welcome dialog's OK
-fires `subscribeRequestBuildSampleGeneration` or (b) the user
-clicks Generate Portfolio explicitly — so both entry points produce
-the same satisfying sweep-in. The `<PieChart>` element also carries
-a `key={pieAnimateActive ? "primed" : "idle"}` so Recharts remounts
-fresh once the gate flips, ensuring the enter animation actually
-plays even though the chart was already mounted (with empty data)
-before the welcome OK click — toggling `isAnimationActive`
-mid-life on an existing mount does not retrigger Recharts' enter
-animation on its own. Because component state resets on every page
-load, this gate replays the sweep on every fresh app start, not
-just the first visit.
+(1) The Build tab's donut + horizontal allocation bar now play a
+real reveal animation on every welcome-OK / Generate trigger,
+matching the radial donut sweep the user already sees when
+navigating between top-menu modules. A `revealAnimationKey`
+counter in `BuildPortfolio.tsx` is bumped on (a) the welcome
+dialog's OK via `subscribeRequestBuildSampleGeneration` and (b)
+explicit Generate Portfolio clicks in `onSubmit`. The `<PieChart>`
+and the horizontal stacked-bar wrapper are both keyed off this
+counter, so each bump fully unmounts and remounts them — Recharts
+then plays its default radial mount animation on the donut, and
+the CSS keyframe `allocation-bar-sweep` (`scaleX(0) → scaleX(1)`,
+`transform-origin: left center`, 900 ms ease-out) replays on the
+bar in lockstep. The Build pie no longer overrides Recharts'
+animation defaults (`isAnimationActive`, `animationDuration`, …)
+— it explicitly mirrors the Compare and CurrentAllocationCard
+pies, which already had the desired look. Using a counter (not a
+boolean) means the second, third, … Generate click also replay
+the animation, not just the first.
 
 (2) The blue nav-dot flash from Task #187 is no longer one-shot
 per browser **or** per session — the persistence gate in

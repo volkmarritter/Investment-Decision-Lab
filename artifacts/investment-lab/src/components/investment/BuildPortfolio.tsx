@@ -434,10 +434,10 @@ export function BuildPortfolio() {
   // path further down deliberately does NOT set this flag.
   const onSubmit = (data: PortfolioInput) => {
     setLastBuildUserDriven(true);
-    // Task #206 — explicit Generate also enables the pie sweep, so a user
-    // who never sees the welcome dialog (or who regenerates afterwards)
-    // still gets the satisfying reveal animation.
-    setPieAnimateActive(true);
+    // Task #206 — explicit Generate also triggers the reveal animation,
+    // so a user who never sees the welcome dialog (or who regenerates
+    // afterwards) still gets the satisfying donut sweep + bar sweep.
+    triggerRevealAnimation();
     generatePortfolio(data, { scrollToResults: true });
   };
 
@@ -457,24 +457,32 @@ export function BuildPortfolio() {
       didSampleGenerateRef.current = true;
       setLastBuildUserDriven(true);
       generatePortfolio(form.getValues(), { scrollToResults: false });
-      // Task #206 — flip the pie-sweep gate ON the moment the welcome
-      // dialog confirms. Recharts' `isAnimationActive` reads this state
-      // on the next render, so the sweep-in plays as the chart appears.
-      // The matching scaleX-from-0 animation on the allocation bar
-      // below is keyed off the same flag (via `data-pie-animation`).
-      setPieAnimateActive(true);
+      // Task #206 — bump the reveal-animation key the moment the
+      // welcome dialog confirms. The PieChart and the horizontal
+      // allocation bar are both keyed off the counter, so the bump
+      // remounts them and Recharts plays its default radial-sweep
+      // mount animation as the donut appears with the just-loaded
+      // data, in lockstep with the bar's CSS keyframe replay.
+      triggerRevealAnimation();
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Task #206 — pie + allocation-bar reveal animation gate. Default false
-  // so any pre-welcome render (e.g. a stray rebuild from a setting change)
-  // would not fire Recharts' default mount animation silently. Flipped
-  // true exactly when the user signals intent: welcome-dialog OK
-  // (subscribeRequestBuildSampleGeneration above) or an explicit Generate
-  // Portfolio click (onSubmit). Stays true for the rest of the session so
-  // every subsequent rebuild also animates as expected.
-  const [pieAnimateActive, setPieAnimateActive] = useState(false);
+  // Task #206 (revised v2) — reveal-animation key. Incremented every
+  // time the user signals intent (welcome-dialog OK
+  // `subscribeRequestBuildSampleGeneration`, OR an explicit Generate
+  // Portfolio click in `onSubmit`). The PieChart and the horizontal
+  // allocation bar are both keyed off this counter, so each bump
+  // forces React to unmount and remount them — Recharts then plays
+  // its default mount animation (the radial sweep around the donut,
+  // matching what the user already sees when navigating between top-
+  // menu modules), and the CSS keyframe `allocation-bar-sweep`
+  // replays on the bar in lockstep. Using a counter (rather than a
+  // boolean) means the animation also replays on the second, third,
+  // … Generate click, not just the first one.
+  const [revealAnimationKey, setRevealAnimationKey] = useState(0);
+  const triggerRevealAnimation = () =>
+    setRevealAnimationKey((k) => k + 1);
 
   const baseChartData = (output?.allocation.map(a => ({
     name: `${a.assetClass} - ${a.region}`,
@@ -1187,16 +1195,19 @@ export function BuildPortfolio() {
                       )}
                       <div className="h-[200px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                          {/* Task #206 — `key` flips when the welcome-OK
-                              (or explicit Generate) gate flips on, forcing
-                              Recharts to remount the PieChart with the
-                              just-populated data so its mount animation
-                              actually plays as a sweep-in. Without the
-                              remount, the chart was already mounted with
-                              empty data and toggling `isAnimationActive`
-                              mid-life did not trigger Recharts' enter
-                              animation. */}
-                          <PieChart key={pieAnimateActive ? "primed" : "idle"}>
+                          {/* Task #206 (revised v2) — `key` is bumped on
+                              every welcome-OK / Generate click via
+                              `revealAnimationKey`, forcing React to
+                              unmount and remount the entire PieChart.
+                              Recharts then plays its default radial
+                              mount animation (the same clockwise donut
+                              sweep the user sees when navigating
+                              between top-menu modules), with no custom
+                              `isAnimationActive` / duration overrides —
+                              we explicitly mirror the Compare and
+                              CurrentAllocationCard pies, which the
+                              user already considers "the right look". */}
+                          <PieChart key={revealAnimationKey}>
                             <Pie
                               data={chartData}
                               cx="50%"
@@ -1208,10 +1219,6 @@ export function BuildPortfolio() {
                               stroke="none"
                               startAngle={90}
                               endAngle={-270}
-                              isAnimationActive={pieAnimateActive}
-                              animationBegin={0}
-                              animationDuration={900}
-                              animationEasing="ease-out"
                             >
                               {chartData.map((entry, index) => (
                                 <Cell key={`cell-${index}`} fill={colorForBucket(entry.name)} />
@@ -1226,16 +1233,17 @@ export function BuildPortfolio() {
                       </div>
                     </div>
 
-                    {/* Horizontal Stacked Bar — Task #206: when the welcome
-                     * dialog confirms (or the user clicks Generate), the
-                     * `pieAnimateActive` flag flips and we add the
-                     * `animate-allocation-bar-sweep` class which scales the
-                     * whole bar from scaleX(0) to scaleX(1) in lockstep
-                     * with the pie's sweep-in. */}
+                    {/* Horizontal Stacked Bar — Task #206 (revised v2):
+                     * keyed off the same `revealAnimationKey` counter
+                     * as the PieChart above. Each bump (welcome OK or
+                     * Generate click) remounts this wrapper so the
+                     * `animate-allocation-bar-sweep` CSS keyframe
+                     * (scaleX 0 → 1, transform-origin: left center,
+                     * 900 ms ease-out) replays from scratch in lockstep
+                     * with the pie's mount animation. */}
                     <div
-                      className={`h-4 w-full flex rounded-full overflow-hidden${
-                        pieAnimateActive ? " animate-allocation-bar-sweep" : ""
-                      }`}
+                      key={revealAnimationKey}
+                      className="h-4 w-full flex rounded-full overflow-hidden animate-allocation-bar-sweep"
                     >
                       {chartData.map((d, i) => (
                         <div 
