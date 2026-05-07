@@ -8226,6 +8226,83 @@
       "_addedAt": "2026-05-01T11:13:43.275Z",
       "_addedVia": "scrape-popular-etfs-pool",
       "isEquity": false
+    },
+    "IE00B53L3W79": {
+      "name": "iShares Core EURO STOXX 50 UCITS ETF EUR (Acc)",
+      "topHoldings": [
+        {
+          "name": "ASML Holding NV",
+          "pct": 9.75
+        },
+        {
+          "name": "TotalEnergies SE",
+          "pct": 4.43
+        },
+        {
+          "name": "Siemens AG",
+          "pct": 3.87
+        },
+        {
+          "name": "SAP SE",
+          "pct": 3.76
+        },
+        {
+          "name": "Banco Santander SA",
+          "pct": 3.49
+        },
+        {
+          "name": "Allianz SE",
+          "pct": 3.42
+        },
+        {
+          "name": "Schneider Electric SE",
+          "pct": 3.31
+        },
+        {
+          "name": "Iberdrola SA",
+          "pct": 3.07
+        },
+        {
+          "name": "LVMH Moët Hennessy Louis Vuitton SE",
+          "pct": 2.9
+        },
+        {
+          "name": "Deutsche Telekom AG",
+          "pct": 2.81
+        }
+      ],
+      "topHoldingsAsOf": "2026-05-07T06:22:21.779Z",
+      "geo": {
+        "France": 30.89,
+        "Germany": 29.4,
+        "Netherlands": 17.84,
+        "Spain": 10.53,
+        "Italy": 8.17,
+        "Belgium": 1.53,
+        "Finland": 1.26,
+        "Other": 0.38
+      },
+      "sector": {
+        "Financials": 24.64,
+        "Industrials": 20.72,
+        "Technology": 15.42,
+        "Consumer Discretionary": 11.85,
+        "Consumer Staples": 5.64,
+        "Energy": 5.64,
+        "Utilities": 4.89,
+        "Health Care": 4.27,
+        "Basic Materials": 3.75,
+        "Telecommunication": 2.81,
+        "Other": 0.38
+      },
+      "currency": {
+        "EUR": 99.62,
+        "Other": 0.38
+      },
+      "breakdownsAsOf": "2026-05-07T06:22:21.779Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B53L3W79",
+      "_addedAt": "2026-05-07T06:22:21.779Z",
+      "_addedVia": "admin/lookthrough-pool"
     }
   }
 }
