@@ -44,7 +44,7 @@ import { getSlotKind } from "./etfSlotBadge";
 import { SlotTagBadge } from "./SlotTagBadge";
 import { cn } from "@/lib/utils";
 
-import { PortfolioInput, PortfolioOutput, ValidationResult } from "@/lib/types";
+import { PortfolioInput, PortfolioOutput, ValidationResult, BaseCurrency } from "@/lib/types";
 import { runValidation } from "@/lib/validation";
 import { buildPortfolio, computeNaturalBucketCount } from "@/lib/portfolio";
 import { mapAllocationToAssetsLookthrough, CMA } from "@/lib/metrics";
@@ -56,6 +56,7 @@ import {
   setLastBuildInput,
   setLastBuildUserDriven,
   setLastBuildManualWeights,
+  setLastBaseCurrency,
   getBuildRationaleRisksOpen,
   setBuildRationaleRisksOpen,
   subscribeRequestBuildSampleGeneration,
@@ -189,6 +190,13 @@ export function BuildPortfolio() {
   const watchedTargetEquityPct = form.watch("targetEquityPct");
   const watchedHorizon = form.watch("horizon");
   const watchedBaseCurrencyForEtfs = form.watch("baseCurrency");
+  // Publish baseCurrency to the cross-tab channel so Methodology's CMA Cash
+  // row + building-blocks accordion can show the matching per-currency RF
+  // rate as the active μ (Task #192). Not gated on hasGenerated — we want
+  // the display to track the form value live, not wait for a build.
+  useEffect(() => {
+    setLastBaseCurrency(watchedBaseCurrencyForEtfs as BaseCurrency);
+  }, [watchedBaseCurrencyForEtfs]);
   useEffect(() => {
     if (numETFsMode !== "auto") return;
     const v = form.getValues();

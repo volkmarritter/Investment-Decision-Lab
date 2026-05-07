@@ -8,9 +8,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { CMA, BENCHMARK, buildCorrelationMatrix, getCMAConsensus, getCMASources, getCMASeed, applyCMALayers, AssetKey, CMA_BUILDING_BLOCKS, sumBuildingBlocks } from "@/lib/metrics";
+import { CMA, BENCHMARK, buildCorrelationMatrix, getCMAConsensus, getCMASources, getCMASeed, applyCMALayers, AssetKey, CMA_BUILDING_BLOCKS, sumBuildingBlocks, effectiveCashExpReturn } from "@/lib/metrics";
 import { SCENARIOS } from "@/lib/scenarios";
-import { getRiskFreeRates, getRiskFreeRateOverrides, setRiskFreeRate, resetRiskFreeRate, resetAllRiskFreeRates, subscribeRiskFreeRate, RF_DEFAULTS, RFCurrency, getCMAOverrides, setCMAOverrides, resetCMAOverrides, resetCMAOverride, subscribeCMAOverrides, CMAUserOverrides, getHomeBiasOverrides, setHomeBiasOverrides, resetHomeBiasOverrides, resetHomeBiasOverride, subscribeHomeBiasOverrides, resolvedHomeBias, HOME_BIAS_DEFAULTS, HomeBiasCurrency, getLastAllocation, subscribeLastAllocation, getLastEtfImplementation, subscribeLastEtfImplementation } from "@/lib/settings";
+import { getRiskFreeRates, getRiskFreeRateOverrides, setRiskFreeRate, resetRiskFreeRate, resetAllRiskFreeRates, subscribeRiskFreeRate, RF_DEFAULTS, RFCurrency, getCMAOverrides, setCMAOverrides, resetCMAOverrides, resetCMAOverride, subscribeCMAOverrides, CMAUserOverrides, getHomeBiasOverrides, setHomeBiasOverrides, resetHomeBiasOverrides, resetHomeBiasOverride, subscribeHomeBiasOverrides, resolvedHomeBias, HOME_BIAS_DEFAULTS, HomeBiasCurrency, getLastAllocation, subscribeLastAllocation, getLastEtfImplementation, subscribeLastEtfImplementation, getLastBaseCurrency, subscribeLastBaseCurrency } from "@/lib/settings";
+import type { BaseCurrency } from "@/lib/types";
 import { getHomeAnchorPct } from "@/lib/portfolio";
 import { getNeutralHomeCapWeightPct } from "@/lib/homebias";
 import type { AssetAllocation, ETFImplementation } from "@/lib/types";
@@ -214,6 +215,25 @@ export function Methodology() {
     if (src === "consensus") return <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{de ? "Konsens" : "Consensus"}</Badge>;
     return <Badge variant="outline" className="text-[10px] px-1.5 py-0">{de ? "Engine" : "Engine"}</Badge>;
   };
+
+  // Reflect the user's currently-selected base currency (published by Build's
+  // form.watch and Explain's state.baseCurrency via setLastBaseCurrency) so
+  // the Cash row in the CMA editor + the building-blocks accordion can show
+  // the matching per-currency RF rate as the active μ — keeping the display
+  // consistent with what `effectiveCashExpReturn(baseCurrency)` produces in
+  // the engine. Falls back to "USD" before the user has touched either tab
+  // (Task #192). Re-reads on RF changes too so editing the per-currency RF
+  // rates above immediately re-prices the displayed Cash μ.
+  const [baseCurrency, setBaseCurrency] = useState<BaseCurrency>(
+    () => getLastBaseCurrency() ?? "USD",
+  );
+  useEffect(
+    () => subscribeLastBaseCurrency((c) => setBaseCurrency(c ?? "USD")),
+    [],
+  );
+  // RF subscription already triggers a re-render via setRfRates above; the
+  // Cash μ derivations below are inline expressions so they pick up the new
+  // RF on the next render without needing a separate effect.
 
   // Reflect the user's last-built portfolio (published by BuildPortfolio
   // through `setLastAllocation`) so the Methodology correlation matrix can
@@ -838,7 +858,13 @@ export function Methodology() {
                           {de ? "Seed" : "Seed"}: {fmtPct(seed.expReturn)}% / {fmtPct(seed.vol, 1)}%
                         </div>
                       </TableCell>
-                      <TableCell className="text-right font-mono text-xs">{fmtPct(CMA[k].expReturn)}%</TableCell>
+                      <TableCell className="text-right font-mono text-xs">
+                        {/* Cash μ is special-cased to mirror what the engine actually uses
+                            (effectiveCashExpReturn → user override OR per-base-currency RF
+                            rate). Other rows still read straight from CMA[k].expReturn.
+                            Task #192. */}
+                        {fmtPct(k === "cash" ? effectiveCashExpReturn(baseCurrency) : CMA[k].expReturn)}%
+                      </TableCell>
                       <TableCell className="text-right font-mono text-xs">{fmtPct(CMA[k].vol, 1)}%</TableCell>
                       <TableCell>
                         <Input
@@ -947,9 +973,28 @@ export function Methodology() {
                 </p>
                 <div className="space-y-4" data-testid="bb-section">
                   {(Object.keys(CMA) as AssetKey[]).map((k) => {
-                    const bb = CMA_BUILDING_BLOCKS[k];
+                    const bbRaw = CMA_BUILDING_BLOCKS[k];
                     const seed = getCMASeed(k);
-                    const sum = sumBuildingBlocks(k);
+                    // Cash special-case (Task #192): the only component
+                    // (`bb.cash.rate`) is dynamically re-priced to the
+                    // user-override-or-base-currency-RF rate so the
+                    // displayed building block matches what
+                    // `effectiveCashExpReturn(baseCurrency)` actually
+                    // contributes in the engine. Sum + delta reflect the
+                    // dynamic value too.
+                    const bb = k === "cash"
+                      ? {
+                          ...bbRaw,
+                          components: bbRaw.components.map((c) =>
+                            c.key === "bb.cash.rate"
+                              ? { ...c, value: effectiveCashExpReturn(baseCurrency) }
+                              : c,
+                          ),
+                        }
+                      : bbRaw;
+                    const sum = k === "cash"
+                      ? bb.components.reduce((s, c) => s + c.value, 0)
+                      : sumBuildingBlocks(k);
                     const delta = sum - seed.expReturn;
                     return (
                       <div key={k} className="rounded-md border p-3 bg-muted/20" data-testid={`bb-row-${k}`}>

@@ -627,6 +627,42 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+### 2026-05 (cash-mu-display-per-currency — Task #192)
+
+The Methodology tab's CMA-editor "Active μ" column for the Cash row and
+the building-blocks accordion's `bb.cash.rate` component no longer
+display the legacy hardcoded 3.00 % seed — they now mirror what the
+engine actually uses (`effectiveCashExpReturn(baseCurrency)`), so the
+displayed cash μ matches the per-currency RF rate (CHF ≈ 0.5 %,
+EUR ≈ 2.5 %, USD ≈ 4.25 %, GBP ≈ 4 %) and re-prices live when the
+user switches base currency in Build or Explain. Override-wins
+semantics are preserved: a manual cash CMA override in the Methodology
+editor still wins (because `effectiveCashExpReturn` returns the
+override when present). Engine code, the `CMA_BUILDING_BLOCKS` table,
+and the persisted seed are all unchanged — this is a pure display
+fix that closes the cosmetic gap between what the editor showed
+(3.00 %) and what the headline metrics actually used (per-currency RF).
+
+Implementation: a new lightweight cross-tab channel
+`lastBaseCurrency` (`getLastBaseCurrency` / `setLastBaseCurrency` /
+`subscribeLastBaseCurrency` in `src/lib/settings.ts`, in-memory,
+ungated) is published by `BuildPortfolio.tsx` on
+`form.watch("baseCurrency")` and by `ExplainPortfolio.tsx` on
+`state.baseCurrency`. `Methodology.tsx` subscribes (default `"USD"`
+before either tab has been visited) and:
+- the Cash row's "Active μ" cell now renders
+  `fmtPct(k === "cash" ? effectiveCashExpReturn(baseCurrency) : CMA[k].expReturn)`,
+- the building-blocks accordion clones the cash `bb` and replaces
+  the `bb.cash.rate` component's `value` with
+  `effectiveCashExpReturn(baseCurrency)`, then recomputes `sum` and
+  `delta` from the dynamic components (so the "Δ vs Seed" line is
+  also accurate against the persisted 3.00 % seed).
+
+The i18n string `bb.src.cash` (EN+DE) was updated to describe the row
+as the per-currency RF rate (CHF SARON, EUR ESTR, GBP SONIA, USD
+T-Bills) instead of the previous "approximate G4 cash-rate average"
+wording.
+
 ### 2026-05 (cash-mu-per-currency)
 
 The Cash sleeve's expected return is now per-currency: it tracks the

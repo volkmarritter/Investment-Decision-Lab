@@ -509,6 +509,50 @@ export function subscribeLastBuildInput(
 }
 
 // ----------------------------------------------------------------------------
+// Channel: current base currency (Task #192 — display-side cash μ)
+// ----------------------------------------------------------------------------
+//
+// Lightweight cross-tab signal carrying whichever base currency the user is
+// currently looking at — published by Build (form.watch on baseCurrency) and
+// Explain (state.baseCurrency). Methodology subscribes so its CMA editor
+// and building-blocks accordion can show the per-currency RF rate as the
+// active Cash μ instead of the hardcoded 3.00% seed.
+//
+// Unlike `lastBuildInput`, this channel is NOT gated on "user has clicked
+// Generate" — it reflects the live form value from the moment Build mounts
+// (or Explain mounts, whichever the user touched last) so the Cash row in
+// Methodology stays in sync without requiring a build first. In-memory
+// only, fresh on full reload (default falls back to "USD").
+// ----------------------------------------------------------------------------
+const LAST_BASE_CURRENCY_EVENT = "idl-last-base-currency-changed";
+let lastBaseCurrency: BaseCurrency | null = null;
+
+export function setLastBaseCurrency(ccy: BaseCurrency | null): void {
+  if (typeof window === "undefined") return;
+  if (lastBaseCurrency === ccy) return;
+  lastBaseCurrency = ccy;
+  window.dispatchEvent(
+    new CustomEvent(LAST_BASE_CURRENCY_EVENT, { detail: lastBaseCurrency }),
+  );
+}
+
+export function getLastBaseCurrency(): BaseCurrency | null {
+  return lastBaseCurrency;
+}
+
+export function subscribeLastBaseCurrency(
+  cb: (ccy: BaseCurrency | null) => void,
+): () => void {
+  if (typeof window === "undefined") return () => {};
+  const handler = (e: Event) => {
+    const detail = (e as CustomEvent).detail;
+    cb((detail as BaseCurrency | null) ?? null);
+  };
+  window.addEventListener(LAST_BASE_CURRENCY_EVENT, handler);
+  return () => window.removeEventListener(LAST_BASE_CURRENCY_EVENT, handler);
+}
+
+// ----------------------------------------------------------------------------
 // Channel: "Build has been driven by the user" flag (Task #186)
 // ----------------------------------------------------------------------------
 //

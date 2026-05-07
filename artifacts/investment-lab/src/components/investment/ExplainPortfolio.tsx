@@ -106,6 +106,7 @@ import {
   takePendingExplainLoadRequest,
   type CompareSlotName,
 } from "@/lib/explainCompare";
+import { setLastBaseCurrency } from "@/lib/settings";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -907,6 +908,13 @@ export function ExplainPortfolio() {
     () => runExplainValidation(state.positions, state.riskAppetite, state.baseCurrency, lang),
     [state.positions, state.riskAppetite, state.baseCurrency, lang],
   );
+
+  // Publish baseCurrency to the cross-tab channel so Methodology's CMA Cash
+  // row + building-blocks accordion can show the matching per-currency RF
+  // rate as the active μ (Task #192).
+  useEffect(() => {
+    setLastBaseCurrency(state.baseCurrency);
+  }, [state.baseCurrency]);
 
   const portfolio = useMemo(
     () =>
