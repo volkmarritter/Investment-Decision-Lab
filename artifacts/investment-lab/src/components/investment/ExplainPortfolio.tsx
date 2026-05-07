@@ -296,12 +296,12 @@ function IsinPicker({ value, onPick, excludeIsins, testId, restrictToBucketKey }
     }
     // Within each bucket: order rows by role (default → alternative →
     // pool → unassigned). Within the same role, preserve the curated
-    // catalog ordering — alternatives sort by their slot index
-    // (Alt 1 → Alt N), pool entries keep their catalog insertion order
-    // (Array.sort is stable in modern JS, so returning 0 there
-    // preserves the order from `candidates`/`listInstruments()`).
-    // Comparator extracted as a top-level export so `tests/` can
-    // regression-test the order without rendering the picker.
+    // catalog ordering — alternatives sort by `getInstrumentAltIndex`
+    // (Alt 1 → Alt N) and pool entries by `getInstrumentPoolIndex`
+    // (catalog insertion order, independent of the upstream
+    // name-sorted `listInstruments()` baseline). Comparator
+    // extracted as a top-level export so `tests/` can regression-test
+    // the order without rendering the picker.
     for (const [, rows] of m) {
       rows.sort(comparePickerRows);
     }
