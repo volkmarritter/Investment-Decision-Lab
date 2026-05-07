@@ -31,8 +31,6 @@ import {
 } from "@/lib/explainCompare";
 import {
   getLastBuildUserDriven,
-  getNavDotsFlashedOnce,
-  markNavDotsFlashedOnce,
   requestBuildSampleGeneration,
   subscribeLastBuildUserDriven,
 } from "@/lib/settings";
@@ -379,12 +377,14 @@ export default function InvestmentLab() {
     return () => window.clearTimeout(id);
   }, []);
 
-  // Task #187 — nav-dot one-shot flash. The flag is true for the very
-  // first welcome-dismiss in this browser; flipped back off after one
-  // render so the animation only plays once. Persisted to localStorage
-  // via markNavDotsFlashedOnce() so a hard refresh in the same tab
-  // doesn't replay it. `didRequestSampleRef` guards against React
-  // StrictMode's double-invoke firing the request (and the flash) twice.
+  // Task #206 (revised) — nav-dot flash plays on EVERY welcome-OK
+  // dismiss, every time the app loads. No persistence: the flag flips
+  // true inside the dismiss handler, drives the `animate-dot-flash`
+  // class on the Build dot for ~1.2 s, then flips back off so the
+  // class drops and won't re-apply on unrelated re-renders (e.g. tab
+  // change). `didRequestSampleRef` still guards against React
+  // StrictMode's double-invoke firing the request (and the flash) twice
+  // within a single mount.
   const [flashDots, setFlashDots] = useState(false);
   // Task #188 — sibling one-shot to flashDots: a brief tooltip hint pointing
   // at the Build dot that says "Your sample portfolio is ready in Build". Same
@@ -431,14 +431,12 @@ export default function InvestmentLab() {
     if (didRequestSampleRef.current) return;
     didRequestSampleRef.current = true;
     requestBuildSampleGeneration();
-    if (!getNavDotsFlashedOnce()) {
-      markNavDotsFlashedOnce();
-      setFlashDots(true);
-      // Clear the flag after the animation has finished (≈1s) so the
-      // class drops off and won't re-apply on subsequent renders for
-      // unrelated reasons (e.g. a tab change).
-      window.setTimeout(() => setFlashDots(false), 1200);
-    }
+    // Task #206 (revised) — flash on every dismiss, no persistence
+    // gate. Clear the flag after the animation has finished (≈1 s) so
+    // the class drops off and won't re-apply on subsequent renders
+    // for unrelated reasons (e.g. a tab change).
+    setFlashDots(true);
+    window.setTimeout(() => setFlashDots(false), 1200);
     setShowBuildHint(true);
     hintTimerRef.current = window.setTimeout(() => {
       hintTimerRef.current = null;

@@ -1187,7 +1187,16 @@ export function BuildPortfolio() {
                       )}
                       <div className="h-[200px] w-full">
                         <ResponsiveContainer width="100%" height="100%">
-                          <PieChart>
+                          {/* Task #206 — `key` flips when the welcome-OK
+                              (or explicit Generate) gate flips on, forcing
+                              Recharts to remount the PieChart with the
+                              just-populated data so its mount animation
+                              actually plays as a sweep-in. Without the
+                              remount, the chart was already mounted with
+                              empty data and toggling `isAnimationActive`
+                              mid-life did not trigger Recharts' enter
+                              animation. */}
+                          <PieChart key={pieAnimateActive ? "primed" : "idle"}>
                             <Pie
                               data={chartData}
                               cx="50%"

@@ -809,23 +809,38 @@ no-cash portfolios return `undefined` so callers can skip the blend.
 
 ### 2026-05 (welcome-reveal-polish — Task #206)
 
-Two welcome-dismiss polish tweaks. (1) The Build tab's pie chart no
-longer relies on Recharts' silent default mount animation: a new
-`pieAnimateActive` state (default `false`) gates the `<Pie>`'s
+Two welcome-dismiss polish tweaks, both now firing on every fresh
+app load (no per-browser or per-session silencing).
+
+(1) The Build tab's pie chart no longer relies on Recharts' silent
+default mount animation. A new `pieAnimateActive` state in
+`BuildPortfolio.tsx` (default `false`) gates the `<Pie>`'s
 `isAnimationActive` and the matching CSS keyframe
 `allocation-bar-sweep` (`scaleX(0) → scaleX(1)`, `transform-origin:
 left center`, 900 ms ease-out) on the horizontal stacked bar below
 it. The flag flips `true` when either (a) the welcome dialog's OK
 fires `subscribeRequestBuildSampleGeneration` or (b) the user
 clicks Generate Portfolio explicitly — so both entry points produce
-the same satisfying sweep-in. (2) The blue nav-dot flash from Task
-#187 is no longer one-shot per browser. `getNavDotsFlashedOnce` /
-`markNavDotsFlashedOnce` in `lib/settings.ts` switched from
-`localStorage` to `sessionStorage` (with best-effort cleanup of the
-legacy `localStorage` key so previously-silenced users get the cue
-back), and the failure fallback flipped from `true` → `false` so a
-storage error never permanently silences the animation either. Net
-effect: the dots pulse on every fresh page load + welcome confirm.
+the same satisfying sweep-in. The `<PieChart>` element also carries
+a `key={pieAnimateActive ? "primed" : "idle"}` so Recharts remounts
+fresh once the gate flips, ensuring the enter animation actually
+plays even though the chart was already mounted (with empty data)
+before the welcome OK click — toggling `isAnimationActive`
+mid-life on an existing mount does not retrigger Recharts' enter
+animation on its own. Because component state resets on every page
+load, this gate replays the sweep on every fresh app start, not
+just the first visit.
+
+(2) The blue nav-dot flash from Task #187 is no longer one-shot
+per browser **or** per session — the persistence gate in
+`InvestmentLab.tsx`'s `handleWelcomeDismiss` was removed entirely,
+so `setFlashDots(true)` runs unconditionally on every welcome OK,
+followed by the existing 1.2 s reset timer. The
+`getNavDotsFlashedOnce` / `markNavDotsFlashedOnce` helpers in
+`lib/settings.ts` are no longer imported by the page (they remain
+exported for backwards compatibility but are now unused in app
+code). Net effect: the dots pulse on every welcome confirm, every
+single time the user opens or reloads the app.
 
 ### 2026-05 (nav-dot-build-hint — Task #188)
 

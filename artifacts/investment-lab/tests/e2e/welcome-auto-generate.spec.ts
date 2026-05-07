@@ -1,42 +1,31 @@
 import { test, expect } from "@playwright/test";
 import { dismissWelcomeIfPresent } from "./utils";
 
-// Task #189 — welcome → auto-generate handoff regression.
+// Task #189 + Task #206 (revised) — welcome → auto-generate handoff
+// AND nav-dot flash regression.
 //
-// The Build tab no longer auto-generates its sample portfolio on mount;
-// instead the welcome dialog's OK click fires the one-shot
-// `requestBuildSampleGeneration()` event AND, on the very first
-// dismissal in this browser, briefly applies `animate-dot-flash` to the
-// nav-bar Build dot (one-shot, persisted via
-// `idl.navDotsFlashedOnce`). This spec locks both halves down so a
-// regression to either — auto-generate firing on mount again, or the
-// flash replaying on every load — fails loudly.
+// The Build tab no longer auto-generates its sample portfolio on
+// mount; instead the welcome dialog's OK click fires the one-shot
+// `requestBuildSampleGeneration()` event AND briefly applies
+// `animate-dot-flash` to the nav-bar Build dot. Per Task #206
+// (revised), the flash is NO LONGER persisted — it plays on EVERY
+// welcome-OK dismiss, on every fresh app load and reload, so the
+// orientation cue never silently disappears.
 //
-// Runs under the iphone-13 chromium viewport, so the relevant nav-dot
-// testid is the mobile variant `nav-dot-build-mobile` rendered by the
-// portaled bottom <nav>.
+// This spec locks both halves down so a regression to either —
+// auto-generate firing on mount again, or the flash being silenced
+// on a second load — fails loudly.
+//
+// Runs under the iphone-13 chromium viewport, so the relevant
+// nav-dot testid is the mobile variant `nav-dot-build-mobile`
+// rendered by the portaled bottom <nav>.
 
 const BUILD_ROW_SELECTOR = '[data-testid^="etf-row-"]';
 const BUILD_DOT_TESTID = "nav-dot-build-mobile";
 
-test("welcome OK kicks off Build generation and flashes the nav dot exactly once per browser", async ({
+test("welcome OK kicks off Build generation and flashes the nav dot on every load", async ({
   page,
 }) => {
-  // Ensure the very first page load starts from a fully empty storage
-  // so the per-session flash flag (Task #206 — moved from localStorage
-  // to sessionStorage) is unset. We use a sessionStorage sentinel so
-  // the SAME helper, which runs on every navigation in the page,
-  // doesn't wipe `idl.navDotsFlashedOnce` from sessionStorage on the
-  // later reload — pass 2 needs the flag to still be "true" so the
-  // flash branch stays skipped.
-  await page.addInitScript(() => {
-    if (!sessionStorage.getItem("__idl_e2e_cleared")) {
-      localStorage.clear();
-      sessionStorage.removeItem("idl.navDotsFlashedOnce");
-      sessionStorage.setItem("__idl_e2e_cleared", "1");
-    }
-  });
-
   await page.goto("/");
 
   // Welcome dialog appears ~400ms after mount. Wait for it before
@@ -54,18 +43,6 @@ test("welcome OK kicks off Build generation and flashes the nav dot exactly once
   // Pre-OK: Build nav dot is hidden (no signal yet).
   await expect(page.getByTestId(BUILD_DOT_TESTID)).toHaveCount(0);
 
-  // Click OK and let the one-shot event fan out: portfolio generation
-  // + first-time flash on the Build dot. We start sampling the dot's
-  // class IMMEDIATELY in a parallel polling loop (every ~50 ms for up
-  // to 5 s) — that way we catch the `animate-dot-flash` class while
-  // it's actively applied, regardless of whether the dot itself
-  // appears synchronously (signals.build flips inside the dismiss
-  // handler) or a few hundred ms later (subscriber chain → React
-  // re-render). A simple post-hoc `toHaveClass` would race the 1.2 s
-  // animation gate timer (`setTimeout(..., 1200)` in
-  // InvestmentLab.tsx) on a cold validation env where generation +
-  // re-render latency can creep past that window.
-  const dot = page.getByTestId(BUILD_DOT_TESTID);
   // Sample via raw DOM query (not the locator API, which would wait
   // for the element to exist on every probe and defeat the loop):
   // returns the live class string or `null` when the dot isn't
@@ -75,7 +52,15 @@ test("welcome OK kicks off Build generation and flashes the nav dot exactly once
       const el = document.querySelector(`[data-testid="${sel}"]`);
       return el ? el.getAttribute("class") : null;
     }, BUILD_DOT_TESTID);
-  const sawFlashPromise = (async () => {
+
+  // Helper: poll up to 5 s for `animate-dot-flash` to land on the
+  // dot. We start sampling IMMEDIATELY (in parallel with the click)
+  // so we catch the class while it's actively applied — a simple
+  // post-hoc `toHaveClass` would race the 1.2 s animation gate
+  // timer (`setTimeout(..., 1200)` in InvestmentLab.tsx) on a cold
+  // validation env where generation + re-render latency can creep
+  // past that window.
+  const watchForFlash = async (): Promise<boolean> => {
     const deadline = Date.now() + 5_000;
     while (Date.now() < deadline) {
       const cls = await probeDotClass().catch(() => null);
@@ -83,8 +68,10 @@ test("welcome OK kicks off Build generation and flashes the nav dot exactly once
       await page.waitForTimeout(50);
     }
     return false;
-  })();
+  };
 
+  // ── Pass 1 — first welcome OK ──────────────────────────────────
+  const sawFlashPass1Promise = watchForFlash();
   await dismiss.click();
   await expect(dismiss).toBeHidden();
 
@@ -95,30 +82,28 @@ test("welcome OK kicks off Build generation and flashes the nav dot exactly once
   expect(await page.locator(BUILD_ROW_SELECTOR).count()).toBeGreaterThan(0);
 
   // Dot is now in the DOM (rendered when `signals.build` flipped).
-  await expect(dot).toBeVisible();
+  await expect(page.getByTestId(BUILD_DOT_TESTID)).toBeVisible();
 
-  // The polling loop above must have observed the flash class at
-  // least once during its 5 s window.
   expect(
-    await sawFlashPromise,
-    "expected `animate-dot-flash` to be applied to the Build dot at some point during the first dismiss",
+    await sawFlashPass1Promise,
+    "expected `animate-dot-flash` to be applied to the Build dot during the FIRST dismiss",
   ).toBe(true);
 
-  // Per-session persisted flag flipped on (Task #206 — sessionStorage,
-  // not localStorage, so the cue replays on every fresh page load
-  // outside the same tab session).
-  const flashedOnce = await page.evaluate(() =>
-    window.sessionStorage.getItem("idl.navDotsFlashedOnce"),
-  );
-  expect(flashedOnce).toBe("true");
+  // Wait for the flash window (≈1.2 s) to fully expire so pass 2
+  // starts from a clean class state — otherwise a leftover class
+  // from pass 1 would falsely satisfy the pass 2 watcher.
+  await page.waitForTimeout(1500);
 
-  // Pass 2 — reload the same browser tab. sessionStorage persists
-  // across an in-tab reload (the init-script guard above means we do
-  // NOT wipe the flag), so `getNavDotsFlashedOnce()` returns true and
-  // the welcome dismiss handler must skip the flash branch entirely
-  // for the rest of this session.
+  // ── Pass 2 — reload the same browser tab, OK again ─────────────
+  // Per Task #206 (revised), the flash is NO LONGER suppressed on
+  // subsequent loads — it must replay on every welcome dismiss.
   await page.reload();
-  await dismissWelcomeIfPresent(page);
+  const dismiss2 = page.getByTestId("welcome-dialog-dismiss");
+  await expect(dismiss2).toBeVisible({ timeout: 5_000 });
+
+  const sawFlashPass2Promise = watchForFlash();
+  await dismiss2.click();
+  await expect(dismiss2).toBeHidden();
 
   // Build table populates again (auto-generate still fires on every
   // welcome dismiss — this is the handoff half).
@@ -126,29 +111,8 @@ test("welcome OK kicks off Build generation and flashes the nav dot exactly once
     timeout: 10_000,
   });
 
-  // Crucially: the flash class must NEVER be applied on this pass. A
-  // simple post-hoc `not.toHaveClass` only proves absence at assertion
-  // time — a brief reflash between dismiss and the check would slip
-  // through. So we sample the dot's class repeatedly for a window
-  // that fully covers the original ~1.2 s animation gate (sample
-  // every ~75 ms over ~1.5 s = ~20 samples) and fail if it ever
-  // carries `animate-dot-flash`.
-  // Sample the dot's class via raw DOM query (same reason as the
-  // first-pass probe — locator-based getAttribute would wait for the
-  // dot to exist and bunch the samples). Cover the full original
-  // 1.2 s gate window plus headroom (~2 s, sample every 50 ms ≈ 40
-  // probes); the class must NEVER appear during this window.
-  const SAMPLE_MS = 50;
-  const WINDOW_MS = 2_000;
-  const deadline = Date.now() + WINDOW_MS;
-  let probeIdx = 0;
-  while (Date.now() < deadline) {
-    const cls = (await probeDotClass().catch(() => null)) ?? "";
-    expect(
-      cls.includes("animate-dot-flash"),
-      `flash class unexpectedly present on second pass at sample ${probeIdx} (class=${cls})`,
-    ).toBe(false);
-    probeIdx++;
-    await page.waitForTimeout(SAMPLE_MS);
-  }
+  expect(
+    await sawFlashPass2Promise,
+    "expected `animate-dot-flash` to also be applied on the SECOND dismiss (no per-browser silencing)",
+  ).toBe(true);
 });
