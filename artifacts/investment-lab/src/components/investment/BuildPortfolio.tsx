@@ -434,6 +434,10 @@ export function BuildPortfolio() {
   // path further down deliberately does NOT set this flag.
   const onSubmit = (data: PortfolioInput) => {
     setLastBuildUserDriven(true);
+    // Task #206 — explicit Generate also enables the pie sweep, so a user
+    // who never sees the welcome dialog (or who regenerates afterwards)
+    // still gets the satisfying reveal animation.
+    setPieAnimateActive(true);
     generatePortfolio(data, { scrollToResults: true });
   };
 
@@ -453,9 +457,24 @@ export function BuildPortfolio() {
       didSampleGenerateRef.current = true;
       setLastBuildUserDriven(true);
       generatePortfolio(form.getValues(), { scrollToResults: false });
+      // Task #206 — flip the pie-sweep gate ON the moment the welcome
+      // dialog confirms. Recharts' `isAnimationActive` reads this state
+      // on the next render, so the sweep-in plays as the chart appears.
+      // The matching scaleX-from-0 animation on the allocation bar
+      // below is keyed off the same flag (via `data-pie-animation`).
+      setPieAnimateActive(true);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Task #206 — pie + allocation-bar reveal animation gate. Default false
+  // so any pre-welcome render (e.g. a stray rebuild from a setting change)
+  // would not fire Recharts' default mount animation silently. Flipped
+  // true exactly when the user signals intent: welcome-dialog OK
+  // (subscribeRequestBuildSampleGeneration above) or an explicit Generate
+  // Portfolio click (onSubmit). Stays true for the rest of the session so
+  // every subsequent rebuild also animates as expected.
+  const [pieAnimateActive, setPieAnimateActive] = useState(false);
 
   const baseChartData = (output?.allocation.map(a => ({
     name: `${a.assetClass} - ${a.region}`,
@@ -1180,6 +1199,10 @@ export function BuildPortfolio() {
                               stroke="none"
                               startAngle={90}
                               endAngle={-270}
+                              isAnimationActive={pieAnimateActive}
+                              animationBegin={0}
+                              animationDuration={900}
+                              animationEasing="ease-out"
                             >
                               {chartData.map((entry, index) => (
                                 <Cell key={`cell-${index}`} fill={colorForBucket(entry.name)} />
@@ -1194,8 +1217,17 @@ export function BuildPortfolio() {
                       </div>
                     </div>
 
-                    {/* Horizontal Stacked Bar */}
-                    <div className="h-4 w-full flex rounded-full overflow-hidden">
+                    {/* Horizontal Stacked Bar — Task #206: when the welcome
+                     * dialog confirms (or the user clicks Generate), the
+                     * `pieAnimateActive` flag flips and we add the
+                     * `animate-allocation-bar-sweep` class which scales the
+                     * whole bar from scaleX(0) to scaleX(1) in lockstep
+                     * with the pie's sweep-in. */}
+                    <div
+                      className={`h-4 w-full flex rounded-full overflow-hidden${
+                        pieAnimateActive ? " animate-allocation-bar-sweep" : ""
+                      }`}
+                    >
                       {chartData.map((d, i) => (
                         <div 
                           key={i} 

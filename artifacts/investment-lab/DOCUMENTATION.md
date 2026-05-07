@@ -807,6 +807,26 @@ Build's single same-currency cash row degenerates to the per-currency
 RF, (e) `"Global"` cash falls back to `baseCurrency`, and (f)
 no-cash portfolios return `undefined` so callers can skip the blend.
 
+### 2026-05 (welcome-reveal-polish — Task #206)
+
+Two welcome-dismiss polish tweaks. (1) The Build tab's pie chart no
+longer relies on Recharts' silent default mount animation: a new
+`pieAnimateActive` state (default `false`) gates the `<Pie>`'s
+`isAnimationActive` and the matching CSS keyframe
+`allocation-bar-sweep` (`scaleX(0) → scaleX(1)`, `transform-origin:
+left center`, 900 ms ease-out) on the horizontal stacked bar below
+it. The flag flips `true` when either (a) the welcome dialog's OK
+fires `subscribeRequestBuildSampleGeneration` or (b) the user
+clicks Generate Portfolio explicitly — so both entry points produce
+the same satisfying sweep-in. (2) The blue nav-dot flash from Task
+#187 is no longer one-shot per browser. `getNavDotsFlashedOnce` /
+`markNavDotsFlashedOnce` in `lib/settings.ts` switched from
+`localStorage` to `sessionStorage` (with best-effort cleanup of the
+legacy `localStorage` key so previously-silenced users get the cue
+back), and the failure fallback flipped from `true` → `false` so a
+storage error never permanently silences the animation either. Net
+effect: the dots pulse on every fresh page load + welcome confirm.
+
 ### 2026-05 (nav-dot-build-hint — Task #188)
 
 Layered a small one-shot tooltip on top of the Task #187 nav-dot

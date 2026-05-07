@@ -22,14 +22,17 @@ const BUILD_DOT_TESTID = "nav-dot-build-mobile";
 test("welcome OK kicks off Build generation and flashes the nav dot exactly once per browser", async ({
   page,
 }) => {
-  // Ensure the very first page load starts from a fully empty
-  // localStorage so the one-shot flash flag is unset. We use a
-  // sessionStorage sentinel so the SAME helper, which runs on every
-  // navigation in the page, doesn't wipe localStorage on the later
-  // reload (we need `idl.navDotsFlashedOnce` to persist into pass 2).
+  // Ensure the very first page load starts from a fully empty storage
+  // so the per-session flash flag (Task #206 — moved from localStorage
+  // to sessionStorage) is unset. We use a sessionStorage sentinel so
+  // the SAME helper, which runs on every navigation in the page,
+  // doesn't wipe `idl.navDotsFlashedOnce` from sessionStorage on the
+  // later reload — pass 2 needs the flag to still be "true" so the
+  // flash branch stays skipped.
   await page.addInitScript(() => {
     if (!sessionStorage.getItem("__idl_e2e_cleared")) {
       localStorage.clear();
+      sessionStorage.removeItem("idl.navDotsFlashedOnce");
       sessionStorage.setItem("__idl_e2e_cleared", "1");
     }
   });
@@ -101,16 +104,19 @@ test("welcome OK kicks off Build generation and flashes the nav dot exactly once
     "expected `animate-dot-flash` to be applied to the Build dot at some point during the first dismiss",
   ).toBe(true);
 
-  // One-shot persisted flag flipped on.
+  // Per-session persisted flag flipped on (Task #206 — sessionStorage,
+  // not localStorage, so the cue replays on every fresh page load
+  // outside the same tab session).
   const flashedOnce = await page.evaluate(() =>
-    window.localStorage.getItem("idl.navDotsFlashedOnce"),
+    window.sessionStorage.getItem("idl.navDotsFlashedOnce"),
   );
   expect(flashedOnce).toBe("true");
 
-  // Pass 2 — reload the same browser. localStorage persists across the
-  // reload (the init-script guard above means we do NOT clear it
-  // again), so `getNavDotsFlashedOnce()` returns true and the welcome
-  // dismiss handler must skip the flash branch entirely.
+  // Pass 2 — reload the same browser tab. sessionStorage persists
+  // across an in-tab reload (the init-script guard above means we do
+  // NOT wipe the flag), so `getNavDotsFlashedOnce()` returns true and
+  // the welcome dismiss handler must skip the flash branch entirely
+  // for the rest of this session.
   await page.reload();
   await dismissWelcomeIfPresent(page);
 

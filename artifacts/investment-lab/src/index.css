@@ -238,3 +238,16 @@
   animation: dot-flash 1s ease-in-out 1;
   transform-origin: center;
 }
+
+/* Task #206 — allocation-bar sweep-in. Paired with the Build pie chart's
+ * Recharts sweep so the two reveal together when the welcome dialog
+ * confirms (or the user clicks Generate). scaleX from 0 → 1 from the
+ * left edge mirrors the pie's startAngle=90 / endAngle=-270 sweep. */
+@keyframes allocation-bar-sweep {
+  from { transform: scaleX(0); }
+  to   { transform: scaleX(1); }
+}
+.animate-allocation-bar-sweep {
+  transform-origin: left center;
+  animation: allocation-bar-sweep 900ms ease-out 1;
+}

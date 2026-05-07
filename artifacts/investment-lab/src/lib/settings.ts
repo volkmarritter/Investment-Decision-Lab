@@ -658,31 +658,41 @@ export function subscribeRequestBuildSampleGeneration(
 }
 
 // ----------------------------------------------------------------------------
-// One-shot nav-dot flash flag (Task #187)
+// Per-session nav-dot flash flag (Task #187, relaxed in Task #206)
 // ----------------------------------------------------------------------------
 //
-// On the very first welcome-dialog dismissal in this browser the Build and
-// Compare nav dots animate briefly to draw the user's attention. On every
-// subsequent load the dots are static. Persisted in localStorage so a hard
-// refresh in the same tab does not re-trigger it; cleared only by clearing
-// site data.
+// On welcome-dialog dismissal the Build and Compare nav dots animate briefly
+// to draw the user's attention. The guard below prevents the animation from
+// firing twice within the same session (e.g. if welcome dismiss triggers
+// twice under React StrictMode), but resets on every fresh page load so the
+// orientation cue plays each time the user opens the app — not just once
+// per browser. Storage is `sessionStorage` so closing the tab clears it;
+// any read/write failure is treated as "not yet flashed" so the dots still
+// animate even when storage is unavailable.
 const NAV_DOTS_FLASHED_KEY = "idl.navDotsFlashedOnce";
 
 export function getNavDotsFlashedOnce(): boolean {
   if (typeof window === "undefined") return true;
   try {
-    return window.localStorage.getItem(NAV_DOTS_FLASHED_KEY) === "true";
+    return window.sessionStorage.getItem(NAV_DOTS_FLASHED_KEY) === "true";
   } catch {
-    return true;
+    return false;
   }
 }
 
 export function markNavDotsFlashedOnce(): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(NAV_DOTS_FLASHED_KEY, "true");
+    window.sessionStorage.setItem(NAV_DOTS_FLASHED_KEY, "true");
   } catch {
     /* ignore quota / disabled storage */
+  }
+  // Best-effort cleanup of the legacy localStorage flag from before Task #206
+  // so users who have it stuck never get permanently silenced.
+  try {
+    window.localStorage.removeItem(NAV_DOTS_FLASHED_KEY);
+  } catch {
+    /* ignore */
   }
 }
 
