@@ -338,6 +338,13 @@ export function navigateToTab(
   } catch {
     /* ignore — the listener still picks up the event below */
   }
+  // Task #193 — reset window scroll so programmatic tab navigation lands
+  // at the top of the destination tab (all tabs share the window scroll
+  // position via forceMount + hidden). Skipped when a section hash was
+  // requested so Methodology deep-links can still scroll into view.
+  if (!sectionHash) {
+    window.scrollTo({ top: 0, behavior: "instant" });
+  }
   window.dispatchEvent(new CustomEvent(NAVIGATE_TAB_EVENT, { detail: tab }));
   // Methodology's section accordion is driven by a `hashchange` listener;
   // pushState does NOT fire that event automatically, so we emit it here

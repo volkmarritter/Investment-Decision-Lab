@@ -449,6 +449,7 @@ export default function InvestmentLab() {
   const handleTabChange = (next: string) => {
     if (!isTabValue(next) || next === tab) return;
     setTab(next);
+    window.scrollTo({ top: 0, behavior: "instant" });
     const url = new URL(window.location.href);
     if (next === "build") {
       url.searchParams.delete("tab");

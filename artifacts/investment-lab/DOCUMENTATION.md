@@ -627,6 +627,7 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+<<<<<<< HEAD
 ### 2026-05 (explain-picker-alt-sort-by-slot — Task #194)
 
 Explain's per-row ISIN picker (`IsinPicker` in
@@ -653,6 +654,23 @@ Implementation: the comparator was extracted as a top-level export
 `comparePickerRows` in the same file (with a tiny `PickerRowForSort`
 type) so the regression test in `tests/engine.test.ts` can exercise
 the order against real catalog data without rendering the picker.
+=======
+### 2026-05 (scroll-to-top-on-tab-change — Task #193)
+
+Switching tabs now scrolls the window back to the top. Because all four
+tab panels share the window scroll position (`forceMount` + `hidden`),
+scrolling down in one tab (e.g. to the Monte Carlo card on Build) and
+then switching to another tab used to leave the user partway down the
+destination tab. We now call
+`window.scrollTo({ top: 0, behavior: "instant" })` from two paths:
+`handleTabChange` in `src/pages/InvestmentLab.tsx` (tab-bar clicks)
+and `navigateToTab` in `src/lib/explainCompare.ts` (programmatic
+navigation, e.g. the Build → Explain "Send to Explain" hand-off and
+Compare's "Open in Explain"). The Methodology section deep-link path
+is preserved: when `navigateToTab` is called with a `sectionHash`, the
+top-scroll is skipped so the subsequent `hashchange` can still scroll
+the targeted accordion into view.
+>>>>>>> 5ff5be3 (Task #193 — Scroll to top when switching tabs)
 
 ### 2026-05 (cash-mu-display-per-currency — Task #192)
 
@@ -958,6 +976,22 @@ tab's bucket-tree editor that mirrors Build's first-class Cash slider.
   engine, the PDF report renderer, and the admin catalog UI all
   remain on their existing code paths.
 
+### 2026-05 (explain-picker-alt-sort-by-slot — Task #192) — Picker alternatives sorted by slot index
+
+Explain's `IsinPicker` now sorts the "Curated Alternatives" group by their 1-based slot index (Alt 1, Alt 2, ...) rather than alphabetically by name. This ensures that the order in Explain matches the explicit priority order in the catalog and the Build tab's dropdown.
+
+- **Implementation:** `IsinPicker` uses a new `getInstrumentAltIndex(isin)` helper to sort alternatives before rendering the group.
+- **Verification:** Unit tests in `tests/explainPickerRoleBadge.test.tsx` updated to assert slot-based sort order.
+
+### 2026-05 (scroll-to-top-on-tab-change — Task #193) — Reset scroll when switching tabs
+
+All four tab panels (Build, Compare, Explain, Methodology) now reset the window scroll position to the top whenever the user switches between them. This fixes the "carry-over scroll" issue where scrolling down on one tab (e.g. to see Monte Carlo results) left the user partway down the page on the next tab.
+
+- **Logic:**
+  - `handleTabChange` (the shared Radix + custom navigation handler) calls `window.scrollTo({ top: 0, behavior: "instant" })`.
+  - `navigateToTab` (the imperative navigation helper) also calls it, but **skips the reset** if a `sectionHash` is provided. This preserves the deep-link behavior for the Methodology section, where the browser needs to scroll to a specific accordion.
+- **Verification:** Verified manually across all tab transitions and the "Send to Explain" hand-off. Unit and e2e suites pass.
+
 ### 2026-05 (build-to-explain-handoff) — "Send to Explain" button on Build tab
 
 Mirrors the existing Explain → Compare handoff pattern so a generated
@@ -993,7 +1027,7 @@ editing without re-entering everything by hand.
   the converter (settings copy, bucketKey mapping, drop empty/zero
   rows). New e2e `tests/e2e/build-to-explain.spec.ts` covering the
   silent first-load path and the second-click confirm dialog.
-=======
+
 ### 2026-05 (fast-track-add-etf — Task #165) — one-step add-ETF flow with auto-Comment + look-through chain
 
 `/admin/catalog` now opens with a `FastTrackAddEtfPanel` card on top of
@@ -1065,7 +1099,6 @@ length-cap behaviour. All 656 unit tests pass.
 
 The existing Instruments / Add ISIN / "+ Alternative" panels are
 unchanged in shape — fast-track is strictly additive.
->>>>>>> 164b699 (Task #165: fast-track Add ETF flow on /admin/catalog)
 
 ### 2026-05 (explain-clickable-isin) — clickable ISIN in Explain opens the ETF Details dialog
 
