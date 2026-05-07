@@ -69,16 +69,16 @@ test("Send to Explain copies the Build portfolio into the Explain workspace, wit
   // Second pass: workspace now has content → tapping Send should open
   // the replace-with-confirm AlertDialog, and confirming it should
   // re-apply the workspace cleanly.
-  // Task #183 — the mobile bottom nav is portaled to <body> with z-[60].
-  // Playwright's tap() actionability check on iphone-13 + heavy Explain
-  // content occasionally reports the nav as covered even though the
-  // a11y snapshot + visual screenshot confirm it sits on top and a real
-  // touch lands cleanly. `click({force: true})` skips that check and
-  // still fires the React onClick handler, which is what the navigation
-  // contract actually depends on.
-  await page
-    .getByRole("tab", { name: /build portfolio/i })
-    .click({ force: true });
+  //
+  // Task #184 (investigation note) — the portaled mobile <nav> in
+  // InvestmentLab.tsx now ships with `style={{ isolation: "isolate" }}`
+  // + z-40 + DOM-order-after-the-React-root. With those three together
+  // the nav forms its own stacking context as the last child of <body>,
+  // so its tab buttons are reliably the topmost element at their click
+  // point on the iphone-13 viewport — even with the long Explain content
+  // scrolled underneath. Plain `tap()` passes its actionability check;
+  // the previous `click({ force: true })` workaround is no longer needed.
+  await page.getByRole("tab", { name: /build portfolio/i }).tap();
   await expect(sendBtn).toBeVisible();
   await expect(sendBtn).toBeEnabled();
   await sendBtn.scrollIntoViewIfNeeded();
