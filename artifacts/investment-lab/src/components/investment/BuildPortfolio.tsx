@@ -481,8 +481,27 @@ export function BuildPortfolio() {
   // boolean) means the animation also replays on the second, third,
   // … Generate click, not just the first one.
   const [revealAnimationKey, setRevealAnimationKey] = useState(0);
-  const triggerRevealAnimation = () =>
-    setRevealAnimationKey((k) => k + 1);
+  // Defer the key bump across two animation frames so React has time
+  // to commit the result-section render and the browser has time to
+  // lay out the chart's `ResponsiveContainer`. Recharts skips its
+  // mount animation if the container is still 0×0 at mount time
+  // (which is exactly the case when the welcome-OK callback flips
+  // `output` from null → set in the same React batch as the key
+  // bump — the chart's first mount sees a 0×0 wrapper and never
+  // animates). Two `requestAnimationFrame`s guarantee at least one
+  // full layout pass between the chart's first mount with data and
+  // the key-driven remount that actually plays the radial sweep.
+  const triggerRevealAnimation = () => {
+    if (typeof window === "undefined") {
+      setRevealAnimationKey((k) => k + 1);
+      return;
+    }
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        setRevealAnimationKey((k) => k + 1);
+      });
+    });
+  };
 
   const baseChartData = (output?.allocation.map(a => ({
     name: `${a.assetClass} - ${a.region}`,

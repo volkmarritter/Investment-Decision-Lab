@@ -824,7 +824,13 @@ counter, so each bump fully unmounts and remounts them — Recharts
 then plays its default radial mount animation on the donut, and
 the CSS keyframe `allocation-bar-sweep` (`scaleX(0) → scaleX(1)`,
 `transform-origin: left center`, 900 ms ease-out) replays on the
-bar in lockstep. The Build pie no longer overrides Recharts'
+bar in lockstep. The key bump is deferred across **two
+`requestAnimationFrame`s** so React commits the result-section
+render and the browser lays out the chart's `ResponsiveContainer`
+*before* the remount — without this, Recharts measures the
+container as 0×0 on first mount (since the welcome-OK callback
+flips `output` from null → set in the same React batch as the
+key bump) and silently skips the mount animation. The Build pie no longer overrides Recharts'
 animation defaults (`isAnimationActive`, `animationDuration`, …)
 — it explicitly mirrors the Compare and CurrentAllocationCard
 pies, which already had the desired look. Using a counter (not a
