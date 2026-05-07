@@ -2209,6 +2209,47 @@ describe("CMA layered overrides", () => {
     expect(after).not.toBeCloseTo(before, 4);
   });
 
+  it("cash μ tracks the per-currency RF (cash-mu-per-currency, 2026-05)", async () => {
+    const { effectiveCashExpReturn, portfolioReturn, computeMetrics, CMA } =
+      await import("../src/lib/metrics");
+    const { getRiskFreeRate } = await import("../src/lib/settings");
+    // Cash μ is now slaved to the per-currency RF (the same source the
+    // Sharpe denominator already uses), regardless of how the RF default
+    // is composed (built-in vs app-defaults overlay vs user override).
+    // No window/localStorage in node → no user override → cash μ === RF.
+    for (const ccy of ["USD", "EUR", "GBP", "CHF"] as const) {
+      expect(effectiveCashExpReturn(ccy)).toBeCloseTo(getRiskFreeRate(ccy), 10);
+    }
+    // The four shipped RFs span a wide enough range that at least one of
+    // them must differ from the seed cash μ (3.0 %), proving the engine no
+    // longer falls back to the seed for any currency in the default set.
+    const ccys = ["USD", "EUR", "GBP", "CHF"] as const;
+    expect(ccys.some((c) => Math.abs(effectiveCashExpReturn(c) - CMA.cash.expReturn) > 1e-6)).toBe(true);
+
+    // 100 % cash portfolio: portfolioReturn must equal the per-currency RF
+    // when baseCurrency is supplied, and fall back to the seed when not
+    // (back-compat for older callers / tests).
+    const exp100Cash = [{ key: "cash" as const, weight: 1 }];
+    expect(portfolioReturn(exp100Cash, "USD")).toBeCloseTo(getRiskFreeRate("USD"), 10);
+    expect(portfolioReturn(exp100Cash, "CHF")).toBeCloseTo(getRiskFreeRate("CHF"), 10);
+    expect(portfolioReturn(exp100Cash)).toBeCloseTo(CMA.cash.expReturn, 10);
+
+    // End-to-end through computeMetrics: switching the displayed currency
+    // re-prices the cash sleeve in the headline expReturn. WHT drag on
+    // cash is 0 and the other buckets (US equity, global bonds) are
+    // currency-agnostic in CMA, so the full ΔexpReturn between two
+    // currencies equals cashWeight × ΔRF.
+    const allocation: AssetAllocation[] = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Fixed Income", region: "Global", weight: 30 },
+      { assetClass: "Cash", region: "Global", weight: 10 },
+    ];
+    const usd = computeMetrics(allocation, "USD");
+    const chf = computeMetrics(allocation, "CHF");
+    const expectedCashDelta = 0.10 * (getRiskFreeRate("USD") - getRiskFreeRate("CHF"));
+    expect(usd.expReturn - chf.expReturn).toBeCloseTo(expectedCashDelta, 10);
+  });
+
   it("path-based realized MDD obeys ordering invariants and is non-positive", async () => {
     const { runMonteCarlo } = await import("../src/lib/monteCarlo");
     // Mixed allocation so we have meaningful drawdown distribution
@@ -2858,13 +2899,28 @@ describe("CMA layered overrides", () => {
       expect(usd.points.length).toBe(21);
       expect(chf.points.length).toBe(usd.points.length);
 
-      // ret/vol are RF-independent — they must match exactly at every point,
-      // proving the only thing changing across currencies is the Sharpe.
+      // vol is RF-independent — it must match exactly at every point.
+      // ret is *almost* RF-independent: the cash sleeve's μ is now slaved
+      // to the per-currency RF (cash-mu-per-currency, 2026-05), so any
+      // point that carries a cash weight > 0 differs by exactly
+      // cashWeight × (RF_USD − RF_CHF). At equityPct = 100 (no cash) the
+      // returns must match exactly.
+      const { getRiskFreeRate } = await import("../src/lib/settings");
+      const rfDelta = getRiskFreeRate("USD") - getRiskFreeRate("CHF");
       for (let i = 0; i < usd.points.length; i++) {
         expect(chf.points[i].equityPct).toBe(usd.points[i].equityPct);
-        expect(chf.points[i].ret).toBeCloseTo(usd.points[i].ret, 12);
         expect(chf.points[i].vol).toBeCloseTo(usd.points[i].vol, 12);
+        // USD ret ≥ CHF ret (USD RF is higher → USD cash μ is higher).
+        expect(usd.points[i].ret).toBeGreaterThanOrEqual(chf.points[i].ret - 1e-12);
       }
+      // No-cash point (equityPct = 100): ret matches exactly.
+      const last = usd.points.length - 1;
+      expect(usd.points[last].equityPct).toBe(100);
+      expect(chf.points[last].ret).toBeCloseTo(usd.points[last].ret, 12);
+      // First point (equityPct = 0): all-defensive, cash share = 5/(5+35)
+      // = 0.125 of the sleeve → ret diff = 0.125 × ΔRF.
+      expect(usd.points[0].equityPct).toBe(0);
+      expect(usd.points[0].ret - chf.points[0].ret).toBeCloseTo(0.125 * rfDelta, 10);
 
       // Sharpe must differ at *every* point (lower CHF RF → higher Sharpe for
       // the same return/vol), with a margin large enough to rule out rounding.

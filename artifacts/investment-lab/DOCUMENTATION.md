@@ -627,6 +627,42 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+### 2026-05 (cash-mu-per-currency)
+
+The Cash sleeve's expected return is now per-currency: it tracks the
+per-currency risk-free rate (the same value already used in the Sharpe
+denominator) instead of the single global 3.0 % seed. Switching the
+displayed currency in Explain (or rebuilding with a different base
+currency) re-prices the cash row in the same render — a CHF investor
+sees Cash earning 0.50 %, a USD investor 4.25 %, etc. Conceptually this
+matches what the CMA building-blocks already labelled cash as
+("Short-term policy / money-market rate"), the implementation just
+didn't honour the per-currency split before.
+
+Implementation: `effectiveCashExpReturn(baseCurrency)` in
+`src/lib/metrics.ts` returns `getRiskFreeRate(baseCurrency)` unless the
+user has manually overridden the cash CMA in the Methodology editor
+(`getCMAOverrides().cash?.expReturn !== undefined`), in which case the
+explicit override still wins. `portfolioReturn(exp, baseCurrency?)`
+gained an optional second parameter that swaps in the effective cash μ
+for any `key === "cash"` row; omitting it falls back to `CMA.cash.expReturn`
+for back-compat with existing tests / callers. The four `portfolioReturn`
+callsites in `computeMetrics` and `computeFrontier` (portfolio + frontier
+blended/current) all pass `baseCurrency` through. Monte Carlo's
+`muSigmaForKey` in `src/lib/monteCarlo.ts` uses the same helper so MC
+paths and analytical Risk & Performance metrics agree on the cash μ.
+The benchmark contains no cash bucket so `rB` is unaffected.
+
+Regression test in `tests/engine.test.ts` (under
+`describe("CMA layered overrides")`) asserts (a) `effectiveCashExpReturn`
+returns the four shipped per-currency RFs (USD 4.25 %, EUR 2.50 %,
+GBP 4.00 %, CHF 0.50 %), (b) `portfolioReturn` of a 100 % cash exposure
+matches the per-currency RF when `baseCurrency` is passed and falls
+back to `CMA.cash.expReturn` when it isn't, and (c) `computeMetrics` on
+a 60/30/10 portfolio shifts headline `expReturn` by exactly
+`0.10 × (RF_USD − RF_CHF) = 37.5 bps` between USD and CHF base —
+proving the cash sleeve is the only currency-sensitive contributor.
+
 ### 2026-05 (nav-dot-build-hint — Task #188)
 
 Layered a small one-shot tooltip on top of the Task #187 nav-dot

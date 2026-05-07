@@ -679,9 +679,23 @@ export function mapAllocationToAssetsLookthrough(
     .map((k) => ({ key: k, weight: map[k] }));
 }
 
-export function portfolioReturn(exp: AssetExposure[]): number {
+// Cash μ defaults to the per-currency risk-free rate (the policy /
+// money-market rate that cash actually earns), unless the user has
+// explicitly overridden the cash CMA in the Methodology editor. This
+// keeps the cash sleeve consistent with the per-currency RF that
+// already drives the Sharpe denominator — switching the displayed
+// currency in Explain re-prices the cash row in the same render.
+// See DOCUMENTATION changelog entry `cash-mu-per-currency` (2026-05).
+export function effectiveCashExpReturn(baseCurrency: BaseCurrency): number {
+  const overrides = getCMAOverrides();
+  if (overrides.cash?.expReturn !== undefined) return CMA.cash.expReturn;
+  return getRiskFreeRate(baseCurrency);
+}
+
+export function portfolioReturn(exp: AssetExposure[], baseCurrency?: BaseCurrency): number {
+  const cashMu = baseCurrency !== undefined ? effectiveCashExpReturn(baseCurrency) : CMA.cash.expReturn;
   let r = 0;
-  for (const e of exp) r += e.weight * CMA[e.key].expReturn;
+  for (const e of exp) r += e.weight * (e.key === "cash" ? cashMu : CMA[e.key].expReturn);
   return r;
 }
 
@@ -854,9 +868,9 @@ export function computeMetrics(
   // when the user toggles into "crisis". Returns are NOT regime-shifted —
   // higher correlations don't mechanically change μ, only the dispersion
   // around it. So Sharpe and α drop honestly under crisis.
-  const r = portfolioReturn(exp) - portfolioWhtDrag(exp, baseCurrency, syntheticUsEffective);
+  const r = portfolioReturn(exp, baseCurrency) - portfolioWhtDrag(exp, baseCurrency, syntheticUsEffective);
   const v = portfolioVol(exp, riskRegime);
-  const rB = portfolioReturn(BENCHMARK) - portfolioWhtDrag(BENCHMARK, baseCurrency, false);
+  const rB = portfolioReturn(BENCHMARK, baseCurrency) - portfolioWhtDrag(BENCHMARK, baseCurrency, false);
   const vB = portfolioVol(BENCHMARK, riskRegime);
 
   const cov_pb = covariance(exp, BENCHMARK, riskRegime);
@@ -1011,7 +1025,7 @@ export function computeFrontier(
     // metric tile and rationale strings (see computeMetrics above). The
     // synthetic-US carve-out applies here too, so the curve faithfully shifts
     // up when the toggle flips.
-    const r = portfolioReturn(blended) - portfolioWhtDrag(blended, baseCurrency, syntheticUsEffective);
+    const r = portfolioReturn(blended, baseCurrency) - portfolioWhtDrag(blended, baseCurrency, syntheticUsEffective);
     const v = portfolioVol(blended, riskRegime);
     points.push({
       equityPct: pct,
@@ -1022,7 +1036,7 @@ export function computeFrontier(
   }
 
   const currentEqPct = Math.round(eqWeightSum * 100);
-  const r = portfolioReturn(exp) - portfolioWhtDrag(exp, baseCurrency, syntheticUsEffective);
+  const r = portfolioReturn(exp, baseCurrency) - portfolioWhtDrag(exp, baseCurrency, syntheticUsEffective);
   const v = portfolioVol(exp, riskRegime);
   const current: FrontierPoint = {
     equityPct: currentEqPct,

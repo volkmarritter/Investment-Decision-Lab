@@ -7,6 +7,7 @@ import {
   whtDragForKey,
   RiskRegime,
   mapAllocationToAssetsLookthrough,
+  effectiveCashExpReturn,
 } from "./metrics";
 
 /** Tail-distribution choice for the Monte-Carlo annual-return sampler.
@@ -111,8 +112,11 @@ function muSigmaForKey(
   // computeMetrics, so MC paths and the analytical Risk & Performance
   // metrics agree on the headline expected return. Synthetic-US carve-out
   // is honoured here too, so MC and analytical views shift together when
-  // the toggle flips.
-  let mu = cma.expReturn - whtDragForKey(key, baseCurrency, syntheticUsEffective);
+  // the toggle flips. Cash uses the per-currency RF (or the user's manual
+  // CMA override if set) so MC paths re-price with the displayed currency
+  // — see effectiveCashExpReturn() in metrics.ts.
+  const grossMu = key === "cash" ? effectiveCashExpReturn(baseCurrency) : cma.expReturn;
+  let mu = grossMu - whtDragForKey(key, baseCurrency, syntheticUsEffective);
   let sigma = cma.vol;
 
   // FX-hedge sigma reduction for foreign equity. Applied after reading CMA so
