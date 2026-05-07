@@ -221,14 +221,19 @@ export function Methodology() {
   // the Cash row in the CMA editor + the building-blocks accordion can show
   // the matching per-currency RF rate as the active μ — keeping the display
   // consistent with what `effectiveCashExpReturn(baseCurrency)` produces in
-  // the engine. Falls back to "USD" before the user has touched either tab
-  // (Task #192). Re-reads on RF changes too so editing the per-currency RF
-  // rates above immediately re-prices the displayed Cash μ.
+  // the engine (Task #192). Re-reads on RF changes too so editing the
+  // per-currency RF rates above immediately re-prices the displayed Cash μ.
+  // Fallback "CHF" mirrors BuildPortfolio.defaultValues.baseCurrency — when
+  // the user lands on Methodology without ever mounting Build (so the
+  // cross-tab channel was never published to), we still want to show the
+  // same currency the user would see the moment they switch to Build.
+  // Showing "USD" here would have produced a 4.25% cash μ in the Cash row
+  // while Build would still default to CHF (0.50%) (Task #204).
   const [baseCurrency, setBaseCurrency] = useState<BaseCurrency>(
-    () => getLastBaseCurrency() ?? "USD",
+    () => getLastBaseCurrency() ?? "CHF",
   );
   useEffect(
-    () => subscribeLastBaseCurrency((c) => setBaseCurrency(c ?? "USD")),
+    () => subscribeLastBaseCurrency((c) => setBaseCurrency(c ?? "CHF")),
     [],
   );
   // RF subscription already triggers a re-render via setRfRates above; the

@@ -549,6 +549,12 @@ export function subscribeLastBaseCurrency(
     cb((detail as BaseCurrency | null) ?? null);
   };
   window.addEventListener(LAST_BASE_CURRENCY_EVENT, handler);
+  // Late-subscribe safety (Task #204): the publisher (Build's useEffect)
+  // dedupes on `lastBaseCurrency === ccy`, so a subscriber that mounts
+  // AFTER an event was already fired with the current value would
+  // otherwise miss the state forever. Replay the current in-memory value
+  // synchronously on subscribe so late subscribers always converge.
+  cb(lastBaseCurrency);
   return () => window.removeEventListener(LAST_BASE_CURRENCY_EVENT, handler);
 }
 

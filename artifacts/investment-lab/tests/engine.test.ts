@@ -3229,6 +3229,59 @@ describe("setLastAllocation / subscribeLastAllocation (cross-tab pub/sub)", () =
       else delete (globalThis as { CustomEvent?: unknown }).CustomEvent;
     }
   });
+
+  // Task #204 regression: late subscribers (e.g. Methodology mounting AFTER
+  // Build's useEffect already fired the publish) used to miss the current
+  // state forever because `setLastBaseCurrency` dedupes on equal values.
+  // `subscribeLastBaseCurrency` must replay the current in-memory value
+  // synchronously on subscribe so Methodology's Cash μ always converges to
+  // the user's actual base currency.
+  it("subscribeLastBaseCurrency replays current value to late subscribers", async () => {
+    const orig = (globalThis as { window?: unknown }).window;
+    type Listener = (e: { detail: unknown }) => void;
+    const listeners: Listener[] = [];
+    (globalThis as unknown as { window: { addEventListener: (t: string, l: Listener) => void; removeEventListener: (t: string, l: Listener) => void; dispatchEvent: (e: { detail: unknown }) => boolean; CustomEvent: typeof CustomEvent } }).window = {
+      addEventListener: (_t, l) => { listeners.push(l); },
+      removeEventListener: (_t, l) => { const i = listeners.indexOf(l); if (i >= 0) listeners.splice(i, 1); },
+      dispatchEvent: (e) => { for (const l of [...listeners]) l(e); return true; },
+      CustomEvent: class {
+        type: string; detail: unknown;
+        constructor(type: string, init?: { detail?: unknown }) { this.type = type; this.detail = init?.detail; }
+      } as unknown as typeof CustomEvent,
+    };
+    const origCE = (globalThis as { CustomEvent?: unknown }).CustomEvent;
+    (globalThis as unknown as { CustomEvent: typeof CustomEvent }).CustomEvent = class {
+      type: string; detail: unknown;
+      constructor(type: string, init?: { detail?: unknown }) { this.type = type; this.detail = init?.detail; }
+    } as unknown as typeof CustomEvent;
+    try {
+      const settings = await import("../src/lib/settings");
+      // Build mounts and publishes "CHF" BEFORE Methodology subscribes.
+      settings.setLastBaseCurrency("CHF" as BaseCurrency);
+      expect(settings.getLastBaseCurrency()).toBe("CHF");
+      // Late subscriber attaches now — must be replayed "CHF" immediately,
+      // not silently stuck on its own (USD-fallback) initial state.
+      const received: Array<unknown> = [];
+      const unsub = settings.subscribeLastBaseCurrency((c) => received.push(c));
+      expect(received).toEqual(["CHF"]);
+      // Subsequent publishes still propagate as normal.
+      settings.setLastBaseCurrency("USD" as BaseCurrency);
+      expect(received).toEqual(["CHF", "USD"]);
+      // Dedup guard still applies — re-publishing the same value is a no-op
+      // for the event stream, but the late-subscribe replay above is what
+      // closes the regression window.
+      settings.setLastBaseCurrency("USD" as BaseCurrency);
+      expect(received).toEqual(["CHF", "USD"]);
+      unsub();
+      // Reset so other tests start clean.
+      settings.setLastBaseCurrency(null);
+    } finally {
+      if (orig) (globalThis as unknown as { window: typeof orig }).window = orig;
+      else delete (globalThis as { window?: unknown }).window;
+      if (origCE) (globalThis as unknown as { CustomEvent: typeof origCE }).CustomEvent = origCE;
+      else delete (globalThis as { CustomEvent?: unknown }).CustomEvent;
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
