@@ -627,6 +627,35 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+### 2026-05 (per-bucket-lookthrough-backfill)
+
+Added a per-bucket variant of the catalog tree's existing global
+"Fetch missing data" backfill. Each bucket header in
+`/admin/catalog/browse` now carries a `Fetch LT (N)` button that
+shows the count of ISINs in that bucket without look-through data
+and is disabled when N=0 (with a "covered" tooltip). Clicking it
+triggers the same justETF scrape pipeline as the global header
+button — sequential ~5s/ISIN scrape, validate that all four fields
+(top holdings, geo, sector, currency) are non-empty, then write to
+`lookthrough.overrides.json`'s `pool` section either via direct
+write (workspace) or one combined PR (production).
+
+Backend: new `POST /admin/buckets/:key/backfill-lookthrough` route
+in `artifacts/api-server/src/routes/admin.ts`. Same body shape as
+the global handler plus a `bucketKey` echo. Candidate set is the
+bucket's default + alternatives + pool ISINs, de-duplicated and
+filtered against `overrides ∪ pool` coverage. 404 on unknown
+bucket key.
+
+Frontend: `backfillBucketLookthrough(bucketKey)` added to
+`src/lib/admin-api.ts`. `ConsolidatedEtfTreePanel` got a
+`bucketBackfillingKey` lock (one bucket at a time, justETF
+politeness) and a `runBucketBackfill` handler that surfaces results
+via toast (success / partial-failure warning / empty / error)
+instead of the inline alert the global header uses — bucket runs
+are typically <5 ISINs so a transient toast is enough; the per-row
+LT-status badges refresh on the existing `prsRefreshKey` bump.
+
 ### 2026-05 (nav-dot-user-driven — Task #186)
 
 Fixed three nav-bar content-indicator dot misbehaviours:

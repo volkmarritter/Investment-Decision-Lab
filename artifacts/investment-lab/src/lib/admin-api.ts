@@ -328,6 +328,25 @@ export const adminApi = {
       prUrl?: string;
       prNumber?: number;
     }>("/admin/backfill-lookthrough-pool", { method: "POST" }),
+  // Per-bucket variant (2026-05): scope the same scrape pipeline to ONE
+  // bucket's ISINs (default + alternatives + pool). Faster than the
+  // global scan when the operator only just attached new ETFs to a
+  // single bucket and wants the look-through tiles populated.
+  backfillBucketLookthrough: (bucketKey: string) =>
+    call<{
+      ok: boolean;
+      bucketKey: string;
+      scanned: number;
+      missing: number;
+      attempted: string[];
+      added: string[];
+      skippedAlreadyPresent: string[];
+      scrapeFailures: Array<{ isin: string; reason: string }>;
+      prUrl?: string;
+      prNumber?: number;
+    }>(`/admin/buckets/${encodeURIComponent(bucketKey)}/backfill-lookthrough`, {
+      method: "POST",
+    }),
   // Global defaults editor (RF rates, Home-Bias, CMA). GET returns the
   // currently-shipped JSON; POST validates the payload server-side and
   // opens a GitHub PR replacing app-defaults.json. After merge + redeploy
