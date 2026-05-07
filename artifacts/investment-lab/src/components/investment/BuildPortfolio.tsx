@@ -47,7 +47,7 @@ import { cn } from "@/lib/utils";
 import { PortfolioInput, PortfolioOutput, ValidationResult, BaseCurrency } from "@/lib/types";
 import { runValidation } from "@/lib/validation";
 import { buildPortfolio, computeNaturalBucketCount } from "@/lib/portfolio";
-import { mapAllocationToAssetsLookthrough, CMA } from "@/lib/metrics";
+import { mapAllocationToAssetsLookthrough, CMA, effectiveCashExpReturn } from "@/lib/metrics";
 import { colorForBucket, compareBuckets } from "@/lib/chartColors";
 import { defaultExchangeFor } from "@/lib/exchange";
 import {
@@ -637,6 +637,12 @@ export function BuildPortfolio() {
                             <SelectItem value="GBP">GBP</SelectItem>
                           </SelectContent>
                         </Select>
+                        <p className="text-xs text-muted-foreground" data-testid="build-cash-rate-hint">
+                          {t("build.baseCurrency.cashRate", {
+                            pct: (effectiveCashExpReturn(field.value as BaseCurrency) * 100).toFixed(2),
+                            ccy: field.value,
+                          })}
+                        </p>
                       </FormItem>
                     )}
                   />

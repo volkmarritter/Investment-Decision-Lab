@@ -82,6 +82,7 @@ import { EtfInfoPreview, type QuickFillValues } from "@/components/explain/EtfIn
 import { UnassignedInstrumentPicker } from "@/components/explain/UnassignedInstrumentPicker";
 import type { InstrumentRecord } from "@/lib/etfs";
 import type { RiskRegime } from "@/lib/metrics";
+import { effectiveCashExpReturn } from "@/lib/metrics";
 import { useT } from "@/lib/i18n";
 
 import { ETFDetailsDialog } from "./ETFDetailsDialog";
@@ -1267,6 +1268,12 @@ export function ExplainPortfolio() {
                       <SelectItem value="GBP">GBP</SelectItem>
                     </SelectContent>
                   </Select>
+                  <p className="text-xs text-muted-foreground" data-testid="explain-cash-rate-hint">
+                    {t("build.baseCurrency.cashRate", {
+                      pct: (effectiveCashExpReturn(state.baseCurrency) * 100).toFixed(2),
+                      ccy: state.baseCurrency,
+                    })}
+                  </p>
                 </div>
                 <div className="space-y-1.5">
                   <Label className="text-xs">{t("explain.riskProfile.label")}</Label>
