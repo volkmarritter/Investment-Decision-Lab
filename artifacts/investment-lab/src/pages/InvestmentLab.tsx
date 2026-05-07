@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -31,6 +31,9 @@ import {
 } from "@/lib/explainCompare";
 import {
   getLastBuildUserDriven,
+  getNavDotsFlashedOnce,
+  markNavDotsFlashedOnce,
+  requestBuildSampleGeneration,
   subscribeLastBuildUserDriven,
 } from "@/lib/settings";
 
@@ -150,9 +153,11 @@ function useNavSignals(): Record<"build" | "compare" | "explain", boolean> {
 function HeaderTabBar({
   signals,
   current,
+  flashDots,
 }: {
   signals: Record<"build" | "compare" | "explain", boolean>;
   current: TabValue;
+  flashDots: boolean;
 }) {
   const { t } = useT();
   return (
@@ -201,7 +206,9 @@ function HeaderTabBar({
                   <Icon className="h-4 w-4 shrink-0" />
                   {hasDot && (
                     <span
-                      className="absolute -top-0.5 -right-1.5 h-1.5 w-1.5 rounded-full bg-primary"
+                      className={`absolute -top-0.5 -right-1.5 h-1.5 w-1.5 rounded-full bg-primary${
+                        flashDots ? " animate-dot-flash" : ""
+                      }`}
                       data-testid={`nav-dot-${def.value}`}
                       aria-label="has content"
                     />
@@ -250,10 +257,12 @@ function MobileTabBar({
   current,
   onSelect,
   signals,
+  flashDots,
 }: {
   current: TabValue;
   onSelect: (next: TabValue) => void;
   signals: Record<"build" | "compare" | "explain", boolean>;
+  flashDots: boolean;
 }) {
   const { t } = useT();
   return (
@@ -298,7 +307,9 @@ function MobileTabBar({
               <Icon className="h-4 w-4 shrink-0" />
               {hasDot && (
                 <span
-                  className="absolute -top-0.5 -right-1.5 h-1.5 w-1.5 rounded-full bg-primary"
+                  className={`absolute -top-0.5 -right-1.5 h-1.5 w-1.5 rounded-full bg-primary${
+                    flashDots ? " animate-dot-flash" : ""
+                  }`}
                   data-testid={`nav-dot-${def.value}-mobile`}
                   aria-label="has content"
                 />
@@ -334,6 +345,29 @@ export default function InvestmentLab() {
     const id = window.setTimeout(() => setWelcomeOpen(true), 400);
     return () => window.clearTimeout(id);
   }, []);
+
+  // Task #187 — nav-dot one-shot flash. The flag is true for the very
+  // first welcome-dismiss in this browser; flipped back off after one
+  // render so the animation only plays once. Persisted to localStorage
+  // via markNavDotsFlashedOnce() so a hard refresh in the same tab
+  // doesn't replay it. `didRequestSampleRef` guards against React
+  // StrictMode's double-invoke firing the request (and the flash) twice.
+  const [flashDots, setFlashDots] = useState(false);
+  const didRequestSampleRef = useRef(false);
+  const handleWelcomeDismiss = () => {
+    setWelcomeOpen(false);
+    if (didRequestSampleRef.current) return;
+    didRequestSampleRef.current = true;
+    requestBuildSampleGeneration();
+    if (!getNavDotsFlashedOnce()) {
+      markNavDotsFlashedOnce();
+      setFlashDots(true);
+      // Clear the flag after the animation has finished (≈1s) so the
+      // class drops off and won't re-apply on subsequent renders for
+      // unrelated reasons (e.g. a tab change).
+      window.setTimeout(() => setFlashDots(false), 1200);
+    }
+  };
 
   const handleTabChange = (next: string) => {
     if (!isTabValue(next) || next === tab) return;
@@ -405,7 +439,7 @@ export default function InvestmentLab() {
            *  Hidden on mobile; the fixed bottom bar takes over there. */}
           <div className="hidden sm:block border-t border-border/60 bg-background/95">
             <div className="container mx-auto px-4 py-2 flex justify-center">
-              <HeaderTabBar signals={signals} current={tab} />
+              <HeaderTabBar signals={signals} current={tab} flashDots={flashDots} />
             </div>
           </div>
         </header>
@@ -451,13 +485,20 @@ export default function InvestmentLab() {
                 current={tab}
                 onSelect={(next) => handleTabChange(next)}
                 signals={signals}
+                flashDots={flashDots}
               />
             </div>
           </nav>,
           document.body,
         )}
 
-      <Dialog open={welcomeOpen} onOpenChange={setWelcomeOpen}>
+      <Dialog
+        open={welcomeOpen}
+        onOpenChange={(open) => {
+          if (!open) handleWelcomeDismiss();
+          else setWelcomeOpen(true);
+        }}
+      >
         <DialogContent
           closeLabel={t("welcome.close")}
           data-testid="welcome-dialog"
@@ -469,7 +510,7 @@ export default function InvestmentLab() {
           <DialogFooter>
             <Button
               type="button"
-              onClick={() => setWelcomeOpen(false)}
+              onClick={handleWelcomeDismiss}
               data-testid="welcome-dialog-dismiss"
             >
               {t("welcome.dismiss")}

@@ -579,6 +579,64 @@ export function subscribeLastBuildManualWeights(
 }
 
 // ----------------------------------------------------------------------------
+// Channel: one-shot "generate the sample portfolio" request (Task #187)
+// ----------------------------------------------------------------------------
+//
+// Build no longer auto-generates the sample portfolio on mount. Instead the
+// welcome dialog's OK click in InvestmentLab dispatches this event, which
+// BuildPortfolio subscribes to and runs the same generate path it uses for
+// an explicit "Generate Portfolio" click (sets the user-driven flag so the
+// nav-bar dots light up). One-shot — there's no pending state to drain on
+// late subscription because the welcome dialog is the only producer and it
+// fires after BuildPortfolio has already mounted (forceMount under Tabs).
+// ----------------------------------------------------------------------------
+const REQUEST_BUILD_SAMPLE_EVENT = "idl-request-build-sample";
+
+export function requestBuildSampleGeneration(): void {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(REQUEST_BUILD_SAMPLE_EVENT));
+}
+
+export function subscribeRequestBuildSampleGeneration(
+  cb: () => void,
+): () => void {
+  if (typeof window === "undefined") return () => {};
+  const handler = () => cb();
+  window.addEventListener(REQUEST_BUILD_SAMPLE_EVENT, handler);
+  return () =>
+    window.removeEventListener(REQUEST_BUILD_SAMPLE_EVENT, handler);
+}
+
+// ----------------------------------------------------------------------------
+// One-shot nav-dot flash flag (Task #187)
+// ----------------------------------------------------------------------------
+//
+// On the very first welcome-dialog dismissal in this browser the Build and
+// Compare nav dots animate briefly to draw the user's attention. On every
+// subsequent load the dots are static. Persisted in localStorage so a hard
+// refresh in the same tab does not re-trigger it; cleared only by clearing
+// site data.
+const NAV_DOTS_FLASHED_KEY = "idl.navDotsFlashedOnce";
+
+export function getNavDotsFlashedOnce(): boolean {
+  if (typeof window === "undefined") return true;
+  try {
+    return window.localStorage.getItem(NAV_DOTS_FLASHED_KEY) === "true";
+  } catch {
+    return true;
+  }
+}
+
+export function markNavDotsFlashedOnce(): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(NAV_DOTS_FLASHED_KEY, "true");
+  } catch {
+    /* ignore quota / disabled storage */
+  }
+}
+
+// ----------------------------------------------------------------------------
 // UI preference: Build tab "Rationale & Key Risks" collapsible open/closed.
 // ----------------------------------------------------------------------------
 // Persisted in localStorage so a user who collapses the explainer once does

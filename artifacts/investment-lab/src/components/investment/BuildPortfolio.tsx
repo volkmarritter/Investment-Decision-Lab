@@ -58,6 +58,7 @@ import {
   setLastBuildManualWeights,
   getBuildRationaleRisksOpen,
   setBuildRationaleRisksOpen,
+  subscribeRequestBuildSampleGeneration,
 } from "@/lib/settings";
 import { StressTest } from "./StressTest";
 import { FeeEstimator } from "./FeeEstimator";
@@ -428,18 +429,23 @@ export function BuildPortfolio() {
     generatePortfolio(data, { scrollToResults: true });
   };
 
-  // Auto-generate an example portfolio on first mount (Task #96) so first-
-  // time visitors see the full output instead of the empty "Ready to Build"
-  // state. Reuses the same generate path as a real button click — including
-  // validation, output state, manual-weights snapshotting and the cross-tab
-  // broadcast — but with scroll suppressed so the user stays at the top of
-  // the page. Guarded by a ref so the effect runs exactly once even under
-  // React StrictMode's double-invoke in development.
-  const didAutoGenerateRef = useRef(false);
+  // Task #187 — Build no longer auto-generates the sample portfolio on
+  // mount. Instead the welcome dialog's OK click in InvestmentLab fires
+  // a one-shot `requestBuildSampleGeneration()` event that we subscribe
+  // to here. We run the same generate path used by an explicit
+  // "Generate Portfolio" click — including the user-driven flag flip
+  // so the nav-bar Build/Compare dots light up — but with scroll
+  // suppressed so the user stays at the top of the page. A ref guards
+  // against double-fire from React StrictMode's double-invoke of
+  // effects in development.
+  const didSampleGenerateRef = useRef(false);
   useEffect(() => {
-    if (didAutoGenerateRef.current) return;
-    didAutoGenerateRef.current = true;
-    generatePortfolio(form.getValues(), { scrollToResults: false });
+    return subscribeRequestBuildSampleGeneration(() => {
+      if (didSampleGenerateRef.current) return;
+      didSampleGenerateRef.current = true;
+      setLastBuildUserDriven(true);
+      generatePortfolio(form.getValues(), { scrollToResults: false });
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

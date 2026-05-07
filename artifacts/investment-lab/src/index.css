@@ -219,3 +219,22 @@
     @apply font-sans antialiased bg-background text-foreground;
   }
 }
+
+/* Task #187 — one-shot nav-dot flash. Pulses scale + opacity ~3 times
+ * over ~1s to draw the user's attention to the freshly-lit Build /
+ * Compare nav dots after the welcome dialog is dismissed for the very
+ * first time in this browser. Subsequent loads do not apply the
+ * `animate-dot-flash` class (gated by a localStorage flag in
+ * InvestmentLab) so the dots stay static. */
+@keyframes dot-flash {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  16%      { transform: scale(1.9); opacity: 0.6; }
+  33%      { transform: scale(1);   opacity: 1;   }
+  50%      { transform: scale(1.9); opacity: 0.6; }
+  66%      { transform: scale(1);   opacity: 1;   }
+  83%      { transform: scale(1.9); opacity: 0.6; }
+}
+.animate-dot-flash {
+  animation: dot-flash 1s ease-in-out 1;
+  transform-origin: center;
+}
