@@ -17,7 +17,9 @@
 import { describe, it, expect, beforeEach } from "vitest";
 
 import {
+  getLastBuildInput,
   getLastBuildUserDriven,
+  setLastBuildInput,
   setLastBuildUserDriven,
   subscribeLastBuildUserDriven,
 } from "../src/lib/settings";
@@ -38,6 +40,22 @@ describe("Task #186 — lastBuildUserDriven channel", () => {
     expect(getLastBuildUserDriven()).toBe(true);
     setLastBuildUserDriven(false);
     expect(getLastBuildUserDriven()).toBe(false);
+  });
+
+  it("lastBuildInput is null on fresh load and after a reset round-trip", () => {
+    // Defensively clear, then assert "fresh-load" semantics.
+    setLastBuildInput(null);
+    expect(getLastBuildInput()).toBeNull();
+
+    // Simulate a Build generate publishing a snapshot.
+    setLastBuildInput({ baseCurrency: "CHF", horizon: 10 });
+    expect(getLastBuildInput()).toEqual({ baseCurrency: "CHF", horizon: 10 });
+
+    // Simulate the Build reset button — must clear the channel back to null
+    // so the nav-bar Build dot disappears and Compare's link mirror has
+    // nothing to echo. Locks in Task #186 step 1+2.
+    setLastBuildInput(null);
+    expect(getLastBuildInput()).toBeNull();
   });
 
   it("subscribers receive only true→false→true transitions, never duplicates", () => {

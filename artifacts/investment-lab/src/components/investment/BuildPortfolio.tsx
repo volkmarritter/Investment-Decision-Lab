@@ -269,7 +269,15 @@ export function BuildPortfolio() {
   // current snapshot and then keep streaming updates via form.watch so
   // mid-edit changes show up live in a linked Slot A.
   useEffect(() => {
-    if (!hasGenerated) return;
+    if (!hasGenerated) {
+      // Task #186 hardening: any path that flips hasGenerated back to
+      // false (today only the reset button, but future paths too)
+      // should not leave a stale snapshot on the cross-tab channel.
+      // Reset already calls setLastBuildInput(null) explicitly; this
+      // is a defense-in-depth backstop.
+      setLastBuildInput(null);
+      return;
+    }
     setLastBuildInput(form.getValues() as unknown as Record<string, unknown>);
     const sub = form.watch((value) => {
       setLastBuildInput(value as unknown as Record<string, unknown>);
