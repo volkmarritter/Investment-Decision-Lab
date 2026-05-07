@@ -2189,6 +2189,34 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 267,
     inceptionDate: "2024-04-12",
   }),
+  "IE00BD1JRY91": I({
+    name: "iShares Global Aggregate Bond UCITS ETF CHF Hedged (Acc)",
+    isin: "IE00BD1JRY91",
+    terBps: 10,
+    domicile: "Ireland",
+    replication: "Physical",
+    distribution: "Accumulating",
+    currency: "CHF",
+    comment: "",
+    listings: { "SIX": { ticker: "AGGS" } },
+    defaultExchange: "SIX",
+    aumMillionsEUR: 998,
+    inceptionDate: "2018-03-14",
+  }),
+  "IE00B3VVMM84": I({
+    name: "Vanguard FTSE Emerging Markets UCITS ETF (USD) Distributing",
+    isin: "IE00B3VVMM84",
+    terBps: 17,
+    domicile: "Ireland",
+    replication: "Physical",
+    distribution: "Distributing",
+    currency: "USD",
+    comment: "",
+    listings: { "LSE": { ticker: "VDEM" }, "XETRA": { ticker: "VFEM" }, "SIX": { ticker: "VFEM" }, "Euronext": { ticker: "VFEM" } },
+    defaultExchange: "LSE",
+    aumMillionsEUR: 3000,
+    inceptionDate: "2012-05-22",
+  }),
 };
 
 const BUCKETS: Record<string, BucketAssignment> = {
@@ -2228,7 +2256,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "Equity-EM": B({
     default: "IE00BKM4GZ66",
     alternatives: ["IE00BK5BR733", "IE00BTJRMP35", "LU0292100046"],
-    pool: ["IE00B0M63177", "IE00B8KGV557", "IE00B0M63730", "IE00BZCQB185", "IE00B02KXK85", "LU2573967036"],
+    pool: ["IE00B0M63177", "IE00B8KGV557", "IE00B0M63730", "IE00BZCQB185", "IE00B02KXK85", "LU2573967036", "IE00B3VVMM84"],
   }),
   "Equity-USA-EUR": B({
     default: "IE00B3ZW0K18",
@@ -2255,7 +2283,8 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "FixedIncome-Global-CHF": B({
     default: "IE00BDBRDN42",
     alternatives: [],
-  }),
+    pool: ["IE00BD1JRY91"],
+    }),
   "FixedIncome-Global-GBP": B({
     default: "IE00BDBRDP65",
     alternatives: [],
