@@ -8453,6 +8453,76 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BD4TXW66",
       "_addedAt": "2026-05-07T06:25:12.446Z",
       "_addedVia": "admin/lookthrough-pool"
+    },
+    "IE00BDBRT036": {
+      "name": "First Trust Nasdaq Clean Edge Green Energy UCITS ETF Acc",
+      "topHoldings": [
+        {
+          "name": "Monolithic Power Systems",
+          "pct": 7.91
+        },
+        {
+          "name": "First Solar",
+          "pct": 7.85
+        },
+        {
+          "name": "ON Semiconductor",
+          "pct": 7.7
+        },
+        {
+          "name": "Tesla",
+          "pct": 7.63
+        },
+        {
+          "name": "Bloom Energy",
+          "pct": 7.19
+        },
+        {
+          "name": "Nextpower",
+          "pct": 4.74
+        },
+        {
+          "name": "Albemarle",
+          "pct": 4.15
+        },
+        {
+          "name": "Rivian Automotive",
+          "pct": 4.06
+        },
+        {
+          "name": "Advanced Energy Inds",
+          "pct": 3.97
+        },
+        {
+          "name": "Acuity",
+          "pct": 3.84
+        }
+      ],
+      "topHoldingsAsOf": "2026-05-07T06:27:44.892Z",
+      "geo": {
+        "United States": 86.93,
+        "Israel": 1.42,
+        "Other": 11.65
+      },
+      "sector": {
+        "Technology": 39.88,
+        "Industrials": 24.78,
+        "Consumer Discretionary": 11.8,
+        "Utilities": 5.75,
+        "Basic Materials": 4.91,
+        "Real Estate": 2.16,
+        "Energy": 0.55,
+        "Other": 10.17
+      },
+      "currency": {
+        "USD": 86.93,
+        "ILS": 1.42,
+        "Other": 11.65
+      },
+      "breakdownsAsOf": "2026-05-07T06:27:44.892Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BDBRT036",
+      "_addedAt": "2026-05-07T06:27:44.892Z",
+      "_addedVia": "admin/lookthrough-pool"
     }
   }
 }
