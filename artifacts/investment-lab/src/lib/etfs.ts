@@ -259,7 +259,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     listings: { LSE: { ticker: "IMEU" }, XETRA: { ticker: "SXR7" }, SIX: { ticker: "CEU" }, Euronext: { ticker: "IMAE" } },
     defaultExchange: "XETRA",
   }),
-  "CH0237935652": I({
+        "CH0237935652": I({
     name: "iShares Core SPI",
     isin: "CH0237935652",
     terBps: 10,
@@ -267,8 +267,10 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Distributing",
     currency: "CHF",
-    comment: "Comprehensive Swiss equity benchmark covering large, mid and small caps; very deep liquidity on SIX.",
-    listings: { SIX: { ticker: "CHSPI" } },
+    comment: "The SPI® Index covers the entire Swiss equity market across large-, mid-, and small-cap companies. It is broadly diversified but has no constituent capping rules, allowing large firms to dominate the index.",
+    commentDe: "Der iShares Core SPI (CH) bildet den SPI® Index nach. Der SPI® Index bietet Zugang zum gesamten Schweizer Aktienmarkt.",
+    commentSource: "manual",
+    listings: { "SIX": { ticker: "CHSPI" } },
     defaultExchange: "SIX",
   }),
   "IE00B53HP851": I({
@@ -1403,7 +1405,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 6750,
     inceptionDate: "2007-01-10",
   }),
-  "CH0008899764": I({
+      "CH0008899764": I({
     name: "iShares SMI (CH)",
     isin: "CH0008899764",
     terBps: 35,
@@ -1411,8 +1413,9 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Distributing",
     currency: "CHF",
-    comment: "Switzerland equity — iShares SMI ETF (CH).",
-    listings: { SIX: { ticker: "CSSMI" } },
+    comment: "The SMI® Index tracks the 20 largest and most liquid Swiss stocks and carries notable concentration risk due to its heavy weighting in a few companies.",
+    commentSource: "manual",
+    listings: { "SIX": { ticker: "CSSMI" } },
     defaultExchange: "SIX",
     aumMillionsEUR: 2562,
     inceptionDate: "1999-10-06",
