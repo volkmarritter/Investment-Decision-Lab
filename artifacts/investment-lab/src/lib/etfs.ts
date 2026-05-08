@@ -263,7 +263,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     listings: { LSE: { ticker: "IMEU" }, XETRA: { ticker: "SXR7" }, SIX: { ticker: "CEU" }, Euronext: { ticker: "IMAE" } },
     defaultExchange: "XETRA",
   }),
-          "CH0237935652": I({
+                "CH0237935652": I({
     name: "iShares Core SPI",
     isin: "CH0237935652",
     terBps: 10,
@@ -271,7 +271,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Distributing",
     currency: "CHF",
-    comment: "Der SPI® Index deckt den gesamten Schweizer Aktienmarkt über Large-, Mid- und Small Caps ab. Der Index ist breit diversifiziert, verfügt jedoch über keine Begrenzungsregeln, wodurch grosse Unternehmen die Gewichtung dominieren können.",
+    comment: "The SPI® Index tracks the performance of the entire Swiss equity market across large-, mid-, and small-cap companies.\n",
     commentDe: "Der iShares Core SPI (CH) bildet den SPI® Index nach. Der SPI® Index bietet Zugang zum gesamten Schweizer Aktienmarkt.",
     commentSource: "manual",
     listings: { "SIX": { ticker: "CHSPI" } },
