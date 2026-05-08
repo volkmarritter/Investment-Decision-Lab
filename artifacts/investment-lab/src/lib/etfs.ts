@@ -1589,7 +1589,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 392,
     inceptionDate: "2017-03-20",
   }),
-      "IE00BMW42181": I({
+          "IE00BMW42181": I({
     name: "iShares MSCI Europe Health Care Sector UCITS ETF EUR (Acc)",
     isin: "IE00BMW42181",
     terBps: 18,
@@ -1598,7 +1598,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     distribution: "Accumulating",
     currency: "EUR",
     comment: "The MSCI Europe Health Care 20/35 Capped index tracks large and mid cap European companies from the health care sector.",
-    commentDe: "Der iShares MSCI Europe Health Care Sector UCITS ETF EUR (Acc) bildet den MSCI Europe Health Care 20/35 Capped Index nach. Der MSCI Europe Health Care 20/35 Capped Index bietet Zugang zu großen und mittelgroßen europäischen Unternehmen aus dem Gesundheitssektor. Das Gewicht des größten Unternehmens im Index ist auf 35% begrenzt, das Gewicht aller weiteren Unternehmen auf 20%.",
+    commentDe: "Der MSCI Europe Health Care 20/35 Capped Index bildet grosse und mittelgrosse europäische Unternehmen aus dem Gesundheitssektor ab.",
     commentSource: "manual",
     listings: { "LSE": { ticker: "ESIH" }, "XETRA": { ticker: "ESIH" } },
     defaultExchange: "LSE",
@@ -2314,7 +2314,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 1406,
     inceptionDate: "2025-08-05",
   }),
-  "IE00BDBRT036": I({
+      "IE00BDBRT036": I({
     name: "First Trust Nasdaq Clean Edge Green Energy UCITS ETF Acc",
     isin: "IE00BDBRT036",
     terBps: 60,
@@ -2322,7 +2322,9 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Accumulating",
     currency: "USD",
-    comment: "",
+    comment: "The Nasdaq Clean Edge Green Energy index tracks companies worldwide which operate in the clean energy sector.",
+    commentDe: "Der Nasdaq Clean Edge Green Energy Index bietet Zugang zu Unternehmen weltweit, die im Bereich alternative Energien tätig sind.",
+    commentSource: "manual",
     listings: { "LSE": { ticker: "QCLU" }, "XETRA": { ticker: "QCLN" }, "Euronext": { ticker: "QCLN" } },
     defaultExchange: "LSE",
     aumMillionsEUR: 23,
