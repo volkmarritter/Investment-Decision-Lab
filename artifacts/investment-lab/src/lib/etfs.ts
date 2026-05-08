@@ -2283,13 +2283,27 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 2525,
     inceptionDate: "2019-07-23",
   }),
+  "IE00BKX55S42": I({
+    name: "Vanguard FTSE Developed Europe ex UK UCITS ETF (EUR) Distributing",
+    isin: "IE00BKX55S42",
+    terBps: 10,
+    domicile: "Ireland",
+    replication: "Physical",
+    distribution: "Distributing",
+    currency: "EUR",
+    comment: "",
+    listings: { "LSE": { ticker: "VERX" }, "XETRA": { ticker: "VERX" }, "Euronext": { ticker: "VERX" } },
+    defaultExchange: "LSE",
+    aumMillionsEUR: 3202,
+    inceptionDate: "2014-09-30",
+  }),
 };
 
 const BUCKETS: Record<string, BucketAssignment> = {
   "Equity-Global": B({
     default: "IE00B3YLTY66",
     alternatives: ["IE00BK5BQT80", "IE00B6R52259"],
-    pool: ["IE00B4L5Y983", "IE00B0M62Q58", "IE00BFY0GT14", "IE00BK5BQV03", "IE00BP3QZ601", "IE00BP3QZB59", "IE00BP3QZ825", "IE00B9CQXS71", "IE00BCHWNQ94", "IE00BHZPJ569", "IE00BFNM3J75", "IE00B3RBWM25", "LU0274208692"],
+    pool: ["IE00B4L5Y983", "IE00B0M62Q58", "IE00BFY0GT14", "IE00BK5BQV03", "IE00BP3QZ601", "IE00BP3QZB59", "IE00BP3QZ825", "IE00B9CQXS71", "IE00BCHWNQ94", "IE00BHZPJ569", "IE00BFNM3J75", "IE00B3RBWM25", "LU0274208692", "IE00BKX55T58"],
   }),
   "Equity-USA": B({
     default: "IE00B5BMR087",
@@ -2303,7 +2317,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "Equity-Europe": B({
     default: "IE00B4K48X80",
     alternatives: ["IE00B945VV12", "FR0007054358", "IE0008471009"],
-    pool: ["IE00B0M62S72", "DE0002635307", "LU0908500753", "LU0274209237", "DE0005933931", "LU0274211480", "IE00B4K6B022", "IE00B5M1WJ87", "IE00B53L3W79", "IE000LXEN6X4", "IE00BKX55T58", "IE00BK5BQX27"],
+    pool: ["IE00B0M62S72", "DE0002635307", "LU0908500753", "LU0274209237", "DE0005933931", "LU0274211480", "IE00B4K6B022", "IE00B5M1WJ87", "IE00B53L3W79", "IE000LXEN6X4", "IE00BK5BQX27", "IE00BKX55S42"],
   }),
   "Equity-Switzerland": B({
     default: "CH0237935652",
