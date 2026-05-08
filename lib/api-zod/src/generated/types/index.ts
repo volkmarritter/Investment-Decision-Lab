@@ -7,3 +7,7 @@
  */
 
 export * from "./healthStatus";
+export * from "./regenerateDescriptionRequest";
+export * from "./regenerateDescriptionResponse";
+export * from "./regenerateDescriptionResponseCommentSource";
+export * from "./regenerateDescriptionResponseInstrument";

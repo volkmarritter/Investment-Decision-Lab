@@ -21,4 +21,16 @@ declare module "*scripts/lib/justetf-extract.mjs" {
   export function parseDateLoose(s: unknown): string | undefined;
   export function lastRefreshedModeFor(mode: string): string;
   export function fetchProfile(isin: string, signal?: AbortSignal): Promise<string>;
+  export const USER_AGENT: string;
+  export function fetchWithRetry(
+    url: string,
+    init?: { headers?: Record<string, string>; signal?: AbortSignal },
+    opts?: { retries?: number; backoffMs?: number; signal?: AbortSignal },
+  ): Promise<Response>;
+}
+
+declare module "*scripts/lib/describe-etf.mjs" {
+  export function describeEtf(
+    input: Record<string, unknown>,
+  ): { en: string; de: string } | null;
 }

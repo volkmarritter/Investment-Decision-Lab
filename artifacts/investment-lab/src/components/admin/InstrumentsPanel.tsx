@@ -33,7 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, RefreshCw, Trash2, Pencil } from "lucide-react";
+import { Plus, RefreshCw, Trash2, Pencil, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 import { useAdminContext } from "./AdminContext";
 import {
@@ -77,6 +77,9 @@ export function InstrumentsPanel({
     prefillIsin ? { kind: "create" } : { kind: "list" },
   );
   const [query, setQuery] = useState("");
+  // Task #211 — per-row loading state for the "Regenerate description"
+  // icon button. Keyed by ISIN so other rows stay interactive.
+  const [regeneratingIsin, setRegeneratingIsin] = useState<string | null>(null);
   const initialPrefillIsin = useRef<string | null>(prefillIsin ?? null);
 
   useEffect(() => {
@@ -111,6 +114,55 @@ export function InstrumentsPanel({
   function handlePrCreated() {
     setMode({ kind: "list" });
     setReloadKey((k) => k + 1);
+  }
+
+  async function handleRegenerate(row: InstrumentRow) {
+    // Manual rows are operator-promised content — confirm before
+    // overwriting. The endpoint will stamp commentSource to whatever
+    // source actually wins (justetf or auto).
+    if ((row.commentSource ?? "manual") === "manual") {
+      const ok = window.confirm(
+        lang === "de"
+          ? `Die Beschreibung von ${row.name} (${row.isin}) ist als "manuell" markiert. Wirklich neu generieren und überschreiben?`
+          : `The description of ${row.name} (${row.isin}) is tagged "manual". Really regenerate and overwrite it?`,
+      );
+      if (!ok) return;
+    }
+    setRegeneratingIsin(row.isin);
+    try {
+      const r = await adminApi.regenerateInstrumentDescription(row.isin);
+      const directWriteResp = !r.prUrl || r.prNumber === 0;
+      const sourceLabel =
+        r.commentSource === "justetf"
+          ? "justETF"
+          : t({ de: "automatisch", en: "auto" });
+      toast.success(
+        directWriteResp
+          ? lang === "de"
+            ? `Beschreibung aktualisiert (Quelle: ${sourceLabel})`
+            : `Description updated (source: ${sourceLabel})`
+          : lang === "de"
+            ? `Pull Request #${r.prNumber} geöffnet (Quelle: ${sourceLabel})`
+            : `Pull request #${r.prNumber} opened (source: ${sourceLabel})`,
+        directWriteResp
+          ? undefined
+          : {
+              action: {
+                label: t({ de: "Öffnen", en: "Open" }),
+                onClick: () => window.open(r.prUrl, "_blank"),
+              },
+            },
+      );
+      setReloadKey((k) => k + 1);
+    } catch (e: unknown) {
+      toast.error(
+        lang === "de"
+          ? `Neu generieren fehlgeschlagen: ${e instanceof Error ? e.message : String(e)}`
+          : `Regenerate failed: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    } finally {
+      setRegeneratingIsin(null);
+    }
   }
 
   async function handleRemove(row: InstrumentRow) {
@@ -424,6 +476,33 @@ export function InstrumentsPanel({
                               <Button
                                 size="sm"
                                 variant="ghost"
+                                disabled={
+                                  !githubConfigured ||
+                                  regeneratingIsin === row.isin
+                                }
+                                onClick={() => void handleRegenerate(row)}
+                                data-testid={`button-instrument-regenerate-${row.isin}`}
+                                title={t(
+                                  directWrite
+                                    ? {
+                                        de: "Beschreibung neu generieren (justETF, sonst Auto-Vorlage).",
+                                        en: "Regenerate description (justETF, else auto template).",
+                                      }
+                                    : {
+                                        de: "Beschreibung neu generieren (öffnet PR).",
+                                        en: "Regenerate description (opens a PR).",
+                                      },
+                                )}
+                              >
+                                {regeneratingIsin === row.isin ? (
+                                  <RefreshCw className="h-3 w-3 animate-spin" />
+                                ) : (
+                                  <Sparkles className="h-3 w-3" />
+                                )}
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
                                 disabled={!githubConfigured}
                                 onClick={() =>
                                   setMode({ kind: "edit", isin: row.isin })
@@ -523,6 +602,16 @@ function InstrumentForm({
         distribution: initial.distribution as Distribution,
         currency: initial.currency,
         comment: initial.comment,
+        // Task #211 — carry commentDe + commentSource through the form so
+        // a Save after "Refresh from justETF" preserves the regenerated
+        // provenance instead of stripping it down to "manual" via
+        // stampSourceIfMissing on the server.
+        ...(initial.commentDe !== undefined
+          ? { commentDe: initial.commentDe }
+          : {}),
+        ...(initial.commentSource !== undefined
+          ? { commentSource: initial.commentSource }
+          : {}),
         defaultExchange: initial.defaultExchange as Exchange,
         listings: initial.listings as AddInstrumentRequest["listings"],
         ...(initial.aumMillionsEUR !== undefined
@@ -541,6 +630,10 @@ function InstrumentForm({
   });
   const [submitting, setSubmitting] = useState(false);
   const [prefilling, setPrefilling] = useState(false);
+  // Task #211 — "Refresh from justETF" inside the edit form. Same dryRun
+  // contract as handlePrefill: populates fields without saving so the
+  // operator still reviews and clicks Save.
+  const [refreshingDescription, setRefreshingDescription] = useState(false);
   const [errMsg, setErrMsg] = useState<string | null>(null);
   const isEdit = initial !== null;
   const canPrefill =
@@ -568,6 +661,55 @@ function InstrumentForm({
       setErrMsg(e instanceof Error ? e.message : String(e));
     } finally {
       setPrefilling(false);
+    }
+  }
+
+  async function handleRefreshDescription() {
+    if (!isEdit) return;
+    const isin = initial!.isin;
+    if (
+      (initial!.commentSource ?? "manual") === "manual" &&
+      draft.comment.trim().length > 0
+    ) {
+      const ok = window.confirm(
+        lang === "de"
+          ? "Die aktuelle Beschreibung ist als manuell gepflegt markiert. Mit dem neu geholten Text ersetzen?"
+          : "The current description is tagged as manually curated. Replace it with the freshly resolved text?",
+      );
+      if (!ok) return;
+    }
+    setRefreshingDescription(true);
+    setErrMsg(null);
+    try {
+      const r = await adminApi.regenerateInstrumentDescription(isin, {
+        dryRun: true,
+      });
+      setDraft((d) => ({
+        ...d,
+        comment: r.comment,
+        // Carry commentDe + commentSource through to the next Save so
+        // the regenerated provenance survives the round-trip. If the
+        // operator subsequently edits the Comment textarea by hand, the
+        // textarea onChange handler clears commentSource so the server
+        // stamps it back to "manual" via stampSourceIfMissing.
+        ...(r.commentDe !== undefined
+          ? { commentDe: r.commentDe }
+          : { commentDe: undefined }),
+        commentSource: r.commentSource,
+      }));
+      const sourceLabel =
+        r.commentSource === "justetf"
+          ? "justETF"
+          : t({ de: "automatisch", en: "auto" });
+      toast.success(
+        lang === "de"
+          ? `Beschreibung im Formular aktualisiert (Quelle: ${sourceLabel}). Speichern, um zu übernehmen.`
+          : `Description refreshed in the form (source: ${sourceLabel}). Save to commit.`,
+      );
+    } catch (e: unknown) {
+      setErrMsg(e instanceof Error ? e.message : String(e));
+    } finally {
+      setRefreshingDescription(false);
     }
   }
 
@@ -778,12 +920,49 @@ function InstrumentForm({
         </div>
       </div>
       <Field label={t({ de: "Kommentar", en: "Comment" })}>
-        <Textarea
-          rows={2}
-          value={draft.comment}
-          onChange={(e) => setDraft({ ...draft, comment: e.target.value })}
-          data-testid="textarea-instrument-comment"
-        />
+        <div className="space-y-1">
+          <Textarea
+            rows={2}
+            value={draft.comment}
+            onChange={(e) =>
+              setDraft({
+                ...draft,
+                comment: e.target.value,
+                // Operator typing over the comment invalidates the
+                // regenerated provenance — clear commentSource so the
+                // server stamps it back to "manual" on Save (Task #211).
+                commentSource: undefined,
+              })
+            }
+            data-testid="textarea-instrument-comment"
+          />
+          {isEdit && (
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void handleRefreshDescription()}
+                disabled={refreshingDescription || submitting}
+                data-testid="button-instrument-refresh-description"
+                title={t({
+                  de: "Frischen Text aus justETF holen (sonst Auto-Vorlage). Befüllt nur das Formular — Speichern bleibt nötig.",
+                  en: "Fetch fresh text from justETF (else auto template). Populates the form only — Save still required.",
+                })}
+              >
+                {refreshingDescription ? (
+                  <RefreshCw className="h-3 w-3 animate-spin mr-1" />
+                ) : (
+                  <Sparkles className="h-3 w-3 mr-1" />
+                )}
+                {t({
+                  de: "Aus justETF aktualisieren",
+                  en: "Refresh from justETF",
+                })}
+              </Button>
+            </div>
+          )}
+        </div>
       </Field>
       {errMsg && (
         <Alert variant="destructive">

@@ -627,6 +627,67 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+### 2026-05 (admin-instruments-regenerate-description — Task #211)
+- **What changed.** The admin **Instruments** sub-tab now lets operators
+  re-derive the description for any registered ISIN without manually
+  copy-pasting from justETF.
+  - **Per-row icon button** (`Sparkles`,
+    `data-testid="button-instrument-regenerate-${isin}"`) sits next to
+    the existing edit/delete actions. Clicking it calls
+    `POST /admin/instruments/:isin/regenerate-description`, which:
+    1. tries justETF EN+DE descriptions in parallel via the same
+       `scripts/lib/justetf-extract.mjs` extractors used by the scheduled
+       refresh; if both succeed, `commentSource` is stamped `justetf`,
+    2. otherwise falls back to `describeEtf` from
+       `scripts/lib/describe-etf.mjs` using the union of pool profile +
+       lookthrough overrides as input; on success `commentSource` is
+       stamped `auto`,
+    3. returns 422 `no_description_source` if neither path produces text.
+    On success the helper persists via `openInstrumentPr({action: "edit"})`
+    so direct-write vs PR mode behaves identically to PATCH /admin/instruments.
+  - **Edit-form button** (`button-instrument-refresh-description`) inside
+    `InstrumentForm` runs the same endpoint with `{dryRun: true}`,
+    populates the Comment textarea from the response, and lets the
+    operator review before clicking Save. Mirrors the existing
+    `handlePrefill` "preview-only" contract.
+  - **Manual-row guard.** When `commentSource === "manual"` (or, in the
+    edit form, when the manual row already has non-empty text), both
+    flows surface a `window.confirm` warning before overwriting.
+  - **Provenance priority.** justETF wins when available; auto is the
+    fallback. Manual content is only ever overwritten via these explicit
+    operator-initiated actions (never by background scrapers).
+  - **Scrape failure vs empty description.** The server distinguishes
+    "fetch threw / 5xx" (hard error → 502 `scrape_failed`, existing
+    description untouched, operator sees an error toast) from "fetched
+    OK but page has no description field" (legitimate empty → fall
+    through to auto). Only when BOTH locales succeed-but-empty does the
+    auto template ever overwrite a justETF row.
+  - **Edit-form provenance round-trip.** The `InstrumentForm` draft now
+    carries `commentDe` + `commentSource` (seeded from the existing
+    row, refreshed by the dry-run regenerate). On Save, those fields
+    flow through PATCH /admin/instruments and `stampSourceIfMissing`
+    leaves the regenerated `justetf` / `auto` tag intact. If the
+    operator subsequently types into the Comment textarea, its
+    onChange clears `commentSource` so the server stamps it back to
+    `manual` — keeping the "edited prose = manual" invariant.
+- **API contract.** `lib/api-spec/openapi.yaml` adds the new path and
+  schemas `RegenerateDescriptionRequest` (optional `dryRun: boolean`)
+  + `RegenerateDescriptionResponse` (`isin`, `comment`, `commentDe`,
+  `commentSource`, `prUrl`, `prNumber`). Codegen regenerated. Client
+  helper: `adminApi.regenerateInstrumentDescription(isin, { dryRun? })`
+  in `artifacts/investment-lab/src/lib/admin-api.ts`.
+- **Files.**
+  - `lib/api-spec/openapi.yaml`
+  - `artifacts/api-server/src/routes/admin.ts` (new
+    `resolveInstrumentDescription` helper + route)
+  - `artifacts/api-server/src/types/justetf-scraper.d.ts` (added
+    `USER_AGENT`, `fetchWithRetry`, plus a shim for `describe-etf.mjs`)
+  - `artifacts/investment-lab/src/lib/admin-api.ts`
+  - `artifacts/investment-lab/src/components/admin/InstrumentsPanel.tsx`
+- **Validation.** typecheck + `test:components` + `test:engine` +
+  `test:e2e:admin` per `replit.md` validation policy (multi-concern: new
+  server route + admin UI surface). All pass.
+
 ### 2026-05 (admin-instruments-description-column)
 - **What changed.** The admin **Instruments** sub-tab
   (`/admin/catalog/instruments`, rendered by

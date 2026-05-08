@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: admin
+    description: Operator-only admin endpoints (Bearer ADMIN_TOKEN)
 paths:
   /healthz:
     get:
@@ -24,8 +26,55 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /admin/instruments/{isin}/regenerate-description:
+    post:
+      operationId: regenerateInstrumentDescription
+      tags: [admin]
+      summary: Regenerate an instrument's description
+      description: |
+        Re-resolves an instrument's `comment` / `commentDe` / `commentSource`
+        following the source-priority chain `justetf > auto`. With
+        `dryRun=true` the server returns the resolved text WITHOUT
+        persisting (used by the edit form's "Refresh from justETF" preview
+        button). Otherwise the result is committed via the standard
+        `openInstrumentPr({action: "edit"})` path so direct-write vs
+        PR-mode behaves identically to PATCH /admin/instruments/{isin}.
+      parameters:
+        - in: path
+          name: isin
+          required: true
+          schema:
+            type: string
+            pattern: "^[A-Z]{2}[A-Z0-9]{9}\\d$"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegenerateDescriptionRequest"
+      responses:
+        "200":
+          description: Description resolved (and, unless dryRun, persisted).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegenerateDescriptionResponse"
+        "400":
+          description: Invalid ISIN.
+        "404":
+          description: ISIN not present in the INSTRUMENTS table.
+        "422":
+          description: Neither justETF nor a look-through profile yielded usable text.
+        "503":
+          description: GitHub credentials missing in PR mode.
 components:
   schemas:
+    RegenerateDescriptionRequest:
+      type: object
+      properties:
+        dryRun:
+          type: boolean
+          description: When true, return the resolved text without persisting.
     HealthStatus:
       type: object
       properties:
@@ -33,4 +82,39 @@ components:
           type: string
       required:
         - status
+    RegenerateDescriptionResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        isin:
+          type: string
+        comment:
+          type: string
+        commentDe:
+          type: string
+        commentSource:
+          type: string
+          enum: [justetf, auto]
+        instrument:
+          type: object
+          description: >-
+            Updated INSTRUMENTS row (no usage map) reflecting the freshly
+            resolved description. Returned in both dryRun and persisted
+            responses so the UI can refresh in-place.
+          additionalProperties: true
+        prUrl:
+          type: string
+          description: Empty string in direct-write mode or dryRun.
+        prNumber:
+          type: integer
+          description: 0 in direct-write mode or dryRun.
+      required:
+        - ok
+        - isin
+        - comment
+        - commentSource
+        - instrument
+        - prUrl
+        - prNumber
 

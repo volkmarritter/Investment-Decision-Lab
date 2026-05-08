@@ -5,6 +5,40 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+export interface RegenerateDescriptionRequest {
+  /** When true, return the resolved text without persisting. */
+  dryRun?: boolean;
+}
+
 export interface HealthStatus {
   status: string;
+}
+
+export type RegenerateDescriptionResponseCommentSource =
+  (typeof RegenerateDescriptionResponseCommentSource)[keyof typeof RegenerateDescriptionResponseCommentSource];
+
+export const RegenerateDescriptionResponseCommentSource = {
+  justetf: "justetf",
+  auto: "auto",
+} as const;
+
+/**
+ * Updated INSTRUMENTS row (no usage map) reflecting the freshly resolved description. Returned in both dryRun and persisted responses so the UI can refresh in-place.
+ */
+export type RegenerateDescriptionResponseInstrument = {
+  [key: string]: unknown;
+};
+
+export interface RegenerateDescriptionResponse {
+  ok: boolean;
+  isin: string;
+  comment: string;
+  commentDe?: string;
+  commentSource: RegenerateDescriptionResponseCommentSource;
+  /** Updated INSTRUMENTS row (no usage map) reflecting the freshly resolved description. Returned in both dryRun and persisted responses so the UI can refresh in-place. */
+  instrument: RegenerateDescriptionResponseInstrument;
+  /** Empty string in direct-write mode or dryRun. */
+  prUrl: string;
+  /** 0 in direct-write mode or dryRun. */
+  prNumber: number;
 }

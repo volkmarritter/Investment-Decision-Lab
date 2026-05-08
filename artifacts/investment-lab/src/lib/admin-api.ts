@@ -557,6 +557,34 @@ export const adminApi = {
       `/admin/instruments/${encodeURIComponent(isin)}`,
       { method: "DELETE" },
     ),
+  // Task #211 — re-resolve an instrument's description following the
+  // source-priority chain justetf > auto. With `dryRun: true` the
+  // server returns the resolved text WITHOUT persisting (used by the
+  // edit form's "Refresh from justETF" preview button); without it the
+  // result is committed via the standard openInstrumentPr edit path.
+  regenerateInstrumentDescription: (
+    isin: string,
+    opts: { dryRun?: boolean } = {},
+  ) =>
+    call<{
+      ok: boolean;
+      isin: string;
+      comment: string;
+      commentDe?: string;
+      commentSource: "justetf" | "auto";
+      prUrl: string;
+      prNumber: number;
+      // Full updated row — same shape as a single InstrumentRow entry
+      // minus `usage` (the regenerate route doesn't recompute usage). The
+      // UI uses this to refresh the row in-place without a full reload.
+      instrument: Omit<InstrumentRow, "usage">;
+    }>(
+      `/admin/instruments/${encodeURIComponent(isin)}/regenerate-description`,
+      {
+        method: "POST",
+        body: JSON.stringify({ dryRun: opts.dryRun === true }),
+      },
+    ),
   // Picker endpoints — these only carry an ISIN (the metadata comes
   // from the existing INSTRUMENTS row server-side). Use these for the
   // tree-row "Set as default" / "Add alternative" actions; the legacy

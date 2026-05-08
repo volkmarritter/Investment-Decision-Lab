@@ -64,6 +64,9 @@ import {
 import { getCatalogPath } from "../lib/data-paths";
 import { scrapePreview, PreviewError, normalizeIsin } from "../lib/etf-scrape";
 import { scrapeLookthrough } from "../lib/lookthrough-scrape";
+// Cross-artifact imports — bundled by esbuild into dist/index.mjs.
+import * as scraper from "../../../investment-lab/scripts/lib/justetf-extract.mjs";
+import { describeEtf } from "../../../investment-lab/scripts/lib/describe-etf.mjs";
 import {
   getWorkspaceSyncStatus,
   syncWorkspaceFromMain,
@@ -2972,6 +2975,283 @@ router.delete("/admin/instruments/:isin", async (req, res) => {
     res.status(502).json({ error: "pr_creation_failed", message: msg });
   }
 });
+
+// ---------------------------------------------------------------------------
+// POST /admin/instruments/:isin/regenerate-description (Task #211)
+// ---------------------------------------------------------------------------
+// Re-resolves an instrument's description following the same source
+// priority used by the auto-backfill scripts:
+//   1. justETF "Investment objective" / "Anlageziel" prose (EN + DE)
+//      → commentSource: "justetf".
+//   2. Deterministic describeEtf() rendering against the row's
+//      look-through profile (overrides ∪ pool) → commentSource: "auto".
+//   3. Fail with 422 no_description_source when neither is available.
+//
+// Body `{ dryRun: true }` returns the resolved text WITHOUT persisting
+// (used by the edit form's "Refresh from justETF" preview button —
+// operators commit via the existing Save action, which carries the
+// regenerated commentDe + commentSource through PATCH /admin/instruments
+// so the provenance round-trips). Otherwise the freshly-resolved text is
+// persisted via the standard openInstrumentPr({action: "edit"}) path so
+// direct-write vs PR-mode behaves identically to PATCH.
+// ---------------------------------------------------------------------------
+async function resolveInstrumentDescription(
+  isin: string,
+): Promise<{
+  comment: string;
+  commentDe?: string;
+  commentSource: "justetf" | "auto";
+} | null> {
+  // Try justETF EN + DE in parallel. Distinguish three outcomes per locale:
+  //   { ok: true, text: string }      → scrape succeeded with prose
+  //   { ok: true, text: undefined }   → scrape succeeded but no description
+  //                                      field on the page (legitimate empty)
+  //   { ok: false, error }            → network / 5xx / parse error — must
+  //                                      NOT silently fall through to auto,
+  //                                      otherwise transient justETF outages
+  //                                      would overwrite curated text with
+  //                                      the deterministic auto template.
+  type FetchOutcome =
+    | { ok: true; text: string | undefined }
+    | { ok: false; error: Error };
+  const fetchOne = async (lang: "en" | "de"): Promise<FetchOutcome> => {
+    try {
+      const url = `https://www.justetf.com/${lang}/etf-profile.html?isin=${isin}`;
+      const res = await scraper.fetchWithRetry(url, {
+        headers: {
+          "User-Agent": scraper.USER_AGENT,
+          "Accept-Language": lang,
+        },
+      });
+      if (!res.ok) {
+        // 4xx on a profile URL = legitimate "page not found / no profile"
+        // (treat as empty); 5xx = upstream failure (treat as error).
+        if (res.status >= 500) {
+          return {
+            ok: false,
+            error: new Error(`justETF ${lang} responded ${res.status}`),
+          };
+        }
+        return { ok: true, text: undefined };
+      }
+      const html = await res.text();
+      const text = scraper.PREVIEW_EXTRACTORS.description(html);
+      return {
+        ok: true,
+        text:
+          typeof text === "string" && text.trim().length > 0 ? text : undefined,
+      };
+    } catch (err) {
+      return {
+        ok: false,
+        error: err instanceof Error ? err : new Error(String(err)),
+      };
+    }
+  };
+  const [enOut, deOut] = await Promise.all([fetchOne("en"), fetchOne("de")]);
+  const en = enOut.ok ? enOut.text : undefined;
+  const de = deOut.ok ? deOut.text : undefined;
+  // Tightened semantics (Task #211, code-review pass 3): if EITHER locale
+  // hard-errored and we did NOT get usable text from the other side, treat
+  // the whole call as a scrape failure (caller maps to 502 and the
+  // operator sees an error toast — existing description stays untouched).
+  // The auto fallback is only used when BOTH locales succeeded-but-empty;
+  // a partial-failure mix like (en=error, de=empty) must not silently
+  // overwrite curated text with the deterministic auto template.
+  if ((!enOut.ok || !deOut.ok) && !en && !de) {
+    const enMsg = enOut.ok ? "empty" : enOut.error.message;
+    const deMsg = deOut.ok ? "empty" : deOut.error.message;
+    throw new Error(
+      `justETF scrape failed (en: ${enMsg}; de: ${deMsg})`,
+    );
+  }
+  if (en || de) {
+    // The catalog stores `comment` (EN) and optionally `commentDe`. If
+    // only DE came back, mirror it into `comment` so the runtime row
+    // always has a non-empty primary field.
+    return {
+      comment: (en ?? de) as string,
+      ...(de ? { commentDe: de } : {}),
+      commentSource: "justetf",
+    };
+  }
+
+  // Auto fallback — describe from the look-through profile (overrides
+  // first, then pool). Need name + minimal catalog facts (distribution).
+  const [instruments, sources] = await Promise.all([
+    loadInstruments(),
+    readLookthroughSources(),
+  ]);
+  const inst = instruments[isin];
+  if (!inst) return null;
+  const profileEntry = sources.overrides[isin] ?? sources.pool[isin];
+  if (!profileEntry) return null;
+  const profile = {
+    // describeEtf checks `profile.isEquity === true` for the "equity ETF"
+    // label and `=== false` for "fixed-income ETF"; leaving it undefined
+    // yields a generic "ETF" lead. Infer from sector presence (matches
+    // the backfill JSON-fallback path).
+    isEquity:
+      profileEntry.sector && Object.keys(profileEntry.sector).length > 0
+        ? true
+        : undefined,
+    geo: profileEntry.geo,
+    sector: profileEntry.sector,
+    currency: profileEntry.currency,
+    topHoldings: profileEntry.topHoldings,
+  };
+  const auto = describeEtf({
+    name: inst.name,
+    profile,
+    catalog: {
+      domicile: inst.domicile,
+      distribution: inst.distribution,
+      currency: inst.currency,
+    },
+  });
+  if (!auto) return null;
+  return {
+    comment: auto.en,
+    commentDe: auto.de,
+    commentSource: "auto",
+  };
+}
+
+router.post(
+  "/admin/instruments/:isin/regenerate-description",
+  async (req, res) => {
+    let isin: string;
+    try {
+      isin = normalizeIsin(req.params.isin);
+    } catch (err) {
+      res.status(400).json({
+        error: "invalid_isin",
+        message: err instanceof Error ? err.message : String(err),
+      });
+      return;
+    }
+    const dryRun = req.body?.dryRun === true;
+
+    let inst;
+    try {
+      const instruments = await loadInstruments();
+      inst = instruments[isin];
+      if (!inst) {
+        res.status(404).json({
+          error: "instrument_missing",
+          message: `ISIN ${isin} is not in the INSTRUMENTS table.`,
+        });
+        return;
+      }
+    } catch (err) {
+      res.status(500).json({
+        error: "catalog_parse_failed",
+        message: err instanceof Error ? err.message : String(err),
+      });
+      return;
+    }
+
+    if (!dryRun && !directWriteMode() && !githubConfigured()) {
+      res.status(503).json({
+        error: "github_not_configured",
+        message:
+          "Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO on the api-server.",
+      });
+      return;
+    }
+
+    let resolved;
+    try {
+      resolved = await resolveInstrumentDescription(isin);
+    } catch (err) {
+      res.status(502).json({
+        error: "scrape_failed",
+        message: err instanceof Error ? err.message : String(err),
+      });
+      return;
+    }
+    if (!resolved) {
+      res.status(422).json({
+        error: "no_description_source",
+        message:
+          "justETF returned no description and no look-through profile is available — cannot regenerate.",
+      });
+      return;
+    }
+
+    // Helper: build the `instrument` row that callers see — the existing
+    // INSTRUMENTS metadata with the freshly-resolved description fields
+    // swapped in. Returned in both dry-run and persisted responses so the
+    // UI can refresh the row from the response without a round-trip.
+    const updatedInstrument = {
+      ...inst,
+      comment: resolved.comment,
+      commentDe:
+        resolved.commentDe !== undefined ? resolved.commentDe : inst.commentDe,
+      commentSource: resolved.commentSource,
+    };
+
+    if (dryRun) {
+      res.json({
+        ok: true,
+        isin,
+        comment: resolved.comment,
+        commentDe: resolved.commentDe,
+        commentSource: resolved.commentSource,
+        instrument: updatedInstrument,
+        prUrl: "",
+        prNumber: 0,
+      });
+      return;
+    }
+
+    // Build an edit payload from the existing INSTRUMENTS row, swapping
+    // in the freshly-resolved description fields. Skip stampSourceIfMissing
+    // — we set commentSource explicitly to the resolved source.
+    const entry: NewInstrumentEntry = {
+      name: inst.name,
+      isin: inst.isin,
+      terBps: inst.terBps,
+      domicile: inst.domicile,
+      replication: inst.replication as NewInstrumentEntry["replication"],
+      distribution: inst.distribution as NewInstrumentEntry["distribution"],
+      currency: inst.currency,
+      comment: resolved.comment,
+      ...(resolved.commentDe !== undefined
+        ? { commentDe: resolved.commentDe }
+        : inst.commentDe !== undefined
+          ? { commentDe: inst.commentDe }
+          : {}),
+      commentSource: resolved.commentSource,
+      defaultExchange: inst.defaultExchange as NewInstrumentEntry["defaultExchange"],
+      listings: inst.listings,
+      ...(inst.aumMillionsEUR !== undefined
+        ? { aumMillionsEUR: inst.aumMillionsEUR }
+        : {}),
+      ...(inst.inceptionDate ? { inceptionDate: inst.inceptionDate } : {}),
+    };
+    try {
+      const pr = await openInstrumentPr({ action: "edit", entry });
+      res.json({
+        ok: true,
+        isin,
+        comment: resolved.comment,
+        commentDe: resolved.commentDe,
+        commentSource: resolved.commentSource,
+        instrument: updatedInstrument,
+        prUrl: pr.url,
+        prNumber: pr.number,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (/already exists/i.test(msg)) {
+        res.status(409).json({ error: "pr_already_open", message: msg });
+        return;
+      }
+      res.status(502).json({ error: "pr_creation_failed", message: msg });
+    }
+  },
+);
 
 // --- /api/admin/buckets/:key/alternatives -----------------------------------
 // POST: attach an EXISTING INSTRUMENTS ISIN to bucket :key as a curated

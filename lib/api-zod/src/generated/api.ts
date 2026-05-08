@@ -14,3 +14,46 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * Re-resolves an instrument's `comment` / `commentDe` / `commentSource`
+following the source-priority chain `justetf > auto`. With
+`dryRun=true` the server returns the resolved text WITHOUT
+persisting (used by the edit form's "Refresh from justETF" preview
+button). Otherwise the result is committed via the standard
+`openInstrumentPr({action: "edit"})` path so direct-write vs
+PR-mode behaves identically to PATCH /admin/instruments/{isin}.
+
+ * @summary Regenerate an instrument's description
+ */
+export const regenerateInstrumentDescriptionPathIsinRegExp = new RegExp(
+  "^[A-Z]{2}[A-Z0-9]{9}\\d$",
+);
+
+export const RegenerateInstrumentDescriptionParams = zod.object({
+  isin: zod.coerce
+    .string()
+    .regex(regenerateInstrumentDescriptionPathIsinRegExp),
+});
+
+export const RegenerateInstrumentDescriptionBody = zod.object({
+  dryRun: zod
+    .boolean()
+    .optional()
+    .describe("When true, return the resolved text without persisting."),
+});
+
+export const RegenerateInstrumentDescriptionResponse = zod.object({
+  ok: zod.boolean(),
+  isin: zod.string(),
+  comment: zod.string(),
+  commentDe: zod.string().optional(),
+  commentSource: zod.enum(["justetf", "auto"]),
+  instrument: zod
+    .record(zod.string(), zod.unknown())
+    .describe(
+      "Updated INSTRUMENTS row (no usage map) reflecting the freshly resolved description. Returned in both dryRun and persisted responses so the UI can refresh in-place.",
+    ),
+  prUrl: zod.string().describe("Empty string in direct-write mode or dryRun."),
+  prNumber: zod.number().describe("0 in direct-write mode or dryRun."),
+});

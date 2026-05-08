@@ -5,18 +5,25 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  HealthStatus,
+  RegenerateDescriptionRequest,
+  RegenerateDescriptionResponse,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -99,3 +106,104 @@ export function useHealthCheck<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * Re-resolves an instrument's `comment` / `commentDe` / `commentSource`
+following the source-priority chain `justetf > auto`. With
+`dryRun=true` the server returns the resolved text WITHOUT
+persisting (used by the edit form's "Refresh from justETF" preview
+button). Otherwise the result is committed via the standard
+`openInstrumentPr({action: "edit"})` path so direct-write vs
+PR-mode behaves identically to PATCH /admin/instruments/{isin}.
+
+ * @summary Regenerate an instrument's description
+ */
+export const getRegenerateInstrumentDescriptionUrl = (isin: string) => {
+  return `/api/admin/instruments/${isin}/regenerate-description`;
+};
+
+export const regenerateInstrumentDescription = async (
+  isin: string,
+  regenerateDescriptionRequest?: RegenerateDescriptionRequest,
+  options?: RequestInit,
+): Promise<RegenerateDescriptionResponse> => {
+  return customFetch<RegenerateDescriptionResponse>(
+    getRegenerateInstrumentDescriptionUrl(isin),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(regenerateDescriptionRequest),
+    },
+  );
+};
+
+export const getRegenerateInstrumentDescriptionMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof regenerateInstrumentDescription>>,
+    TError,
+    { isin: string; data: BodyType<RegenerateDescriptionRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof regenerateInstrumentDescription>>,
+  TError,
+  { isin: string; data: BodyType<RegenerateDescriptionRequest> },
+  TContext
+> => {
+  const mutationKey = ["regenerateInstrumentDescription"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof regenerateInstrumentDescription>>,
+    { isin: string; data: BodyType<RegenerateDescriptionRequest> }
+  > = (props) => {
+    const { isin, data } = props ?? {};
+
+    return regenerateInstrumentDescription(isin, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RegenerateInstrumentDescriptionMutationResult = NonNullable<
+  Awaited<ReturnType<typeof regenerateInstrumentDescription>>
+>;
+export type RegenerateInstrumentDescriptionMutationBody =
+  BodyType<RegenerateDescriptionRequest>;
+export type RegenerateInstrumentDescriptionMutationError = ErrorType<void>;
+
+/**
+ * @summary Regenerate an instrument's description
+ */
+export const useRegenerateInstrumentDescription = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof regenerateInstrumentDescription>>,
+    TError,
+    { isin: string; data: BodyType<RegenerateDescriptionRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof regenerateInstrumentDescription>>,
+  TError,
+  { isin: string; data: BodyType<RegenerateDescriptionRequest> },
+  TContext
+> => {
+  return useMutation(
+    getRegenerateInstrumentDescriptionMutationOptions(options),
+  );
+};
