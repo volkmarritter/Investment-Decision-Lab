@@ -2217,6 +2217,58 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 3000,
     inceptionDate: "2012-05-22",
   }),
+  "DE000A0S9GB0": I({
+    name: "Xetra-Gold",
+    isin: "DE000A0S9GB0",
+    terBps: 0,
+    domicile: "Germany",
+    replication: "Physical",
+    distribution: "Accumulating",
+    currency: "EUR",
+    comment: "",
+    listings: { "XETRA": { ticker: "4GLD" } },
+    defaultExchange: "XETRA",
+  }),
+  "IE00B42WWV65": I({
+    name: "Vanguard U.K. Gilt UCITS ETF (GBP) Distributing",
+    isin: "IE00B42WWV65",
+    terBps: 5,
+    domicile: "Ireland",
+    replication: "Physical",
+    distribution: "Distributing",
+    currency: "GBP",
+    comment: "",
+    listings: { "LSE": { ticker: "VGOV" }, "XETRA": { ticker: "VGOV" } },
+    defaultExchange: "LSE",
+    aumMillionsEUR: 418,
+    inceptionDate: "2012-05-22",
+  }),
+  "IE00BKX55T58": I({
+    name: "Vanguard FTSE Developed World UCITS ETF Distributing",
+    isin: "IE00BKX55T58",
+    terBps: 12,
+    domicile: "Ireland",
+    replication: "Physical",
+    distribution: "Distributing",
+    currency: "USD",
+    comment: "",
+    listings: { "LSE": { ticker: "VDEV" }, "XETRA": { ticker: "VGVE" }, "SIX": { ticker: "VEVE" }, "Euronext": { ticker: "VEVE" } },
+    defaultExchange: "LSE",
+  }),
+  "IE0005042456": I({
+    name: "iShares Core FTSE 100 UCITS ETF GBP (Dist)",
+    isin: "IE0005042456",
+    terBps: 7,
+    domicile: "Ireland",
+    replication: "Physical",
+    distribution: "Distributing",
+    currency: "GBP",
+    comment: "",
+    listings: { "LSE": { ticker: "ISFU" }, "XETRA": { ticker: "IUSZ" }, "SIX": { ticker: "ISF" }, "Euronext": { ticker: "ISFA" } },
+    defaultExchange: "LSE",
+    aumMillionsEUR: 17893,
+    inceptionDate: "2000-04-27",
+  }),
 };
 
 const BUCKETS: Record<string, BucketAssignment> = {
@@ -2237,7 +2289,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "Equity-Europe": B({
     default: "IE00B4K48X80",
     alternatives: ["IE00B945VV12", "FR0007054358", "IE0008471009"],
-    pool: ["IE00B0M62S72", "DE0002635307", "LU0908500753", "LU0274209237", "DE0005933931", "LU0274211480", "IE00B4K6B022", "IE00B5M1WJ87", "IE00B53L3W79", "IE000LXEN6X4"],
+    pool: ["IE00B0M62S72", "DE0002635307", "LU0908500753", "LU0274209237", "DE0005933931", "LU0274211480", "IE00B4K6B022", "IE00B5M1WJ87", "IE00B53L3W79", "IE000LXEN6X4", "IE00BKX55T58"],
   }),
   "Equity-Switzerland": B({
     default: "CH0237935652",
@@ -2246,7 +2298,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
   }),
   "Equity-UK": B({
     default: "IE00B53HP851",
-    alternatives: ["IE00B810Q511"],
+    alternatives: ["IE00B810Q511", "IE0005042456"],
   }),
   "Equity-Japan": B({
     default: "IE00B4L5YX21",
@@ -2291,7 +2343,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
   }),
   "Commodities-Gold": B({
     default: "IE00B579F325",
-    alternatives: ["IE00B4ND3602", "JE00B1VS3770"],
+    alternatives: ["IE00B4ND3602", "JE00B1VS3770", "DE000A0S9GB0"],
     pool: ["CH0044781232"],
   }),
   "RealEstate-GlobalREITs": B({
