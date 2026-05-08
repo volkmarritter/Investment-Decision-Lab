@@ -1456,7 +1456,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 805,
     inceptionDate: "2004-10-21",
   }),
-  "IE00B4K6B022": I({
+    "IE00B4K6B022": I({
     name: "HSBC EURO STOXX 50 UCITS ETF EUR",
     isin: "IE00B4K6B022",
     terBps: 5,
@@ -1464,8 +1464,9 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Distributing",
     currency: "EUR",
-    comment: "Sector US Healthcare — iShares S&P 500 Health Care Sector UCITS.",
-    listings: { LSE: { ticker: "H50E" }, XETRA: { ticker: "H4ZA" }, SIX: { ticker: "H50E" }, Euronext: { ticker: "50E" } },
+    comment: "The HSBC EURO STOXX 50 UCITS ETF EUR seeks to track the EURO STOXX® 50 index.",
+    commentSource: "manual",
+    listings: { "LSE": { ticker: "H50E" }, "XETRA": { ticker: "H4ZA" }, "SIX": { ticker: "H50E" }, "Euronext": { ticker: "50E" } },
     defaultExchange: "LSE",
     aumMillionsEUR: 1398,
     inceptionDate: "2009-10-05",
