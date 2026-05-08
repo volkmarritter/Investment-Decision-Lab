@@ -8866,6 +8866,92 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BK5BQX27",
       "_addedAt": "2026-05-08T05:43:29.011Z",
       "_addedVia": "admin/lookthrough-pool"
+    },
+    "IE00BKX55S42": {
+      "name": "Vanguard FTSE Developed Europe ex UK UCITS ETF (EUR) Distributing",
+      "topHoldings": [
+        {
+          "name": "ASML Holding NV",
+          "pct": 4.85
+        },
+        {
+          "name": "Novartis AG",
+          "pct": 2.8
+        },
+        {
+          "name": "Roche Holding AG",
+          "pct": 2.67
+        },
+        {
+          "name": "Nestlé SA",
+          "pct": 2.43
+        },
+        {
+          "name": "SAP SE",
+          "pct": 1.69
+        },
+        {
+          "name": "Siemens AG",
+          "pct": 1.69
+        },
+        {
+          "name": "TotalEnergies SE",
+          "pct": 1.64
+        },
+        {
+          "name": "Banco Santander SA",
+          "pct": 1.55
+        },
+        {
+          "name": "Allianz SE",
+          "pct": 1.53
+        },
+        {
+          "name": "Iberdrola SA",
+          "pct": 1.45
+        }
+      ],
+      "topHoldingsAsOf": "2026-05-08T06:00:16.693Z",
+      "geo": {
+        "France": 17.19,
+        "Germany": 17.19,
+        "Switzerland": 15.14,
+        "Netherlands": 10.77,
+        "Spain": 7.12,
+        "Italy": 6.32,
+        "Sweden": 6.23,
+        "Finland": 2.08,
+        "Denmark": 1.97,
+        "Belgium": 1.77,
+        "Norway": 1.33,
+        "Other": 12.89
+      },
+      "sector": {
+        "Financials": 22.56,
+        "Industrials": 18.72,
+        "Technology": 9.81,
+        "Health Care": 7.86,
+        "Consumer Discretionary": 7.8,
+        "Consumer Staples": 6.51,
+        "Utilities": 5.04,
+        "Basic Materials": 3.75,
+        "Telecommunication": 3.46,
+        "Energy": 3.42,
+        "Real Estate": 0.96,
+        "Other": 10.11
+      },
+      "currency": {
+        "EUR": 62.44,
+        "CHF": 15.14,
+        "SEK": 6.23,
+        "DKK": 1.97,
+        "NOK": 1.33,
+        "Other": 12.89
+      },
+      "breakdownsAsOf": "2026-05-08T06:00:16.693Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BKX55S42",
+      "_addedAt": "2026-05-08T06:00:16.693Z",
+      "_addedVia": "admin/lookthrough-pool"
     }
   }
 }
