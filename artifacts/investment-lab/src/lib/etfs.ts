@@ -549,7 +549,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     listings: { LSE: { ticker: "VEUA" }, XETRA: { ticker: "VGEA" }, Euronext: { ticker: "VGEA" } },
     defaultExchange: "XETRA",
   }),
-  "FR0007054358": I({
+      "FR0007054358": I({
     name: "Amundi EURO STOXX 50 II UCITS ETF Acc",
     isin: "FR0007054358",
     terBps: 20,
@@ -557,8 +557,9 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Accumulating",
     currency: "EUR",
-    comment: "EURO STOXX 50 (eurozone blue-chips only, 50 names); much narrower than the broad MSCI/FTSE Europe alternatives — no UK or Swiss exposure.",
-    listings: { XETRA: { ticker: "LYSX" }, SIX: { ticker: "MSE" }, Euronext: { ticker: "MSE" } },
+    comment: "The EURO STOXX 50 focuses on 50 Eurozone blue-chip companies only, making it much narrower than broad MSCI or FTSE Europe indices, with no UK or Swiss exposure.",
+    commentSource: "manual",
+    listings: { "XETRA": { ticker: "LYSX" }, "SIX": { ticker: "MSE" }, "Euronext": { ticker: "MSE" } },
     defaultExchange: "XETRA",
   }),
   "CH0031768937": I({
@@ -735,7 +736,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 555,
     inceptionDate: "2019-06-18",
   }),
-  "IE00B4ND3602": I({
+    "IE00B4ND3602": I({
     name: "iShares Physical Gold ETC",
     isin: "IE00B4ND3602",
     terBps: 12,
@@ -743,8 +744,9 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Accumulating",
     currency: "USD",
-    comment: "iShares' physically-backed gold ETC, vaulted with JPMorgan in London; identical TER to Invesco SGLD, useful for issuer diversification.",
-    listings: { LSE: { ticker: "SGLN" }, XETRA: { ticker: "IGLN" }, SIX: { ticker: "SGLN" }, Euronext: { ticker: "SGLN" } },
+    comment: "Physically-backed gold ETC, vaulted with JPMorgan in London; identical TER to Invesco SGLD, useful for issuer diversification.",
+    commentSource: "manual",
+    listings: { "LSE": { ticker: "SGLN" }, "XETRA": { ticker: "IGLN" }, "SIX": { ticker: "SGLN" }, "Euronext": { ticker: "SGLN" } },
     defaultExchange: "LSE",
   }),
   "JE00B1VS3770": I({
@@ -957,7 +959,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     listings: { "LSE": { ticker: "UC67" }, "XETRA": { ticker: "UIM6" }, "SIX": { ticker: "USAUSA" } },
     defaultExchange: "LSE",
   }),
-  "IE0008471009": I({
+      "IE0008471009": I({
     name: "iShares Core EURO STOXX 50 UCITS ETF EUR (Dist)",
     isin: "IE0008471009",
     terBps: 10,
@@ -965,7 +967,8 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Distributing",
     currency: "EUR",
-    comment: "iShares Core EURO STOXX 50 — 50 largest eurozone blue chips, distributing.",
+    comment: "The EURO STOXX 50 focuses on 50 Eurozone blue-chip companies only, making it much narrower than broad MSCI or FTSE Europe indices, with no UK or Swiss exposure.",
+    commentSource: "manual",
     listings: { "LSE": { ticker: "EUE" }, "XETRA": { ticker: "EUN2" }, "SIX": { ticker: "EUNE" }, "Euronext": { ticker: "EUEA" } },
     defaultExchange: "LSE",
   }),
@@ -1456,7 +1459,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 805,
     inceptionDate: "2004-10-21",
   }),
-    "IE00B4K6B022": I({
+        "IE00B4K6B022": I({
     name: "HSBC EURO STOXX 50 UCITS ETF EUR",
     isin: "IE00B4K6B022",
     terBps: 5,
@@ -1464,7 +1467,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Distributing",
     currency: "EUR",
-    comment: "The HSBC EURO STOXX 50 UCITS ETF EUR seeks to track the EURO STOXX® 50 index.",
+    comment: "The EURO STOXX 50 focuses on 50 Eurozone blue-chip companies only, making it much narrower than broad MSCI or FTSE Europe indices, with no UK or Swiss exposure.",
     commentSource: "manual",
     listings: { "LSE": { ticker: "H50E" }, "XETRA": { ticker: "H4ZA" }, "SIX": { ticker: "H50E" }, "Euronext": { ticker: "50E" } },
     defaultExchange: "LSE",
@@ -2115,7 +2118,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 3605,
     inceptionDate: "2013-10-16",
   }),
-  "IE00B53L3W79": I({
+    "IE00B53L3W79": I({
     name: "iShares Core EURO STOXX 50 UCITS ETF EUR (Acc)",
     isin: "IE00B53L3W79",
     terBps: 10,
@@ -2123,15 +2126,14 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Accumulating",
     currency: "EUR",
-    comment: "The iShares Core EURO STOXX 50 UCITS ETF EUR (Acc) seeks to track the EURO STOXX® 50 index. The EURO STOXX® 50 index tracks the 50 largest companies in the eurozone.",
-    commentSource: "justetf",
-    commentDe: "Der iShares Core EURO STOXX 50 UCITS ETF EUR (Acc) bildet den EURO STOXX® 50 Index nach. Der EURO STOXX® 50 Index bietet Zugang zu den 50 größten Unternehmen der Eurozone.",
+    comment: "EURO STOXX 50 (eurozone blue-chips only, 50 names); much narrower than the broad MSCI/FTSE Europe alternatives — no UK or Swiss exposure.",
+    commentSource: "manual",
     listings: { "LSE": { ticker: "ISX5" }, "XETRA": { ticker: "SXRT" }, "SIX": { ticker: "CSSX5E" }, "Euronext": { ticker: "CSX5" } },
     defaultExchange: "LSE",
     aumMillionsEUR: 7106,
     inceptionDate: "2010-01-26",
   }),
-      "IE000LXEN6X4": I({
+        "IE000LXEN6X4": I({
     name: "iShares EURO STOXX 50 ESG UCITS ETF EUR (Acc)",
     isin: "IE000LXEN6X4",
     terBps: 10,
@@ -2139,14 +2141,14 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Accumulating",
     currency: "EUR",
-    comment: "The iShares EURO STOXX 50 ESG UCITS ETF EUR (Acc) tracks large Eurozone companies while excluding firms that violate UN Global Compact principles or are involved in controversial weapons, tobacco, or fossil fuels.",
+    comment: "The STOXX 50 ESG tracks large Eurozone companies while excluding firms involved in controversial weapons, tobacco, fossil fuels, or violations of UN Global Compact principles.",
     commentSource: "manual",
     listings: { "XETRA": { ticker: "ES50" }, "SIX": { ticker: "ES50" } },
     defaultExchange: "XETRA",
     aumMillionsEUR: 99,
     inceptionDate: "2023-07-26",
   }),
-  "IE00BD4TXW66": I({
+    "IE00BD4TXW66": I({
     name: "UBS Core S&P 500 UCITS ETF USD acc",
     isin: "IE00BD4TXW66",
     terBps: 3,
@@ -2154,9 +2156,8 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Accumulating",
     currency: "USD",
-    comment: "The UBS Core S&P 500 UCITS ETF USD acc seeks to track the S&P 500® index. The S&P 500® index tracks the 500 largest US stocks.",
-    commentSource: "justetf",
-    commentDe: "Der UBS Core S&P 500 UCITS ETF USD acc bildet den S&P 500® Index nach. Der S&P 500® Index bietet Zugang zu den 500 größten Unternehmen aus den USA.",
+    comment: "The S&P 500® index tracks the 500 largest US stocks.",
+    commentSource: "manual",
     listings: { "LSE": { ticker: "S5UU" }, "XETRA": { ticker: "BCFT" }, "SIX": { ticker: "SP5AU" } },
     defaultExchange: "LSE",
     aumMillionsEUR: 1406,
@@ -2176,7 +2177,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 23,
     inceptionDate: "2017-03-14",
   }),
-  "IE00B8J37J31": I({
+    "IE00B8J37J31": I({
     name: "iShares MSCI Japan CHF Hedged UCITS ETF (Acc)",
     isin: "IE00B8J37J31",
     terBps: 64,
@@ -2184,9 +2185,8 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Accumulating",
     currency: "CHF",
-    comment: "The iShares MSCI Japan CHF Hedged UCITS ETF (Acc) seeks to track the MSCI Japan (CHF Hedged) index. The MSCI Japan (CHF Hedged) index tracks leading stocks on the Japanese market. Currency hedged to Swiss Francs (CHF).",
-    commentSource: "justetf",
-    commentDe: "Der iShares MSCI Japan CHF Hedged UCITS ETF (Acc) bildet den MSCI Japan (CHF Hedged) Index nach. Der MSCI Japan (CHF Hedged) Index bietet Zugang zu den größten und umsatzstärksten Unternehmen des japanischen Aktienmarktes. Währungsgesichert in Schweizer Franken (CHF).",
+    comment: "The MSCI Japan (CHF Hedged) index tracks leading stocks on the Japanese market. Currency hedged to Swiss Francs (CHF).",
+    commentSource: "manual",
     listings: { "SIX": { ticker: "IJPC" } },
     defaultExchange: "SIX",
     aumMillionsEUR: 239,
@@ -2236,7 +2236,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 998,
     inceptionDate: "2018-03-14",
   }),
-  "IE00B3VVMM84": I({
+    "IE00B3VVMM84": I({
     name: "Vanguard FTSE Emerging Markets UCITS ETF (USD) Distributing",
     isin: "IE00B3VVMM84",
     terBps: 17,
@@ -2244,9 +2244,8 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Distributing",
     currency: "USD",
-    comment: "The Vanguard FTSE Emerging Markets UCITS ETF (USD) Distributing seeks to track the FTSE Emerging index. The FTSE Emerging index tracks stocks from emerging markets worldwide.",
-    commentSource: "justetf",
-    commentDe: "Der Vanguard FTSE Emerging Markets UCITS ETF (USD) Distributing bildet den FTSE Emerging Index nach. Der FTSE Emerging Index bietet Zugang zu Aktien aus Schwellenländern weltweit.",
+    comment: "The FTSE Emerging index tracks stocks from emerging markets worldwide.",
+    commentSource: "manual",
     listings: { "LSE": { ticker: "VDEM" }, "XETRA": { ticker: "VFEM" }, "SIX": { ticker: "VFEM" }, "Euronext": { ticker: "VFEM" } },
     defaultExchange: "LSE",
     aumMillionsEUR: 3000,
@@ -2278,7 +2277,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 418,
     inceptionDate: "2012-05-22",
   }),
-  "IE00BKX55T58": I({
+    "IE00BKX55T58": I({
     name: "Vanguard FTSE Developed World UCITS ETF Distributing",
     isin: "IE00BKX55T58",
     terBps: 12,
@@ -2286,9 +2285,8 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Distributing",
     currency: "USD",
-    comment: "The Vanguard FTSE Developed World UCITS ETF Distributing seeks to track the FTSE Developed index. The FTSE Developed index tracks the largest stocks in developed markets across the world.",
-    commentSource: "justetf",
-    commentDe: "Der Vanguard FTSE Developed World UCITS ETF Distributing bildet den FTSE Developed Index nach. Der FTSE Developed Index bietet Zugang zu den größten Aktien in den Industrieländern weltweit.",
+    comment: "The FTSE Developed index tracks the largest stocks in developed markets across the world.",
+    commentSource: "manual",
     listings: { "LSE": { ticker: "VDEV" }, "XETRA": { ticker: "VGVE" }, "SIX": { ticker: "VEVE" }, "Euronext": { ticker: "VEVE" } },
     defaultExchange: "LSE",
   }),
@@ -2321,7 +2319,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 2525,
     inceptionDate: "2019-07-23",
   }),
-  "IE00BKX55S42": I({
+    "IE00BKX55S42": I({
     name: "Vanguard FTSE Developed Europe ex UK UCITS ETF (EUR) Distributing",
     isin: "IE00BKX55S42",
     terBps: 10,
@@ -2329,9 +2327,8 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Distributing",
     currency: "EUR",
-    comment: "The Vanguard FTSE Developed Europe ex UK UCITS ETF (EUR) Distributing seeks to track the FTSE Developed Europe ex UK index. The FTSE Developed Europe ex UK index tracks large and mid cap stocks from developed countries in Europe excluding the UK.",
-    commentSource: "justetf",
-    commentDe: "Der Vanguard FTSE Developed Europe ex UK UCITS ETF (EUR) Distributing bildet den FTSE Developed Europe ex UK Index nach. Der FTSE Developed Europe ex UK Index bietet Zugang zu großen und mittleren Aktien aus europäischen Industrieländern (außer Großbritannien).",
+    comment: "The FTSE Developed Europe ex UK index tracks large and mid cap stocks from developed countries in Europe excluding the UK.",
+    commentSource: "manual",
     listings: { "LSE": { ticker: "VERX" }, "XETRA": { ticker: "VERX" }, "Euronext": { ticker: "VERX" } },
     defaultExchange: "LSE",
     aumMillionsEUR: 3202,
