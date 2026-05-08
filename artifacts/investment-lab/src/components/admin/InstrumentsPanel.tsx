@@ -919,7 +919,7 @@ function InstrumentForm({
           ))}
         </div>
       </div>
-      <Field label={t({ de: "Kommentar", en: "Comment" })}>
+      <Field label={t({ de: "Kommentar (EN)", en: "Comment (EN)" })}>
         <div className="space-y-1">
           <Textarea
             rows={2}
@@ -946,8 +946,8 @@ function InstrumentForm({
                 disabled={refreshingDescription || submitting}
                 data-testid="button-instrument-refresh-description"
                 title={t({
-                  de: "Frischen Text aus justETF holen (sonst Auto-Vorlage). Befüllt nur das Formular — Speichern bleibt nötig.",
-                  en: "Fetch fresh text from justETF (else auto template). Populates the form only — Save still required.",
+                  de: "Frischen Text (EN+DE) aus justETF holen (sonst Auto-Vorlage). Befüllt nur das Formular — Speichern bleibt nötig.",
+                  en: "Fetch fresh text (EN + DE) from justETF (else auto template). Populates the form only — Save still required.",
                 })}
               >
                 {refreshingDescription ? (
@@ -962,6 +962,32 @@ function InstrumentForm({
               </Button>
             </div>
           )}
+        </div>
+      </Field>
+      <Field label={t({ de: "Kommentar (DE)", en: "Comment (DE)" })}>
+        <div className="space-y-1">
+          <Textarea
+            rows={2}
+            value={draft.commentDe ?? ""}
+            placeholder={t({
+              de: "Optional — wird in der App angezeigt, wenn die Sprache auf Deutsch steht. Leer lassen, um auf den EN-Kommentar zurückzufallen.",
+              en: "Optional — shown in the app when the UI language is German. Leave blank to fall back to the EN comment.",
+            })}
+            onChange={(e) => {
+              const next = e.target.value;
+              setDraft({
+                ...draft,
+                // Empty -> drop the field so the row falls back to the
+                // EN comment everywhere; otherwise persist verbatim.
+                commentDe: next.length === 0 ? undefined : next,
+                // Operator-edited DE prose is just as much a manual
+                // override as the EN field — clear commentSource so
+                // the server stamps it back to "manual" on Save.
+                commentSource: undefined,
+              });
+            }}
+            data-testid="textarea-instrument-comment-de"
+          />
         </div>
       </Field>
       {errMsg && (

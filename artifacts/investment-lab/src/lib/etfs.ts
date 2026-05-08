@@ -1710,7 +1710,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 1381,
     inceptionDate: "2020-12-09",
   }),
-                    "IE00BJ5JNZ06": I({
+                          "IE00BJ5JNZ06": I({
     name: "iShares MSCI World Health Care Sector Advanced UCITS ETF USD (Dist)",
     isin: "IE00BJ5JNZ06",
     terBps: 18,
@@ -1719,7 +1719,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     distribution: "Distributing",
     currency: "USD",
     comment: "The MSCI World Health Care Advanced Select index tracks large and mid cap companies from the health care sector. The stocks included are filtered according to ESG criteria.",
-    commentDe: "Der iShares MSCI World Health Care Sector Advanced UCITS ETF USD (Dist) bildet den MSCI World Health Care Advanced Select 20 35 Capped Index nach. Der MSCI World Health Care Advanced Select 20 35 Capped Index bietet Zugang zu großen und mittelgroßen Unternehmen aus dem Gesundheitssektor. Die enthaltenen Titel werden nach ESG-Kriterien (Umwelt, Soziales und Unternehmensführung) gefiltert. Ausgeschlossene Bereiche und Unternehmen: Waffen, Tabak, Kraftwerkskohle, Ölsande, Verstöße gegen den UN G…",
+    commentDe: "Der MSCI World Health Care Advanced Select Index bildet grosse und mittelgrosse Unternehmen aus dem Gesundheitssektor ab. Die enthaltenen Aktien werden zusätzlich anhand von ESG-Kriterien gefiltert.",
     commentSource: "manual",
     listings: { "XETRA": { ticker: "CBUF" }, "SIX": { ticker: "WHCS" }, "Euronext": { ticker: "WHCS" } },
     defaultExchange: "XETRA",

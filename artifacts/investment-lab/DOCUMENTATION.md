@@ -688,6 +688,37 @@ Append a new entry whenever functionality changes. Newest first.
   `test:e2e:admin` per `replit.md` validation policy (multi-concern: new
   server route + admin UI surface). All pass.
 
+### 2026-05 (admin-instruments-separate-de-comment-field)
+- **What changed.** The admin Instruments edit form
+  (`src/components/admin/InstrumentsPanel.tsx → InstrumentForm`) now
+  exposes the German `commentDe` field as its own textarea, separate
+  from the existing English `comment` field. Previously only `comment`
+  was editable in the form, so curating the German prose required
+  hand-editing `etfs.ts` — and any in-form edit to the EN field that
+  carried `commentDe` along would feel like "EN and DE moved
+  together" because there was no way to split them.
+- **Behaviour.**
+  - Field labels are now **Comment (EN) / Kommentar (EN)** and
+    **Comment (DE) / Kommentar (DE)**.
+  - Empty DE textarea → `commentDe` is dropped from the payload
+    (`undefined`), so the row falls back to the EN comment in DE
+    locale (matches the existing display resolver in
+    `etfImplementationCommentText.ts` and the new
+    `InstrumentsPanel` table cell).
+  - Editing either textarea clears `commentSource` so the server's
+    `stampSourceIfMissing` flips it back to `"manual"` on Save —
+    consistent with the contract introduced in Task #211.
+  - The "Refresh from justETF" button continues to populate both
+    fields in one shot (the dry-run regenerate endpoint already
+    returned `commentDe`); its tooltip now says "EN + DE" explicitly.
+- **Test hook.** New stable testid
+  `textarea-instrument-comment-de`.
+- **Files.** `artifacts/investment-lab/src/components/admin/InstrumentsPanel.tsx`.
+- **Validation.** Pure JSX/component change → typecheck PASS per
+  `replit.md` validation policy. No server, schema, engine or catalog
+  contracts were touched (the wire shape and PATCH validator already
+  accept `commentDe` end-to-end since Task #207 / #211).
+
 ### 2026-05 (admin-instruments-description-column)
 - **What changed.** The admin **Instruments** sub-tab
   (`/admin/catalog/instruments`, rendered by
