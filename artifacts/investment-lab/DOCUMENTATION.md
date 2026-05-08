@@ -627,6 +627,24 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+### 2026-05 (compare-comparability-warning)
+
+Added a comparability-warning Alert at the top of the Compare tab's
+results section (above the **Structural Differences** card). It
+appears whenever Portfolio A and Portfolio B were configured with
+mismatched horizons (`inputA.horizon !== inputB.horizon`) and/or
+asymmetric look-through (`inputA.lookThroughView !==
+inputB.lookThroughView`), and lists each mismatch as a bullet with a
+short rationale (fee/drawdown/horizon-scaling for the horizon row;
+fund-wrapper-vs.-underlying-holdings for the look-through row).
+Implementation: inline IIFE inside the existing
+`outputA && outputB && diff` block in
+`artifacts/investment-lab/src/components/investment/ComparePortfolios.tsx`,
+reusing the same `bg-warning/10` Alert + `ShieldAlert` styling as the
+per-portfolio warnings above. Pure UI hint — does not block the
+diff. E2E hooks: `compare-comparability-warning`,
+`compare-warn-horizon`, `compare-warn-lookthrough`.
+
 ### 2026-05 (fee-estimator-multi-etf-bucket-ter — Task #196)
 
 Fixed a TER calculation bug in the Fee Estimator table for buckets that

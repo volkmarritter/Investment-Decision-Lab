@@ -1338,6 +1338,65 @@ export function ComparePortfolios() {
 
             {outputA && outputB && diff && (
               <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
+                {/* Comparability warnings — flag setting mismatches that make A vs B
+                 *  numbers harder to interpret (different horizon, asymmetric
+                 *  look-through). Pure UI hint; does not block the diff. */}
+                {(() => {
+                  if (!inputA || !inputB) return null;
+                  const horizonMismatch = inputA.horizon !== inputB.horizon;
+                  const lookThroughMismatch = inputA.lookThroughView !== inputB.lookThroughView;
+                  if (!horizonMismatch && !lookThroughMismatch) return null;
+                  return (
+                    <Alert
+                      data-testid="compare-comparability-warning"
+                      className="border-warning text-warning-foreground bg-warning/10"
+                    >
+                      <ShieldAlert className="h-4 w-4" />
+                      <AlertTitle>
+                        {tr("Comparability warning", "Vergleichbarkeits-Warnung")}
+                      </AlertTitle>
+                      <AlertDescription>
+                        <ul className="mt-2 space-y-2 text-sm list-disc pl-5">
+                          {horizonMismatch && (
+                            <li data-testid="compare-warn-horizon">
+                              <span className="font-medium text-foreground">
+                                {tr(
+                                  `Different horizons: Portfolio A uses ${inputA.horizon} years, Portfolio B uses ${inputB.horizon} years.`,
+                                  `Unterschiedliche Horizonte: Portfolio A nutzt ${inputA.horizon} Jahre, Portfolio B nutzt ${inputB.horizon} Jahre.`,
+                                )}
+                              </span>
+                              <br />
+                              <span className="text-foreground/80">
+                                {tr(
+                                  "Fee drag, drawdown probabilities and projected outcomes scale with the horizon, so A and B aren't on equal footing.",
+                                  "Gebühren-Drag, Drawdown-Wahrscheinlichkeiten und projizierte Ergebnisse skalieren mit dem Horizont — A und B stehen damit nicht auf gleicher Basis.",
+                                )}
+                              </span>
+                            </li>
+                          )}
+                          {lookThroughMismatch && (
+                            <li data-testid="compare-warn-lookthrough">
+                              <span className="font-medium text-foreground">
+                                {tr(
+                                  `Asymmetric look-through: Portfolio ${inputA.lookThroughView ? "A" : "B"} uses look-through, Portfolio ${inputA.lookThroughView ? "B" : "A"} does not.`,
+                                  `Asymmetrisches Look-Through: Portfolio ${inputA.lookThroughView ? "A" : "B"} nutzt Look-Through, Portfolio ${inputA.lookThroughView ? "B" : "A"} nicht.`,
+                                )}
+                              </span>
+                              <br />
+                              <span className="text-foreground/80">
+                                {tr(
+                                  "Currency, region and sector exposures will be measured at different levels (fund wrapper vs. underlying holdings) — toggle both sides the same way for an apples-to-apples view.",
+                                  "Währungs-, Regionen- und Sektorexponierung werden auf unterschiedlichen Ebenen gemessen (Fondsmantel vs. zugrunde liegende Bestände) — schalte beide Seiten gleich, um wirklich vergleichbar zu sein.",
+                                )}
+                              </span>
+                            </li>
+                          )}
+                        </ul>
+                      </AlertDescription>
+                    </Alert>
+                  );
+                })()}
+
                 {/* Structural Differences */}
                 <Card>
                   <CardHeader>
