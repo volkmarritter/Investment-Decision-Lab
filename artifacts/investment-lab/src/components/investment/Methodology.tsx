@@ -575,8 +575,8 @@ export function Methodology() {
         >
           <p className="text-sm text-muted-foreground">
             {de
-              ? "Reale UCITS-ETFs der Emittenten iShares, SPDR, Invesco, UBS und CoinShares mit ISIN, Tickern je Börse, Domizil, Replikationsmethode, Ausschüttungspolitik, Fondswährung, TER, Fondsvolumen, Auflagedatum und einer kurzen redaktionellen Auswahlbegründung."
-              : "Real UCITS ETFs from the issuers iShares, SPDR, Invesco, UBS and CoinShares with ISIN, per-exchange tickers, domicile, replication method, distribution policy, fund currency, TER, fund size, inception date and a short editorial rationale for why the fund was picked."}
+              ? "Reale UCITS-ETFs (sowie ETPs für Krypto und physisches Gold) der Emittenten 21Shares, Amundi, ARK, CoinShares, CSIF, First Trust, Global X, HSBC, Invesco, iShares, JPMorgan, L&G, SPDR (State Street), Swisscanto, UBS, VanEck, Vanguard, WisdomTree, Xetra-Gold und Xtrackers — mit ISIN, Tickern je Börse, Domizil, Replikationsmethode, Ausschüttungspolitik, Fondswährung, TER, Fondsvolumen, Auflagedatum und einer kurzen redaktionellen Auswahlbegründung."
+              : "Real UCITS ETFs (plus ETPs for crypto and physical gold) from the issuers 21Shares, Amundi, ARK, CoinShares, CSIF, First Trust, Global X, HSBC, Invesco, iShares, JPMorgan, L&G, SPDR (State Street), Swisscanto, UBS, VanEck, Vanguard, WisdomTree, Xetra-Gold and Xtrackers — with ISIN, per-exchange tickers, domicile, replication method, distribution policy, fund currency, TER, fund size, inception date and a short editorial rationale for why the fund was picked."}
           </p>
           <p className="text-sm text-muted-foreground">
             {de
