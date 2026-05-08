@@ -2269,6 +2269,20 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 17893,
     inceptionDate: "2000-04-27",
   }),
+  "IE00BK5BQX27": I({
+    name: "Vanguard FTSE Developed Europe UCITS ETF (EUR) Accumulating",
+    isin: "IE00BK5BQX27",
+    terBps: 10,
+    domicile: "Ireland",
+    replication: "Physical",
+    distribution: "Accumulating",
+    currency: "EUR",
+    comment: "",
+    listings: { "LSE": { ticker: "VWCG" }, "XETRA": { ticker: "VWCG" }, "SIX": { ticker: "VWCG" }, "Euronext": { ticker: "VWCG" } },
+    defaultExchange: "LSE",
+    aumMillionsEUR: 2525,
+    inceptionDate: "2019-07-23",
+  }),
 };
 
 const BUCKETS: Record<string, BucketAssignment> = {
@@ -2289,7 +2303,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "Equity-Europe": B({
     default: "IE00B4K48X80",
     alternatives: ["IE00B945VV12", "FR0007054358", "IE0008471009"],
-    pool: ["IE00B0M62S72", "DE0002635307", "LU0908500753", "LU0274209237", "DE0005933931", "LU0274211480", "IE00B4K6B022", "IE00B5M1WJ87", "IE00B53L3W79", "IE000LXEN6X4", "IE00BKX55T58"],
+    pool: ["IE00B0M62S72", "DE0002635307", "LU0908500753", "LU0274209237", "DE0005933931", "LU0274211480", "IE00B4K6B022", "IE00B5M1WJ87", "IE00B53L3W79", "IE000LXEN6X4", "IE00BKX55T58", "IE00BK5BQX27"],
   }),
   "Equity-Switzerland": B({
     default: "CH0237935652",
