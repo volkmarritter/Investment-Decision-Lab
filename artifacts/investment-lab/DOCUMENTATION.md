@@ -627,6 +627,34 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+### 2026-05 (admin-instruments-description-column)
+- **What changed.** The admin **Instruments** sub-tab
+  (`/admin/catalog/instruments`, rendered by
+  `src/components/admin/InstrumentsPanel.tsx`) now exposes a
+  **Description / Beschreibung** column between *Domizil* and *Verwendet
+  in*. Each cell renders the localized comment text — `commentDe` when
+  the active locale is `de` and the field is non-empty, otherwise the
+  English `comment` — clamped to two lines (`line-clamp-2`,
+  `max-w-[28rem]`) with the full text in the cell's `title` tooltip on
+  hover. A small uppercase provenance badge sits to the left of the text
+  so operators can spot the source at a glance:
+  - `justETF` (emerald) — `commentSource === "justetf"`
+  - `auto` / `auto` (amber) — `commentSource === "auto"`
+  - `manual` / `manuell` (muted) — `commentSource === "manual"` or
+    legacy rows with `commentSource` undefined
+  Empty rows render an em-dash placeholder. The empty-state row's
+  `colSpan` was bumped from 7 → 8 to match.
+- **Search.** The existing search input now matches against `comment`
+  and `commentDe` in addition to ISIN/name/currency/domicile, so an
+  operator can find ETFs by keywords from the description text.
+- **Test hooks.** Two new stable testids:
+  `cell-instrument-description-${isin}` and (when present)
+  `badge-instrument-comment-source-${isin}`.
+- **Files.** `artifacts/investment-lab/src/components/admin/InstrumentsPanel.tsx`.
+- **Validation.** Pure JSX/component change → typecheck + unit tests
+  per `replit.md` validation policy. Both pass; no logic changed in the
+  catalog/engine paths so e2e was not re-run.
+
 ### 2026-05 (persist-auto-etf-descriptions — Task #207)
 - **What changed.** ETF "comment" prose is now persisted into the catalog
   rather than re-derived at render time on every Build/Explain mount.

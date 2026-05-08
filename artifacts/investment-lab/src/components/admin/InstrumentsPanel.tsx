@@ -102,7 +102,9 @@ export function InstrumentsPanel({
         r.isin.toUpperCase().includes(q) ||
         r.name.toUpperCase().includes(q) ||
         r.currency.toUpperCase().includes(q) ||
-        r.domicile.toUpperCase().includes(q),
+        r.domicile.toUpperCase().includes(q) ||
+        (r.comment ?? "").toUpperCase().includes(q) ||
+        (r.commentDe ?? "").toUpperCase().includes(q),
     );
   }, [rows, query]);
 
@@ -264,6 +266,9 @@ export function InstrumentsPanel({
                         {t({ de: "Domizil", en: "Domicile" })}
                       </th>
                       <th className="px-2 py-1 font-medium">
+                        {t({ de: "Beschreibung", en: "Description" })}
+                      </th>
+                      <th className="px-2 py-1 font-medium">
                         {t({
                           de: "Verwendet in",
                           en: "Used in",
@@ -278,7 +283,7 @@ export function InstrumentsPanel({
                     {filtered.length === 0 && (
                       <tr>
                         <td
-                          colSpan={7}
+                          colSpan={8}
                           className="px-2 py-3 text-center text-muted-foreground italic"
                         >
                           {query.trim()
@@ -316,6 +321,69 @@ export function InstrumentsPanel({
                           </td>
                           <td className="px-2 py-1">{row.currency}</td>
                           <td className="px-2 py-1">{row.domicile}</td>
+                          <td
+                            className="px-2 py-1 max-w-[28rem]"
+                            data-testid={`cell-instrument-description-${row.isin}`}
+                          >
+                            {(() => {
+                              const deText = (row.commentDe ?? "").trim();
+                              const enText = (row.comment ?? "").trim();
+                              const text =
+                                lang === "de" && deText ? deText : enText;
+                              if (!text) {
+                                return (
+                                  <span className="italic text-muted-foreground">
+                                    {t({ de: "—", en: "—" })}
+                                  </span>
+                                );
+                              }
+                              const src = row.commentSource ?? "manual";
+                              const badgeLabel =
+                                src === "justetf"
+                                  ? "justETF"
+                                  : src === "auto"
+                                    ? t({ de: "auto", en: "auto" })
+                                    : t({ de: "manuell", en: "manual" });
+                              const badgeTitle =
+                                src === "justetf"
+                                  ? t({
+                                      de: "Quelle: justETF (Anlageziel)",
+                                      en: "Source: justETF investment objective",
+                                    })
+                                  : src === "auto"
+                                    ? t({
+                                        de: "Quelle: automatisch aus Look-Through-Daten",
+                                        en: "Source: auto-generated from look-through data",
+                                      })
+                                    : t({
+                                        de: "Quelle: manuell gepflegt",
+                                        en: "Source: manually curated",
+                                      });
+                              const badgeClass =
+                                src === "justetf"
+                                  ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+                                  : src === "auto"
+                                    ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                                    : "bg-muted text-muted-foreground border-muted-foreground/20";
+                              return (
+                                <div className="flex items-start gap-2">
+                                  <span
+                                    className={`inline-flex items-center rounded border px-1.5 py-px text-[10px] font-medium uppercase tracking-wide shrink-0 ${badgeClass}`}
+                                    title={badgeTitle}
+                                    data-testid={`badge-instrument-comment-source-${row.isin}`}
+                                  >
+                                    {badgeLabel}
+                                  </span>
+                                  <span
+                                    className="line-clamp-2 text-muted-foreground"
+                                    title={text}
+                                  >
+                                    {text}
+                                  </span>
+                                </div>
+                              );
+                            })()}
+                          </td>
                           <td className="px-2 py-1 text-muted-foreground">
                             {usedIn || (
                               <span className="italic">
