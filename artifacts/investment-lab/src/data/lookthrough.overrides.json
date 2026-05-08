@@ -8690,81 +8690,182 @@
       "_addedAt": "2026-05-07T08:23:42.736Z",
       "_addedVia": "admin/lookthrough-pool"
     },
-    "IE0005042456": {
-      "name": "iShares Core FTSE 100 UCITS ETF GBP (Dist)",
+    "IE00BKX55T58": {
+      "name": "Vanguard FTSE Developed World UCITS ETF Distributing",
       "topHoldings": [
         {
+          "name": "NVIDIA Corp.",
+          "pct": 4.92
+        },
+        {
+          "name": "Apple",
+          "pct": 4.4
+        },
+        {
+          "name": "Microsoft",
+          "pct": 3.31
+        },
+        {
+          "name": "Amazon.com, Inc.",
+          "pct": 2.41
+        },
+        {
+          "name": "Alphabet, Inc. A",
+          "pct": 2.01
+        },
+        {
+          "name": "Broadcom Inc.",
+          "pct": 1.72
+        },
+        {
+          "name": "Alphabet, Inc. C",
+          "pct": 1.64
+        },
+        {
+          "name": "Meta Platforms",
+          "pct": 1.51
+        },
+        {
+          "name": "Tesla",
+          "pct": 1.26
+        },
+        {
+          "name": "Eli Lilly & Co.",
+          "pct": 0.89
+        }
+      ],
+      "topHoldingsAsOf": "2026-05-08T05:39:02.567Z",
+      "geo": {
+        "United States": 63.62,
+        "Japan": 6.37,
+        "United Kingdom": 3.33,
+        "Canada": 3.06,
+        "Switzerland": 2.19,
+        "Germany": 2.14,
+        "France": 2.09,
+        "South Korea": 2,
+        "Australia": 1.8,
+        "Netherlands": 1.4,
+        "Ireland": 1.13,
+        "Other": 10.87
+      },
+      "sector": {
+        "Technology": 26.4,
+        "Financials": 14.17,
+        "Industrials": 10.71,
+        "Consumer Discretionary": 9.34,
+        "Health Care": 8.49,
+        "Telecommunication": 8.1,
+        "Consumer Staples": 5.01,
+        "Energy": 4.53,
+        "Basic Materials": 3.06,
+        "Utilities": 2.81,
+        "Real Estate": 1.91,
+        "Other": 5.47
+      },
+      "currency": {
+        "USD": 63.62,
+        "JPY": 6.37,
+        "GBP": 3.33,
+        "CAD": 3.06,
+        "CHF": 2.19,
+        "EUR": 6.76,
+        "KRW": 2,
+        "AUD": 1.8,
+        "Other": 10.87
+      },
+      "breakdownsAsOf": "2026-05-08T05:39:02.567Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BKX55T58",
+      "_addedAt": "2026-05-08T05:39:02.567Z",
+      "_addedVia": "admin/lookthrough-pool"
+    },
+    "IE00BK5BQX27": {
+      "name": "Vanguard FTSE Developed Europe UCITS ETF (EUR) Accumulating",
+      "topHoldings": [
+        {
+          "name": "ASML Holding NV",
+          "pct": 3.68
+        },
+        {
           "name": "AstraZeneca PLC",
-          "pct": 8.94
+          "pct": 2.14
+        },
+        {
+          "name": "Novartis AG",
+          "pct": 2.12
         },
         {
           "name": "HSBC Holdings Plc",
-          "pct": 8.52
+          "pct": 2.04
+        },
+        {
+          "name": "Roche Holding AG",
+          "pct": 2.03
         },
         {
           "name": "Shell Plc",
-          "pct": 8.28
+          "pct": 1.98
         },
         {
-          "name": "Rolls-Royce Holdings",
-          "pct": 3.9
+          "name": "Nestlé SA",
+          "pct": 1.85
         },
         {
-          "name": "BP Plc",
-          "pct": 3.86
+          "name": "Siemens AG",
+          "pct": 1.28
         },
         {
-          "name": "British American Tobacco plc",
-          "pct": 3.73
+          "name": "SAP SE",
+          "pct": 1.28
         },
         {
-          "name": "Unilever Plc",
-          "pct": 3.66
-        },
-        {
-          "name": "GSK Plc",
-          "pct": 3.35
-        },
-        {
-          "name": "Rio Tinto Plc",
-          "pct": 2.91
-        },
-        {
-          "name": "BAE Systems",
-          "pct": 2.69
+          "name": "TotalEnergies SE",
+          "pct": 1.25
         }
       ],
-      "topHoldingsAsOf": "2026-05-08T05:39:32.400Z",
+      "topHoldingsAsOf": "2026-05-08T05:43:29.011Z",
       "geo": {
-        "United Kingdom": 83.62,
-        "Switzerland": 2.76,
-        "Ireland": 1.13,
-        "Other": 12.49
+        "United Kingdom": 19.91,
+        "France": 13.12,
+        "Germany": 13.06,
+        "Switzerland": 12.16,
+        "Netherlands": 8.18,
+        "Spain": 5.41,
+        "Italy": 4.8,
+        "Sweden": 4.73,
+        "Finland": 1.58,
+        "Denmark": 1.5,
+        "Belgium": 1.35,
+        "Norway": 1.01,
+        "Other": 13.19
       },
       "sector": {
-        "Financials": 21.86,
-        "Health Care": 12.86,
-        "Industrials": 12.78,
-        "Energy": 12.14,
-        "Consumer Staples": 10.13,
-        "Basic Materials": 6.56,
-        "Utilities": 4.91,
-        "Consumer Discretionary": 2.4,
-        "Telecommunication": 2.36,
-        "Real Estate": 0.96,
-        "Technology": 0.89,
-        "Other": 12.15
+        "Financials": 22.12,
+        "Industrials": 17.17,
+        "Health Care": 9.04,
+        "Technology": 7.74,
+        "Consumer Staples": 7.39,
+        "Consumer Discretionary": 6.81,
+        "Energy": 5.5,
+        "Utilities": 5.02,
+        "Basic Materials": 4.45,
+        "Telecommunication": 3.19,
+        "Real Estate": 0.89,
+        "Other": 10.68
       },
       "currency": {
-        "GBP": 83.62,
-        "CHF": 2.76,
-        "EUR": 1.13,
-        "Other": 12.49
+        "GBP": 19.91,
+        "EUR": 47.5,
+        "CHF": 12.16,
+        "SEK": 4.73,
+        "DKK": 1.5,
+        "NOK": 1.01,
+        "Other": 13.19
       },
-      "breakdownsAsOf": "2026-05-08T05:39:32.400Z",
-      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE0005042456",
-      "_addedAt": "2026-05-08T05:39:32.400Z",
-      "_addedVia": "admin/buckets/:key/alternatives"
+      "breakdownsAsOf": "2026-05-08T05:43:29.011Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BK5BQX27",
+      "_addedAt": "2026-05-08T05:43:29.011Z",
+      "_addedVia": "admin/lookthrough-pool"
     }
   }
 }
