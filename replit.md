@@ -26,6 +26,21 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and package details.
 
+## Methodology page sync (user preference — 2026-05)
+
+Whenever the **logic** of the Investment Decision Lab changes — engine
+behaviour, MC routing, look-through wiring, allocation rules, hedging,
+catalog/data flow, persistence, formula or assumption changes, etc. —
+you MUST check whether the **Methodology** page
+(`artifacts/investment-lab/src/components/investment/Methodology.tsx`)
+still describes the new behaviour correctly, and update the affected
+section(s) in BOTH languages (DE + EN) in the same change. Pure UI
+copy/styling tweaks that don't change behaviour don't trigger this
+check; anything that changes what the engine, MC, look-through,
+catalog or persistence actually *does* (or any user-visible behaviour
+the page documents) does. This is in addition to the
+DOCUMENTATION.md changelog rule below.
+
 ## Validation policy (user preference — 2026-05)
 
 Match validation effort to the size of the change. Do not run the full suite
