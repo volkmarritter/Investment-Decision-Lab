@@ -128,14 +128,11 @@ export function EtfLookthroughDialog({
           <div className="space-y-5 py-4">
             {autoDescription && (
               <div
-                className="space-y-1 border-l-2 border-muted pl-3"
+                className="border-l-2 border-muted pl-3"
                 data-testid="admin-etf-lookthrough-auto-description"
               >
                 <div className="text-xs text-muted-foreground italic">
                   {lang === "de" ? autoDescription.de : autoDescription.en}
-                </div>
-                <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70">
-                  {t("etf.details.autoDescriptionHint")}
                 </div>
               </div>
             )}

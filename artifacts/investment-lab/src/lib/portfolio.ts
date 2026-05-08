@@ -394,6 +394,10 @@ export function buildPortfolio(
       distribution: d.distribution,
       currency: d.currency,
       comment: d.comment,
+      ...(d.commentDe !== undefined ? { commentDe: d.commentDe } : {}),
+      ...(d.commentSource !== undefined
+        ? { commentSource: d.commentSource }
+        : {}),
       catalogKey: d.catalogKey,
       selectedSlot: d.selectedSlot,
       selectableOptions: d.selectableOptions,

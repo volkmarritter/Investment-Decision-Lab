@@ -47,6 +47,10 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { appendRunLogEntry } from "./lib/run-log.mjs";
 import { computeFieldChanges, appendChangeEntries } from "./lib/diff-overrides.mjs";
+// Task #207 — best-effort comment backfill at the tail of the monthly
+// look-through refresh. Same wrapping rationale as refresh-justetf.mjs:
+// a failure here doesn't fail the parent run.
+import { backfillCatalogComments } from "./backfill-comments.mjs";
 import { fetchWithRetry } from "./lib/justetf-extract.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -856,6 +860,34 @@ async function main() {
     okCount,
     failCount,
   });
+
+  // Task #207 — opportunistic catalog-comment backfill (see header
+  // comment in refresh-justetf.mjs for the rationale).
+  if (process.env.SKIP_BACKFILL_COMMENTS !== "1") {
+    try {
+      // mode="lookthrough-refresh" → only re-render rows whose stored
+      // commentSource === "auto" AND whose look-through profile actually
+      // changed in this run. Never touches justetf or manual rows —
+      // those are the property of the weekly justETF refresh and the
+      // operator respectively. The targetIsins filter is what scopes
+      // the auto-row regen to "only the ones whose profile moved" — the
+      // bare "all auto rows" sweep is reserved for the explicit
+      // standalone CLI invocation.
+      const changedIsins = Array.from(
+        new Set(pendingChanges.map((c) => c.isin)),
+      );
+      const res = await backfillCatalogComments({
+        mode: "lookthrough-refresh",
+        targetIsins: changedIsins,
+      });
+      console.log(
+        `backfill-comments[lookthrough-refresh]: ${res.updated} row update(s), ${res.failed} failed, ${res.candidates} candidate(s).`,
+      );
+    } catch (e) {
+      console.warn(`backfill-comments: skipped — ${e.message}`);
+    }
+  }
+
   process.exit(halfFailed ? 1 : 0);
 }
 

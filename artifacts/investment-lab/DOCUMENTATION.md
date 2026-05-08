@@ -627,6 +627,109 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+### 2026-05 (persist-auto-etf-descriptions — Task #207)
+- **What changed.** ETF "comment" prose is now persisted into the catalog
+  rather than re-derived at render time on every Build/Explain mount.
+  Two new optional fields on `InstrumentRecord` / `ETFRecord` /
+  `ETFDetails` / `ETFImplementation` carry the data:
+  - `commentDe?: string` — German-language counterpart to the existing
+    English `comment`. The Build tab's `EtfImplementationCommentCell`
+    and the resolver in `src/lib/etfImplementationCommentText.ts`
+    prefer it when the active locale is `de` and the field is
+    non-empty.
+  - `commentSource?: "manual" | "justetf" | "auto"` — provenance tag.
+    Undefined for legacy curated rows (treated as operator-curated:
+    don't overwrite). The admin pane stamps `"manual"` on every
+    operator-driven add / edit (`/admin/add-isin`,
+    `/admin/render-entry`, `/admin/bucket-alternatives` and
+    `/render`, `/admin/bucket-alternatives/bulk`, POST + PATCH
+    `/admin/instruments`); the auto-backfill stamps `"justetf"` (or
+    `"auto"` for the deterministic-template fallback).
+- **Auto-backfill.** New script
+  `artifacts/investment-lab/scripts/backfill-comments.mjs` scans
+  `src/lib/etfs.ts` for INSTRUMENTS rows whose `comment` is empty
+  AND `commentSource` is missing, fetches the justETF
+  "Investment objective" / "Anlageziel" prose for both EN + DE via
+  the existing `PREVIEW_EXTRACTORS.description` extractor, and
+  rewrites the row in place (adding `comment`, `commentDe` and
+  `commentSource: "justetf"`). The script is wired as a best-effort
+  tail step into `refresh-justetf.mjs` and `refresh-lookthrough.mjs`
+  so every scheduled refresh opportunistically freshens the inline
+  catalog prose; failures don't fail the parent run. Runs sequentially
+  with the same 1.5 s justETF politeness delay used elsewhere. Pass
+  `FORCE=1` to re-scrape rows that already carry
+  `commentSource ∈ {justetf, auto}`. Per-field diffs are appended to
+  `refresh-changes.log.jsonl` under `source: "backfill-comments"`.
+- **UI behaviour change.** The "auto-generated from look-through data"
+  hint label that the cell + ETF Details dialog + Look-through dialog
+  used to render below the runtime fallback is REMOVED. Once the
+  backfill stamps justETF prose into `comment`, the disclaimer would
+  be misleading — backfilled prose is at least as authoritative as a
+  hand-written comment. The runtime fallback (deterministic
+  `describeEtf()` template) still runs for ISINs the backfill hasn't
+  reached, but it now flags itself only via the existing italic
+  styling — no separate hint text. The i18n keys
+  `etf.details.autoDescriptionHint` (EN+DE) were dropped.
+- **Validators.** `validateEntry` and `validateAlternative` in
+  `artifacts/api-server/src/routes/admin.ts` accept the two new
+  optional fields and enforce: `commentDe` ≤ 2000 chars (operators
+  occasionally paste the full justETF "Anlageziel" prose, which can
+  run a bit longer than the 1000-char `comment` cap), and
+  `commentSource ∈ {manual, justetf, auto}`. The renderer + parser +
+  `joinCatalog` all round-trip both fields.
+- **Tests.** `tests/etfImplementationCommentCell.test.tsx` and
+  `tests/etfImplementationReadOnlyComment.test.tsx` were updated to
+  drop the hint-label expectations; a new case in the cell test pins
+  that a backfilled `commentSource: "justetf"` row renders as curated
+  text (no italic, no fallback). The renderer/parser round-trip and
+  the resolver's `commentDe`-preference behaviour remain covered by
+  the existing engine + parser test suites. Two new dedicated suites
+  were added: `tests/etfImplementationCommentResolver.test.ts`
+  (8 cases) for the shared resolver and
+  `tests/backfillCommentsModes.test.ts` (12 cases) for the
+  mode-gated `comment-only`/`auto`-fallback flows. 704/704 unit
+  tests + 25/25 mobile e2e PASS.
+- **Round-3 follow-ups (2026-05-08).** Three contract gaps caught in
+  review were closed before the catalog was actually backfilled:
+  - **Provenance preservation.** A central
+    `stampSourceIfMissing()` helper in `routes/admin.ts` now applies
+    `commentSource: "manual"` ONLY when the inbound payload didn't
+    already carry a value; `/admin/preview-isin` annotates the draft
+    with `"justetf"` whenever justETF returned a non-empty
+    description so the round-trip into `/admin/add-isin` keeps the
+    correct provenance; the bulk-import path leaves
+    `commentSource` unset for empty operator comments (so the next
+    auto-refresh can fill them in) and stamps `"manual"` only when
+    the operator pasted real per-row prose. `NewAlternativeEntry`
+    grew matching `commentDe?` + `commentSource?` fields so
+    alternative-row writes round-trip the metadata too.
+  - **Single change-line per ISIN.** The backfill no longer reuses
+    the per-field `appendChangeEntries()` helper. It writes one
+    JSONL record per touched ISIN with shape
+    `{timestamp, source: "auto-description-refresh", mode, isin,
+    changes: [{field, before, after}, …]}` directly via
+    `fs.appendFile`. The admin "Recent data changes" panel still
+    unpacks `changes[]` for per-field rendering.
+  - **Full runtime profile dump.** `loadMergedProfiles()` now
+    spawns the new tsx helper
+    `scripts/dump-lookthrough-profiles.ts`, which imports
+    `profileFor()` from `src/lib/lookthrough` and emits the merged
+    curated-PROFILES + JSON-overrides map for every ISIN found in
+    `etfs.ts`. The auto-template now sees the same look-through
+    profile the runtime UI would show, instead of only the JSON
+    overrides layer. A best-effort fallback to JSON-only keeps the
+    script safe in stripped envs (e.g. CI without tsx).
+- **Actual backfill applied (2026-05-08).** Ran
+  `MODE=lookthrough-refresh node scripts/backfill-comments.mjs`
+  in the workspace and committed the resulting changes to
+  `src/lib/etfs.ts`: 9 instrument rows received freshly-generated
+  EN+DE auto descriptions plus `commentSource: "auto"`. The 6
+  remaining empty-comment rows had neither a justETF profile nor a
+  look-through profile available and were left untouched (they keep
+  rendering the runtime fallback until either source materialises).
+  One per-ISIN line was appended to
+  `src/data/refresh-changes.log.jsonl`.
+
 ### 2026-05 (compare-comparability-warning)
 
 Added a comparability-warning Alert at the top of the Compare tab's

@@ -39,6 +39,9 @@ export interface AlternativeEntrySummary {
   distribution: string;
   currency: string;
   comment: string;
+  // Task #207 — optional German translation of comment + provenance.
+  commentDe?: string;
+  commentSource?: "manual" | "justetf" | "auto";
   listings: Record<string, { ticker: string }>;
   defaultExchange: string;
   aumMillionsEUR?: number;
@@ -55,6 +58,8 @@ export interface CatalogEntrySummary {
   distribution: string;
   currency: string;
   comment: string;
+  commentDe?: string;
+  commentSource?: "manual" | "justetf" | "auto";
   listings: Record<string, { ticker: string }>;
   defaultExchange: string;
   aumMillionsEUR?: number;
@@ -94,6 +99,8 @@ export interface InstrumentEntrySummary {
   distribution: string;
   currency: string;
   comment: string;
+  commentDe?: string;
+  commentSource?: "manual" | "justetf" | "auto";
   listings: Record<string, { ticker: string }>;
   defaultExchange: string;
   aumMillionsEUR?: number;
@@ -151,6 +158,8 @@ export function parseInstrumentsFromSource(
       distribution: stringField(entryBody, "distribution") ?? "",
       currency: stringField(entryBody, "currency") ?? "",
       comment: stringField(entryBody, "comment") ?? "",
+      commentDe: stringField(entryBody, "commentDe"),
+      commentSource: parseCommentSource(stringField(entryBody, "commentSource")),
       listings: parseListings(entryBody),
       defaultExchange: stringField(entryBody, "defaultExchange") ?? "",
       aumMillionsEUR: numberField(entryBody, "aumMillionsEUR"),
@@ -269,6 +278,10 @@ function joinCatalog(
         distribution: alt.distribution,
         currency: alt.currency,
         comment: alt.comment,
+        ...(alt.commentDe !== undefined ? { commentDe: alt.commentDe } : {}),
+        ...(alt.commentSource !== undefined
+          ? { commentSource: alt.commentSource }
+          : {}),
         listings: alt.listings,
         defaultExchange: alt.defaultExchange,
         ...(alt.aumMillionsEUR !== undefined
@@ -296,6 +309,10 @@ function joinCatalog(
         distribution: p.distribution,
         currency: p.currency,
         comment: p.comment,
+        ...(p.commentDe !== undefined ? { commentDe: p.commentDe } : {}),
+        ...(p.commentSource !== undefined
+          ? { commentSource: p.commentSource }
+          : {}),
         listings: p.listings,
         defaultExchange: p.defaultExchange,
         ...(p.aumMillionsEUR !== undefined
@@ -308,6 +325,10 @@ function joinCatalog(
     }
     out[key] = {
       key,
+      ...(def.commentDe !== undefined ? { commentDe: def.commentDe } : {}),
+      ...(def.commentSource !== undefined
+        ? { commentSource: def.commentSource }
+        : {}),
       name: def.name,
       isin: def.isin,
       terBps: def.terBps,
@@ -651,6 +672,16 @@ function findMatchingBracket(source: string, openIdx: number): number {
     i++;
   }
   return -1;
+}
+
+// Task #207 — narrow a free-form string into the commentSource enum,
+// returning undefined for absent / invalid values so the parser doesn't
+// poison downstream consumers with garbage tags.
+function parseCommentSource(
+  v: string | undefined,
+): "manual" | "justetf" | "auto" | undefined {
+  if (v === "manual" || v === "justetf" || v === "auto") return v;
+  return undefined;
 }
 
 function stringField(body: string, name: string): string | undefined {

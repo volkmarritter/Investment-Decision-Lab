@@ -61,6 +61,14 @@ export interface ETFDetails {
   distribution: "Accumulating" | "Distributing";
   currency: string;
   comment: string;
+  // Task #207 — optional German translation of `comment` and provenance
+  // tag. Both forwarded verbatim from the resolved ETFRecord so the
+  // resolver can prefer commentDe in DE locale and the cell can decide
+  // whether to render the auto-description hint (it no longer does, but
+  // keeping the source field plumbed through means future surfaces can
+  // distinguish operator-curated text from machine-scraped text).
+  commentDe?: string;
+  commentSource?: "manual" | "justetf" | "auto";
   // Optional fields populated by the weekly justETF snapshot refresh
   // (scripts/refresh-justetf.mjs). Undefined when no refresh has run yet.
   aumMillionsEUR?: number;
@@ -108,6 +116,16 @@ export interface ETFRecord {
   distribution: "Accumulating" | "Distributing";
   currency: string;
   comment: string;
+  // Task #207 — optional German translation of `comment` written by
+  // the auto-backfill (justETF DE profile) or by an operator. When
+  // present, the UI prefers it over `comment` for German users.
+  commentDe?: string;
+  // Task #207 — provenance of the `comment`/`commentDe` text. Undefined
+  // for legacy curated rows (treated as "manual" — i.e. don't overwrite).
+  // Set by the auto-backfill ("justetf" or "auto") or the admin pane
+  // ("manual") so future scraper runs know which rows are safe to
+  // refresh and which are operator-owned.
+  commentSource?: "manual" | "justetf" | "auto";
   listings: ListingMap;
   defaultExchange: ExchangeCode;
   // Optional, snapshot-refreshable fields. Curated catalog leaves them
@@ -166,6 +184,11 @@ export interface InstrumentRecord {
   distribution: "Accumulating" | "Distributing";
   currency: string;
   comment: string;
+  // Task #207 — see ETFRecord above. The join in buildJoinedCatalog
+  // forwards both fields verbatim onto the joined ETFRecord so every
+  // existing reader of CATALOG sees them transparently.
+  commentDe?: string;
+  commentSource?: "manual" | "justetf" | "auto";
   listings: ListingMap;
   defaultExchange: ExchangeCode;
   aumMillionsEUR?: number;
@@ -2099,7 +2122,9 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Accumulating",
     currency: "EUR",
-    comment: "",
+    comment: "The iShares Core EURO STOXX 50 UCITS ETF EUR (Acc) seeks to track the EURO STOXX® 50 index. The EURO STOXX® 50 index tracks the 50 largest companies in the eurozone.",
+    commentSource: "justetf",
+    commentDe: "Der iShares Core EURO STOXX 50 UCITS ETF EUR (Acc) bildet den EURO STOXX® 50 Index nach. Der EURO STOXX® 50 Index bietet Zugang zu den 50 größten Unternehmen der Eurozone.",
     listings: { "LSE": { ticker: "ISX5" }, "XETRA": { ticker: "SXRT" }, "SIX": { ticker: "CSSX5E" }, "Euronext": { ticker: "CSX5" } },
     defaultExchange: "LSE",
     aumMillionsEUR: 7106,
@@ -2113,7 +2138,9 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Accumulating",
     currency: "EUR",
-    comment: "",
+    comment: "The iShares EURO STOXX 50 ESG UCITS ETF EUR (Acc) seeks to track the EURO STOXX® 50 ESG index. The EURO STOXX® 50 ESG index tracks companies from Eurozone countries. It excludes companies that do not comply with the principles of the UN Global Compact (controversial weapons, tobacco, consumers and producers of fossil energy sources).",
+    commentSource: "justetf",
+    commentDe: "Der iShares EURO STOXX 50 ESG UCITS ETF EUR (Acc) bildet den EURO STOXX® 50 ESG Index nach. Der EURO STOXX® 50 ESG Index bietet Zugang zu Unternehmen aus der Eurozone. Dabei werden Unternehmen ausgeschlossen, die nicht den Prinzipien der UN Global Compact entsprechen (kontroverse Waffen, Tabak, Nutzer und Förderer fossiler Brennstoffe).",
     listings: { "XETRA": { ticker: "ES50" }, "SIX": { ticker: "ES50" } },
     defaultExchange: "XETRA",
     aumMillionsEUR: 99,
@@ -2127,7 +2154,9 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Accumulating",
     currency: "USD",
-    comment: "",
+    comment: "The UBS Core S&P 500 UCITS ETF USD acc seeks to track the S&P 500® index. The S&P 500® index tracks the 500 largest US stocks.",
+    commentSource: "justetf",
+    commentDe: "Der UBS Core S&P 500 UCITS ETF USD acc bildet den S&P 500® Index nach. Der S&P 500® Index bietet Zugang zu den 500 größten Unternehmen aus den USA.",
     listings: { "LSE": { ticker: "S5UU" }, "XETRA": { ticker: "BCFT" }, "SIX": { ticker: "SP5AU" } },
     defaultExchange: "LSE",
     aumMillionsEUR: 1406,
@@ -2155,7 +2184,9 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Accumulating",
     currency: "CHF",
-    comment: "",
+    comment: "The iShares MSCI Japan CHF Hedged UCITS ETF (Acc) seeks to track the MSCI Japan (CHF Hedged) index. The MSCI Japan (CHF Hedged) index tracks leading stocks on the Japanese market. Currency hedged to Swiss Francs (CHF).",
+    commentSource: "justetf",
+    commentDe: "Der iShares MSCI Japan CHF Hedged UCITS ETF (Acc) bildet den MSCI Japan (CHF Hedged) Index nach. Der MSCI Japan (CHF Hedged) Index bietet Zugang zu den größten und umsatzstärksten Unternehmen des japanischen Aktienmarktes. Währungsgesichert in Schweizer Franken (CHF).",
     listings: { "SIX": { ticker: "IJPC" } },
     defaultExchange: "SIX",
     aumMillionsEUR: 239,
@@ -2183,7 +2214,9 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Accumulating",
     currency: "USD",
-    comment: "",
+    comment: "The ARK Innovation UCITS ETF USD Accumulating is an actively managed ETF.",
+    commentSource: "justetf",
+    commentDe: "Der ARK Innovation UCITS ETF USD Accumulating ist ein aktiv gemanagter ETF.",
     listings: { "LSE": { ticker: "ARKK" }, "XETRA": { ticker: "ARXK" }, "SIX": { ticker: "ARKK" } },
     defaultExchange: "LSE",
     aumMillionsEUR: 267,
@@ -2211,7 +2244,9 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Distributing",
     currency: "USD",
-    comment: "",
+    comment: "The Vanguard FTSE Emerging Markets UCITS ETF (USD) Distributing seeks to track the FTSE Emerging index. The FTSE Emerging index tracks stocks from emerging markets worldwide.",
+    commentSource: "justetf",
+    commentDe: "Der Vanguard FTSE Emerging Markets UCITS ETF (USD) Distributing bildet den FTSE Emerging Index nach. Der FTSE Emerging Index bietet Zugang zu Aktien aus Schwellenländern weltweit.",
     listings: { "LSE": { ticker: "VDEM" }, "XETRA": { ticker: "VFEM" }, "SIX": { ticker: "VFEM" }, "Euronext": { ticker: "VFEM" } },
     defaultExchange: "LSE",
     aumMillionsEUR: 3000,
@@ -2251,7 +2286,9 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Distributing",
     currency: "USD",
-    comment: "",
+    comment: "The Vanguard FTSE Developed World UCITS ETF Distributing seeks to track the FTSE Developed index. The FTSE Developed index tracks the largest stocks in developed markets across the world.",
+    commentSource: "justetf",
+    commentDe: "Der Vanguard FTSE Developed World UCITS ETF Distributing bildet den FTSE Developed Index nach. Der FTSE Developed Index bietet Zugang zu den größten Aktien in den Industrieländern weltweit.",
     listings: { "LSE": { ticker: "VDEV" }, "XETRA": { ticker: "VGVE" }, "SIX": { ticker: "VEVE" }, "Euronext": { ticker: "VEVE" } },
     defaultExchange: "LSE",
   }),
@@ -2277,7 +2314,9 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Accumulating",
     currency: "EUR",
-    comment: "",
+    comment: "The Vanguard FTSE Developed Europe UCITS ETF (EUR) Accumulating seeks to track the FTSE Developed Europe index. The FTSE Developed Europe index tracks large and mid cap stocks from developed countries in Europe.",
+    commentSource: "justetf",
+    commentDe: "Der Vanguard FTSE Developed Europe UCITS ETF (EUR) Accumulating bildet den FTSE Developed Europe Index nach. Der FTSE Developed Europe Index bietet Zugang zu großen und mittleren Aktien aus europäischen Industrieländern.",
     listings: { "LSE": { ticker: "VWCG" }, "XETRA": { ticker: "VWCG" }, "SIX": { ticker: "VWCG" }, "Euronext": { ticker: "VWCG" } },
     defaultExchange: "LSE",
     aumMillionsEUR: 2525,
@@ -2291,7 +2330,9 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Distributing",
     currency: "EUR",
-    comment: "",
+    comment: "The Vanguard FTSE Developed Europe ex UK UCITS ETF (EUR) Distributing seeks to track the FTSE Developed Europe ex UK index. The FTSE Developed Europe ex UK index tracks large and mid cap stocks from developed countries in Europe excluding the UK.",
+    commentSource: "justetf",
+    commentDe: "Der Vanguard FTSE Developed Europe ex UK UCITS ETF (EUR) Distributing bildet den FTSE Developed Europe ex UK Index nach. Der FTSE Developed Europe ex UK Index bietet Zugang zu großen und mittleren Aktien aus europäischen Industrieländern (außer Großbritannien).",
     listings: { "LSE": { ticker: "VERX" }, "XETRA": { ticker: "VERX" }, "Euronext": { ticker: "VERX" } },
     defaultExchange: "LSE",
     aumMillionsEUR: 3202,
@@ -2446,6 +2487,8 @@ function buildJoinedCatalog(
         );
       }
     }
+    // Spread carries `commentDe` and `commentSource` onto the joined
+    // ETFRecord automatically (Task #207).
     result[key] = {
       ...def,
       ...(alts.length > 0 ? { alternatives: alts } : {}),
@@ -3089,6 +3132,13 @@ export function getETFDetails(
     distribution: rec.distribution,
     currency: rec.currency,
     comment: rec.comment,
+    // Task #207 — forward optional commentDe + commentSource so the
+    // Build/Explain comment cell can pick the German variant in DE
+    // locale and (future) surfaces can branch on provenance.
+    ...(rec.commentDe !== undefined ? { commentDe: rec.commentDe } : {}),
+    ...(rec.commentSource !== undefined
+      ? { commentSource: rec.commentSource }
+      : {}),
     aumMillionsEUR: rec.aumMillionsEUR,
     inceptionDate: rec.inceptionDate,
     catalogKey: key,

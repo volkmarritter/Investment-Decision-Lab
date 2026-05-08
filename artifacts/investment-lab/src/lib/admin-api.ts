@@ -125,6 +125,9 @@ export interface AddEtfRequest {
   distribution: "Accumulating" | "Distributing";
   currency: string;
   comment: string;
+  // Task #207 — optional German comment translation + provenance tag.
+  commentDe?: string;
+  commentSource?: "manual" | "justetf" | "auto";
   defaultExchange: "LSE" | "XETRA" | "SIX" | "Euronext";
   listings: Partial<
     Record<"LSE" | "XETRA" | "SIX" | "Euronext", { ticker: string }>
@@ -146,6 +149,8 @@ export interface CatalogEntrySummary {
   distribution: string;
   currency: string;
   comment: string;
+  commentDe?: string;
+  commentSource?: "manual" | "justetf" | "auto";
   listings: Record<string, { ticker: string }>;
   defaultExchange: string;
   aumMillionsEUR?: number;
@@ -174,6 +179,8 @@ export interface AlternativeEntrySummary {
   distribution: string;
   currency: string;
   comment: string;
+  commentDe?: string;
+  commentSource?: "manual" | "justetf" | "auto";
   listings: Record<string, { ticker: string }>;
   defaultExchange: string;
   aumMillionsEUR?: number;
@@ -193,6 +200,8 @@ export interface AddBucketAlternativeRequest {
   distribution: "Accumulating" | "Distributing";
   currency: string;
   comment: string;
+  commentDe?: string;
+  commentSource?: "manual" | "justetf" | "auto";
   defaultExchange: "LSE" | "XETRA" | "SIX" | "Euronext";
   listings: Partial<
     Record<"LSE" | "XETRA" | "SIX" | "Euronext", { ticker: string }>
@@ -217,6 +226,18 @@ export interface AddInstrumentRequest {
   distribution: "Accumulating" | "Distributing";
   currency: string;
   comment: string;
+  // Task #207 — optional German translation. Carried verbatim through
+  // to the persisted INSTRUMENTS row.
+  commentDe?: string;
+  // Task #207 round-3 — provenance tag. The fast-track add panel and
+  // the SuggestIsinPanel both forward whatever
+  // /admin/preview-isin returned (typically "justetf" when justETF
+  // supplied a non-empty Investment-objective description), so the
+  // persisted row is correctly tagged "justetf" and remains eligible
+  // for the auto-refresh path. Operator-typed/edited prose without a
+  // preview origin defaults to "manual" via stampSourceIfMissing()
+  // server-side.
+  commentSource?: "manual" | "justetf" | "auto";
   defaultExchange: "LSE" | "XETRA" | "SIX" | "Euronext";
   listings: Partial<
     Record<"LSE" | "XETRA" | "SIX" | "Euronext", { ticker: string }>
@@ -248,6 +269,8 @@ export interface InstrumentRow {
   distribution: string;
   currency: string;
   comment: string;
+  commentDe?: string;
+  commentSource?: "manual" | "justetf" | "auto";
   listings: Record<string, { ticker: string }>;
   defaultExchange: string;
   aumMillionsEUR?: number;

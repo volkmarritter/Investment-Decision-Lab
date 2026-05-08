@@ -1355,6 +1355,13 @@ export function injectAlternative(
       distribution: entry.distribution,
       currency: entry.currency,
       comment: entry.comment,
+      // Task #207 — pass through commentDe + commentSource so the
+      // INSTRUMENTS row added by an alternative-injection PR carries
+      // the same provenance tag as the alternative payload.
+      ...(entry.commentDe !== undefined ? { commentDe: entry.commentDe } : {}),
+      ...(entry.commentSource !== undefined
+        ? { commentSource: entry.commentSource }
+        : {}),
       defaultExchange: entry.defaultExchange,
       listings: entry.listings,
       ...(entry.aumMillionsEUR !== undefined

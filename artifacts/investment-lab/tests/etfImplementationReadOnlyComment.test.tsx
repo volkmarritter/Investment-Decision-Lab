@@ -10,12 +10,17 @@
 // The Compare tab renders each slot's ETF implementation via
 // EtfImplementationReadOnly. It used to show the curated `comment` column
 // verbatim, leaving the cell blank for look-through-only ETFs (no curated
-// description). The Build tab's table, the look-through dialog, the ETF
-// details popup and the detailed PDF report all fall back to the
-// auto-generated description with a discreet "auto" hint in this case.
-// This test pins that Compare now does the same so a future refactor that
-// drops the EtfImplementationCommentCell delegation can't quietly bring
-// back the empty-cell regression.
+// description). Build tab + dialogs + report all fall back to the
+// auto-generated description (italic) in this case. This test pins that
+// Compare now does the same so a future refactor that drops the
+// EtfImplementationCommentCell delegation can't quietly bring back the
+// empty-cell regression.
+//
+// Task #207 — the legacy "auto-generated from look-through data" hint
+// label has been removed (the auto-backfill now persists the resolved
+// text directly into `comment`, so the disclaimer would be misleading
+// for backfilled rows). Italic styling is the only remaining visual
+// flag for the runtime-fallback branch.
 // ----------------------------------------------------------------------------
 
 import { describe, it, expect, afterEach } from "vitest";
@@ -63,7 +68,7 @@ function renderTable(etf: ETFImplementation) {
 }
 
 describe("EtfImplementationReadOnly comment cell", () => {
-  it("renders the auto-generated description when the curated comment is empty", () => {
+  it("renders the auto-generated description in italic when the curated comment is empty", () => {
     const etf = makeEtf({ comment: "" });
     renderTable(etf);
 
@@ -71,22 +76,20 @@ describe("EtfImplementationReadOnly comment cell", () => {
       `etf-impl-auto-description-${etf.bucket}`,
     );
     expect(auto.textContent).toMatch(/ETF/);
-    const italicNode = auto.querySelector(".italic");
-    expect(italicNode).not.toBeNull();
-    expect(italicNode!.textContent).toMatch(/ETF/);
-    expect(auto.textContent).toContain("auto-generated from look-through data");
+    expect(auto.classList.contains("italic")).toBe(true);
+    // Task #207 — legacy hint label must not reappear.
+    expect(auto.textContent).not.toContain(
+      "auto-generated from look-through data",
+    );
   });
 
-  it("renders the curated comment verbatim and does NOT render the hint label", () => {
+  it("renders the curated comment verbatim when present", () => {
     const etf = makeEtf({ comment: "Hand-written editorial comment." });
     renderTable(etf);
 
     expect(screen.getByText("Hand-written editorial comment.")).toBeTruthy();
     expect(
       screen.queryByTestId(`etf-impl-auto-description-${etf.bucket}`),
-    ).toBeNull();
-    expect(
-      screen.queryByText("auto-generated from look-through data"),
     ).toBeNull();
   });
 });

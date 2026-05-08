@@ -109,6 +109,19 @@ describe("refresh-justetf PREVIEW_EXTRACTORS.description (Task #165)", () => {
     expect(out.length).toBeLessThanOrEqual(500);
     expect(out.endsWith("…")).toBe(true);
   });
+
+  it("extracts from the 2026-05 testid-tagged container (Task #207 round 6)", () => {
+    // justETF moved the description to a testid-anchored div without
+    // the legacy "Investment objective" heading. The extractor must
+    // recognise the new container or every fresh fetch falls through
+    // to the auto fallback.
+    const modern =
+      '<div data-testid="etf-quote-section_description-content-inner" class="x">' +
+      "The fund seeks to track the MSCI World index of large- and mid-cap stocks." +
+      "</div>";
+    const out = PREVIEW_EXTRACTORS.description(modern);
+    expect(out as string).toMatch(/MSCI World index/);
+  });
 });
 
 describe("refresh-justetf CORE_EXTRACTORS — German locale branches", () => {

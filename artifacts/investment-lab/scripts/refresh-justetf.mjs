@@ -44,6 +44,11 @@ import { fileURLToPath } from "node:url";
 import { dirname, resolve } from "node:path";
 import { appendRunLogEntry } from "./lib/run-log.mjs";
 import { computeFieldChanges, appendChangeEntries } from "./lib/diff-overrides.mjs";
+// Task #207 — best-effort comment backfill at the tail of every
+// scheduled refresh. Wrapped in try/catch in main() so a backfill
+// failure never reds out the primary run (its job is the JSON override
+// file; this is a "while we're here" pass).
+import { backfillCatalogComments } from "./backfill-comments.mjs";
 // All scraping logic lives in scripts/lib/justetf-extract.mjs as a PURE
 // module so the api-server can import it without dragging this CLI
 // entrypoint (and its main()) into its esbuild bundle.
@@ -252,6 +257,25 @@ async function main() {
     okCount,
     failCount,
   });
+
+  // Task #207 — opportunistic catalog-comment backfill. Best-effort: a
+  // failure here does NOT flip the parent run red (the override JSON
+  // file is the contract for refresh-justetf; this is a sidecar pass
+  // for inline catalog prose). Skipped on DRY_RUN above.
+  if (process.env.SKIP_BACKFILL_COMMENTS !== "1") {
+    try {
+      // mode="justetf-refresh" → touch every non-manual row, prefer
+      // freshly-scraped justETF prose, fall back to describeEtf("auto")
+      // when justETF returns empty for this ISIN.
+      const res = await backfillCatalogComments({ mode: "justetf-refresh" });
+      console.log(
+        `backfill-comments[justetf-refresh]: ${res.updated} row update(s), ${res.failed} failed, ${res.candidates} candidate(s).`,
+      );
+    } catch (e) {
+      console.warn(`backfill-comments: skipped — ${e.message}`);
+    }
+  }
+
   process.exit(failCount > okCount ? 1 : 0);
 }
 

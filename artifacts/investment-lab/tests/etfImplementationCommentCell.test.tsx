@@ -7,20 +7,23 @@
 //
 // Why this exists
 // ---------------
-// Today only a couple of catalog rows have an empty `comment` and therefore
-// trigger the auto-description fallback (e.g. the Xtrackers MSCI World IT
-// ETF, IE00BM67HT60 — a look-through-only entry with no curated prose).
-// If somebody fills in those comments later, or refactors the comment
-// column, the fallback rendering would silently disappear and an operator
-// wouldn't notice until they complained that look-through-only ETFs read
-// as "(blank)" in the table.
+// Most catalog rows now carry a `comment` (Task #207's auto-backfill
+// stamps justETF "Investment objective" / `describeEtf()` text into
+// `comment` + `commentDe` for every row that previously lacked one). A
+// small handful of ISINs may still slip through — e.g. when the backfill
+// hasn't run yet, or when a justETF profile is unreachable — so the
+// runtime fallback in the cell stays as a safety net. We pin the
+// contract:
 //
-// We pin the contract:
-//   1. When `etf.comment` is empty AND a look-through profile exists for
-//      the ISIN, the cell renders the auto-generated description (italic)
-//      and the "auto-generated from look-through data" hint label.
-//   2. When `etf.comment` carries curated text, the curated text wins and
-//      the hint label does NOT appear.
+//   1. When `etf.comment` is empty (and `etf.commentDe` is missing for
+//      the active locale), the cell renders the deterministic
+//      auto-generated description in italic.
+//   2. The "auto-generated from look-through data" hint label is NOT
+//      rendered any more — Task #207 made the persisted text
+//      indistinguishable from a curated comment, so the disclaimer
+//      would be misleading for backfilled rows. The runtime-fallback
+//      branch is now flagged only by the italic styling.
+//   3. When `etf.comment` carries text, the curated text wins.
 // ----------------------------------------------------------------------------
 
 import { describe, it, expect, afterEach } from "vitest";
@@ -37,6 +40,8 @@ afterEach(() => cleanup());
 type CellEtf = Pick<
   ETFImplementation,
   | "comment"
+  | "commentDe"
+  | "commentSource"
   | "exampleETF"
   | "isin"
   | "bucket"
@@ -50,8 +55,8 @@ function makeEtf(overrides: Partial<CellEtf>): CellEtf {
     bucket: "Equity-Technology Alt 2",
     // IE00BM67HT60 = Xtrackers MSCI World Information Technology UCITS ETF.
     // It's a look-through-only catalog entry with no curated comment and a
-    // real look-through profile — exactly the canonical case the fallback
-    // exists for.
+    // real look-through profile — exactly the canonical case the runtime
+    // fallback exists for when the backfill hasn't filled the row yet.
     isin: "IE00BM67HT60",
     exampleETF: "Xtrackers MSCI World Information Technology UCITS ETF",
     domicile: "Ireland",
@@ -71,7 +76,7 @@ function renderCell(etf: CellEtf) {
 }
 
 describe("EtfImplementationCommentCell", () => {
-  it("renders the auto-generated description and hint label when comment is empty", () => {
+  it("renders the auto-generated description in italic when comment is empty", () => {
     const etf = makeEtf({ comment: "" });
     renderCell(etf);
 
@@ -83,30 +88,24 @@ describe("EtfImplementationCommentCell", () => {
     // resilient to template tweaks; we just guard that something useful
     // showed up.
     expect(auto.textContent).toMatch(/ETF/);
-    // The acceptance criteria call for the auto description to render in
-    // italic. Pin the italic wrapper explicitly so a future style refactor
-    // that drops the class is caught here rather than discovered in the
-    // operator's screenshot.
-    const italicNode = auto.querySelector(".italic");
-    expect(italicNode).not.toBeNull();
-    expect(italicNode!.textContent).toMatch(/ETF/);
-    // Hint label is rendered verbatim from the EN i18n bundle (the test
-    // wrapper does not switch language, so EN is the default).
-    expect(auto.textContent).toContain("auto-generated from look-through data");
+    // Italic styling on the wrapper is the ONLY visual flag that the
+    // runtime fallback ran (Task #207 dropped the "auto-generated" hint
+    // label). Pin the class directly so a future style refactor that
+    // drops it is caught here.
+    expect(auto.classList.contains("italic")).toBe(true);
+    // Belt-and-braces: the legacy hint label string must not reappear.
+    expect(auto.textContent).not.toContain(
+      "auto-generated from look-through data",
+    );
   });
 
-  it("renders the curated comment verbatim and does NOT render the hint label", () => {
+  it("renders the curated comment verbatim when present", () => {
     const etf = makeEtf({ comment: "Hand-written editorial comment." });
     renderCell(etf);
 
     expect(screen.getByText("Hand-written editorial comment.")).toBeTruthy();
     expect(
       screen.queryByTestId(`etf-impl-auto-description-${etf.bucket}`),
-    ).toBeNull();
-    // The hint label string must not appear anywhere in the cell when a
-    // curated comment is present.
-    expect(
-      screen.queryByText("auto-generated from look-through data"),
     ).toBeNull();
   });
 
@@ -121,5 +120,24 @@ describe("EtfImplementationCommentCell", () => {
     expect(
       screen.getByTestId(`etf-impl-auto-description-${etf.bucket}`),
     ).toBeTruthy();
+  });
+
+  it("treats a backfilled comment (commentSource=justetf) as curated text — no italic, no fallback", () => {
+    // Task #207 — once the backfill stamps justETF prose into `comment`,
+    // the cell must render it verbatim like any operator-curated text.
+    // The provenance tag is bookkeeping for the next refresh job, not a
+    // visual flag.
+    const etf = makeEtf({
+      comment: "Backfilled justETF investment objective.",
+      commentSource: "justetf",
+    });
+    renderCell(etf);
+
+    expect(
+      screen.getByText("Backfilled justETF investment objective."),
+    ).toBeTruthy();
+    expect(
+      screen.queryByTestId(`etf-impl-auto-description-${etf.bucket}`),
+    ).toBeNull();
   });
 });

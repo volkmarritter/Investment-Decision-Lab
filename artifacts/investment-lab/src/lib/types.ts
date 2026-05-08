@@ -56,6 +56,12 @@ export interface ETFImplementation {
   distribution: "Accumulating" | "Distributing";
   currency: string;
   comment: string;
+  /** Task #207 — optional German translation of `comment` and provenance
+   *  tag forwarded from the resolved ETFRecord. Surfaces use commentDe in
+   *  DE locale and may branch on commentSource ∈ {justetf, auto, manual}
+   *  for future presentation tweaks. */
+  commentDe?: string;
+  commentSource?: "manual" | "justetf" | "auto";
   /** Mirrors AssetAllocation.isManualOverride for the implementation row of
    *  the same bucket. Cash is excluded from the implementation table, so the
    *  flag is meaningful only for non-Cash rows. */

@@ -60,4 +60,23 @@ describe("renderAlternativeBlock", () => {
     expect(full).toContain("aumMillionsEUR: 12345.6");
     expect(full).toContain('inceptionDate: "2019-05-23"');
   });
+
+  it("emits commentDe + commentSource only when defined (Task #207)", () => {
+    const minimal = renderAlternativeBlock(SAMPLE, "      ");
+    expect(minimal).not.toContain("commentDe");
+    expect(minimal).not.toContain("commentSource");
+
+    const tagged = renderAlternativeBlock(
+      {
+        ...SAMPLE,
+        commentDe: "Vanguards globaler Aktien-Flaggschiff-Fonds.",
+        commentSource: "justetf",
+      },
+      "      ",
+    );
+    expect(tagged).toContain(
+      'commentDe: "Vanguards globaler Aktien-Flaggschiff-Fonds."',
+    );
+    expect(tagged).toContain('commentSource: "justetf"');
+  });
 });

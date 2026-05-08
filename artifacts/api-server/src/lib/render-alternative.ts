@@ -35,6 +35,11 @@ export interface NewAlternativeEntry {
   >;
   aumMillionsEUR?: number;
   inceptionDate?: string;
+  // Task #207 — optional German comment translation + provenance tag
+  // mirroring the NewEtfEntry shape so alternative rows can carry the
+  // same metadata when the auto-backfill writes them.
+  commentDe?: string;
+  commentSource?: "manual" | "justetf" | "auto";
 }
 
 export function renderAlternativeBlock(
@@ -51,6 +56,16 @@ export function renderAlternativeBlock(
     listingsParts.push(`${json(ex)}: { ticker: ${json(val.ticker)} }`);
   }
   const listingsLiteral = `{ ${listingsParts.join(", ")} }`;
+
+  const commentExtraLines: string[] = [];
+  if (entry.commentDe !== undefined) {
+    commentExtraLines.push(`${indent}  commentDe: ${json(entry.commentDe)},`);
+  }
+  if (entry.commentSource !== undefined) {
+    commentExtraLines.push(
+      `${indent}  commentSource: ${json(entry.commentSource)},`,
+    );
+  }
 
   const optionalLines: string[] = [];
   if (entry.aumMillionsEUR !== undefined) {
@@ -69,6 +84,7 @@ export function renderAlternativeBlock(
     `${indent}  distribution: ${json(entry.distribution)},`,
     `${indent}  currency: ${json(entry.currency)},`,
     `${indent}  comment: ${json(entry.comment)},`,
+    ...commentExtraLines,
     `${indent}  listings: ${listingsLiteral},`,
     `${indent}  defaultExchange: ${json(entry.defaultExchange)},`,
     ...optionalLines,

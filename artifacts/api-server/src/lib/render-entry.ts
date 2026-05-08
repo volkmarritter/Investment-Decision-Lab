@@ -29,6 +29,11 @@ export interface NewEtfEntry {
   >;
   aumMillionsEUR?: number;
   inceptionDate?: string;
+  // Task #207 — optional German comment translation + provenance tag.
+  // Both fields are emitted by the renderer only when defined so existing
+  // curated rows do not pick up empty stubs.
+  commentDe?: string;
+  commentSource?: "manual" | "justetf" | "auto";
 }
 
 // Task #111: render an INSTRUMENTS row (ISIN-keyed master entry) for the
@@ -48,6 +53,18 @@ export function renderInstrumentRow(entry: NewEtfEntry, indent = "  "): string {
   }
   const listingsLiteral = `{ ${listingsParts.join(", ")} }`;
   const optionalLines: string[] = [];
+  // Task #207 — emit commentDe / commentSource only when defined so
+  // legacy curated rows that round-trip through the parser don't gain
+  // empty stub fields in the rewritten output.
+  const commentExtraLines: string[] = [];
+  if (entry.commentDe !== undefined) {
+    commentExtraLines.push(`${indent}  commentDe: ${json(entry.commentDe)},`);
+  }
+  if (entry.commentSource !== undefined) {
+    commentExtraLines.push(
+      `${indent}  commentSource: ${json(entry.commentSource)},`,
+    );
+  }
   if (entry.aumMillionsEUR !== undefined) {
     optionalLines.push(`${indent}  aumMillionsEUR: ${entry.aumMillionsEUR},`);
   }
@@ -64,6 +81,7 @@ export function renderInstrumentRow(entry: NewEtfEntry, indent = "  "): string {
     `${indent}  distribution: ${json(entry.distribution)},`,
     `${indent}  currency: ${json(entry.currency)},`,
     `${indent}  comment: ${json(entry.comment)},`,
+    ...commentExtraLines,
     `${indent}  listings: ${listingsLiteral},`,
     `${indent}  defaultExchange: ${json(entry.defaultExchange)},`,
     ...optionalLines,
@@ -106,6 +124,15 @@ export function renderEntryBlock(entry: NewEtfEntry, indent = "  "): string {
   const listingsLiteral = `{ ${listingsParts.join(", ")} }`;
 
   const optionalLines: string[] = [];
+  const commentExtraLines: string[] = [];
+  if (entry.commentDe !== undefined) {
+    commentExtraLines.push(`${indent}  commentDe: ${json(entry.commentDe)},`);
+  }
+  if (entry.commentSource !== undefined) {
+    commentExtraLines.push(
+      `${indent}  commentSource: ${json(entry.commentSource)},`,
+    );
+  }
   if (entry.aumMillionsEUR !== undefined) {
     optionalLines.push(`${indent}  aumMillionsEUR: ${entry.aumMillionsEUR},`);
   }
@@ -122,6 +149,7 @@ export function renderEntryBlock(entry: NewEtfEntry, indent = "  "): string {
     `${indent}  distribution: ${json(entry.distribution)},`,
     `${indent}  currency: ${json(entry.currency)},`,
     `${indent}  comment: ${json(entry.comment)},`,
+    ...commentExtraLines,
     `${indent}  listings: ${listingsLiteral},`,
     `${indent}  defaultExchange: ${json(entry.defaultExchange)},`,
     ...optionalLines,

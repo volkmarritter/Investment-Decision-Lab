@@ -135,6 +135,18 @@ export function buildDraftFromPreview(p: PreviewResponse): AddEtfRequest {
       typeof f.description === "string" && f.description.trim()
         ? (f.description as string)
         : "",
+    // Task #207 round-3 — propagate provenance from the preview into
+    // the draft. /admin/preview-isin stamps `commentSource: "justetf"`
+    // when justETF returned a non-empty Investment-objective
+    // description; carrying it through to /admin/add-isin /
+    // /admin/instruments lets the server store the correct provenance
+    // and keeps the row eligible for auto-refresh on the next
+    // scheduled scrape.
+    ...(f.commentSource === "manual" ||
+    f.commentSource === "justetf" ||
+    f.commentSource === "auto"
+      ? { commentSource: f.commentSource }
+      : {}),
     listings,
     defaultExchange,
     aumMillionsEUR:
@@ -173,14 +185,28 @@ export function mergePreviewIntoAlternativeDraft(
   // Task #165 — seed Comment from the scraped "Investment objective"
   // ONLY when the operator hasn't typed anything yet. Manual edits
   // always win on a re-prefill.
-  const mergedComment =
-    current.comment && current.comment.trim()
-      ? current.comment
-      : typeof f.description === "string" && f.description.trim()
-        ? (f.description as string)
-        : current.comment;
+  const operatorTyped = current.comment && current.comment.trim();
+  const mergedComment = operatorTyped
+    ? current.comment
+    : typeof f.description === "string" && f.description.trim()
+      ? (f.description as string)
+      : current.comment;
+  // Task #207 round-3 — merge provenance: if the operator already
+  // typed a comment, preserve whatever they had (including any
+  // existing commentSource); otherwise inherit the preview's
+  // provenance ("justetf" when justETF supplied the description),
+  // falling back to whatever the draft already carried.
+  const mergedSource =
+    operatorTyped
+      ? current.commentSource
+      : f.commentSource === "manual" ||
+          f.commentSource === "justetf" ||
+          f.commentSource === "auto"
+        ? f.commentSource
+        : current.commentSource;
   return {
     ...current,
+    ...(mergedSource ? { commentSource: mergedSource } : {}),
     name: typeof f.name === "string" ? (f.name as string) : current.name,
     isin: p.isin,
     terBps:

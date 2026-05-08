@@ -237,7 +237,16 @@ export const PREVIEW_EXTRACTORS = {
   // the first <p> so we don't cross-match into unrelated sections
   // when justETF restructures the panel.
   description: (html) => {
+    // Primary anchor (2026-05): justETF moved the fund description to a
+    // testid-tagged container. The "content-inner" div holds the
+    // 1-2-sentence summary that used to live under "Investment
+    // objective" / "Anlageziel" — same semantic position, just a new
+    // wrapper. Fall back to the old heading-based capture when the
+    // testid isn't present (older snapshots, alternate templates).
     const m =
+      html.match(
+        /data-testid="etf-quote-section_description-content-inner"[^>]*>([\s\S]{20,3000}?)<\/div>/i,
+      ) ||
       html.match(
         /Investment\s+objective[\s\S]{0,400}?<p[^>]*>([\s\S]{20,3000}?)<\/p>/i,
       ) ||

@@ -9,8 +9,12 @@
 // auto-generated description used in the ETF details dialog so operators
 // scanning the implementation table can read the per-ETF summary inline
 // without having to click into each row's detail dialog. The
-// "auto-generated from look-through data" hint label keeps the curated
-// and machine-assembled cases visually distinguishable at a glance.
+// runtime fallback is rendered in italic so operators can still tell at a
+// glance which rows are missing a stored comment, but no separate hint
+// label is shown — the auto-backfill (Task #207) now persists the
+// resolved text into `comment`/`commentDe` directly so the runtime
+// fallback path should be exercised only for ETFs the backfill could not
+// reach.
 //
 // The actual text resolution lives in `resolveEtfImplementationComment()`
 // (lib/etfImplementationCommentText.ts) so the Excel export and this cell
@@ -32,6 +36,8 @@ interface EtfImplementationCommentCellProps {
   etf: Pick<
     ETFImplementation,
     | "comment"
+    | "commentDe"
+    | "commentSource"
     | "exampleETF"
     | "isin"
     | "bucket"
@@ -44,7 +50,7 @@ interface EtfImplementationCommentCellProps {
 export function EtfImplementationCommentCell({
   etf,
 }: EtfImplementationCommentCellProps) {
-  const { t, lang } = useT();
+  const { lang } = useT();
   const resolved = resolveEtfImplementationComment(etf as EtfCommentInput, lang);
 
   if (resolved.source === "curated") {
@@ -56,13 +62,10 @@ export function EtfImplementationCommentCell({
 
   return (
     <div
-      className="space-y-1"
+      className="italic"
       data-testid={`etf-impl-auto-description-${etf.bucket}`}
     >
-      <div className="italic">{resolved.text}</div>
-      <div className="text-[10px] uppercase tracking-wide text-muted-foreground/70 not-italic">
-        {t("etf.details.autoDescriptionHint")}
-      </div>
+      {resolved.text}
     </div>
   );
 }

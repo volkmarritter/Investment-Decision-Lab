@@ -24,6 +24,7 @@ import { createPatch, structuredPatch } from "diff";
 import { Octokit } from "@octokit/rest";
 import { requireAdmin } from "../middlewares/admin-auth";
 import { dataFile } from "../lib/data-paths";
+import { expandChangeRecord } from "../lib/changes-shim";
 import {
   directWriteMode,
   githubConfigured,
@@ -77,6 +78,31 @@ import {
 const router: IRouter = Router();
 
 router.use("/admin", requireAdmin);
+
+// Task #207 — central helper used by every admin write that accepts a
+// `commentSource` field. The contract:
+//   - if the client supplied a value (e.g. "justetf" carried over from
+//     /admin/preview-isin, or "manual" set explicitly by the operator),
+//     trust it verbatim;
+//   - if the client did NOT supply one, default to "manual" — that's the
+//     legacy assumption for any payload arriving without provenance,
+//     and it's the safest default because it locks the row out of the
+//     auto-backfill (a manual row is operator-promised content).
+// Centralising the rule keeps every admin route in lockstep — the
+// reviewer specifically called out drift as the failure mode.
+function stampSourceIfMissing<T extends { commentSource?: unknown } | undefined>(
+  raw: T,
+): T {
+  if (!raw) return raw;
+  if (
+    raw.commentSource === "manual" ||
+    raw.commentSource === "justetf" ||
+    raw.commentSource === "auto"
+  ) {
+    return raw;
+  }
+  return { ...raw, commentSource: "manual" } as T;
+}
 
 // --- /api/admin/whoami -------------------------------------------------------
 // Cheapest possible 200 — used by the UI to validate a stored token.
@@ -152,7 +178,16 @@ router.get("/admin/changes", async (req, res) => {
   // sort over a potentially-large file.
   for (let i = lines.length - 1; i >= 0 && entries.length < limit; i--) {
     try {
-      entries.push(JSON.parse(lines[i]));
+      const parsed = JSON.parse(lines[i]);
+      // Compatibility shim: expand the auto-description-refresh
+      // {changes:[…]} line shape into legacy per-field ChangeEntry rows
+      // so DataUpdates.tsx keeps rendering. Cap expansion to the
+      // remaining `limit` budget so a single ISIN with many fields
+      // can't crowd out older history.
+      for (const expanded of expandChangeRecord(parsed)) {
+        if (entries.length >= limit) break;
+        entries.push(expanded);
+      }
     } catch {
       // Skip malformed lines defensively rather than failing the whole
       // request — a single corrupted line should not blank the panel.
@@ -220,7 +255,14 @@ router.get("/admin/catalog", async (_req, res) => {
 // uses, so the in-app "Show generated code" disclosure is byte-identical
 // to what GitHub will see.
 router.post("/admin/render-entry", (req, res) => {
-  const entry = req.body?.entry as NewEtfEntry | undefined;
+  const rawEntry = req.body?.entry as NewEtfEntry | undefined;
+  // Task #207 — preserve a client-supplied commentSource (justetf when
+  // the description came from /admin/preview-isin, manual when the
+  // operator typed it). Default to "manual" only when the client didn't
+  // provide one — preserves the legacy behaviour for older callers
+  // while letting the preview pipeline carry justETF provenance through
+  // to the rendered PR block.
+  const entry = stampSourceIfMissing(rawEntry) as NewEtfEntry | undefined;
   const validationError = validateEntry(entry);
   if (validationError || !entry) {
     res.status(400).json({ error: "invalid_entry", message: validationError });
@@ -275,7 +317,11 @@ router.post("/admin/bucket-alternatives/render", (req, res) => {
   const parentKey = typeof req.body?.parentKey === "string"
     ? req.body.parentKey
     : "";
-  const entry = req.body?.entry as NewAlternativeEntry | undefined;
+  const rawEntry = req.body?.entry as NewAlternativeEntry | undefined;
+  // Task #207 — same manual-source stamp as /admin/render-entry.
+  const entry = rawEntry
+    ? (stampSourceIfMissing(rawEntry) as NewAlternativeEntry)
+    : undefined;
   const validationError = validateAlternative(entry);
   if (validationError || !entry) {
     res.status(400).json({ error: "invalid_entry", message: validationError });
@@ -303,7 +349,11 @@ router.post("/admin/bucket-alternatives", async (req, res) => {
   const parentKey = typeof req.body?.parentKey === "string"
     ? req.body.parentKey
     : "";
-  const entry = req.body?.entry as NewAlternativeEntry | undefined;
+  const rawEntry = req.body?.entry as NewAlternativeEntry | undefined;
+  // Task #207 — operator-driven add: stamp commentSource="manual".
+  const entry = rawEntry
+    ? (stampSourceIfMissing(rawEntry) as NewAlternativeEntry)
+    : undefined;
   const validationError = validateAlternative(entry);
   if (validationError || !entry) {
     res.status(400).json({ error: "invalid_entry", message: validationError });
@@ -789,6 +839,15 @@ router.post("/admin/bucket-alternatives/bulk", async (req, res) => {
       distribution,
       currency: typeof f.currency === "string" ? (f.currency as string) : "USD",
       comment: userComment ?? "",
+      // Task #207 — bulk-import rows leave `commentSource` unset so
+      // the auto-backfill is free to fill them in on the next refresh
+      // (operator did not paste a curated comment for these). When the
+      // operator DID paste a per-row comment via the editable bulk
+      // textarea (userComment !== undefined && non-empty), stamp it as
+      // manual so the auto-backfill respects the operator's text.
+      ...(userComment && userComment.trim()
+        ? { commentSource: "manual" as const }
+        : {}),
       defaultExchange: chosenExchange as NewAlternativeEntry["defaultExchange"],
       listings,
       ...(typeof f.aumMillionsEUR === "number"
@@ -1601,6 +1660,20 @@ router.delete("/admin/bucket-alternatives/:parentKey/:isin", async (req, res) =>
 router.post("/admin/preview-isin", async (req, res) => {
   try {
     const result = await scrapePreview(req.body?.isin);
+    // Task #207 — annotate the draft with the comment provenance so
+    // the UI can carry it through unmodified to /admin/add-isin: when
+    // justETF returned a non-empty Investment-objective description,
+    // stamp `commentSource: "justetf"` on the fields blob. The Suggest
+    // ISIN panel forwards `commentSource` verbatim, and the server's
+    // stampSourceIfMissing() helper preserves anything the client
+    // already set — so the rendered PR block correctly attributes the
+    // text to justETF instead of the operator.
+    const desc = (result as { fields?: Record<string, unknown> })?.fields
+      ?.description;
+    if (typeof desc === "string" && desc.trim().length > 0) {
+      (result as { fields: Record<string, unknown> }).fields.commentSource =
+        "justetf";
+    }
     res.json(result);
   } catch (err) {
     if (err instanceof PreviewError) {
@@ -1620,7 +1693,14 @@ router.post("/admin/add-isin", async (req, res) => {
   // Validate FIRST so a misconfigured server still tells the operator
   // when their payload is wrong (rather than masking the bug behind a
   // 503).
-  const entry = req.body?.entry as NewEtfEntry | undefined;
+  const rawEntry = req.body?.entry as NewEtfEntry | undefined;
+  // Task #207 — operator-driven adds always stamp the comment provenance
+  // as "manual" so the auto-backfill knows not to overwrite it on the
+  // next scrape pass. Stamp BEFORE validation so the validator sees the
+  // final shape going to the renderer.
+  const entry = rawEntry
+    ? (stampSourceIfMissing(rawEntry) as NewEtfEntry)
+    : undefined;
   const validationError = validateEntry(entry);
   if (validationError || !entry) {
     res.status(400).json({ error: "invalid_entry", message: validationError });
@@ -2369,6 +2449,22 @@ function validateEntry(e: NewEtfEntry | undefined): string | null {
     return "currency must be 3-letter code";
   if (typeof e.comment !== "string" || e.comment.length > 1000)
     return "comment must be a string up to 1000 chars";
+  // Task #207 — optional commentDe / commentSource. commentDe gets a
+  // generous cap (operators sometimes paste the full justETF
+  // "Investment objective" prose, which can run a bit longer than the
+  // English `comment`). commentSource is enum-validated.
+  if (e.commentDe !== undefined) {
+    if (typeof e.commentDe !== "string" || e.commentDe.length > 2000)
+      return "commentDe must be a string up to 2000 chars";
+  }
+  if (e.commentSource !== undefined) {
+    if (
+      e.commentSource !== "manual" &&
+      e.commentSource !== "justetf" &&
+      e.commentSource !== "auto"
+    )
+      return "commentSource must be one of manual / justetf / auto";
+  }
   if (!EXCHANGES.includes(e.defaultExchange as ExchangeKey))
     return "defaultExchange invalid";
   if (
@@ -2439,6 +2535,21 @@ function validateAlternative(e: NewAlternativeEntry | undefined): string | null 
     return "currency must be 3-letter code";
   if (typeof e.comment !== "string" || e.comment.length > 1000)
     return "comment must be a string up to 1000 chars";
+  // Task #207 — same optional commentDe / commentSource shape as
+  // validateEntry. Mirror the rules so an alternative cannot bypass
+  // any defence-in-depth check the top-level entry must pass.
+  if (e.commentDe !== undefined) {
+    if (typeof e.commentDe !== "string" || e.commentDe.length > 2000)
+      return "commentDe must be a string up to 2000 chars";
+  }
+  if (e.commentSource !== undefined) {
+    if (
+      e.commentSource !== "manual" &&
+      e.commentSource !== "justetf" &&
+      e.commentSource !== "auto"
+    )
+      return "commentSource must be one of manual / justetf / auto";
+  }
   if (!EXCHANGES.includes(e.defaultExchange as ExchangeKey))
     return "defaultExchange invalid";
   if (
@@ -2654,7 +2765,12 @@ router.get("/admin/instruments", async (_req, res) => {
 // POST /admin/instruments — register a new ISIN in INSTRUMENTS without
 // any bucket assignment. Refuses when the ISIN is already in the table.
 router.post("/admin/instruments", async (req, res) => {
-  const entry = req.body?.entry as NewInstrumentEntry | undefined;
+  const rawEntry = req.body?.entry as NewInstrumentEntry | undefined;
+  // Task #207 — operator-driven instrument creation: stamp
+  // commentSource="manual" so the auto-backfill leaves it alone.
+  const entry = rawEntry
+    ? (stampSourceIfMissing(rawEntry) as NewInstrumentEntry)
+    : undefined;
   // Reuse validateEntry by stamping a placeholder key; the renderer
   // ignores it and the route doesn't persist it.
   const validationError = validateEntry({
@@ -2714,7 +2830,11 @@ router.patch("/admin/instruments/:isin", async (req, res) => {
     });
     return;
   }
-  const entry = req.body?.entry as NewInstrumentEntry | undefined;
+  const rawEntry = req.body?.entry as NewInstrumentEntry | undefined;
+  // Task #207 — operator-driven edit: stamp commentSource="manual".
+  const entry = rawEntry
+    ? (stampSourceIfMissing(rawEntry) as NewInstrumentEntry)
+    : undefined;
   if (!entry || entry.isin?.toUpperCase() !== isin) {
     res.status(400).json({
       error: "isin_mismatch",
@@ -2828,6 +2948,14 @@ router.delete("/admin/instruments/:isin", async (req, res) => {
         distribution: inst.distribution as NewInstrumentEntry["distribution"],
         currency: inst.currency,
         comment: inst.comment,
+        // Task #207 — preserve the existing provenance metadata so the
+        // PR body diff doesn't drop a commentSource line that the row
+        // currently carries (the remove path doesn't actually re-emit
+        // the row, but openInstrumentPr renders it for the PR body).
+        ...(inst.commentDe !== undefined ? { commentDe: inst.commentDe } : {}),
+        ...(inst.commentSource !== undefined
+          ? { commentSource: inst.commentSource }
+          : {}),
         defaultExchange: inst.defaultExchange as NewInstrumentEntry["defaultExchange"],
         listings: inst.listings,
         ...(inst.aumMillionsEUR !== undefined ? { aumMillionsEUR: inst.aumMillionsEUR } : {}),
