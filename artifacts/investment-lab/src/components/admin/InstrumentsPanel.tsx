@@ -274,6 +274,15 @@ export function InstrumentsPanel({
                           en: "Used in",
                         })}
                       </th>
+                      <th
+                        className="px-2 py-1 font-medium"
+                        title={t({
+                          de: "Kurzbeschreibung des ETF. Quelle: zuerst manuell gepflegter Text, sonst der von justETF geholte Text, sonst eine automatisch erzeugte Beschreibung. Wird in der aktuellen Sprache angezeigt, falls vorhanden.",
+                          en: "Short description of the ETF. Source order: manually written text, otherwise the text scraped from justETF, otherwise an auto-generated fallback. Shown in the current language when available.",
+                        })}
+                      >
+                        {t({ de: "Kommentar", en: "Comment" })}
+                      </th>
                       <th className="px-2 py-1 font-medium text-right">
                         {t({ de: "Aktionen", en: "Actions" })}
                       </th>
@@ -393,6 +402,22 @@ export function InstrumentsPanel({
                                 })}
                               </span>
                             )}
+                          </td>
+                          <td className="px-2 py-1 text-muted-foreground align-top whitespace-pre-wrap break-words">
+                            {(() => {
+                              const text =
+                                lang === "de" && row.commentDe
+                                  ? row.commentDe
+                                  : row.comment;
+                              if (!text) {
+                                return (
+                                  <span className="italic">
+                                    {t({ de: "—", en: "—" })}
+                                  </span>
+                                );
+                              }
+                              return text;
+                            })()}
                           </td>
                           <td className="px-2 py-1 text-right">
                             <div className="inline-flex items-center gap-1">

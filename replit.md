@@ -28,11 +28,16 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 
 ## Validation policy (user preference — 2026-05)
 
-Match validation effort to the size of the change. Do not run the full e2e suite for trivial edits.
+Match validation effort to the size of the change. Do not run the full suite
+for small edits. Use the narrowest test group that covers what you touched
+(see Task #210 for the per-group script split).
 
-- **Copy-only tweaks in `i18n.tsx` (no JSX, no logic)** → typecheck only.
-- **Component JSX, props, or styling changes** → typecheck + unit tests (`pnpm --filter @workspace/investment-lab run test`).
-- **Logic, routing, state, persistence, calculation, or anything touching the home-bias / explain / build flows** → typecheck + unit tests + full e2e (`restart_workflow e2e`).
+- **Copy-only tweaks in `i18n.tsx` (no JSX, no logic)** → `pnpm run typecheck`.
+- **Component JSX, props, or styling changes** → `pnpm run typecheck` + `pnpm --filter @workspace/investment-lab run test:components`.
+- **Catalog mutations (inject / remove / validate / parsers / overrides / app-defaults / backfill)** → `pnpm run typecheck` + `pnpm --filter @workspace/investment-lab run test:catalog`.
+- **Engine, calculation, Monte Carlo, portfolio file I/O, build/explain helpers** → `pnpm run typecheck` + `pnpm --filter @workspace/investment-lab run test:engine`.
+- **Multi-concern or flow changes (routing, state, Build/Explain hand-off, persistence)** → `pnpm run typecheck` + `pnpm --filter @workspace/investment-lab run test:engine` + `pnpm --filter @workspace/investment-lab run test:components` + the relevant `pnpm --filter @workspace/investment-lab run test:e2e:<group>` (groups: `build`, `explain`, `compare`, `welcome`, `admin`, `misc`).
+- **Pre-deploy or cross-cutting changes** → `pnpm run typecheck` + `pnpm --filter @workspace/investment-lab run test` + `pnpm --filter @workspace/investment-lab run test:e2e` (or equivalently `restart_workflow e2e`).
 - **Always full e2e before suggesting `suggest_deploy`.**
 
 ## Admin direct-write mode (2026-05)

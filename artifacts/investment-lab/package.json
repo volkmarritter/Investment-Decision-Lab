@@ -10,7 +10,16 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:engine": "vitest run --project engine",
+    "test:catalog": "vitest run --project catalog",
+    "test:components": "vitest run --project components",
     "test:e2e": "playwright test --config=playwright.config.ts",
+    "test:e2e:build": "playwright test --config=playwright.config.ts tests/e2e/build-*.spec.ts",
+    "test:e2e:explain": "playwright test --config=playwright.config.ts tests/e2e/explain-*.spec.ts",
+    "test:e2e:compare": "playwright test --config=playwright.config.ts tests/e2e/compare-*.spec.ts",
+    "test:e2e:welcome": "playwright test --config=playwright.config.ts tests/e2e/welcome-*.spec.ts",
+    "test:e2e:admin": "playwright test --config=playwright.config.ts tests/e2e/admin-*.spec.ts",
+    "test:e2e:misc": "playwright test --config=playwright.config.ts tests/e2e/manual-weight.spec.ts tests/e2e/methodology-*.spec.ts",
     "test:e2e:install": "playwright install chromium"
   },
   "devDependencies": {
