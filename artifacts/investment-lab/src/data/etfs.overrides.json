@@ -1,10 +1,10 @@
 {
   "_meta": {
     "source": "justetf.com",
-    "lastRefreshed": "2026-05-07T05:42:38.884Z",
+    "lastRefreshed": "2026-05-08T05:15:17.014Z",
     "lastRefreshedMode": "listings",
     "lastCoreRefresh": "2026-05-03T06:12:24.107Z",
-    "lastListingsRefresh": "2026-05-07T05:42:38.884Z",
+    "lastListingsRefresh": "2026-05-08T05:15:17.014Z",
     "refreshedBy": "scripts/refresh-justetf.mjs",
     "note": "ISIN -> partial ETFRecord overrides applied on top of the in-code CATALOG in src/lib/etfs.ts. Populated by two CI cadences: weekly (Sundays 03:00 UTC) for core fund metadata and nightly (02:00 UTC) for the per-exchange listings map. Only fields present in this file override the catalog defaults; everything else stays as defined in code."
   },
@@ -2552,6 +2552,111 @@
         },
         "XETRA": {
           "ticker": "IS3M"
+        }
+      }
+    },
+    "IE00B53L3W79": {
+      "listings": {
+        "LSE": {
+          "ticker": "CSX5"
+        },
+        "Euronext": {
+          "ticker": "CSX5"
+        },
+        "SIX": {
+          "ticker": "CSSX5E"
+        },
+        "XETRA": {
+          "ticker": "SXRT"
+        }
+      }
+    },
+    "IE000LXEN6X4": {
+      "listings": {
+        "SIX": {
+          "ticker": "ES50"
+        },
+        "XETRA": {
+          "ticker": "ES50"
+        }
+      }
+    },
+    "IE00BD4TXW66": {
+      "listings": {
+        "SIX": {
+          "ticker": "SP5AU"
+        },
+        "LSE": {
+          "ticker": "S5UU"
+        },
+        "XETRA": {
+          "ticker": "BCFT"
+        }
+      }
+    },
+    "IE00BDBRT036": {
+      "listings": {
+        "Euronext": {
+          "ticker": "QCLN"
+        },
+        "LSE": {
+          "ticker": "QCLU"
+        },
+        "XETRA": {
+          "ticker": "QCLN"
+        }
+      }
+    },
+    "IE00B8J37J31": {
+      "listings": {
+        "SIX": {
+          "ticker": "IJPC"
+        }
+      }
+    },
+    "LU2573967036": {
+      "listings": {
+        "LSE": {
+          "ticker": "LEMA"
+        },
+        "XETRA": {
+          "ticker": "LEMA"
+        }
+      }
+    },
+    "IE000GA3D489": {
+      "listings": {
+        "LSE": {
+          "ticker": "ARKK"
+        },
+        "SIX": {
+          "ticker": "ARKK"
+        },
+        "XETRA": {
+          "ticker": "ARXK"
+        }
+      }
+    },
+    "IE00BD1JRY91": {
+      "listings": {
+        "SIX": {
+          "ticker": "AGGS"
+        }
+      }
+    },
+    "IE00B3VVMM84": {
+      "listings": {
+        "Euronext": {
+          "ticker": "VFEM"
+        },
+        "LSE": {
+          "ticker": "VDEM"
+        },
+        "SIX": {
+          "ticker": "VFEM"
+        },
+        "XETRA": {
+          "ticker": "VFEM"
         }
       }
     }

@@ -919,3 +919,12 @@
 {"ts":"2026-05-04T05:45:43.870Z","source":"justetf-listings","isin":"IE00B5L65R35","field":"listings","before":null,"after":{"LSE":{"ticker":"IS15"},"SIX":{"ticker":"IS15"}}}
 {"ts":"2026-05-05T05:25:56.079Z","source":"justetf-listings","isin":"IE00B9M6RS56","field":"listings","before":null,"after":{"LSE":{"ticker":"EMBE"},"SIX":{"ticker":"EMBE"},"XETRA":{"ticker":"IS3C"}}}
 {"ts":"2026-05-05T05:25:56.079Z","source":"justetf-listings","isin":"IE00BCRY6557","field":"listings","before":null,"after":{"Euronext":{"ticker":"ERNE"},"LSE":{"ticker":"ERNE"},"SIX":{"ticker":"ERNE"},"XETRA":{"ticker":"IS3M"}}}
+{"ts":"2026-05-08T05:15:17.014Z","source":"justetf-listings","isin":"IE00B53L3W79","field":"listings","before":null,"after":{"LSE":{"ticker":"CSX5"},"Euronext":{"ticker":"CSX5"},"SIX":{"ticker":"CSSX5E"},"XETRA":{"ticker":"SXRT"}}}
+{"ts":"2026-05-08T05:15:17.014Z","source":"justetf-listings","isin":"IE000LXEN6X4","field":"listings","before":null,"after":{"SIX":{"ticker":"ES50"},"XETRA":{"ticker":"ES50"}}}
+{"ts":"2026-05-08T05:15:17.014Z","source":"justetf-listings","isin":"IE00BD4TXW66","field":"listings","before":null,"after":{"SIX":{"ticker":"SP5AU"},"LSE":{"ticker":"S5UU"},"XETRA":{"ticker":"BCFT"}}}
+{"ts":"2026-05-08T05:15:17.014Z","source":"justetf-listings","isin":"IE00BDBRT036","field":"listings","before":null,"after":{"Euronext":{"ticker":"QCLN"},"LSE":{"ticker":"QCLU"},"XETRA":{"ticker":"QCLN"}}}
+{"ts":"2026-05-08T05:15:17.014Z","source":"justetf-listings","isin":"IE00B8J37J31","field":"listings","before":null,"after":{"SIX":{"ticker":"IJPC"}}}
+{"ts":"2026-05-08T05:15:17.014Z","source":"justetf-listings","isin":"LU2573967036","field":"listings","before":null,"after":{"LSE":{"ticker":"LEMA"},"XETRA":{"ticker":"LEMA"}}}
+{"ts":"2026-05-08T05:15:17.014Z","source":"justetf-listings","isin":"IE000GA3D489","field":"listings","before":null,"after":{"LSE":{"ticker":"ARKK"},"SIX":{"ticker":"ARKK"},"XETRA":{"ticker":"ARXK"}}}
+{"ts":"2026-05-08T05:15:17.014Z","source":"justetf-listings","isin":"IE00BD1JRY91","field":"listings","before":null,"after":{"SIX":{"ticker":"AGGS"}}}
+{"ts":"2026-05-08T05:15:17.014Z","source":"justetf-listings","isin":"IE00B3VVMM84","field":"listings","before":null,"after":{"Euronext":{"ticker":"VFEM"},"LSE":{"ticker":"VDEM"},"SIX":{"ticker":"VFEM"},"XETRA":{"ticker":"VFEM"}}}
