@@ -2131,7 +2131,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 7106,
     inceptionDate: "2010-01-26",
   }),
-  "IE000LXEN6X4": I({
+      "IE000LXEN6X4": I({
     name: "iShares EURO STOXX 50 ESG UCITS ETF EUR (Acc)",
     isin: "IE000LXEN6X4",
     terBps: 10,
@@ -2139,9 +2139,8 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Accumulating",
     currency: "EUR",
-    comment: "The iShares EURO STOXX 50 ESG UCITS ETF EUR (Acc) seeks to track the EURO STOXX® 50 ESG index. The EURO STOXX® 50 ESG index tracks companies from Eurozone countries. It excludes companies that do not comply with the principles of the UN Global Compact (controversial weapons, tobacco, consumers and producers of fossil energy sources).",
-    commentSource: "justetf",
-    commentDe: "Der iShares EURO STOXX 50 ESG UCITS ETF EUR (Acc) bildet den EURO STOXX® 50 ESG Index nach. Der EURO STOXX® 50 ESG Index bietet Zugang zu Unternehmen aus der Eurozone. Dabei werden Unternehmen ausgeschlossen, die nicht den Prinzipien der UN Global Compact entsprechen (kontroverse Waffen, Tabak, Nutzer und Förderer fossiler Brennstoffe).",
+    comment: "The iShares EURO STOXX 50 ESG UCITS ETF EUR (Acc) tracks large Eurozone companies while excluding firms that violate UN Global Compact principles or are involved in controversial weapons, tobacco, or fossil fuels.",
+    commentSource: "manual",
     listings: { "XETRA": { ticker: "ES50" }, "SIX": { ticker: "ES50" } },
     defaultExchange: "XETRA",
     aumMillionsEUR: 99,
@@ -2307,7 +2306,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 17893,
     inceptionDate: "2000-04-27",
   }),
-  "IE00BK5BQX27": I({
+    "IE00BK5BQX27": I({
     name: "Vanguard FTSE Developed Europe UCITS ETF (EUR) Accumulating",
     isin: "IE00BK5BQX27",
     terBps: 10,
@@ -2315,9 +2314,8 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     replication: "Physical",
     distribution: "Accumulating",
     currency: "EUR",
-    comment: "The Vanguard FTSE Developed Europe UCITS ETF (EUR) Accumulating seeks to track the FTSE Developed Europe index. The FTSE Developed Europe index tracks large and mid cap stocks from developed countries in Europe.",
-    commentSource: "justetf",
-    commentDe: "Der Vanguard FTSE Developed Europe UCITS ETF (EUR) Accumulating bildet den FTSE Developed Europe Index nach. Der FTSE Developed Europe Index bietet Zugang zu großen und mittleren Aktien aus europäischen Industrieländern.",
+    comment: "The Vanguard FTSE Developed Europe UCITS ETF (EUR) Accumulating seeks to track the FTSE Developed Europe index.",
+    commentSource: "manual",
     listings: { "LSE": { ticker: "VWCG" }, "XETRA": { ticker: "VWCG" }, "SIX": { ticker: "VWCG" }, "Euronext": { ticker: "VWCG" } },
     defaultExchange: "LSE",
     aumMillionsEUR: 2525,
