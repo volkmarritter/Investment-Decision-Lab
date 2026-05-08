@@ -169,8 +169,8 @@ export function CurrentAllocationCard({
         <div className="space-y-1">
           <h4 className="text-sm font-semibold">
             {lang === "de"
-              ? "Allokation nach Bucket (deine Auswahl)"
-              : "Allocation by bucket (your selection)"}
+              ? "Allokation nach Bucket (deine Auswahl, ohne Look-Through)"
+              : "Allocation by bucket (your selection, no look-through)"}
           </h4>
           <p className="text-xs text-muted-foreground">
             {lookThroughView && etfImplementation.length > 0

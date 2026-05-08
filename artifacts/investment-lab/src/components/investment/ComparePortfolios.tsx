@@ -1341,7 +1341,7 @@ export function ComparePortfolios() {
                 {/* Structural Differences */}
                 <Card>
                   <CardHeader>
-                    <CardTitle>{tr("Structural Differences", "Strukturelle Unterschiede")}</CardTitle>
+                    <CardTitle>{tr("Structural Differences (no look-through)", "Strukturelle Unterschiede (ohne Look-Through)")}</CardTitle>
                     <CardDescription>{tr("Direct allocation delta between A and B", "Direkte Allokationsdifferenz zwischen A und B")}</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-8">
