@@ -1,5 +1,14 @@
 import { test, expect } from "@playwright/test";
-import { dismissWelcomeIfPresent } from "./utils";
+import { dismissWelcomeIfPresent, resetAppState } from "./utils";
+
+// Task #234 — full client-state reset before every test in this file so
+// the explain-*.spec.ts group runs deterministically end-to-end (not just
+// when each file is invoked on its own). See `resetAppState` for the
+// rationale; the per-test cleanup later in this file is now redundant
+// but kept for clarity / single-file-runnability.
+test.beforeEach(async ({ page, context }) => {
+  await resetAppState(page, context);
+});
 
 // One catalog ISIN (Equity-USA) and one valid-but-uncatalogued ISIN
 // (Apple Inc., not in the curated UCITS-ETF catalog) to exercise both
