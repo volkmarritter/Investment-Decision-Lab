@@ -14,6 +14,7 @@ import {
   Scale,
   ChevronRight,
   Upload,
+  ClipboardCopy,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -1006,6 +1007,48 @@ export function ExplainPortfolio() {
     }
   }
 
+  // Task #229 — symmetric export to the paste-import format. Walks the
+  // positions in the same order the editor renders them (catalog
+  // asset-class groups in catalog order → manual entries → unassigned
+  // tail), emits one `ISIN / weight` line per row, and skips rows
+  // without an ISIN (Cash sentinel rows, half-filled manual rows) since
+  // the import format requires an ISIN per line.
+  function buildExportText(): string {
+    const lines: string[] = [];
+    const seen = new Set<number>();
+    const pushRow = (i: number) => {
+      if (seen.has(i)) return;
+      seen.add(i);
+      const p = state.positions[i];
+      if (!p || !p.isin) return;
+      lines.push(`${p.isin} / ${p.weight}`);
+    };
+    for (const [, buckets] of bucketsByAssetClass) {
+      for (const b of buckets) {
+        const idx = positionsByBucket.get(b.key) ?? [];
+        for (const i of idx) pushRow(i);
+      }
+    }
+    for (const i of manualRowIndices) pushRow(i);
+    for (const i of unassignedRowIndices) pushRow(i);
+    return lines.join("\n");
+  }
+
+  async function copyAsText() {
+    const text = buildExportText();
+    const count = text === "" ? 0 : text.split("\n").length;
+    if (count === 0) {
+      toast.error(t("explain.copyAsText.toast.empty"));
+      return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success(t("explain.copyAsText.toast.success", { n: count }));
+    } catch {
+      toast.error(t("explain.copyAsText.toast.error"));
+    }
+  }
+
   function loadWorkspace(workspace: ExplainWorkspace) {
     // Replace the current Explain workspace with a saved one. The state
     // sanitizer in savedExplainPortfolios already enforces the shape, so
@@ -1430,6 +1473,18 @@ export function ExplainPortfolio() {
                   >
                     <Upload className="mr-1.5 h-3 w-3" />
                     {t("explain.btn.import")}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={copyAsText}
+                    disabled={!state.positions.some((p) => !!p.isin)}
+                    className="h-8 text-xs"
+                    data-testid="explain-copy-as-text"
+                  >
+                    <ClipboardCopy className="mr-1.5 h-3 w-3" />
+                    {t("explain.btn.copyAsText")}
                   </Button>
                   <Button
                     type="button"

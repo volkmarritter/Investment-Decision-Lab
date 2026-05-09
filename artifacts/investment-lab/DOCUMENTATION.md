@@ -627,6 +627,30 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+### 2026-05 (explain-copy-as-text — Task #229)
+- **New affordance.** The Explain positions card gained a **Copy as
+  text** button (data-testid `explain-copy-as-text`) next to the
+  existing **Import** button. It is the symmetric counterpart of the
+  paste-to-import flow added in Task #227.
+- **What it copies.** All current positions that carry an ISIN, one per
+  line in the same `ISIN / weight` format the import dialog accepts —
+  so the output round-trips cleanly back into Import (or any external
+  spreadsheet / advisor email).
+- **Order.** Lines are emitted in the same order the editor renders
+  them: catalog asset-class groups in catalog order (`bucketsByAssetClass`
+  → `positionsByBucket`), then the **Manual entries** pseudo-group, then
+  the legacy **Unassigned** tail.
+- **Skipped rows.** Cash sentinel rows and any half-filled manual rows
+  with an empty ISIN are skipped (the import format requires an ISIN
+  per line). The button itself is disabled when no row carries an ISIN.
+- **Feedback.** Success toast reads "Copied N positions to clipboard"
+  / "N Positionen in die Zwischenablage kopiert"; clipboard failures
+  surface as an error toast. DE + EN copy added under
+  `explain.btn.copyAsText` and `explain.copyAsText.toast.*` in
+  `i18n.tsx`.
+- Files: `artifacts/investment-lab/src/components/investment/ExplainPortfolio.tsx`,
+  `artifacts/investment-lab/src/lib/i18n.tsx`.
+
 ### 2026-05 (explain-paste-to-import — Task #227)
 - **New affordance.** The Explain tab gained an **Import** button next
   to the Reset button in the positions card header. It opens a small
