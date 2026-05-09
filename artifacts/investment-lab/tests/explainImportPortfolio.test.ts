@@ -71,9 +71,15 @@ describe("parseImportText", () => {
     expect(out[0].weight).toBe(12.35);
   });
 
-  it("treats a missing weight as 0 (no error)", () => {
+  it("flags a missing slash as invalid-weight (input contract requires `/`)", () => {
     const out = parseImportText(`${ISIN_USA}`);
-    expect(out[0].error).toBeUndefined();
+    expect(out[0].error).toBe("invalid-weight");
+    expect(out[0].weight).toBe(0);
+  });
+
+  it("flags an empty right-hand side as invalid-weight", () => {
+    const out = parseImportText(`${ISIN_USA} /`);
+    expect(out[0].error).toBe("invalid-weight");
     expect(out[0].weight).toBe(0);
   });
 

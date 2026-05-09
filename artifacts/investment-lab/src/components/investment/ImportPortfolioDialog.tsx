@@ -69,8 +69,11 @@ export function parseImportText(text: string): ParsedImportLine[] {
     const isinOk = isValidIsin(isin);
     const weightTrim = weightPart.trim();
     let weight = 0;
-    let weightError = false;
-    if (weightTrim !== "") {
+    // Per task spec the input contract is strictly "ISIN / weight" per
+    // line. A missing "/" or an empty weight side is therefore an
+    // unparseable line, not a silent 0% row.
+    let weightError = slashIdx === -1 || weightTrim === "";
+    if (!weightError) {
       // Note: we deliberately do NOT use `parseDecimalInput(... min/max)`
       // here because it CLAMPS out-of-range values (e.g. 150 → 100).
       // For a paste-import we want strict validation: anything outside
