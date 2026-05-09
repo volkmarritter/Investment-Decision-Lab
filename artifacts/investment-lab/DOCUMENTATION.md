@@ -627,6 +627,64 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+### 2026-05 (explain-paste-to-import — Task #227)
+- **New affordance.** The Explain tab gained an **Import** button next
+  to the Reset button in the positions card header. It opens a small
+  dialog (`ImportPortfolioDialog.tsx`) where the user can paste one
+  position per line as `ISIN / weight` (weight in %, comma or dot
+  decimals both accepted, lines starting with `#` treated as comments).
+- **Routing per line.**
+  - **catalog** → ISIN found in the curated catalog AND assigned to a
+    bucket → row appended as a normal catalog row in that bucket
+    (`bucketKey` = bucket of the ISIN, no `manualMeta`).
+  - **found-unassigned** → ISIN found in INSTRUMENTS but not slotted
+    into any bucket → manual row, seeded with the instrument's name /
+    currency / TER and a guessed assetClass+region via
+    `inferAssetClassRegionFromInstrument` (same heuristic the
+    Unassigned-Instrument picker uses).
+  - **off-universe** → valid ISIN format but not in the catalog →
+    manual row at the bottom with default Equity / Global meta.
+  - **error** → invalid ISIN or invalid weight → reported per-line in
+    the dialog preview, NOT imported.
+- **Append-only.** Existing positions are preserved; imported rows are
+  pushed to the tail of `state.positions` and the matching weight
+  drafts are seeded so the imported weights show up in the inputs
+  immediately.
+- **Summary toast + sum check.** After import, a `toast.success` shows
+  `Imported {total} positions ({catalog} catalog, {unassigned}
+  unassigned, {offUniverse} off-universe)`. If the imported weights
+  don't sum to 100% (±0.01), a `toast.warning` reminds the user to use
+  Normalize. The dialog itself also surfaces the sum-≠-100 warning
+  inline in the preview before submission.
+- **Per-row origin badge.** `PositionRow` now derives a small badge
+  for any manual row whose `isin` is set:
+  - `not part of the ETF universe` (off-universe)
+  - `ETF found, but not assigned to a bucket` (found-unassigned)
+  Derived from the live catalog state, so it's accurate regardless of
+  whether the row was added via paste-import or by hand. Empty-ISIN
+  manual rows show nothing.
+- **i18n.** Full DE+EN coverage under the `explain.import.*` and
+  `explain.row.badge.*` namespaces in `src/lib/i18n.tsx`.
+- **Tests.** New `tests/explainImportPortfolio.test.ts` covers the
+  pure parser (`parseImportText`), the catalog mapper
+  (`classifyImportLines`) and the row builder
+  (`buildPositionsFromMapping`) — happy-path catalog/off-universe
+  routing, comma decimals, comment/blank-line skipping, invalid ISIN
+  and invalid weight error reporting, 1-based line numbers, and the
+  off-universe → manual-row default seeding. New
+  `tests/e2e/explain-import.spec.ts` covers the dialog end-to-end on
+  the iPhone-13 viewport: open dialog → paste a mixed catalog +
+  off-universe paste → live preview → submit → two rows appended →
+  total reflects imported weights → off-universe badge visible →
+  persistence across reload.
+- **No engine change.** Methodology page does not need updating —
+  this is a pure workspace affordance, not engine logic.
+- **Files.** `artifacts/investment-lab/src/components/investment/ImportPortfolioDialog.tsx` (new),
+  `…/ExplainPortfolio.tsx` (Import button, `appendImportedRows`
+  helper, dialog mount, per-row origin badge in `PositionRow`),
+  `src/lib/i18n.tsx` (new keys), `tests/explainImportPortfolio.test.ts`
+  (new), `tests/e2e/explain-import.spec.ts` (new).
+
 ### 2026-05 (blended-bucket-badge — Task #222)
 - **New affordance.** Allocation rows whose bucket holds 2+ ETFs in
   the `etfImplementation` array now show a small "N ETFs" badge

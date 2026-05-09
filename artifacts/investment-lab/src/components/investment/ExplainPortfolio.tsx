@@ -13,6 +13,7 @@ import {
   RotateCcw,
   Scale,
   ChevronRight,
+  Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -86,6 +87,10 @@ import { effectiveCashExpReturn } from "@/lib/metrics";
 import { useT } from "@/lib/i18n";
 
 import { ETFDetailsDialog } from "./ETFDetailsDialog";
+import {
+  ImportPortfolioDialog,
+  type ImportSummary,
+} from "./ImportPortfolioDialog";
 import type { ETFImplementation } from "@/lib/types";
 import { CurrentAllocationCard } from "./CurrentAllocationCard";
 import { PortfolioMetrics } from "./PortfolioMetrics";
@@ -653,6 +658,41 @@ function PositionRow({
           </div>
         );
       })()}
+      {/* Task #227 — origin badge for manual rows. Derived from the
+          live catalog, so it accurately reflects "where did this ISIN
+          end up landing" regardless of whether the row was added via
+          paste-import or by hand. Empty-ISIN manual rows show nothing. */}
+      {isManual && position.isin && (() => {
+        const inst = getInstrumentByIsin(position.isin);
+        const bk = inst ? getBucketKeyForIsin(position.isin) : "";
+        if (!inst) {
+          return (
+            <div className="pl-1">
+              <Badge
+                variant="outline"
+                className="text-[10px] font-normal text-muted-foreground"
+                data-testid={`explain-row-badge-off-universe-${rowIndex}`}
+              >
+                {t("explain.row.badge.offUniverse")}
+              </Badge>
+            </div>
+          );
+        }
+        if (!bk) {
+          return (
+            <div className="pl-1">
+              <Badge
+                variant="outline"
+                className="text-[10px] font-normal text-muted-foreground"
+                data-testid={`explain-row-badge-found-unassigned-${rowIndex}`}
+              >
+                {t("explain.row.badge.foundUnassigned")}
+              </Badge>
+            </div>
+          );
+        }
+        return null;
+      })()}
       {isManual && position.manualMeta && (
         <EtfInfoPreview
           isin={position.isin}
@@ -671,6 +711,7 @@ export function ExplainPortfolio() {
   const { t, lang } = useT();
 
   const [state, setState] = useState<PersistedState>(() => loadState());
+  const [importOpen, setImportOpen] = useState(false);
 
 
 
@@ -931,6 +972,38 @@ export function ExplainPortfolio() {
   function resetAll() {
     setState({ ...DEFAULT_STATE });
     setWeightDrafts([]);
+  }
+
+  // Task #227 — append imported rows in one shot. Mirrors the per-row
+  // helpers (addPositionInBucket / addManualPosition) but operates on a
+  // batch and seeds the matching weight drafts so the UI shows the
+  // imported weights immediately. Append-only: the existing positions
+  // are preserved.
+  function appendImportedRows(
+    rows: PersonalPosition[],
+    summary: ImportSummary,
+  ) {
+    if (rows.length === 0) return;
+    setState((s) => ({ ...s, positions: [...s.positions, ...rows] }));
+    setWeightDrafts((d) => [
+      ...d,
+      ...rows.map((r) => (r.weight > 0 ? String(r.weight) : "")),
+    ]);
+    toast.success(
+      t("explain.import.toast.summary", {
+        total: rows.length,
+        catalog: summary.catalog,
+        unassigned: summary.unassigned,
+        offUniverse: summary.offUniverse,
+      }),
+    );
+    if (Math.abs(summary.totalWeight - 100) > 0.01) {
+      toast.warning(
+        t("explain.import.toast.sumWarning", {
+          sum: summary.totalWeight.toFixed(1),
+        }),
+      );
+    }
   }
 
   function loadWorkspace(workspace: ExplainWorkspace) {
@@ -1347,6 +1420,17 @@ export function ExplainPortfolio() {
                   <CardDescription>{t("explain.positions.desc")}</CardDescription>
                 </div>
                 <div className="flex gap-2 flex-wrap justify-end items-center">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setImportOpen(true)}
+                    className="h-8 text-xs"
+                    data-testid="explain-import-open"
+                  >
+                    <Upload className="mr-1.5 h-3 w-3" />
+                    {t("explain.btn.import")}
+                  </Button>
                   <Button
                     type="button"
                     variant="ghost"
@@ -2094,6 +2178,13 @@ export function ExplainPortfolio() {
         onOpenChange={(o) => {
           if (!o) setDetailsEtf(null);
         }}
+      />
+      {/* Task #227 — paste-to-import dialog. Mounted at the root so the
+          Radix portal layers cleanly above the editor's bucket tree. */}
+      <ImportPortfolioDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        onImport={appendImportedRows}
       />
     </div>
   );
