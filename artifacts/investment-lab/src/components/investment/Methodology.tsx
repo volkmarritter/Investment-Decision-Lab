@@ -1777,7 +1777,42 @@ export function Methodology() {
             <li>{de ? "Korrelationen werden nicht angepasst (nur die Diagonal-Vola der betroffenen Equity-Buckets)." : "Correlations are not adjusted (only the diagonal vol of the affected equity buckets)."}</li>
             <li>{de ? "Bei Basiswährung USD passiert nichts — der Schalter wird wirkungslos." : "When the base currency is USD, the toggle is a no-op."}</li>
             <li>{de ? "Allokationen, Bucket-Gewichte und im Explain-Tab auch die Auswahl der konkreten ETFs bleiben unangetastet — der Schalter ist eine Annahme-Overlay, kein Rebalancer." : "Allocations, bucket weights and (in Explain) the user's specific ETF picks are left untouched — the toggle is an assumption overlay, not a rebalancer."}</li>
-            <li>{de ? "Look-Through-Daten ändern sich nicht (gleicher Underlying-Basket; nur die FX-Exposition der hedged Anteilsklassen wird in der Look-Through-Währungstabelle bewusst auf die Anteilsklassen-Währung gemappt — siehe Abschnitt zur Look-Through-Datenpflege)." : "Look-through data does not change (same underlying basket; only the FX exposure of hedged share classes is intentionally mapped to the share-class currency in the look-through currency table — see the look-through data maintenance section)."}</li>
+            <li>{de ? "Look-Through-Daten ändern sich nicht (gleicher Underlying-Basket). Die FX-Exposition hedged Anteilsklassen wird gesondert behandelt — siehe \u201ePost-Hedge-Zuordnung in der W\u00e4hrungs\u00fcbersicht\u201c unten." : "Look-through data does not change (same underlying basket). The FX exposure of hedged share classes is handled separately — see \"Post-Hedge mapping in the Currency Overview\" below."}</li>
+          </ul>
+          <p className="text-sm font-medium text-foreground pt-3">
+            {de ? "Post-Hedge-Zuordnung in der Währungsübersicht" : "Post-Hedge mapping in the Currency Overview"}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {de
+              ? "Die Spalte \u201ePost-Hedge\u201c in der konsolidierten W\u00e4hrungs\u00fcbersicht ist nicht an den globalen Hedging-Schalter gekoppelt — sie reagiert allein darauf, welche der tats\u00e4chlich gehaltenen ETFs als hedged gelten. Die Regel im Detail:"
+              : "The \"Post-Hedge\" column in the Consolidated Currency Overview is not driven by the global hedging toggle — it reacts solely to which of the actually-held ETFs qualify as hedged. The rule in detail:"}
+          </p>
+          <ul className="text-sm space-y-2 list-disc pl-5">
+            <li>
+              {de
+                ? <><span className="font-medium text-foreground">Erkennung:</span> ein ETF wird in der Währungsübersicht als hedged behandelt, wenn entweder (a) seine ISIN auf der kuratierten <code>HEDGED_ISINS</code>-Liste steht oder (b) sein Name auf <code>/Hedged/i</code> matcht. Das ist <span className="font-medium text-foreground">unabhängig vom globalen Hedging-Schalter</span> — es ist eine Eigenschaft des ETFs selbst.</>
+                : <><span className="font-medium text-foreground">Detection:</span> an ETF is treated as hedged in the Currency Overview when either (a) its ISIN is on the curated <code>HEDGED_ISINS</code> list, or (b) its name matches <code>/Hedged/i</code>. This is <span className="font-medium text-foreground">independent of the global hedging toggle</span> — it's a property of the ETF itself.</>}
+            </li>
+            <li>
+              {de
+                ? <><span className="font-medium text-foreground">Zuordnung:</span> das volle Gewicht des ETFs wird der <span className="font-medium text-foreground">hedged-Sleeve seiner Anteilsklassen-Währung</span> zugeschlagen (<code>e.currency</code>, mit Fallback auf die Basiswährung, falls leer). Die Underlying-Währungen werden für hedged ETFs bewusst ignoriert — kein Look-Through wird konsultiert.</>
+                : <><span className="font-medium text-foreground">Assignment:</span> the ETF's full weight is added to the <span className="font-medium text-foreground">hedged sleeve of its share-class currency</span> (<code>e.currency</code>, falling back to the base currency if missing). The underlying holdings' currencies are deliberately ignored for hedged ETFs — no look-through is consulted.</>}
+            </li>
+            <li>
+              {de
+                ? <><span className="font-medium text-foreground">Implizite Annahme:</span> das System geht davon aus, dass das Hedging-Ziel gleich der Anteilsklassen-Währung ist. Es liest <span className="italic">nicht</span> Strings wie „USD Hedged to EUR" aus dem Namen heraus. Für den kuratierten Katalog stimmt diese Annahme immer; eine manuell eingefügte ISIN, deren Anteilsklassen-Währung vom tatsächlichen Hedging-Ziel abweicht, würde falsch zugeordnet.</>
+                : <><span className="font-medium text-foreground">Implicit assumption:</span> the system trusts that the hedge target equals the share-class currency. It does <span className="italic">not</span> parse strings like \"USD Hedged to EUR\" out of the name. For the curated catalog this always matches reality; a manually pasted ISIN whose share-class currency differed from its hedge target would be mis-attributed.</>}
+            </li>
+            <li>
+              {de
+                ? <><span className="font-medium text-foreground">Beispiel mit fremder Basiswährung:</span> ein CHF-hedged Japan-ETF in einem EUR-Basisportfolio erscheint als CHF/Hedged — nicht als JPY und nicht als EUR/Hedged. Das ist die ehrliche Lesart: das JPY-Risiko ist weg-gehedged, aber das CHF/EUR-Wechselkursrisiko bleibt.</>
+                : <><span className="font-medium text-foreground">Cross-base example:</span> a CHF-hedged Japan ETF held inside a EUR-base portfolio shows up as CHF/Hedged — not JPY, not EUR/Hedged. That's the honest read: the JPY risk is hedged away but the CHF/EUR FX risk remains.</>}
+            </li>
+            <li>
+              {de
+                ? <><span className="font-medium text-foreground">Im Explain-Tab:</span> der globale Hedging-Schalter steuert diese Spalte gar nicht — die Post-Hedge-Sicht ergibt sich ausschließlich aus den vom Nutzer tatsächlich ausgewählten ETFs. Wer eine hedged Share Class wählt, sieht sie hier; wer keine wählt, sieht nichts auf der hedged Seite, selbst wenn der Schalter „Hedging an" steht.</>
+                : <><span className="font-medium text-foreground">In the Explain tab:</span> the global hedging toggle does not drive this column at all — the Post-Hedge view is determined purely by the ETFs the user actually picked. Pick a hedged share class and it shows up here; pick none and the hedged side is empty, even with the \"Hedging on\" toggle.</>}
+            </li>
           </ul>
         </Section>
         <Section value="wht" icon={<Coins className="h-4 w-4" />} title={de ? "Quellensteuer-Drag" : "Withholding-Tax Drag"} version={sectionVersionLong("wht")}>
