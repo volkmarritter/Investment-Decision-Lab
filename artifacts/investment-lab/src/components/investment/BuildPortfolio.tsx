@@ -42,6 +42,11 @@ import { Separator } from "@/components/ui/separator";
 import { MaximisableSection } from "./MaximisableSection";
 import { getSlotKind } from "./etfSlotBadge";
 import { SlotTagBadge } from "./SlotTagBadge";
+import {
+  BlendedBucketBadge,
+  bucketEtfCounts,
+  bucketKeyFor,
+} from "./BlendedBucketBadge";
 import { cn } from "@/lib/utils";
 
 import { PortfolioInput, PortfolioOutput, ValidationResult, BaseCurrency } from "@/lib/types";
@@ -1324,19 +1329,33 @@ export function BuildPortfolio() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {output.allocation
-                            .slice()
-                            .sort((a, b) => compareBuckets(
-                              { name: `${a.assetClass} - ${a.region}`, value: a.weight },
-                              { name: `${b.assetClass} - ${b.region}`, value: b.weight },
-                            ))
-                            .map((alloc, i) => (
-                            <TableRow key={i}>
-                              <TableCell className="font-medium">{alloc.assetClass}</TableCell>
-                              <TableCell className="text-muted-foreground">{alloc.region}</TableCell>
-                              <TableCell className="text-right font-mono">{alloc.weight.toFixed(1)}%</TableCell>
-                            </TableRow>
-                          ))}
+                          {(() => {
+                            const counts = bucketEtfCounts(output.etfImplementation);
+                            return output.allocation
+                              .slice()
+                              .sort((a, b) => compareBuckets(
+                                { name: `${a.assetClass} - ${a.region}`, value: a.weight },
+                                { name: `${b.assetClass} - ${b.region}`, value: b.weight },
+                              ))
+                              .map((alloc, i) => {
+                                const count = counts.get(bucketKeyFor(alloc.assetClass, alloc.region)) ?? 0;
+                                return (
+                                  <TableRow key={i}>
+                                    <TableCell className="font-medium">{alloc.assetClass}</TableCell>
+                                    <TableCell className="text-muted-foreground">
+                                      <span className="inline-flex items-center gap-2">
+                                        <span>{alloc.region}</span>
+                                        <BlendedBucketBadge
+                                          count={count}
+                                          testId={`build-blended-badge-${alloc.assetClass}-${alloc.region}`}
+                                        />
+                                      </span>
+                                    </TableCell>
+                                    <TableCell className="text-right font-mono">{alloc.weight.toFixed(1)}%</TableCell>
+                                  </TableRow>
+                                );
+                              });
+                          })()}
                           <TableRow className="bg-muted/50 font-bold">
                             <TableCell colSpan={2}>Total</TableCell>
                             <TableCell className="text-right font-mono">100.0%</TableCell>

@@ -62,6 +62,11 @@ import { LookThroughAnalysis } from "./LookThroughAnalysis";
 import { TopHoldings } from "./TopHoldings";
 import { EtfImplementationReadOnly } from "./EtfImplementationReadOnly";
 import { ETFDetailsDialog } from "./ETFDetailsDialog";
+import {
+  BlendedBucketBadge,
+  bucketEtfCounts,
+  bucketKeyFor,
+} from "./BlendedBucketBadge";
 import type { ETFImplementation } from "@/lib/types";
 import { estimateFees } from "@/lib/fees";
 import { parseDecimalInput } from "@/lib/manualWeights";
@@ -1423,19 +1428,48 @@ export function ComparePortfolios() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {diff.rows.map((row, i) => (
-                            <TableRow key={i}>
-                              <TableCell className="font-medium">
-                                <div>{row.assetClass}</div>
-                                <div className="text-xs text-muted-foreground">{row.region}</div>
-                              </TableCell>
-                              <TableCell className="text-right font-mono">{row.a.toFixed(1)}%</TableCell>
-                              <TableCell className="text-right font-mono">{row.b.toFixed(1)}%</TableCell>
-                              <TableCell className={`text-right font-mono font-medium ${row.delta > 0 ? 'text-emerald-600 dark:text-emerald-400' : row.delta < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-muted-foreground'}`}>
-                                {row.delta > 0 ? '+' : ''}{row.delta.toFixed(1)}%
-                              </TableCell>
-                            </TableRow>
-                          ))}
+                          {(() => {
+                            const countsA = bucketEtfCounts(outputA?.etfImplementation);
+                            const countsB = bucketEtfCounts(outputB?.etfImplementation);
+                            return diff.rows.map((row, i) => {
+                              const key = bucketKeyFor(row.assetClass, row.region);
+                              const cA = countsA.get(key) ?? 0;
+                              const cB = countsB.get(key) ?? 0;
+                              return (
+                                <TableRow key={i}>
+                                  <TableCell className="font-medium">
+                                    <div>{row.assetClass}</div>
+                                    <div className="text-xs text-muted-foreground flex items-center gap-2">
+                                      <span>{row.region}</span>
+                                      {cA >= 2 && (
+                                        <span className="inline-flex items-center gap-1">
+                                          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">A</span>
+                                          <BlendedBucketBadge
+                                            count={cA}
+                                            testId={`compare-blended-badge-A-${row.assetClass}-${row.region}`}
+                                          />
+                                        </span>
+                                      )}
+                                      {cB >= 2 && (
+                                        <span className="inline-flex items-center gap-1">
+                                          <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">B</span>
+                                          <BlendedBucketBadge
+                                            count={cB}
+                                            testId={`compare-blended-badge-B-${row.assetClass}-${row.region}`}
+                                          />
+                                        </span>
+                                      )}
+                                    </div>
+                                  </TableCell>
+                                  <TableCell className="text-right font-mono">{row.a.toFixed(1)}%</TableCell>
+                                  <TableCell className="text-right font-mono">{row.b.toFixed(1)}%</TableCell>
+                                  <TableCell className={`text-right font-mono font-medium ${row.delta > 0 ? 'text-emerald-600 dark:text-emerald-400' : row.delta < 0 ? 'text-rose-600 dark:text-rose-400' : 'text-muted-foreground'}`}>
+                                    {row.delta > 0 ? '+' : ''}{row.delta.toFixed(1)}%
+                                  </TableCell>
+                                </TableRow>
+                              );
+                            });
+                          })()}
                         </TableBody>
                       </Table>
                     </div>

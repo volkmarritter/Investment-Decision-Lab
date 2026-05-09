@@ -627,6 +627,29 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+### 2026-05 (blended-bucket-badge — Task #222)
+- **New affordance.** Allocation rows whose bucket holds 2+ ETFs in
+  the `etfImplementation` array now show a small "N ETFs" badge
+  (Layers icon + count) next to the row's region label, with a
+  bilingual (DE+EN) tooltip explaining that the look-through view
+  blends the ETFs proportionally to their weights so the metrics,
+  geography, currency and Monte Carlo numbers reflect a weighted mix
+  rather than a single fund.
+- **Surfaces.** Build's "Allokation nach Bucket (deine Auswahl)"
+  table (`BuildPortfolio.tsx`), Explain's `CurrentAllocationCard`
+  per-bucket table, and Compare's "Structural Differences" table —
+  the Compare row prefixes each badge with `A` / `B` so operators
+  can tell which side is blended.
+- **Implementation.** New shared
+  `artifacts/investment-lab/src/components/investment/BlendedBucketBadge.tsx`
+  exports the `BlendedBucketBadge` component plus two pure helpers
+  (`bucketEtfCounts`, `bucketKeyFor`) so each table can compute its
+  per-row count from the `bucket` field on `ETFImplementation`
+  (`${assetClass} - ${region}`). New i18n keys
+  `blendedBucket.badge` and `blendedBucket.tooltip` (DE+EN) drive the
+  copy. No engine, MC, or look-through routing change — purely a
+  visual hint over the existing data flow added by Task #221.
+
 ### 2026-05 (lookthrough-routing-multi-etf-bucket — Task #221)
 - **Bug fixed.** `mapAllocationToAssetsLookthrough` in
   `artifacts/investment-lab/src/lib/metrics.ts` previously built a

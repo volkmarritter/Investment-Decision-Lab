@@ -41,6 +41,11 @@ import { colorForBucket, compareBuckets } from "@/lib/chartColors";
 import { useT } from "@/lib/i18n";
 
 import { AllocationGroupSummary } from "./AllocationGroupSummary";
+import {
+  BlendedBucketBadge,
+  bucketEtfCounts,
+  bucketKeyFor,
+} from "./BlendedBucketBadge";
 
 interface Props {
   allocation: AssetAllocation[];
@@ -198,33 +203,47 @@ export function CurrentAllocationCard({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {allocation
-                .slice()
-                .sort((a, b) =>
-                  compareBuckets(
-                    {
-                      name: `${a.assetClass} - ${a.region}`,
-                      value: a.weight,
-                    },
-                    {
-                      name: `${b.assetClass} - ${b.region}`,
-                      value: b.weight,
-                    },
-                  ),
-                )
-                .map((alloc, i) => (
-                  <TableRow key={i}>
-                    <TableCell className="font-medium">
-                      {alloc.assetClass}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground">
-                      {alloc.region}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
-                      {alloc.weight.toFixed(1)}%
-                    </TableCell>
-                  </TableRow>
-                ))}
+              {(() => {
+                const counts = bucketEtfCounts(etfImplementation);
+                return allocation
+                  .slice()
+                  .sort((a, b) =>
+                    compareBuckets(
+                      {
+                        name: `${a.assetClass} - ${a.region}`,
+                        value: a.weight,
+                      },
+                      {
+                        name: `${b.assetClass} - ${b.region}`,
+                        value: b.weight,
+                      },
+                    ),
+                  )
+                  .map((alloc, i) => {
+                    const count =
+                      counts.get(bucketKeyFor(alloc.assetClass, alloc.region)) ??
+                      0;
+                    return (
+                      <TableRow key={i}>
+                        <TableCell className="font-medium">
+                          {alloc.assetClass}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground">
+                          <span className="inline-flex items-center gap-2">
+                            <span>{alloc.region}</span>
+                            <BlendedBucketBadge
+                              count={count}
+                              testId={`explain-blended-badge-${alloc.assetClass}-${alloc.region}`}
+                            />
+                          </span>
+                        </TableCell>
+                        <TableCell className="text-right font-mono">
+                          {alloc.weight.toFixed(1)}%
+                        </TableCell>
+                      </TableRow>
+                    );
+                  });
+              })()}
               <TableRow className="bg-muted/50 font-bold">
                 <TableCell colSpan={2}>
                   {lang === "de" ? "Gesamt" : "Total"}
