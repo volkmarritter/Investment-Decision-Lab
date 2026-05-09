@@ -134,11 +134,17 @@ export function classifyImportLines(
 export function buildPositionsFromMapping(
   mapping: ImportLineMapping[],
 ): PersonalPosition[] {
-  const rows: PersonalPosition[] = [];
+  // Per task spec, manual rows split into two subgroups whose ORDER
+  // matters: "found-unassigned" first, "off-universe" last, each
+  // preserving input order within its subgroup. Catalog rows append
+  // ahead of the manual subgroups in their original input order.
+  const catalog: PersonalPosition[] = [];
+  const foundUnassigned: PersonalPosition[] = [];
+  const offUniverse: PersonalPosition[] = [];
   for (const m of mapping) {
     if (m.kind === "error") continue;
     if (m.kind === "catalog") {
-      rows.push({
+      catalog.push({
         isin: m.isin,
         bucketKey: m.bucketKey!,
         weight: m.weight,
@@ -148,7 +154,7 @@ export function buildPositionsFromMapping(
     if (m.kind === "found-unassigned") {
       const inst = getInstrumentByIsin(m.isin)!;
       const guess = inferAssetClassRegionFromInstrument(inst);
-      rows.push({
+      foundUnassigned.push({
         isin: m.isin,
         bucketKey: "",
         weight: m.weight,
@@ -163,14 +169,14 @@ export function buildPositionsFromMapping(
       continue;
     }
     // off-universe
-    rows.push({
+    offUniverse.push({
       isin: m.isin,
       bucketKey: "",
       weight: m.weight,
       manualMeta: { assetClass: "Equity", region: "Global" },
     });
   }
-  return rows;
+  return [...catalog, ...foundUnassigned, ...offUniverse];
 }
 
 export interface ImportSummary {
@@ -218,6 +224,12 @@ export function ImportPortfolioDialog({
 }: ImportPortfolioDialogProps) {
   const { t } = useT();
   const [text, setText] = useState("");
+  // Two-step error gate: when the paste contains any unparseable line,
+  // the first click on Import only validates and surfaces the errors.
+  // The user must then either fix the input (which clears
+  // `errorsAcknowledged` because the textarea changed) or click the
+  // explicit "Import anyway" button to commit the valid subset.
+  const [errorsAcknowledged, setErrorsAcknowledged] = useState(false);
 
   const parsed = useMemo(() => parseImportText(text), [text]);
   const mapping = useMemo(() => classifyImportLines(parsed), [parsed]);
@@ -225,16 +237,37 @@ export function ImportPortfolioDialog({
 
   const importable = mapping.filter((m) => m.kind !== "error");
   const canImport = importable.length > 0;
+  const hasErrors = summary.errors > 0;
+  // First click with errors → validate-only (just acknowledge); next
+  // click commits. No errors → first click commits directly.
+  const blockedByErrors = hasErrors && !errorsAcknowledged;
+
+  function handleTextChange(next: string) {
+    setText(next);
+    // Any edit invalidates a previous "Import anyway" acknowledgement
+    // so the user sees the fresh error list and must reconfirm.
+    if (errorsAcknowledged) setErrorsAcknowledged(false);
+  }
 
   function handleImport() {
+    if (blockedByErrors) {
+      // Validate-only step: don't commit yet, just surface errors and
+      // arm the "Import anyway" button.
+      setErrorsAcknowledged(true);
+      return;
+    }
     const rows = buildPositionsFromMapping(mapping);
     onImport(rows, summary);
     setText("");
+    setErrorsAcknowledged(false);
     onOpenChange(false);
   }
 
   function handleOpenChange(next: boolean) {
-    if (!next) setText("");
+    if (!next) {
+      setText("");
+      setErrorsAcknowledged(false);
+    }
     onOpenChange(next);
   }
 
@@ -255,7 +288,7 @@ export function ImportPortfolioDialog({
         <div className="space-y-3">
           <Textarea
             value={text}
-            onChange={(e) => setText(e.target.value)}
+            onChange={(e) => handleTextChange(e.target.value)}
             placeholder={t("explain.import.placeholder")}
             rows={8}
             spellCheck={false}
@@ -356,11 +389,18 @@ export function ImportPortfolioDialog({
           <Button
             type="button"
             onClick={handleImport}
-            disabled={!canImport}
+            disabled={!canImport && !hasErrors}
             data-testid="explain-import-submit"
+            variant={blockedByErrors ? "secondary" : "default"}
           >
             <Upload className="mr-1.5 h-4 w-4" />
-            {t("explain.import.submit", { n: importable.length })}
+            {blockedByErrors
+              ? t("explain.import.submit.validate")
+              : hasErrors && errorsAcknowledged
+                ? t("explain.import.submit.anyway", {
+                    n: importable.length,
+                  })
+                : t("explain.import.submit", { n: importable.length })}
           </Button>
         </DialogFooter>
       </DialogContent>

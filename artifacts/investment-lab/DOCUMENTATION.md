@@ -650,6 +650,16 @@ Append a new entry whenever functionality changes. Newest first.
   pushed to the tail of `state.positions` and the matching weight
   drafts are seeded so the imported weights show up in the inputs
   immediately.
+- **Subgroup ordering.** Within a single import, rows are emitted in
+  three blocks: catalog rows first (in input order), then
+  found-unassigned rows (in input order), then off-universe rows last
+  (in input order) — even when the source paste interleaves the kinds.
+- **Two-step error gate.** When the paste contains any unparseable
+  line, the first click on Import does NOT commit anything — it only
+  flips the button into a "Review errors" state so the user sees the
+  per-line error list. A second click ("Import {n} anyway") commits
+  the valid subset. Editing the textarea resets the gate so the user
+  must reconfirm.
 - **Summary toast + sum check.** After import, a `toast.success` shows
   `Imported {total} positions ({catalog} catalog, {unassigned}
   unassigned, {offUniverse} off-universe)`. If the imported weights

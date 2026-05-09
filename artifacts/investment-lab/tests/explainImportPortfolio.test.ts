@@ -136,6 +136,33 @@ describe("buildPositionsFromMapping", () => {
     });
   });
 
+  it("orders manual rows: catalog rows first, then found-unassigned, then off-universe", () => {
+    // Interleave the kinds in the source paste; the builder must
+    // regroup so that off-universe is strictly after found-unassigned.
+    const text = [
+      `${ISIN_OFF} / 5`,
+      `${ISIN_USA} / 60`,
+      ...(FOUND_UNASSIGNED_ISIN ? [`${FOUND_UNASSIGNED_ISIN} / 10`] : []),
+    ].join("\n");
+    const rows = buildPositionsFromMapping(
+      classifyImportLines(parseImportText(text)),
+    );
+    // Catalog row first.
+    expect(rows[0].isin).toBe(ISIN_USA);
+    expect(rows[0].bucketKey).not.toBe("");
+    if (FOUND_UNASSIGNED_ISIN) {
+      // Found-unassigned next, off-universe last.
+      expect(rows[1].isin).toBe(FOUND_UNASSIGNED_ISIN);
+      expect(rows[1].bucketKey).toBe("");
+      expect(rows[2].isin).toBe(ISIN_OFF);
+      expect(rows[2].bucketKey).toBe("");
+    } else {
+      // Without a found-unassigned candidate, off-universe still
+      // lands after the catalog row.
+      expect(rows[1].isin).toBe(ISIN_OFF);
+    }
+  });
+
   it("skips error lines entirely", () => {
     const mapped = classifyImportLines(
       parseImportText(`BAD / 10\n${ISIN_USA} / 50`),
