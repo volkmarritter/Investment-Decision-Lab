@@ -627,6 +627,43 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+### 2026-05 (lookthrough-routing-multi-etf-bucket — Task #221)
+- **Bug fixed.** `mapAllocationToAssetsLookthrough` in
+  `artifacts/investment-lab/src/lib/metrics.ts` previously built a
+  single-ISIN `Map<bucket, isin>` by iterating `etfImplementation` and
+  overwriting on collision. When two or more ETFs shared the same
+  bucket key (e.g. an MSCI World fund + an S&P 500 fund both assigned
+  to a single Equity-Global slot in an Explain workspace), the map only
+  retained the last ETF and the entire combined bucket weight was
+  routed through that one geo profile.
+- **Fix.** The map is now `Map<bucket, Array<{isin, weight}>>`. For
+  each equity allocation row the function distributes the row weight
+  across all ETFs in the bucket proportionally to each ETF's weight,
+  routes each slice independently through its own profile (with the
+  existing `routeByRegion` fallback applied per slice when an ETF
+  lacks a usable equity profile or has unmapped country labels), and
+  sums the contributions. Total row weight is conserved; the visual
+  look-through cards (`buildLookthrough`, `buildCurrencyOverview`)
+  were already correct and are unchanged.
+- **Surfaces affected.** All metrics that consume
+  `mapAllocationToAssetsLookthrough` — portfolio expected return,
+  Sharpe, vol/beta/alpha, TE decomposition, the
+  `CurrentAllocationCard` and `PortfolioMetrics` numbers, Monte Carlo
+  routing, the Compare tab, and the PDF report — now reflect a true
+  weighted blend of all ETFs in a bucket. Previously only the
+  Geography / Currency / Top-Holdings / Home-Bias look-through cards
+  showed the correct picture; the metrics cards and downstream
+  surfaces silently disagreed.
+- **Test.** New regression in
+  `artifacts/investment-lab/tests/engine.test.ts`
+  (`"mapAllocationToAssetsLookthrough blends multiple ETFs sharing the
+  same bucket"`) constructs a single Equity-Global allocation row with
+  two ETFs in the same bucket (MSCI Europe + S&P 500), verifies total
+  weight conservation, asserts that the blended UK exposure lies
+  strictly between the two single-ETF results, and pins both UK and
+  US exposure to the closed-form 60/40 weighted blend of the
+  single-ETF runs.
+
 ### 2026-05 (admin-instruments-regenerate-description — Task #211)
 - **What changed.** The admin **Instruments** sub-tab now lets operators
   re-derive the description for any registered ISIN without manually

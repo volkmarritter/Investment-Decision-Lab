@@ -1232,6 +1232,100 @@ describe("metrics", () => {
     expect(m2.alpha).toBeCloseTo(m1.alpha, 6);
   });
 
+  it("mapAllocationToAssetsLookthrough blends multiple ETFs sharing the same bucket", () => {
+    // Regression for Task #221: when two ETFs are assigned to the same
+    // bucket key (e.g. an MSCI World fund + an S&P 500 fund both in
+    // Equity-Global, or an MSCI Europe + an MSCI EMU both in
+    // Equity-Europe), the look-through router used to overwrite the
+    // earlier ETF with the later one and route the entire combined
+    // weight through only the last profile. The fix routes each ETF's
+    // weighted slice independently and sums the results.
+    const ISIN_EUROPE = "IE00B4K48X80"; // MSCI Europe — has UK + CH content
+    const ISIN_USA = "IE00B5BMR087";    // S&P 500 — pure US, zero UK / CH
+    const pEurope = profileFor(ISIN_EUROPE)!;
+    const pUsa = profileFor(ISIN_USA)!;
+    expect(pEurope?.isEquity).toBe(true);
+    expect(pUsa?.isEquity).toBe(true);
+
+    // Sanity: the two ETFs MUST disagree on UK content for the blend to
+    // be observably different from either ETF alone. MSCI Europe has
+    // material UK; an S&P 500 fund has none.
+    const totalEurope = Object.values(pEurope.geo).reduce((s, v) => s + v, 0);
+    const totalUsa = Object.values(pUsa.geo).reduce((s, v) => s + v, 0);
+    const ukPctEurope = (pEurope.geo["United Kingdom"] ?? 0) / totalEurope;
+    const ukPctUsa = (pUsa.geo["United Kingdom"] ?? 0) / totalUsa;
+    expect(ukPctEurope).toBeGreaterThan(0.05);
+    expect(ukPctUsa).toBeLessThan(0.001);
+
+    // The two ETFs share a single bucket key — the realistic scenario is
+    // an operator-edited Explain portfolio where a "World blend" Global
+    // bucket holds both a regional Europe fund and an S&P 500 fund.
+    const allocation: AssetAllocation[] = [
+      { assetClass: "Equity", region: "Global", weight: 20 },
+    ];
+    const mkEntry = (isin: string, weight: number): ETFImplementation => ({
+      bucket: "Equity - Global",
+      assetClass: "Equity",
+      weight,
+      intent: "",
+      exampleETF: "",
+      rationale: "",
+      isin,
+      ticker: "",
+      exchange: "",
+      terBps: 12,
+      domicile: "IE",
+      replication: "Physical",
+      distribution: "Accumulating",
+      currency: "EUR",
+      comment: "",
+    });
+
+    const both = mapAllocationToAssetsLookthrough(
+      allocation,
+      [mkEntry(ISIN_EUROPE, 12), mkEntry(ISIN_USA, 8)],
+    );
+    const europeOnly = mapAllocationToAssetsLookthrough(
+      allocation,
+      [mkEntry(ISIN_EUROPE, 20)],
+    );
+    const usaOnly = mapAllocationToAssetsLookthrough(
+      allocation,
+      [mkEntry(ISIN_USA, 20)],
+    );
+
+    // Total weight conserved regardless of how many ETFs share the bucket.
+    const sum = (xs: { weight: number }[]) => xs.reduce((s, x) => s + x.weight, 0);
+    expect(sum(both)).toBeCloseTo(0.20, 6);
+    expect(sum(europeOnly)).toBeCloseTo(0.20, 6);
+    expect(sum(usaOnly)).toBeCloseTo(0.20, 6);
+
+    const ukBoth = both.find((e) => e.key === "equity_uk")?.weight ?? 0;
+    const ukEurope = europeOnly.find((e) => e.key === "equity_uk")?.weight ?? 0;
+    const ukUsa = usaOnly.find((e) => e.key === "equity_uk")?.weight ?? 0;
+
+    // The blend must lie strictly between the two single-ETF endpoints —
+    // proves both ETFs contributed instead of one overwriting the other.
+    expect(ukUsa).toBeLessThan(0.0005);
+    expect(ukBoth).toBeGreaterThan(ukUsa + 1e-6);
+    expect(ukBoth).toBeLessThan(ukEurope - 1e-6);
+
+    // And it must equal the closed-form 60/40 weighted blend exactly.
+    const expectedUk = 0.6 * ukEurope + 0.4 * ukUsa;
+    expect(ukBoth).toBeCloseTo(expectedUk, 8);
+
+    // Cross-check the US side too: the blend must equal the closed-form
+    // 60/40 weighted average of the two single-ETF results — anything
+    // else means the second ETF was being silently dropped or
+    // overwriting the first. (Use the live profile values rather than
+    // assuming MSCI Europe contributes zero US, since the profile
+    // overrides file may contain trace residual US weight.)
+    const usBoth = both.find((e) => e.key === "equity_us")?.weight ?? 0;
+    const usEurope = europeOnly.find((e) => e.key === "equity_us")?.weight ?? 0;
+    const usUsa = usaOnly.find((e) => e.key === "equity_us")?.weight ?? 0;
+    expect(usBoth).toBeCloseTo(0.6 * usEurope + 0.4 * usUsa, 8);
+  });
+
   it("decomposeTrackingError with look-through shrinks UK underweight when held via Europe ETF", () => {
     // Operator's portfolio: 8.7% Equity-Europe + no explicit UK or CH.
     // Without look-through the TE-contribution table reports UK as a

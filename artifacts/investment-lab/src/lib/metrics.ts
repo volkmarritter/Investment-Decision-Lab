@@ -606,8 +606,16 @@ export function mapAllocationToAssetsLookthrough(
 ): AssetExposure[] {
   // bucketKey convention from portfolio.ts:349 / manualWeights.ts:25
   // is `${assetClass} - ${region}` (space-dash-space).
-  const isinByBucket = new Map<string, string>();
-  for (const e of etfImplementation) isinByBucket.set(e.bucket, e.isin);
+  // Buckets can have multiple ETFs (manual entries or operator-edited
+  // portfolios may assign two funds to the same bucket key). Track every
+  // contribution with its raw weight so we can blend the geo profiles
+  // proportionally instead of letting the last ETF overwrite earlier ones.
+  const isinByBucket = new Map<string, Array<{ isin: string; weight: number }>>();
+  for (const e of etfImplementation) {
+    const list = isinByBucket.get(e.bucket);
+    if (list) list.push({ isin: e.isin, weight: e.weight });
+    else isinByBucket.set(e.bucket, [{ isin: e.isin, weight: e.weight }]);
+  }
 
   const map: Record<AssetKey, number> = {
     equity_us: 0, equity_eu: 0, equity_uk: 0, equity_ch: 0, equity_jp: 0, equity_em: 0,
@@ -650,23 +658,37 @@ export function mapAllocationToAssetsLookthrough(
       routeByRegion(a, w);
       continue;
     }
-    const isin = isinByBucket.get(`${a.assetClass} - ${a.region}`);
-    const profile = isin ? profileFor(isin) : null;
-    if (!profile || !profile.isEquity) {
+    const entries = isinByBucket.get(`${a.assetClass} - ${a.region}`) ?? [];
+    const totalBucketWeight = entries.reduce((s, e) => s + e.weight, 0);
+    if (entries.length === 0 || totalBucketWeight <= 0) {
       routeByRegion(a, w);
       continue;
     }
-    const totalGeo = Object.values(profile.geo).reduce((s, v) => s + v, 0);
-    if (totalGeo <= 0) {
-      routeByRegion(a, w);
-      continue;
-    }
+    // Each ETF in the bucket gets its own slice of the row's weight,
+    // proportional to its raw weight within the bucket. Slices are
+    // routed independently — an ETF without a usable equity profile
+    // falls back to region-based routing for *its* slice only, so
+    // total weight is conserved row-by-row regardless of mix.
     let unmappedShare = 0;
-    for (const [country, pct] of Object.entries(profile.geo)) {
-      const share = (pct / totalGeo) * w;
-      const key = COUNTRY_TO_EQUITY_KEY[country];
-      if (key) map[key] += share;
-      else unmappedShare += share;
+    for (const entry of entries) {
+      const slice = w * (entry.weight / totalBucketWeight);
+      if (slice <= 0) continue;
+      const profile = profileFor(entry.isin);
+      if (!profile || !profile.isEquity) {
+        routeByRegion(a, slice);
+        continue;
+      }
+      const totalGeo = Object.values(profile.geo).reduce((s, v) => s + v, 0);
+      if (totalGeo <= 0) {
+        routeByRegion(a, slice);
+        continue;
+      }
+      for (const [country, pct] of Object.entries(profile.geo)) {
+        const share = (pct / totalGeo) * slice;
+        const key = COUNTRY_TO_EQUITY_KEY[country];
+        if (key) map[key] += share;
+        else unmappedShare += share;
+      }
     }
     // Any unmapped country labels (e.g. a freshly-renamed label not yet in
     // the country map) fall back to region-based routing so we never
