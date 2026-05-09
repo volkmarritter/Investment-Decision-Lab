@@ -49,30 +49,72 @@ export interface ImportLineMapping extends ParsedImportLine {
   bucketKey?: string;
 }
 
-// Pure parser: split on first "/", trim, validate, parse weight via
-// the same comma-decimal-aware helper the per-row weight inputs use.
-// Empty lines and lines starting with `#` are skipped silently.
+// Per-line auto-detected separator: try `/`, tab, `;`, then `,`. We
+// pick the first one that actually appears in the line so spreadsheet
+// pastes (TSV/CSV/SSV) "just work" alongside the original
+// `ISIN / weight` syntax. Returns -1 if none is present.
+function findSeparatorIndex(line: string): number {
+  const seps = ["/", "\t", ";", ","];
+  for (const sep of seps) {
+    const idx = line.indexOf(sep);
+    if (idx !== -1) return idx;
+  }
+  return -1;
+}
+
+// A header row like `ISIN<sep>Weight` (or German `Gewicht`) is common
+// when copying out of Excel/Sheets. Detect it loosely on the FIRST
+// non-empty, non-comment line only — we look for the literal token
+// "ISIN" plus a "weight" synonym in the same line, regardless of
+// separator. Anything else is treated as data.
+function isHeaderLine(line: string): boolean {
+  const lc = line.toLowerCase();
+  if (!lc.includes("isin")) return false;
+  return (
+    lc.includes("weight") ||
+    lc.includes("gewicht") ||
+    lc.includes("anteil") ||
+    lc.includes("allocation") ||
+    lc.includes("%")
+  );
+}
+
+// Pure parser: auto-detect a separator per line (`/`, tab, `;`, `,`),
+// trim, validate, parse weight via the same comma-decimal-aware
+// helper the per-row weight inputs use. Empty lines and lines
+// starting with `#` are skipped silently. An optional header row
+// (e.g. `ISIN\tWeight`) on the first data line is also skipped.
 export function parseImportText(text: string): ParsedImportLine[] {
   const out: ParsedImportLine[] = [];
   const rawLines = text.split(/\r?\n/);
+  let seenFirstDataLine = false;
   for (let i = 0; i < rawLines.length; i++) {
     const raw = rawLines[i];
     const trimmed = raw.trim();
     if (trimmed === "" || trimmed.startsWith("#")) continue;
     const lineNo = i + 1;
-    const slashIdx = trimmed.indexOf("/");
+    if (!seenFirstDataLine && isHeaderLine(trimmed)) {
+      seenFirstDataLine = true;
+      continue;
+    }
+    seenFirstDataLine = true;
+    const sepIdx = findSeparatorIndex(trimmed);
     const isinPart =
-      slashIdx === -1 ? trimmed : trimmed.slice(0, slashIdx);
+      sepIdx === -1 ? trimmed : trimmed.slice(0, sepIdx);
     const weightPart =
-      slashIdx === -1 ? "" : trimmed.slice(slashIdx + 1);
+      sepIdx === -1 ? "" : trimmed.slice(sepIdx + 1);
     const isin = isinPart.trim().toUpperCase();
     const isinOk = isValidIsin(isin);
+    // For comma-decimal weights pasted with comma as the column
+    // separator (e.g. "IE00…,25,5"), a SECOND comma in the weight
+    // part is the decimal mark — we already split on the first
+    // separator, so weightPart still contains it as "25,5".
     const weightTrim = weightPart.trim();
     let weight = 0;
-    // Per task spec the input contract is strictly "ISIN / weight" per
-    // line. A missing "/" or an empty weight side is therefore an
-    // unparseable line, not a silent 0% row.
-    let weightError = slashIdx === -1 || weightTrim === "";
+    // Per task spec the input contract requires a separator between
+    // ISIN and weight. A missing separator or an empty weight side is
+    // therefore an unparseable line, not a silent 0% row.
+    let weightError = sepIdx === -1 || weightTrim === "";
     if (!weightError) {
       // Note: we deliberately do NOT use `parseDecimalInput(... min/max)`
       // here because it CLAMPS out-of-range values (e.g. 150 → 100).

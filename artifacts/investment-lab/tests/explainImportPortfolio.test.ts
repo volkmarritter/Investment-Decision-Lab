@@ -87,6 +87,72 @@ describe("parseImportText", () => {
     const out = parseImportText(`\n\n${ISIN_USA} / 10`);
     expect(out[0].lineNo).toBe(3);
   });
+
+  it("accepts tab-separated lines (Excel/Sheets TSV paste)", () => {
+    const out = parseImportText(`${ISIN_USA}\t35\n${ISIN_EUROPE}\t25,5`);
+    expect(out).toHaveLength(2);
+    expect(out[0]).toMatchObject({ isin: ISIN_USA, weight: 35 });
+    expect(out[1]).toMatchObject({ isin: ISIN_EUROPE, weight: 25.5 });
+    expect(out[0].error).toBeUndefined();
+    expect(out[1].error).toBeUndefined();
+  });
+
+  it("accepts semicolon-separated lines (European CSV)", () => {
+    const out = parseImportText(`${ISIN_USA};35\n${ISIN_EUROPE};25,5`);
+    expect(out).toHaveLength(2);
+    expect(out[0]).toMatchObject({ isin: ISIN_USA, weight: 35 });
+    expect(out[1]).toMatchObject({ isin: ISIN_EUROPE, weight: 25.5 });
+  });
+
+  it("accepts comma-separated lines, including comma-decimal weights", () => {
+    const out = parseImportText(
+      `${ISIN_USA},35\n${ISIN_EUROPE},25.5\n${ISIN_USA},12,5`,
+    );
+    expect(out).toHaveLength(3);
+    expect(out[0]).toMatchObject({ isin: ISIN_USA, weight: 35 });
+    expect(out[1]).toMatchObject({ isin: ISIN_EUROPE, weight: 25.5 });
+    // First comma is the column separator; the second comma in the
+    // weight side is the decimal mark.
+    expect(out[2]).toMatchObject({ isin: ISIN_USA, weight: 12.5 });
+  });
+
+  it("skips an optional header row like `ISIN\\tWeight`", () => {
+    const out = parseImportText(
+      `ISIN\tWeight\n${ISIN_USA}\t35\n${ISIN_EUROPE}\t25`,
+    );
+    expect(out).toHaveLength(2);
+    expect(out[0]).toMatchObject({ isin: ISIN_USA, weight: 35 });
+    expect(out[1]).toMatchObject({ isin: ISIN_EUROPE, weight: 25 });
+  });
+
+  it("skips a German header row (`ISIN;Gewicht`)", () => {
+    const out = parseImportText(
+      `ISIN;Gewicht\n${ISIN_USA};35\n${ISIN_EUROPE};25`,
+    );
+    expect(out).toHaveLength(2);
+    expect(out[0]).toMatchObject({ isin: ISIN_USA, weight: 35 });
+    expect(out[1]).toMatchObject({ isin: ISIN_EUROPE, weight: 25 });
+  });
+
+  it("only treats the first line as a potential header", () => {
+    // A second `ISIN,Weight` line in the middle of the data should
+    // NOT be silently dropped — it must surface as an invalid-isin
+    // line so the user notices the malformed paste.
+    const out = parseImportText(
+      `ISIN,Weight\n${ISIN_USA},35\nISIN,Weight\n${ISIN_EUROPE},25`,
+    );
+    expect(out).toHaveLength(3);
+    expect(out[0]).toMatchObject({ isin: ISIN_USA, weight: 35 });
+    expect(out[1].error).toBe("invalid-isin");
+    expect(out[2]).toMatchObject({ isin: ISIN_EUROPE, weight: 25 });
+  });
+
+  it("keeps the original `ISIN / weight` syntax working unchanged", () => {
+    const out = parseImportText(`${ISIN_USA} / 35`);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ isin: ISIN_USA, weight: 35 });
+    expect(out[0].error).toBeUndefined();
+  });
 });
 
 describe("classifyImportLines", () => {

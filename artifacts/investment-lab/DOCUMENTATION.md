@@ -627,6 +627,34 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+### 2026-05 (explain-import-smart-delimiters — Task #230)
+- **Smarter paste parsing.** `parseImportText` in
+  `ImportPortfolioDialog.tsx` now auto-detects the column separator per
+  line: `/`, tab, `;`, or `,` (first one that appears wins). This makes
+  pastes straight out of Excel / Google Sheets (TSV), European CSV
+  (`;`-separated), and standard CSV (`,`-separated) work without the
+  user having to massage the text into the original
+  `ISIN / weight` shape. The original `/` syntax keeps working
+  unchanged.
+- **Optional header row.** A header line on the FIRST non-empty,
+  non-comment line that contains `ISIN` plus a weight synonym
+  (`weight`, `gewicht`, `anteil`, `allocation`, or `%`) is detected
+  and skipped. Subsequent header-shaped lines further down in the
+  paste are intentionally NOT skipped — they surface as
+  `invalid-isin` rows so a malformed paste is visible.
+- **Comma-decimal weights with comma column-separator.** When a line
+  uses `,` as the column separator, a SECOND comma in the weight
+  half is still treated as the decimal mark (e.g.
+  `IE00…,12,5` parses to `weight = 12.5`).
+- **Tests.** 7 new unit cases in
+  `tests/explainImportPortfolio.test.ts` cover TSV, `;`-CSV, `,`-CSV
+  with comma-decimal weight, English (`ISIN\tWeight`) and German
+  (`ISIN;Gewicht`) header rows, the "only first line is a header"
+  rule, and a regression check that the original `ISIN / weight`
+  syntax is unaffected.
+- Files: `artifacts/investment-lab/src/components/investment/ImportPortfolioDialog.tsx`,
+  `artifacts/investment-lab/tests/explainImportPortfolio.test.ts`.
+
 ### 2026-05 (explain-copy-as-text — Task #229)
 - **New affordance.** The Explain positions card gained a **Copy as
   text** button (data-testid `explain-copy-as-text`) next to the
