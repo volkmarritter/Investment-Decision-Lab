@@ -975,21 +975,22 @@ export function ExplainPortfolio() {
     setWeightDrafts([]);
   }
 
-  // Task #227 — append imported rows in one shot. Mirrors the per-row
-  // helpers (addPositionInBucket / addManualPosition) but operates on a
-  // batch and seeds the matching weight drafts so the UI shows the
-  // imported weights immediately. Append-only: the existing positions
-  // are preserved.
-  function appendImportedRows(
+  // Task #232 — replace the editor's positions with the imported rows
+  // in one shot. The dialog represents "this is my portfolio", so
+  // appending on top of whatever was already in the editor (left over
+  // from a previous session restored from localStorage, or from earlier
+  // editing) produced doubled weights and stale derived metrics
+  // (allocation, home-bias, look-through) that only "self-corrected"
+  // once the user re-picked an ETF. Replacing fixes the root cause.
+  // The dialog itself prompts for confirmation when the editor is
+  // non-empty so users aren't surprised.
+  function replaceWithImportedRows(
     rows: PersonalPosition[],
     summary: ImportSummary,
   ) {
     if (rows.length === 0) return;
-    setState((s) => ({ ...s, positions: [...s.positions, ...rows] }));
-    setWeightDrafts((d) => [
-      ...d,
-      ...rows.map((r) => (r.weight > 0 ? String(r.weight) : "")),
-    ]);
+    setState((s) => ({ ...s, positions: rows }));
+    setWeightDrafts(rows.map((r) => (r.weight > 0 ? String(r.weight) : "")));
     toast.success(
       t("explain.import.toast.summary", {
         total: rows.length,
@@ -2239,7 +2240,8 @@ export function ExplainPortfolio() {
       <ImportPortfolioDialog
         open={importOpen}
         onOpenChange={setImportOpen}
-        onImport={appendImportedRows}
+        onImport={replaceWithImportedRows}
+        hasExistingPositions={state.positions.length > 0}
       />
     </div>
   );

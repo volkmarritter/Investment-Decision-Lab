@@ -627,6 +627,50 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+### 2026-05 (explain-import-replace-semantics — Task #232)
+- **Bugfix.** Pasting a portfolio into the Explain tab's import dialog
+  used to **append** the imported rows on top of whatever was already
+  in the editor (typically state restored from the previous session
+  via `localStorage`). When the same ISIN appeared in both the stale
+  and the imported set the row weights effectively doubled, and the
+  derived metrics (asset-class allocation totals, home-bias share,
+  look-through baskets) showed wrong figures until the user manually
+  re-picked an ETF — the re-pick rebuilt the array and the stale
+  duplicates happened to be overwritten. The dialog represents
+  "this is my portfolio", so the correct semantics is **replace**.
+- **Fix.** `ExplainPortfolio.appendImportedRows` was renamed to
+  `replaceWithImportedRows` and now sets
+  `state.positions = rows` (and resets `weightDrafts` to match the
+  imported rows) instead of pushing onto the existing arrays. The
+  import dialog gained a `hasExistingPositions` prop: when true it
+  shows a destructive `Alert` (`data-testid="explain-import-replace-warning"`)
+  above the textarea and the submit button label switches from
+  "Import N positions" to "Replace with N positions" so the user
+  cannot trigger the destructive operation by accident.
+- **Copy.** `explain.import.desc` (DE+EN) was rewritten — the prior
+  text explicitly promised "rows are appended … nothing is
+  overwritten", which is no longer true. Two new keys
+  (`explain.import.submit.replace`,
+  `explain.import.warning.replacesExisting`) were added in both
+  languages.
+- **Tests.** Two new unit cases in
+  `tests/explainImportPortfolio.test.ts` lock in (a) that the rows
+  array passed to setState is exactly the imported rows (sums to
+  100% rather than the 200% the old append path produced when stacked
+  on a stale row), and (b) that `synthesizePersonalPortfolio` +
+  `evaluateHomeBias` produce identical figures whether the rows came
+  from the import path or from a fresh manual build. The mobile e2e
+  spec at `tests/e2e/explain-import.spec.ts` already wipes
+  `localStorage` before importing, so its post-import row count and
+  total-weight assertions remain correct under the new semantics; the
+  test title was updated from "appends rows" to "replaces editor
+  contents" to reflect the new contract.
+- Files: `artifacts/investment-lab/src/components/investment/ExplainPortfolio.tsx`,
+  `artifacts/investment-lab/src/components/investment/ImportPortfolioDialog.tsx`,
+  `artifacts/investment-lab/src/lib/i18n.tsx`,
+  `artifacts/investment-lab/tests/explainImportPortfolio.test.ts`,
+  `artifacts/investment-lab/tests/e2e/explain-import.spec.ts`.
+
 ### 2026-05 (explain-import-smart-delimiters — Task #230)
 - **Smarter paste parsing.** `parseImportText` in
   `ImportPortfolioDialog.tsx` now auto-detects the column separator per

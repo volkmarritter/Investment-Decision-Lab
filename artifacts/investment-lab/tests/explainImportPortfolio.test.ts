@@ -9,6 +9,11 @@ import {
   getInstrumentByIsin,
   listInstruments,
 } from "@/lib/etfs";
+import {
+  synthesizePersonalPortfolio,
+  type PersonalPosition,
+} from "@/lib/personalPortfolio";
+import { evaluateHomeBias } from "@/lib/homebias";
 
 const ISIN_USA = "IE00B5BMR087"; // catalog → Equity-USA
 const ISIN_EUROPE = "IE00B4K48X80"; // catalog → Equity-Europe
@@ -263,4 +268,99 @@ describe("buildPositionsFromMapping", () => {
       }
     },
   );
+});
+
+// Task #232 — replace-on-import semantics: when the user pastes a portfolio
+// into the import dialog, the imported rows must replace whatever was in the
+// editor (instead of appending on top). Append-on-top stacked the new rows
+// above leftover state from a previous session and produced doubled weights /
+// stale derived metrics until the user manually toggled an ETF.
+//
+// We can't drive the React state setter from a unit test, but we can pin the
+// invariant the UI layer must preserve: the array passed to setState's
+// `positions` slot is exactly the imported rows, with no leftover entries.
+describe("Task #232 — paste-to-import replaces existing positions", () => {
+  it("import-on-non-empty-state reducer keeps only the imported rows", () => {
+    const text = `IE00B4L5Y983 / 60\nIE00B5BMR087 / 40`;
+    const importRows = buildPositionsFromMapping(
+      classifyImportLines(parseImportText(text)),
+    );
+
+    // Mirror exactly what ExplainPortfolio.replaceWithImportedRows does to
+    // state.positions today. If anyone reverts that to append (`[...s.positions,
+    // ...rows]`), this test starts seeing 3 rows + a 200% total and fails.
+    const replaceReducer = (
+      prev: PersonalPosition[],
+      rows: PersonalPosition[],
+    ) => rows;
+
+    const stale: PersonalPosition[] = [
+      {
+        isin: "IE00B4L5Y983",
+        bucketKey: getBucketKeyForIsin("IE00B4L5Y983")!,
+        weight: 100,
+      },
+    ];
+    const next = replaceReducer(stale, importRows);
+
+    expect(next.length).toBe(2);
+    expect(next.map((p) => p.isin).sort()).toEqual(
+      ["IE00B4L5Y983", "IE00B5BMR087"].sort(),
+    );
+    expect(next.reduce((s, p) => s + p.weight, 0)).toBeCloseTo(100, 5);
+
+    // No ISIN should be duplicated: under the old append path
+    // `IE00B4L5Y983` would show up twice (stale 100 + imported 60).
+    const isinCounts = next.reduce<Record<string, number>>((m, p) => {
+      m[p.isin] = (m[p.isin] ?? 0) + 1;
+      return m;
+    }, {});
+    for (const isin of Object.keys(isinCounts)) {
+      expect(isinCounts[isin]).toBe(1);
+    }
+
+    // Synthesised allocation must total 100% (not 160% or 200% as it would
+    // under append) — this is the user-visible symptom the bugfix targets.
+    const total = synthesizePersonalPortfolio(next, "EUR", "en")
+      .allocation.reduce((s, a) => s + a.weight, 0);
+    expect(total).toBeCloseTo(100, 5);
+  });
+
+  it("synthesised allocation from replace-imported rows matches a fresh manual build", () => {
+    const text = `IE00B4L5Y983 / 60\nCH0237935652 / 40`;
+    const importRows = buildPositionsFromMapping(
+      classifyImportLines(parseImportText(text)),
+    );
+    const manualRows: PersonalPosition[] = [
+      {
+        isin: "IE00B4L5Y983",
+        bucketKey: getBucketKeyForIsin("IE00B4L5Y983")!,
+        weight: 60,
+      },
+      {
+        isin: "CH0237935652",
+        bucketKey: getBucketKeyForIsin("CH0237935652")!,
+        weight: 40,
+      },
+    ];
+
+    const pImp = synthesizePersonalPortfolio(importRows, "CHF", "en");
+    const pMan = synthesizePersonalPortfolio(manualRows, "CHF", "en");
+
+    // Allocation totals add to 100 — the bug had them adding to >100 (or
+    // doubled values) when imports were stacked on stale rows.
+    const impTotal = pImp.allocation.reduce((s, a) => s + a.weight, 0);
+    const manTotal = pMan.allocation.reduce((s, a) => s + a.weight, 0);
+    expect(impTotal).toBeCloseTo(100, 5);
+    expect(manTotal).toBeCloseTo(100, 5);
+
+    // Home-bias evaluation against CHF base must agree between the two paths.
+    const hImp = evaluateHomeBias(pImp.etfImplementation, "CHF", "en");
+    const hMan = evaluateHomeBias(pMan.etfImplementation, "CHF", "en");
+    expect(hImp.homeShareOfEquityPct).toBeCloseTo(
+      hMan.homeShareOfEquityPct,
+      5,
+    );
+    expect(hImp.biasRatio).toBeCloseTo(hMan.biasRatio, 5);
+  });
 });

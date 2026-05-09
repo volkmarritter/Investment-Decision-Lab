@@ -8,7 +8,7 @@ const ISIN_USA = "IE00B5BMR087";
 const ISIN_OFF = "US0378331005";
 
 test.describe("ExplainPortfolio · paste-to-import (mobile)", () => {
-  test("imports a mixed catalog + off-universe paste, appends rows, shows summary toast", async ({
+  test("imports a mixed catalog + off-universe paste, replaces editor contents, shows summary toast", async ({
     page,
     context,
   }) => {

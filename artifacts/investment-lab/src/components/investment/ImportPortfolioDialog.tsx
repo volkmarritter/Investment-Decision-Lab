@@ -260,12 +260,17 @@ interface ImportPortfolioDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onImport: (rows: PersonalPosition[], summary: ImportSummary) => void;
+  // Task #232 — when the editor already has rows, importing replaces
+  // them rather than appending. We surface that inline so users aren't
+  // surprised; the Import button label also switches to "Replace …".
+  hasExistingPositions?: boolean;
 }
 
 export function ImportPortfolioDialog({
   open,
   onOpenChange,
   onImport,
+  hasExistingPositions = false,
 }: ImportPortfolioDialogProps) {
   const { t } = useT();
   const [text, setText] = useState("");
@@ -344,6 +349,17 @@ export function ImportPortfolioDialog({
           <p className="text-xs text-muted-foreground">
             {t("explain.import.help")}
           </p>
+
+          {hasExistingPositions && (
+            <Alert
+              variant="destructive"
+              data-testid="explain-import-replace-warning"
+            >
+              <AlertDescription className="text-xs">
+                {t("explain.import.warning.replacesExisting")}
+              </AlertDescription>
+            </Alert>
+          )}
 
           {parsed.length > 0 && (
             <div
@@ -445,7 +461,11 @@ export function ImportPortfolioDialog({
                 ? t("explain.import.submit.anyway", {
                     n: importable.length,
                   })
-                : t("explain.import.submit", { n: importable.length })}
+                : hasExistingPositions
+                  ? t("explain.import.submit.replace", {
+                      n: importable.length,
+                    })
+                  : t("explain.import.submit", { n: importable.length })}
           </Button>
         </DialogFooter>
       </DialogContent>
