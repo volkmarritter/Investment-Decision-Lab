@@ -4,6 +4,8 @@ import {
   synthesizePersonalPortfolio,
   runExplainValidation,
   normalizeWeights,
+  assetClassNeedsRegion,
+  NO_REGION_ASSET_CLASSES,
   type PersonalPosition,
 } from "@/lib/personalPortfolio";
 import {
@@ -404,12 +406,14 @@ describe("Manual-entry positions (manualMeta override)", () => {
     expect(goldImpl?.bucket).toBe("Commodities - Global");
   });
 
-  it("preserves region for region-bearing manual asset classes (Equity, Fixed Income, Real Estate)", () => {
+  // Task #247 — Fixed Income was removed from this list (moved into
+  // NO_REGION_ASSET_CLASSES) because monteCarlo.ts:bucketKey() collapses
+  // every FI sleeve to a single `bonds` CMA bucket regardless of region.
+  // The dedicated FI-collapse cases below pin the new behaviour.
+  it("preserves region for region-bearing manual asset classes (Equity, Real Estate)", () => {
     const positions: PersonalPosition[] = [
-      { isin: "IE0000EQ_USA", bucketKey: "", weight: 40,
+      { isin: "IE0000EQ_USA", bucketKey: "", weight: 70,
         manualMeta: { assetClass: "Equity", region: "USA" } },
-      { isin: "IE0000FI_EUR", bucketKey: "", weight: 30,
-        manualMeta: { assetClass: "Fixed Income", region: "Europe" } },
       { isin: "IE0000RE_JPN", bucketKey: "", weight: 30,
         manualMeta: { assetClass: "Real Estate", region: "Japan" } },
     ];
@@ -418,8 +422,88 @@ describe("Manual-entry positions (manualMeta override)", () => {
       out.allocation.map((r) => [r.assetClass, r.region]),
     );
     expect(regionsByClass.get("Equity")).toBe("USA");
-    expect(regionsByClass.get("Fixed Income")).toBe("Europe");
     expect(regionsByClass.get("Real Estate")).toBe("Japan");
+  });
+
+  // Task #247 — manual Fixed Income rows: the Region selector is hidden
+  // in the UI and `resolveSleeve` collapses any stored region (legacy
+  // saved files, pasted imports) to "Global" so the allocation row, ETF
+  // Implementation `bucket` label and downstream Compare key are all
+  // consistent — no more "Fixed Income / Switzerland" vs "Fixed Income
+  // / USA" duplicates that compute identically because monteCarlo.ts
+  // collapses every FI region to the single `bonds` CMA bucket.
+  describe("Task #247 — Fixed Income manual rows collapse region to Global", () => {
+    it("Fixed Income is in NO_REGION_ASSET_CLASSES (assetClassNeedsRegion === false)", () => {
+      expect(NO_REGION_ASSET_CLASSES.has("Fixed Income")).toBe(true);
+      expect(assetClassNeedsRegion("Fixed Income")).toBe(false);
+      // Sanity: the other region-less classes stay in the set, and
+      // region-bearing classes (Equity, Real Estate) stay out of it.
+      expect(assetClassNeedsRegion("Commodities")).toBe(false);
+      expect(assetClassNeedsRegion("Cash")).toBe(false);
+      expect(assetClassNeedsRegion("Digital Assets")).toBe(false);
+      expect(assetClassNeedsRegion("Equity")).toBe(true);
+      expect(assetClassNeedsRegion("Real Estate")).toBe(true);
+    });
+
+    it("synthesize: a manual FI row with stored region 'Switzerland' produces a single 'Fixed Income - Global' allocation+impl row", () => {
+      const positions: PersonalPosition[] = [
+        {
+          isin: "LU0000000999",
+          bucketKey: "",
+          weight: 100,
+          manualMeta: { assetClass: "Fixed Income", region: "Switzerland" },
+        },
+      ];
+      const out = synthesizePersonalPortfolio(positions, "USD");
+      expect(out.allocation).toHaveLength(1);
+      expect(out.allocation[0]).toMatchObject({
+        assetClass: "Fixed Income",
+        region: "Global",
+        weight: 100,
+      });
+      expect(out.etfImplementation).toHaveLength(1);
+      expect(out.etfImplementation[0].bucket).toBe("Fixed Income - Global");
+    });
+
+    it("synthesize: two manual FI rows with different stored regions collapse into ONE 'Fixed Income - Global' sleeve (no duplicates)", () => {
+      const positions: PersonalPosition[] = [
+        {
+          isin: "LU0000000111",
+          bucketKey: "",
+          weight: 40,
+          manualMeta: { assetClass: "Fixed Income", region: "USA" },
+        },
+        {
+          isin: "LU0000000222",
+          bucketKey: "",
+          weight: 60,
+          manualMeta: { assetClass: "Fixed Income", region: "Switzerland" },
+        },
+      ];
+      const out = synthesizePersonalPortfolio(positions, "USD");
+      const fiRows = out.allocation.filter((r) => r.assetClass === "Fixed Income");
+      expect(fiRows).toHaveLength(1);
+      expect(fiRows[0].region).toBe("Global");
+      expect(fiRows[0].weight).toBe(100);
+      // Both ETF impl rows share the same bucket label.
+      const buckets = out.etfImplementation
+        .filter((e) => e.assetClass === "Fixed Income")
+        .map((e) => e.bucket);
+      expect(buckets).toEqual(["Fixed Income - Global", "Fixed Income - Global"]);
+    });
+
+    it("synthesize: catalog FI buckets are unaffected (region from getBucketMeta wins)", () => {
+      const positions: PersonalPosition[] = [
+        { isin: ISIN_FI_GLOBAL, bucketKey: "FixedIncome-Global", weight: 100 },
+      ];
+      const out = synthesizePersonalPortfolio(positions, "USD");
+      expect(out.allocation).toHaveLength(1);
+      // The catalog bucket's declared region (Global for the global agg
+      // bond) is preserved — this branch goes through getBucketMeta,
+      // not the manualMeta resolver.
+      expect(out.allocation[0].assetClass).toBe("Fixed Income");
+      expect(out.allocation[0].region).toBe("Global");
+    });
   });
 
   it("validator skips hedging-coherence checks for manual rows", () => {

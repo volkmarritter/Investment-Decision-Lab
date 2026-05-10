@@ -605,13 +605,15 @@ function PositionRow({
       )}
       {isManual && position.manualMeta && (() => {
         // The Region selector is only meaningful for asset classes
-        // whose geographic exposure carries analytical signal — Equity,
-        // Fixed Income and Real Estate. For Commodities, Cash and
+        // whose geographic exposure carries analytical signal — Equity
+        // and Real Estate. For Fixed Income, Commodities, Cash and
         // Digital Assets the field is hidden (and the stored region is
         // auto-snapped to "Global" both here on the assetClass change
         // and again as a safety net inside resolveSleeve in
         // personalPortfolio.ts). See NO_REGION_ASSET_CLASSES there for
-        // the rationale.
+        // the rationale (Fixed Income was added to the set in Task #247
+        // because monteCarlo.ts collapses every FI region to the single
+        // `bonds` CMA bucket — the picker would mislead users).
         const showRegion = assetClassNeedsRegion(position.manualMeta.assetClass);
         return (
           <div className={showRegion ? "grid grid-cols-2 gap-2 pl-1" : "pl-1"}>

@@ -596,6 +596,50 @@ test.describe("ExplainPortfolio · bring-your-own-ETFs (mobile)", () => {
     await expect(cells.nth(2)).toHaveText("5.3");
   });
 
+  // Task #247 — manual rows: the Region selector is hidden when the
+  // operator picks Fixed Income (asset-class collapses every FI region
+  // to the single `bonds` CMA bucket inside monteCarlo.ts, so showing
+  // a region picker would mislead). Switching back to Equity must
+  // restore it. Drives the actual UI through `explain-add-manual` →
+  // `explain-manual-asset-${row}` → assert presence of
+  // `explain-manual-region-${row}`.
+  test("manual row: Region picker hidden for Fixed Income, restored when switching back to Equity (Task #247)", async ({
+    page,
+    context,
+  }) => {
+    await context.clearCookies();
+    await openExplainTab(page);
+    await page.evaluate(() =>
+      window.localStorage.removeItem("investment-lab.explainPortfolio.v1"),
+    );
+    await page.reload();
+    await dismissWelcomeIfPresent(page);
+    await page.getByRole("tab", { name: /explain my portfolio/i }).tap();
+
+    await page.getByTestId("explain-add-manual").tap();
+    const assetSelect = page.getByTestId("explain-manual-asset-0");
+    await expect(assetSelect).toBeVisible();
+
+    // Default manual asset class is Equity → Region picker present.
+    await expect(page.getByTestId("explain-manual-region-0")).toBeVisible();
+
+    // Switch to Fixed Income → Region picker hidden.
+    await assetSelect.tap();
+    const fiOption = page.getByRole("option", { name: /^Fixed Income$/ });
+    await expect(fiOption).toBeVisible();
+    await fiOption.click({ force: true });
+    await waitForRadixOverlayRelease(page);
+    await expect(page.getByTestId("explain-manual-region-0")).toHaveCount(0);
+
+    // Switch back to Equity → Region picker restored.
+    await assetSelect.tap();
+    const equityOption = page.getByRole("option", { name: /^Equity$/ });
+    await expect(equityOption).toBeVisible();
+    await equityOption.click({ force: true });
+    await waitForRadixOverlayRelease(page);
+    await expect(page.getByTestId("explain-manual-region-0")).toBeVisible();
+  });
+
   // Task #241 — end-to-end residual surfacing. A 100 % position in the
   // Vanguard FTSE Developed World ETF (Equity-Global pool) must:
   //   1. show a labelled "Other / Residual" row (~12–16 %) on the

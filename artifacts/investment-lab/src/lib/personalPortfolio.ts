@@ -81,10 +81,21 @@ function assetClassRank(c: string): number {
 // consistently regardless of what region happened to be stored at the
 // time. We only normalise the manual-entry branch — catalog buckets
 // are curated and trusted, so their declared region is preserved as-is.
+// "Fixed Income" is included here even though catalog FI buckets carry a
+// region (e.g. FixedIncome-Global, FixedIncome-Global-CHF): the catalog
+// path doesn't go through manualMeta — `getBucketMeta(p.bucketKey)` wins
+// before this branch is consulted, so curated FI sleeves keep their
+// declared region. The MANUAL FI path, on the other hand, currently
+// collapses to the single `bonds` CMA bucket inside monteCarlo.ts
+// regardless of region, so the picker would mislead users into thinking
+// e.g. "Fixed Income / Switzerland" vs "/ USA" produces different
+// numbers when it does not. Hiding the picker + collapsing to "Global"
+// here aligns the UI with engine reality (Task #247).
 export const NO_REGION_ASSET_CLASSES: ReadonlySet<string> = new Set([
   "Commodities",
   "Cash",
   "Digital Assets",
+  "Fixed Income",
 ]);
 
 export function assetClassNeedsRegion(assetClass: string): boolean {
@@ -113,12 +124,14 @@ function resolveSleeve(
   }
   if (p.manualMeta && p.manualMeta.assetClass) {
     const ac = p.manualMeta.assetClass;
-    // For region-less asset classes (Commodities, Cash, Digital Assets)
-    // we collapse the region to "Global" regardless of what the stored
-    // value happens to be — the Explain UI hides the Region selector
-    // for these classes, so any non-"Global" value here would only
-    // come from a legacy saved file and would otherwise leak into
-    // sleeve grouping ("Gold | Europe") and exports nonsensically.
+    // For region-less asset classes (Commodities, Cash, Digital Assets,
+    // Fixed Income — see NO_REGION_ASSET_CLASSES) we collapse the region
+    // to "Global" regardless of what the stored value happens to be —
+    // the Explain UI hides the Region selector for these classes, so
+    // any non-"Global" value here would only come from a legacy saved
+    // file or a paste-imported portfolio and would otherwise leak into
+    // sleeve grouping ("Gold | Europe", "Fixed Income | Switzerland")
+    // and exports nonsensically.
     if (!assetClassNeedsRegion(ac)) {
       return { assetClass: ac, region: "Global" };
     }
