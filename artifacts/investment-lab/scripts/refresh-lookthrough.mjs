@@ -394,6 +394,9 @@ const HEDGED_ISINS = new Set([
   "IE00BDBRDM35",
   "IE00BDBRDN42",
   "IE00BDBRDP65",
+  // Vanguard Global Aggregate Bond EUR Hedged Acc / Dist (Task #249)
+  "IE00BG47KH54",
+  "IE00BG47KB92",
 ]);
 
 // Re-buckets a country breakdown into a currency breakdown using the

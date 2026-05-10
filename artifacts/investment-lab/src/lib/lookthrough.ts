@@ -490,6 +490,13 @@ const SHARED_BASKET_PROFILES: Record<string, LookthroughProfile> = {
   "IE00BDBRDN42": variantOf("IE00B3F81409", { currency: { CHF: 98, USD: 2 } }),
   "IE00BDBRDP65": variantOf("IE00B3F81409", { currency: { GBP: 98, USD: 2 } }),
   "IE00BD1JRY91": variantOf("IE00B3F81409", { currency: { CHF: 98, USD: 2 } }),
+  // Vanguard Global Aggregate Bond EUR Hedged share classes (Acc + Dist)
+  // — same Bloomberg Global Aggregate index as the iShares default
+  // (IE00B3F81409), different issuer + EUR-hedged share class. Identical
+  // underlying basket; currency re-denominated to EUR by the hedge.
+  // Task #249.
+  "IE00BG47KH54": variantOf("IE00B3F81409", { currency: { EUR: 98, USD: 2 } }),
+  "IE00BG47KB92": variantOf("IE00B3F81409", { currency: { EUR: 98, USD: 2 } }),
 
   // Physical-gold ETCs — every entry is a single-asset, fully-allocated
   // physical-gold wrapper. Sector / geo are identical by definition (gold
@@ -704,6 +711,55 @@ const DISTINCT_PROFILES: Record<string, LookthroughProfile> = {
     sector: { "Government": 100 },
     currency: { EUR: 100 },
   },
+
+  // Xtrackers II Global Government Bond UCITS — sovereign-only global
+  // bond aggregate. DISTINCT from iShares Core Global Aggregate Bond
+  // (IE00B3F81409): excludes corporates and securitised, government-only
+  // by mandate. Geo / currency mix mirrors the FTSE WGBI: ~40% USD, ~25%
+  // JPY, balance Eurozone + UK + other DM. Unhedged USD share class, so
+  // currency follows the underlying issuer mix. Task #249 (curated from
+  // Xtrackers factsheet — justETF does not publish a holdings breakdown
+  // for this Luxembourg SICAV-based ETF).
+  "LU0378818131": {
+    isEquity: false,
+    geo: {
+      "United States": 40,
+      "Japan": 22,
+      "Eurozone": 22,
+      "United Kingdom": 6,
+      "Other DM": 10,
+    },
+    sector: { "Government": 95, "Government-related": 5 },
+    currency: {
+      USD: 40,
+      JPY: 22,
+      EUR: 22,
+      GBP: 6,
+      "Other DM": 10,
+    },
+  },
+
+  // Xtrackers II Eurozone Government Bond UCITS 1C — Eurozone sovereign
+  // bonds only, all maturities (broader than IE00B3VTML14 which is
+  // 3-7yr). DISTINCT from Global Aggregate Bond: single-currency,
+  // single-sector, no corporate / securitised / non-EZ exposure.
+  // Task #249 (curated from Xtrackers factsheet, country mix matches
+  // iBoxx EUR Sovereigns weights).
+  "LU0290355717": {
+    isEquity: false,
+    geo: {
+      "France": 24,
+      "Italy": 22,
+      "Germany": 20,
+      "Spain": 14,
+      "Netherlands": 6,
+      "Belgium": 5,
+      "Austria": 3,
+      "Other Eurozone": 6,
+    },
+    sector: { "Government": 100 },
+    currency: { EUR: 100 },
+  },
 };
 
 // Per-ISIN profiles for off-catalog funds that the user-reported
@@ -791,6 +847,9 @@ const HEDGED_ISINS = new Set<string>([
   "IE00BDBRDM35",
   "IE00BDBRDN42",
   "IE00BDBRDP65",
+  // Vanguard Global Aggregate Bond EUR Hedged Acc / Dist (Task #249)
+  "IE00BG47KH54",
+  "IE00BG47KB92",
 ]);
 
 // ----------------------------------------------------------------------------
