@@ -23,6 +23,10 @@
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { renderHook, act } from "@testing-library/react";
 import { useEtfInfo } from "../src/lib/useEtfInfo";
+import {
+  clearRuntimeLookthroughProfiles,
+  registerRuntimeLookthroughProfile,
+} from "../src/lib/lookthrough";
 
 type FetchInput = Parameters<typeof fetch>[0];
 type FetchInit = Parameters<typeof fetch>[1];
@@ -145,5 +149,53 @@ describe("useEtfInfo — stale-resolve race", () => {
     expect(result.current.scrape?.isin).toBe(ISIN_B);
     expect(result.current.scrape?.fields.name).toBe("Lyxor Core MSCI Japan");
     expect(result.current.scrapeError).toBeNull();
+  });
+});
+
+// ----------------------------------------------------------------------------
+// Runtime-profile re-evaluation (2026-05 regression)
+// ----------------------------------------------------------------------------
+// When the operator types an off-catalog ISIN, ExplainPortfolio's
+// `setManualIsin` fires `GET /api/lookthrough-scrape/:isin` and, on
+// success, calls `registerRuntimeLookthroughProfile(isin, profile)`. The
+// EtfInfoPreview's `useEtfInfo` hook must then re-evaluate `pool` so the
+// preview's "Look-through available" banner replaces the amber
+// "no look-through data" notice without the operator having to retype
+// the ISIN. Before this fix, the `pool` useMemo was keyed only on
+// `[isin, valid]` and stayed stuck on `null` for the row's lifetime.
+// ----------------------------------------------------------------------------
+
+const ISIN_RUNTIME = "CH0111762537"; // user-reported case (UBS SMIM A-dis)
+
+describe("useEtfInfo — runtime profile re-evaluation", () => {
+  afterEach(() => {
+    clearRuntimeLookthroughProfiles();
+  });
+
+  it("re-evaluates `pool` when a runtime profile is registered for the typed ISIN", async () => {
+    const { result } = renderHook(() => useEtfInfo(ISIN_RUNTIME));
+
+    // Pre-fix: hook saw RUNTIME_PROFILES empty for this ISIN at first
+    // render and the memo stayed null forever afterwards.
+    expect(result.current.isValidIsin).toBe(true);
+    expect(result.current.pool).toBeNull();
+
+    await act(async () => {
+      registerRuntimeLookthroughProfile(ISIN_RUNTIME, {
+        isEquity: true,
+        geo: { Switzerland: 70.62, Other: 29.38 },
+        sector: { Industrials: 30, Financials: 25 },
+        currency: { CHF: 100 },
+      });
+    });
+
+    // Post-fix: subscription via useSyncExternalStore wakes the hook and
+    // the memo recomputes — `pool` now reflects the registered profile,
+    // which is what the EtfInfoPreview's `hasPool` flag reads to flip
+    // the amber 0 % notice off and the green "look-through available"
+    // banner on.
+    expect(result.current.pool).not.toBeNull();
+    expect(result.current.pool?.geo.Switzerland).toBeCloseTo(70.62, 2);
+    expect(result.current.pool?.geo.Other).toBeCloseTo(29.38, 2);
   });
 });

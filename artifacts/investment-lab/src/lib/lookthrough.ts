@@ -1056,6 +1056,40 @@ export function getLookthroughOverrideIsins(): string[] {
 const RUNTIME_PROFILES: Record<string, LookthroughProfile> = {};
 const RUNTIME_LT_STORAGE_KEY = "investment-lab.lookthrough.runtime.v1";
 
+// Subscription mechanism so React components can re-read `profileFor`
+// after a successful runtime scrape registers a new off-catalog profile.
+// Without this, a `useMemo` in a component (e.g. useEtfInfo's `pool`
+// computation) would observe RUNTIME_PROFILES *before* the on-demand
+// scrape resolves and stay stuck on the stale `null` for the rest of
+// the row's lifetime — even though the geo / sector cards already
+// populated correctly. That is exactly the misleading "no look-through
+// data" notice the operator reported on 2026-05.
+let runtimeVersion = 0;
+const runtimeListeners = new Set<() => void>();
+
+function bumpRuntimeVersion(): void {
+  runtimeVersion += 1;
+  for (const l of runtimeListeners) {
+    try {
+      l();
+    } catch {
+      // Listener errors must not block other subscribers or the
+      // register/clear caller. Silent by design.
+    }
+  }
+}
+
+export function getRuntimeLookthroughVersion(): number {
+  return runtimeVersion;
+}
+
+export function subscribeRuntimeLookthrough(listener: () => void): () => void {
+  runtimeListeners.add(listener);
+  return () => {
+    runtimeListeners.delete(listener);
+  };
+}
+
 function hasLocalStorage(): boolean {
   return (
     typeof globalThis !== "undefined" &&
@@ -1112,6 +1146,7 @@ export function registerRuntimeLookthroughProfile(
   if (!isin) return;
   RUNTIME_PROFILES[isin.toUpperCase()] = profile;
   persistRuntimeProfiles();
+  bumpRuntimeVersion();
 }
 
 export function clearRuntimeLookthroughProfiles(): void {
@@ -1125,6 +1160,7 @@ export function clearRuntimeLookthroughProfiles(): void {
       // see persistRuntimeProfiles — silent on storage errors.
     }
   }
+  bumpRuntimeVersion();
 }
 
 export function profileFor(isin: string): LookthroughProfile | null {

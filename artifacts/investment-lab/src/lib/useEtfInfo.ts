@@ -28,9 +28,20 @@
 // `scrapeError` field so the preview card can render them inline.
 // ----------------------------------------------------------------------------
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import { getInstrumentByIsin, type InstrumentRecord } from "./etfs";
-import { profileFor, type LookthroughProfile } from "./lookthrough";
+import {
+  getRuntimeLookthroughVersion,
+  profileFor,
+  subscribeRuntimeLookthrough,
+  type LookthroughProfile,
+} from "./lookthrough";
 
 // Mirrors the api-server's PreviewResult shape (see
 // artifacts/api-server/src/lib/etf-scrape.ts). Re-declared here to keep
@@ -117,9 +128,21 @@ export function useEtfInfo(rawIsin: string | null | undefined): UseEtfInfo {
     () => (valid ? getInstrumentByIsin(isin) : undefined),
     [isin, valid],
   );
+  // Subscribe to runtime-profile registrations so `pool` re-evaluates
+  // when an off-catalog ISIN's on-demand scrape resolves and registers a
+  // new RUNTIME_PROFILES entry. Without this dep, the memo would observe
+  // RUNTIME_PROFILES at first render (still empty for the typed ISIN)
+  // and stay stuck on `null` for the row's lifetime — causing the
+  // "no look-through data" notice to fire even when the geo / sector
+  // cards already populated correctly. (2026-05 regression fix.)
+  const runtimeVersion = useSyncExternalStore(
+    subscribeRuntimeLookthrough,
+    getRuntimeLookthroughVersion,
+    getRuntimeLookthroughVersion,
+  );
   const pool = useMemo(
     () => (valid ? profileFor(isin) : null),
-    [isin, valid],
+    [isin, valid, runtimeVersion],
   );
 
   const [scrape, setScrape] = useState<EtfScrapeResult | null>(null);

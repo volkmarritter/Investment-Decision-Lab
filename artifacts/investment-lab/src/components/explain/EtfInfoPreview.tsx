@@ -209,7 +209,7 @@ export function EtfInfoPreview({
             className="border-sky-600 text-sky-700 dark:text-sky-400 text-[10px] px-1.5 py-0"
             data-testid={`etf-info-source-pool-${rowIndex}`}
           >
-            {tx("Look-Through aus Pool", "look-through in pool")}
+            {tx("Look-Through verfügbar", "look-through available")}
           </Badge>
         )}
         {info.scrapeLoading && (
@@ -377,7 +377,10 @@ export function EtfInfoPreview({
 
       {!hasPool && !info.scrapeLoading && info.isValidIsin && (
         <div className="text-[11px] text-amber-700 dark:text-amber-400">
-          {tx("Keine Look-Through-Daten im Pool — diese Position trägt 0 % zu Geo-/Sektor-/Top-Holdings-Karten und Home-Bias bei.", "No look-through data in pool — this position contributes 0 % to Geo / Sector / TopHoldings cards and Home-Bias.")}
+          {tx(
+            "Keine Look-Through-Daten verfügbar (weder im kuratierten Pool noch über den Live-Abruf von justETF) — diese Position trägt 0 % zu Geo-/Sektor-/Top-Holdings-Karten und Home-Bias bei.",
+            "No look-through data available (neither in the curated pool nor from the live justETF lookup) — this position contributes 0 % to Geo / Sector / TopHoldings cards and Home-Bias.",
+          )}
         </div>
       )}
 
