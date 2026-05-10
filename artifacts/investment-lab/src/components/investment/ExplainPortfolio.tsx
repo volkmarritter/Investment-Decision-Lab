@@ -990,7 +990,7 @@ export function ExplainPortfolio() {
   ) {
     if (rows.length === 0) return;
     setState((s) => ({ ...s, positions: rows }));
-    setWeightDrafts(rows.map((r) => (r.weight > 0 ? String(r.weight) : "")));
+    setWeightDrafts(rows.map((p) => (p.weight > 0 ? String(p.weight) : "")));
     toast.success(
       t("explain.import.toast.summary", {
         total: rows.length,

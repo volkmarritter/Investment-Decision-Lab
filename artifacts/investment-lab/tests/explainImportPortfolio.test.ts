@@ -7,12 +7,14 @@ import {
 import {
   getBucketKeyForIsin,
   getInstrumentByIsin,
+  inferAssetClassRegionFromInstrument,
   listInstruments,
 } from "@/lib/etfs";
 import {
   synthesizePersonalPortfolio,
   type PersonalPosition,
 } from "@/lib/personalPortfolio";
+import { buildLookthrough } from "@/lib/lookthrough";
 import { evaluateHomeBias } from "@/lib/homebias";
 
 const ISIN_USA = "IE00B5BMR087"; // catalog → Equity-USA
@@ -362,5 +364,114 @@ describe("Task #232 — paste-to-import replaces existing positions", () => {
       5,
     );
     expect(hImp.biasRatio).toBeCloseTo(hMan.biasRatio, 5);
+  });
+});
+// Task #236 — regression: positions produced by the paste-import
+// path must drive an IDENTICAL look-through (geo equity, geo fixed
+// income, equity / fixed-income weight totals) to the same portfolio
+// built one ISIN at a time through the picker / manual-add helpers.
+// The original symptom: after import, the GeoExposureMap showed stale
+// numbers until the user toggled any ETF picker; the picker setState
+// "self-healed" the engine output. We pin parity here so any future
+// drift between the two row writers is caught at the engine level
+// instead of needing a full-stack repro.
+
+// User-reported reproducer (Task #236) — a 9-ISIN mix of catalog
+// equity ETFs, a found-but-unassigned UK Gilts ETF, two off-universe
+// equity placeholders, and a gold ETC. Exercises all three import
+// kinds in one shot.
+const REPRO_TEXT = `IE00B5BMR087 / 25
+IE00BKX55T58 / 10
+IE0005042456 / 10
+IE00BKM4GZ66 / 10
+IE00B53QDK08 / 5
+IE00B42WWV65 / 10
+IE00B3VWP018 / 10
+LU1230136894 / 5
+IE00B4ND3602 / 15`;
+
+// Mirror of the per-row writers in ExplainPortfolio.tsx so the test
+// is independent of React: pickIsinForRow for catalog hits,
+// pickUnassignedInstrumentForRow for found-unassigned, and the
+// addManualPosition + setManualIsin path for off-universe ISINs.
+function rowsViaPicker(text: string): PersonalPosition[] {
+  const lines = text
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+  const out: PersonalPosition[] = [];
+  for (const ln of lines) {
+    const [isinRaw, weightRaw] = ln.split("/").map((s) => s.trim());
+    const isin = isinRaw.toUpperCase();
+    const weight = Number(weightRaw);
+    const inst = getInstrumentByIsin(isin);
+    if (inst) {
+      const bk = getBucketKeyForIsin(isin);
+      if (bk) {
+        // pickIsinForRow shape — manualMeta explicitly cleared.
+        out.push({ isin, bucketKey: bk, weight, manualMeta: undefined });
+      } else {
+        // pickUnassignedInstrumentForRow shape.
+        const guess = inferAssetClassRegionFromInstrument(inst);
+        out.push({
+          isin,
+          bucketKey: "",
+          weight,
+          manualMeta: {
+            assetClass: guess.assetClass,
+            region: guess.region,
+            name: inst.name,
+            currency: inst.currency,
+            terBps: inst.terBps,
+          },
+        });
+      }
+    } else {
+      // addManualPosition + setManualIsin shape.
+      out.push({
+        isin,
+        bucketKey: "",
+        weight,
+        manualMeta: { assetClass: "Equity", region: "Global" },
+      });
+    }
+  }
+  return out;
+}
+
+describe("Task #236 — paste-import vs picker look-through parity", () => {
+  it("produces identical geoEquity, geoFixedIncome and weight totals for the user repro", () => {
+    const importRows = buildPositionsFromMapping(
+      classifyImportLines(parseImportText(REPRO_TEXT)),
+    );
+    const pickerRows = rowsViaPicker(REPRO_TEXT);
+
+    // Same set of ISINs, same total weight — order may differ because
+    // import groups catalog rows ahead of manual subgroups.
+    expect(importRows.map((r) => r.isin).sort()).toEqual(
+      pickerRows.map((r) => r.isin).sort(),
+    );
+
+    const pImport = synthesizePersonalPortfolio(importRows, "CHF", "en");
+    const pPicker = synthesizePersonalPortfolio(pickerRows, "CHF", "en");
+
+    const ltImport = buildLookthrough(pImport.etfImplementation, "en", "CHF");
+    const ltPicker = buildLookthrough(pPicker.etfImplementation, "en", "CHF");
+
+    expect(ltImport.equityWeightTotal).toBeCloseTo(ltPicker.equityWeightTotal, 5);
+    expect(ltImport.fixedIncomeWeightTotal).toBeCloseTo(
+      ltPicker.fixedIncomeWeightTotal,
+      5,
+    );
+
+    // Compare the geoEquity maps as objects so map-key ordering noise
+    // can't trip the assertion. Each [country, weight] tuple list is
+    // turned into { country: weight } and compared up to 5 dp.
+    const toMap = (rows: ReadonlyArray<readonly [string, number]>) =>
+      Object.fromEntries(rows.map(([k, v]) => [k, Math.round(v * 1e5) / 1e5]));
+    expect(toMap(ltImport.geoEquity)).toEqual(toMap(ltPicker.geoEquity));
+    expect(toMap(ltImport.geoFixedIncome)).toEqual(
+      toMap(ltPicker.geoFixedIncome),
+    );
   });
 });

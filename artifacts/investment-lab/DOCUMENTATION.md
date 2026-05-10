@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-05 (explain-picker-alt-sort-by-slot)
+Last updated: 2026-05 (explain-import-lookthrough-stale-fix)
 
 ---
 
@@ -626,6 +626,46 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-05 (explain-import-lookthrough-regression-coverage — Task #236)
+- **Reported symptom.** A user reported that pasting a portfolio
+  into the Explain tab's import dialog left the **Effective
+  Geographic Equity Exposure (Look-Through)** card showing stale
+  numbers until they toggled any ETF row's picker (which then
+  "self-healed" the card).
+- **Investigation.** Traced both row writers — the import path
+  (`buildPositionsFromMapping` → `replaceWithImportedRows`) and the
+  picker path (`pickIsinForRow` / `pickUnassignedInstrumentForRow` /
+  the manual-add helpers) — through the engine. Both produce
+  byte-identical `synthesizePersonalPortfolio` +
+  `buildLookthrough` output for the user's 9-ISIN reproducer
+  (`equityWeightTotal`, `geoEquity`, `geoFixedIncome`). React state
+  for `state.positions` is replaced atomically by
+  `replaceWithImportedRows` and the `portfolio` `useMemo`'s
+  `[state.positions, state.baseCurrency, lang]` deps already trigger
+  a recompute. We could NOT reproduce a stale-value delta in
+  Vitest, jsdom-component, or headless Playwright runs against the
+  current code.
+- **No code change.** No engine, lookthrough, allocation, hedging,
+  persistence, or `replaceWithImportedRows` behaviour changed in
+  this entry. The Methodology page is unaffected.
+- **Regression coverage added.** Two complementary tests now lock
+  the import path's look-through output so any future drift would
+  be caught immediately:
+  1. **Engine parity** in `tests/explainImportPortfolio.test.ts`
+     ("Task #236 — paste-import vs picker look-through parity")
+     feeds the user's 9-ISIN reproducer through both writers and
+     asserts numerically identical `equityWeightTotal`,
+     `fixedIncomeWeightTotal`, `geoEquity` and `geoFixedIncome`.
+  2. **UI regression** in `tests/e2e/explain-import-lookthrough.spec.ts`
+     pastes the same 9-ISIN reproducer through the real Explain
+     import dialog (CHF base) and reads each visible region cell of
+     `GeoExposureMap` directly from the rendered DOM — asserting
+     each `{NA, Europe, Switzerland, Japan, EM}` percent is within
+     ±0.15 of the engine's expected value, with NO picker toggle in
+     between. Reproduces the originally-reported user flow end-to-
+     end and would fail loudly if any future React-state regression
+     causes the displayed look-through to lag the engine.
 
 ### 2026-05 (explain-import-replace-semantics — Task #232)
 - **Bugfix.** Pasting a portfolio into the Explain tab's import dialog
