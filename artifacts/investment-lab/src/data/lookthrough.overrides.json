@@ -8952,6 +8952,75 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BKX55S42",
       "_addedAt": "2026-05-08T06:00:16.693Z",
       "_addedVia": "admin/lookthrough-pool"
+    },
+    "CH0032912732": {
+      "name": "UBS ETF (CH) SLI (CHF) A-dis",
+      "topHoldings": [
+        {
+          "name": "UBS Group AG",
+          "pct": 9.38
+        },
+        {
+          "name": "Novartis AG",
+          "pct": 9.02
+        },
+        {
+          "name": "Roche Holding AG",
+          "pct": 8.91
+        },
+        {
+          "name": "Nestlé SA",
+          "pct": 8.84
+        },
+        {
+          "name": "Zurich Insurance Group AG",
+          "pct": 4.74
+        },
+        {
+          "name": "Swiss Re AG",
+          "pct": 4.44
+        },
+        {
+          "name": "Compagnie Financière Richemont SA",
+          "pct": 4.41
+        },
+        {
+          "name": "ABB Ltd.",
+          "pct": 4.21
+        },
+        {
+          "name": "Lonza Group AG",
+          "pct": 3.99
+        },
+        {
+          "name": "Holcim Ltd.",
+          "pct": 3.9
+        }
+      ],
+      "topHoldingsAsOf": "2026-05-10T09:51:47.693Z",
+      "geo": {
+        "Switzerland": 81.18,
+        "Other": 18.82
+      },
+      "sector": {
+        "Financials": 26.61,
+        "Health Care": 18.41,
+        "Consumer Staples": 10.08,
+        "Industrials": 10.02,
+        "Basic Materials": 8.56,
+        "Consumer Discretionary": 4.41,
+        "Telecommunication": 1.9,
+        "Technology": 1.18,
+        "Other": 18.83
+      },
+      "currency": {
+        "CHF": 81.18,
+        "Other": 18.82
+      },
+      "breakdownsAsOf": "2026-05-10T09:51:47.693Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=CH0032912732",
+      "_addedAt": "2026-05-10T09:51:47.693Z",
+      "_addedVia": "admin/lookthrough-pool"
     }
   }
 }
