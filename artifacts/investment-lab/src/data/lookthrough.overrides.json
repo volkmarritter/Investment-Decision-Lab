@@ -9108,6 +9108,95 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BJ0KDQ92",
       "_addedAt": "2026-05-10T09:55:56.755Z",
       "_addedVia": "admin/lookthrough-pool"
+    },
+    "IE00BZ0PKV06": {
+      "name": "iShares STOXX Europe Equity Multifactor UCITS ETF EUR (Acc)",
+      "topHoldings": [
+        {
+          "name": "Novartis AG",
+          "pct": 4.24
+        },
+        {
+          "name": "ASML Holding NV",
+          "pct": 3.99
+        },
+        {
+          "name": "UniCredit SpA",
+          "pct": 2.71
+        },
+        {
+          "name": "Koninklijke Ahold Delhaiz",
+          "pct": 2.2
+        },
+        {
+          "name": "Münchener Rückversicherungs-Gesellschaft AG",
+          "pct": 2.18
+        },
+        {
+          "name": "Repsol SA",
+          "pct": 2.15
+        },
+        {
+          "name": "Crédit Agricole SA",
+          "pct": 2
+        },
+        {
+          "name": "ABB Ltd.",
+          "pct": 1.94
+        },
+        {
+          "name": "Banco Bilbao Vizcaya Argentaria SA",
+          "pct": 1.92
+        },
+        {
+          "name": "AIB Group",
+          "pct": 1.75
+        }
+      ],
+      "topHoldingsAsOf": "2026-05-10T09:58:51.926Z",
+      "geo": {
+        "United Kingdom": 15.54,
+        "France": 13.8,
+        "Switzerland": 12.86,
+        "Germany": 11.82,
+        "Netherlands": 9.31,
+        "Italy": 6.73,
+        "Spain": 6.37,
+        "Sweden": 4.36,
+        "Norway": 2.74,
+        "Austria": 2.33,
+        "Finland": 2.03,
+        "Ireland": 1.83,
+        "Denmark": 1.12,
+        "Other": 9.16
+      },
+      "sector": {
+        "Financials": 26.17,
+        "Industrials": 14.67,
+        "Consumer Staples": 9.21,
+        "Health Care": 8.69,
+        "Technology": 7.62,
+        "Energy": 6.91,
+        "Utilities": 5.95,
+        "Telecommunication": 5.68,
+        "Consumer Discretionary": 4.84,
+        "Basic Materials": 1.85,
+        "Real Estate": 1.32,
+        "Other": 7.1
+      },
+      "currency": {
+        "GBP": 15.54,
+        "EUR": 54.22,
+        "CHF": 12.86,
+        "SEK": 4.36,
+        "NOK": 2.74,
+        "DKK": 1.12,
+        "Other": 9.16
+      },
+      "breakdownsAsOf": "2026-05-10T09:58:51.926Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BZ0PKV06",
+      "_addedAt": "2026-05-10T09:58:51.926Z",
+      "_addedVia": "admin/lookthrough-pool"
     }
   }
 }
