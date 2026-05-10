@@ -489,6 +489,7 @@ const MANUAL_REGIONS = [
   "Global",
   "USA",
   "Europe",
+  "United Kingdom",
   "Switzerland",
   "Emerging Markets",
   "Japan",
