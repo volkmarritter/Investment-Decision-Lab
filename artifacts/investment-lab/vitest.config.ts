@@ -25,8 +25,6 @@ const engineInclude = [
   "tests/personalPortfolio.test.ts",
   "tests/personalPortfolioFile.test.ts",
   "tests/portfolioFile.test.ts",
-  "tests/explainImportPortfolio.test.ts",
-  "tests/runtimeLookthroughPersistence.test.ts",
 ];
 
 const catalogInclude = [

@@ -2492,148 +2492,13 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 3202,
     inceptionDate: "2014-09-30",
   }),
-  "CH0032912732": I({
-    name: "UBS ETF (CH) SLI (CHF) A-dis",
-    isin: "CH0032912732",
-    terBps: 20,
-    domicile: "Switzerland",
-    replication: "Physical",
-    distribution: "Distributing",
-    currency: "CHF",
-    comment: "The UBS ETF (CH) SLI (CHF) A-dis seeks to track the SLI® index. The SLI® index tracks the 30 largest and most liquid stocks of the entire Swiss equity market.",
-    commentSource: "justetf",
-    listings: { "SIX": { ticker: "SLICHA" } },
-    defaultExchange: "SIX",
-    aumMillionsEUR: 2279,
-    inceptionDate: "2007-09-10",
-  }),
-  "CH0047533523": I({
-    name: "Swisscanto (CH) Gold ETF EA EUR",
-    isin: "CH0047533523",
-    terBps: 40,
-    domicile: "Switzerland",
-    replication: "Physical",
-    distribution: "Distributing",
-    currency: "EUR",
-    comment: "The product tracks the spot price of gold in US Dollar.",
-    commentSource: "justetf",
-    listings: { "SIX": { ticker: "ZGLDEU" } },
-    defaultExchange: "SIX",
-    aumMillionsEUR: 2152,
-    inceptionDate: "2009-01-15",
-  }),
-  "IE00BDFL4P12": I({
-    name: "iShares Diversified Commodity Swap UCITS ETF",
-    isin: "IE00BDFL4P12",
-    terBps: 19,
-    domicile: "Ireland",
-    replication: "Synthetic",
-    distribution: "Accumulating",
-    currency: "USD",
-    comment: "The product tracks the spot price of gold in US Dollar.",
-    commentSource: "justetf",
-    listings: { "LSE": { ticker: "ICOM" }, "XETRA": { ticker: "SXRS" } },
-    defaultExchange: "LSE",
-    aumMillionsEUR: 2152,
-    inceptionDate: "2009-01-15",
-  }),
-  "IE00B3VTML14": I({
-    name: "iShares Euro Government Bond 3-7yr UCITS ETF (Acc)",
-    isin: "IE00B3VTML14",
-    terBps: 15,
-    domicile: "Ireland",
-    replication: "Physical",
-    distribution: "Accumulating",
-    currency: "EUR",
-    comment: "The iShares Euro Government Bond 3-7yr UCITS ETF (Acc) seeks to track the Bloomberg Euro Government Bond 3-7 index. The Bloomberg Euro Government Bond 3-7 index tracks Euro denominated government bonds issued by EMU member states. Time to maturity: 3-7 years. Rating: Investment Grade.",
-    commentSource: "justetf",
-    listings: { "LSE": { ticker: "CSBGE7" }, "XETRA": { ticker: "SXRP" }, "SIX": { ticker: "CSBGE7" }, "Euronext": { ticker: "CBE7" } },
-    defaultExchange: "LSE",
-    aumMillionsEUR: 1298,
-    inceptionDate: "2009-06-02",
-  }),
-  "IE00BJ0KDQ92": I({
-    name: "Xtrackers MSCI World UCITS ETF 1C",
-    isin: "IE00BJ0KDQ92",
-    terBps: 12,
-    domicile: "Ireland",
-    replication: "Physical",
-    distribution: "Accumulating",
-    currency: "USD",
-    comment: "The iShares MSCI EMU Small Cap UCITS ETF (Acc) seeks to track the MSCI EMU Small Cap index. The MSCI EMU Small Cap index tracks small cap stocks from countries in the European Economic and Monetary Union.",
-    commentSource: "justetf",
-    listings: { "LSE": { ticker: "XDWD" }, "XETRA": { ticker: "XDWD" }, "SIX": { ticker: "XDWD" } },
-    defaultExchange: "LSE",
-    aumMillionsEUR: 1004,
-    inceptionDate: "2009-07-01",
-  }),
-  "CH0454664001": I({
-    name: "21shares Bitcoin ETP",
-    isin: "CH0454664001",
-    terBps: 149,
-    domicile: "Switzerland",
-    replication: "Physical",
-    distribution: "Accumulating",
-    currency: "USD",
-    comment: "The product tracks the value of the cryptocurrency Bitcoin.",
-    commentSource: "justetf",
-    listings: { "LSE": { ticker: "BTCU" }, "XETRA": { ticker: "2BTD" }, "SIX": { ticker: "ABTC" }, "Euronext": { ticker: "ABTC" } },
-    defaultExchange: "LSE",
-    aumMillionsEUR: 560,
-    inceptionDate: "2019-02-26",
-  }),
-  "IE00BZ0PKV06": I({
-    name: "iShares STOXX Europe Equity Multifactor UCITS ETF EUR (Acc)",
-    isin: "IE00BZ0PKV06",
-    terBps: 25,
-    domicile: "Ireland",
-    replication: "Physical",
-    distribution: "Accumulating",
-    currency: "EUR",
-    comment: "The iShares STOXX Europe Equity Multifactor UCITS ETF EUR (Acc) seeks to track the STOXX Developed Europe Equity Factor Screened index. The STOXX Developed Europe Equity Factor Screened index tracks stocks from European developed markets. The title selection and weighting is based on 4 style factors: Value, Momentum, Quality and Small Size.",
-    commentSource: "justetf",
-    listings: { "LSE": { ticker: "IEEU" }, "XETRA": { ticker: "IBC0" }, "SIX": { ticker: "IFSE" } },
-    defaultExchange: "LSE",
-    aumMillionsEUR: 597,
-    inceptionDate: "2015-09-04",
-  }),
-  "DE000A27Z304": I({
-    name: "Bitwise Physical Bitcoin ETP",
-    isin: "DE000A27Z304",
-    terBps: 200,
-    domicile: "Germany",
-    replication: "Physical",
-    distribution: "Accumulating",
-    currency: "USD",
-    comment: "The product tracks the value of the cryptocurrency Bitcoin.",
-    commentSource: "justetf",
-    listings: { "LSE": { ticker: "BTCF" }, "XETRA": { ticker: "BTCF" }, "SIX": { ticker: "BTCE" }, "Euronext": { ticker: "BTCE" } },
-    defaultExchange: "LSE",
-    aumMillionsEUR: 768,
-    inceptionDate: "2020-06-08",
-  }),
-  "LU1681048804": I({
-    name: "Amundi S&P 500 Swap UCITS ETF EUR Acc",
-    isin: "LU1681048804",
-    terBps: 15,
-    domicile: "Luxembourg",
-    replication: "Synthetic",
-    distribution: "Accumulating",
-    currency: "EUR",
-    comment: "The Amundi S&P 500 Swap UCITS ETF EUR Acc seeks to track the S&P 500® index. The S&P 500® index tracks the 500 largest US stocks.",
-    commentSource: "justetf",
-    listings: { "XETRA": { ticker: "AUM5" }, "SIX": { ticker: "500E" }, "Euronext": { ticker: "500" } },
-    defaultExchange: "XETRA",
-    aumMillionsEUR: 2410,
-    inceptionDate: "2010-06-08",
-  }),
 };
 
 const BUCKETS: Record<string, BucketAssignment> = {
   "Equity-Global": B({
     default: "IE00B3YLTY66",
     alternatives: ["IE00BK5BQT80", "IE00B6R52259"],
-    pool: ["IE00B4L5Y983", "IE00B0M62Q58", "IE00BFY0GT14", "IE00BK5BQV03", "IE00BP3QZ601", "IE00BP3QZB59", "IE00BP3QZ825", "IE00B9CQXS71", "IE00BCHWNQ94", "IE00BHZPJ569", "IE00BFNM3J75", "IE00B3RBWM25", "LU0274208692", "IE00BKX55T58", "IE00BJ0KDQ92"],
+    pool: ["IE00B4L5Y983", "IE00B0M62Q58", "IE00BFY0GT14", "IE00BK5BQV03", "IE00BP3QZ601", "IE00BP3QZB59", "IE00BP3QZ825", "IE00B9CQXS71", "IE00BCHWNQ94", "IE00BHZPJ569", "IE00BFNM3J75", "IE00B3RBWM25", "LU0274208692", "IE00BKX55T58"],
   }),
   "Equity-USA": B({
     default: "IE00B5BMR087",
@@ -2643,17 +2508,16 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "Equity-USA-Synthetic": B({
     default: "IE00B3YCGJ38",
     alternatives: ["LU0490618542"],
-    pool: ["LU1681048804"],
-    }),
+  }),
   "Equity-Europe": B({
     default: "IE00B4K48X80",
     alternatives: ["IE00B945VV12", "FR0007054358", "IE0008471009"],
-    pool: ["IE00B0M62S72", "DE0002635307", "LU0908500753", "LU0274209237", "DE0005933931", "LU0274211480", "IE00B4K6B022", "IE00B5M1WJ87", "IE00B53L3W79", "IE000LXEN6X4", "IE00BK5BQX27", "IE00BKX55S42", "IE00BZ0PKV06"],
+    pool: ["IE00B0M62S72", "DE0002635307", "LU0908500753", "LU0274209237", "DE0005933931", "LU0274211480", "IE00B4K6B022", "IE00B5M1WJ87", "IE00B53L3W79", "IE000LXEN6X4", "IE00BK5BQX27", "IE00BKX55S42"],
   }),
   "Equity-Switzerland": B({
     default: "CH0237935652",
     alternatives: ["CH0031768937", "CH0008899764"],
-    pool: ["CH0032912732"],
+    pool: [],
   }),
   "Equity-UK": B({
     default: "IE00B53HP851",
@@ -2689,7 +2553,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "FixedIncome-Global-EUR": B({
     default: "IE00BDBRDM35",
     alternatives: ["IE00BG47KB92", "LU0290355717"],
-    pool: ["IE00B3VTML14"],
+    pool: [],
   }),
   "FixedIncome-Global-CHF": B({
     default: "IE00BDBRDN42",
@@ -2703,7 +2567,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "Commodities-Gold": B({
     default: "IE00B579F325",
     alternatives: ["IE00B4ND3602", "JE00B1VS3770", "DE000A0S9GB0"],
-    pool: ["CH0044781232", "CH0047533523", "IE00BDFL4P12", "DE000A0H0728"],
+    pool: ["CH0044781232"],
   }),
   "RealEstate-GlobalREITs": B({
     default: "IE00B1FZS350",
@@ -2713,8 +2577,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "DigitalAssets-BroadCrypto": B({
     default: "GB00BLD4ZL17",
     alternatives: ["GB00BJYDH287", "CH1199067674"],
-    pool: ["CH0454664001", "DE000A27Z304"],
-    }),
+  }),
   "Equity-Technology": B({
     default: "IE00B3WJKG14",
     alternatives: ["IE00B53SZB19", "IE00BM67HT60", "IE00BMC38736", "IE00BYWQWR46"],
@@ -3578,45 +3441,6 @@ export function validateCatalog(): CatalogValidationIssue[] {
     }
   }
   return issues;
-}
-
-// Task #238 — every catalog ISIN (default, alternative, pool) must
-// have its own look-through profile (PROFILES merged with overrides /
-// pool from `lookthrough.overrides.json`, plus ALIAS redirects). The
-// `unmappedEtfs[]` field on `LookthroughResult` is the user-facing
-// loud-fail; this function is the catalog-side audit. It does NOT
-// import from `lookthrough.ts` (would create a cycle) — instead the
-// caller passes the profile predicate.
-//
-// Returns the catalog ISINs with NO usable look-through profile,
-// grouped by bucket key + role so the operator can see exactly which
-// rows to backfill. An empty array means full coverage.
-export interface LookthroughCoverageGap {
-  bucketKey: string;
-  role: "default" | "alternative" | "pool";
-  isin: string;
-}
-export function validateLookthroughCoverage(
-  hasProfile: (isin: string) => boolean,
-): LookthroughCoverageGap[] {
-  const gaps: LookthroughCoverageGap[] = [];
-  for (const [bucketKey, rec] of Object.entries(CATALOG)) {
-    if (!hasProfile(rec.isin)) {
-      gaps.push({ bucketKey, role: "default", isin: rec.isin });
-    }
-    for (const alt of rec.alternatives ?? []) {
-      if (!hasProfile(alt.isin)) {
-        gaps.push({ bucketKey, role: "alternative", isin: alt.isin });
-      }
-    }
-    const pool = BUCKETS[bucketKey]?.pool ?? [];
-    for (const poolIsin of pool) {
-      if (!hasProfile(poolIsin)) {
-        gaps.push({ bucketKey, role: "pool", isin: poolIsin });
-      }
-    }
-  }
-  return gaps;
 }
 
 // Backwards-compat helper still used elsewhere (e.g. fee/Monte-Carlo flows that look up by name)

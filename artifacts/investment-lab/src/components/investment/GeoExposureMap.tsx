@@ -101,11 +101,7 @@ export function GeoExposureMap({ etfs, baseCurrency }: Props) {
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
           {activeRegions.map((r) => (
-            <div
-              key={r}
-              data-testid={`geo-region-${r}`}
-              className="rounded-md border p-2 text-xs"
-            >
+            <div key={r} className="rounded-md border p-2 text-xs">
               <div className="flex items-center gap-1.5">
                 <span
                   className="inline-block h-3 w-3 rounded-sm"
@@ -113,12 +109,7 @@ export function GeoExposureMap({ etfs, baseCurrency }: Props) {
                 />
                 <span className="font-medium truncate">{regionLabel(r, lang)}</span>
               </div>
-              <div
-                data-testid={`geo-region-${r}-pct`}
-                className="font-mono text-base mt-1"
-              >
-                {weights[r].toFixed(1)}%
-              </div>
+              <div className="font-mono text-base mt-1">{weights[r].toFixed(1)}%</div>
             </div>
           ))}
         </div>

@@ -30,10 +30,7 @@
 
 import { Router, type IRouter } from "express";
 import { scrapePreview, PreviewError, type PreviewResult } from "../lib/etf-scrape";
-import {
-  scrapeLookthrough,
-  type ScrapedLookthrough,
-} from "../lib/lookthrough-scrape";
+
 const router: IRouter = Router();
 
 // ----- in-memory TTL cache --------------------------------------------------
@@ -113,129 +110,6 @@ function scrapeWithDeadline(isin: string): Promise<PreviewResult> {
     },
   );
 }
-
-// ----------------------------------------------------------------------------
-// Task #238 — public on-demand look-through scrape
-// ----------------------------------------------------------------------------
-// GET /api/lookthrough-scrape/:isin returns the justETF look-through
-// data (geo + sector + currency + top holdings) for an arbitrary ISIN.
-// Used by the Explain tab when the user pastes an off-catalog manual
-// ISIN — without a profile, that position would silently drop out of
-// every look-through aggregate. The client registers the response in
-// its in-memory `RUNTIME_PROFILES` registry (see
-// `lookthrough.ts#registerRuntimeLookthroughProfile`) so the next
-// `buildLookthrough` call sees a usable profile and the destructive
-// "unmapped ETFs" alert clears for that row.
-//
-// Read-only — never writes to disk, no DB, no PR. Reuses the same
-// per-IP rate limiter, in-memory cache and in-flight dedup as
-// /etf-preview to bound abuse of the upstream scraper.
-// ----------------------------------------------------------------------------
-const lookthroughCache = new Map<string, { at: number; payload: unknown }>();
-const lookthroughInFlight = new Map<string, Promise<ScrapedLookthrough>>();
-const LOOKTHROUGH_TIMEOUT_MS = 12_000;
-
-function scrapeLookthroughWithDeadline(isin: string): Promise<ScrapedLookthrough> {
-  return new Promise((resolve, reject) => {
-    const t = setTimeout(() => {
-      reject(
-        new PreviewError(
-          504,
-          "upstream_timeout",
-          `Look-through scrape exceeded ${LOOKTHROUGH_TIMEOUT_MS} ms`,
-        ),
-      );
-    }, LOOKTHROUGH_TIMEOUT_MS);
-    scrapeLookthrough(isin).then(
-      (r) => {
-        clearTimeout(t);
-        resolve(r);
-      },
-      (err) => {
-        clearTimeout(t);
-        reject(err);
-      },
-    );
-  });
-}
-
-router.get("/lookthrough-scrape/:isin", async (req, res) => {
-  const ip = req.ip ?? req.socket.remoteAddress ?? "unknown";
-  if (!takeToken(ip)) {
-    res.status(429).json({
-      error: "rate_limited",
-      message: "Too many look-through scrape requests. Try again in a minute.",
-    });
-    return;
-  }
-  const cacheKey = String(req.params.isin || "").toUpperCase();
-  if (!/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(cacheKey)) {
-    res.status(400).json({ error: "invalid_isin", message: "Malformed ISIN." });
-    return;
-  }
-  const cached = lookthroughCache.get(cacheKey);
-  if (cached && Date.now() - cached.at < CACHE_TTL_MS) {
-    res.json(cached.payload);
-    return;
-  }
-  let pending = lookthroughInFlight.get(cacheKey);
-  if (!pending) {
-    pending = scrapeLookthroughWithDeadline(cacheKey).then(
-      (r) => {
-        lookthroughCache.set(cacheKey, { at: Date.now(), payload: r });
-        lookthroughInFlight.delete(cacheKey);
-        return r;
-      },
-      (err) => {
-        lookthroughInFlight.delete(cacheKey);
-        throw err;
-      },
-    );
-    lookthroughInFlight.set(cacheKey, pending);
-  }
-  try {
-    const result = await pending;
-    // Task #238: hard-block scrape responses that don't carry the
-    // minimum geo + sector — without those the client-side runtime
-    // PROFILES merge would still drop the position into "unmapped".
-    // 422 lets the client surface a clear pre-add failure instead of
-    // silently registering an empty profile.
-    const haveGeoSector =
-      !!result.geo && Object.keys(result.geo).length > 0 &&
-      !!result.sector && Object.keys(result.sector).length > 0;
-    if (!haveGeoSector) {
-      res.status(422).json({
-        error: "lookthrough_incomplete",
-        message: `justETF lieferte keine Geo-/Sektor-Daten für ${cacheKey}. Position kann nicht ohne Look-through-Profil zur Analyse hinzugefügt werden.`,
-        isin: cacheKey,
-        scraped: {
-          hasGeo: !!result.geo && Object.keys(result.geo).length > 0,
-          hasSector: !!result.sector && Object.keys(result.sector).length > 0,
-          hasTopHoldings: !!result.topHoldings && result.topHoldings.length > 0,
-          hasCurrency: !!result.currency,
-        },
-      });
-      return;
-    }
-    // Task #238 round 4 — this public endpoint is strictly read-only.
-    // We deliberately do NOT persist the scraped profile from here:
-    // a public, unauthenticated route must never gain a write side
-    // effect onto the curated catalog (would be an admin-boundary
-    // bypass; see threat_model.md "Elevation of Privilege"). Persisting
-    // off-catalog ISINs into the pool is an explicit operator action via
-    // the admin route (POST /api/admin/lookthrough-pool, requireAdmin).
-    res.json(result);
-  } catch (err) {
-    if (err instanceof PreviewError) {
-      res.status(err.status).json({ error: err.code, message: err.message });
-      return;
-    }
-    res.status(500).json({
-      error: "internal",
-      message: err instanceof Error ? err.message : "Unknown error",
-    });
-  }
-});
 
 router.get("/etf-preview/:isin", async (req, res) => {
   // req.ip is computed by Express from X-Forwarded-For using the

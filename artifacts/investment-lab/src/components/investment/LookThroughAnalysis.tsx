@@ -2,8 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
-import { Telescope, Info, ChevronDown, ChevronUp, AlertTriangle } from "lucide-react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Telescope, Info, ChevronDown, ChevronUp } from "lucide-react";
 import { ETFImplementation, BaseCurrency } from "@/lib/types";
 import { buildLookthrough } from "@/lib/lookthrough";
 import { useT } from "@/lib/i18n";
@@ -46,29 +45,6 @@ export function LookThroughAnalysis({ etfs, baseCurrency }: Props) {
           </Button>
         </div>
       </CardHeader>
-      {result.unmappedEtfs.length > 0 && (
-        <CardContent className="pt-0">
-          <Alert variant="destructive" data-testid="alert-lookthrough-unmapped">
-            <AlertTriangle className="h-4 w-4" />
-            <AlertTitle>{t("build.lookthrough.unmapped.title")}</AlertTitle>
-            <AlertDescription className="space-y-2">
-              <p>
-                {t("build.lookthrough.unmapped.desc").replace(
-                  "{count}",
-                  String(result.unmappedEtfs.length),
-                )}
-              </p>
-              <ul className="text-xs space-y-0.5 font-mono pl-4 list-disc">
-                {result.unmappedEtfs.map((u) => (
-                  <li key={u.isin} data-testid={`unmapped-row-${u.isin}`}>
-                    {u.name} ({u.isin}) — {u.weight.toFixed(1)}%
-                  </li>
-                ))}
-              </ul>
-            </AlertDescription>
-          </Alert>
-        </CardContent>
-      )}
       {open && (
       <CardContent className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

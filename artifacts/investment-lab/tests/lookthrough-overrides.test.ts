@@ -181,37 +181,32 @@ describe("lookthrough overrides — profileFor.topHoldings", () => {
   });
 });
 
-describe("lookthrough overrides — per-ISIN profiles, no ALIAS substitution (Task #238)", () => {
-  // Task #238 — `profileFor` is now strict per-ISIN; the previous ALIAS
-  // map (which let hedged S&P 500 share classes inherit the canonical
-  // IE00B5BMR087 holdings) was removed because alias substitution silently
-  // hid drift between the alias's actual holdings/geo and the canonical
-  // basket — and made every off-catalog ISIN that happened to look like
-  // a known sibling silently grab a wrong profile. The replacement
-  // contract: every catalog ISIN owns its own PROFILES entry (curated
-  // primary, SHARED_BASKET_PROFILES variant, or DISTINCT_PROFILES); the
-  // override file only patches the literal ISIN it names, never anything
-  // else.
+describe("lookthrough overrides — ALIAS resolution flows the override through", () => {
+  // ALIAS in lookthrough.ts maps several hedged share classes to the
+  // canonical S&P 500 ISIN (IE00B5BMR087). The TopHoldings card looks
+  // up holdings by the user's actual ETF ISIN, which is often a hedged
+  // alias — so the override must reach the user via ALIAS, not just via
+  // the canonical key. If a future refactor resolves the alias *before*
+  // the merge (or merges into a copy that the alias path doesn't see),
+  // the UI silently falls back to the curated list for hedged variants.
   it.each([
     ["IE00B3YCGJ38", "Invesco S&P 500 Synthetic"],
     ["IE00BCRY6557", "S&P 500 EUR Hedged"],
     ["IE00BYX5MS15", "S&P 500 GBP Hedged"],
     ["IE00B3ZW0K18", "S&P 500 CHF Hedged variant slot"],
-  ])("alias %s (%s) does NOT silently inherit the canonical S&P 500 override", (alias) => {
+  ])("alias %s (%s) inherits the overridden topHoldings of the canonical S&P 500 ISIN", (alias) => {
     const profile = profileFor(alias);
-    // The alias still has its own profile (came from
-    // SHARED_BASKET_PROFILES / DISTINCT_PROFILES), but the override
-    // patched only IE00B5BMR087 — so the alias's holdings must NOT
-    // equal the 3-element fixture override.
     expect(profile).not.toBeNull();
-    expect(profile!.topHoldings).not.toEqual(FX.SP500_HOLDINGS);
+    expect(profile!.topHoldings).toEqual(FX.SP500_HOLDINGS);
   });
 
-  it("aliases also do NOT inherit the canonical's per-ISIN topHoldingsAsOf stamp", () => {
-    // The override stamp lives on the canonical ISIN only; aliases must
-    // surface their own stamp (or null), never the canonical's.
-    expect(topHoldingsStampFor("IE00BCRY6557")).not.toBe(FX.SP500_AS_OF);
-    expect(topHoldingsStampFor("IE00B3YCGJ38")).not.toBe(FX.SP500_AS_OF);
+  it("aliases also inherit the per-ISIN topHoldingsAsOf stamp of the canonical ISIN", () => {
+    // topHoldingsStampFor goes through profileFor, so alias resolution
+    // applies here too. The hedged S&P 500 cards need this to render the
+    // refreshed timestamp instead of the LOOKTHROUGH_REFERENCE_DATE
+    // fallback.
+    expect(topHoldingsStampFor("IE00BCRY6557")).toBe(FX.SP500_AS_OF);
+    expect(topHoldingsStampFor("IE00B3YCGJ38")).toBe(FX.SP500_AS_OF);
   });
 });
 
