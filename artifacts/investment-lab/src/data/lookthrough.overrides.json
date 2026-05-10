@@ -9197,6 +9197,82 @@
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BZ0PKV06",
       "_addedAt": "2026-05-10T09:58:51.926Z",
       "_addedVia": "admin/lookthrough-pool"
+    },
+    "IE0005042456": {
+      "name": "iShares Core FTSE 100 UCITS ETF GBP (Dist)",
+      "topHoldings": [
+        {
+          "name": "AstraZeneca PLC",
+          "pct": 8.94
+        },
+        {
+          "name": "HSBC Holdings Plc",
+          "pct": 8.52
+        },
+        {
+          "name": "Shell Plc",
+          "pct": 8.28
+        },
+        {
+          "name": "Rolls-Royce Holdings",
+          "pct": 3.9
+        },
+        {
+          "name": "BP Plc",
+          "pct": 3.86
+        },
+        {
+          "name": "British American Tobacco plc",
+          "pct": 3.73
+        },
+        {
+          "name": "Unilever Plc",
+          "pct": 3.66
+        },
+        {
+          "name": "GSK Plc",
+          "pct": 3.35
+        },
+        {
+          "name": "Rio Tinto Plc",
+          "pct": 2.91
+        },
+        {
+          "name": "BAE Systems",
+          "pct": 2.69
+        }
+      ],
+      "topHoldingsAsOf": "2026-05-10T10:51:59.461Z",
+      "geo": {
+        "United Kingdom": 83.62,
+        "Switzerland": 2.76,
+        "Ireland": 1.13,
+        "Other": 12.49
+      },
+      "sector": {
+        "Financials": 21.86,
+        "Health Care": 12.86,
+        "Industrials": 12.78,
+        "Energy": 12.14,
+        "Consumer Staples": 10.13,
+        "Basic Materials": 6.56,
+        "Utilities": 4.91,
+        "Consumer Discretionary": 2.4,
+        "Telecommunication": 2.36,
+        "Real Estate": 0.96,
+        "Technology": 0.89,
+        "Other": 12.15
+      },
+      "currency": {
+        "GBP": 83.62,
+        "CHF": 2.76,
+        "EUR": 1.13,
+        "Other": 12.49
+      },
+      "breakdownsAsOf": "2026-05-10T10:51:59.461Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE0005042456",
+      "_addedAt": "2026-05-10T10:51:59.461Z",
+      "_addedVia": "admin/lookthrough-pool"
     }
   }
 }
