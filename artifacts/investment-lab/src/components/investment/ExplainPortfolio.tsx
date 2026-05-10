@@ -86,6 +86,11 @@ import type { InstrumentRecord } from "@/lib/etfs";
 import type { RiskRegime } from "@/lib/metrics";
 import { effectiveCashExpReturn } from "@/lib/metrics";
 import { useT } from "@/lib/i18n";
+import { scrapeLookthroughForIsin } from "@/lib/etf-api";
+import {
+  profileFor as lookthroughProfileFor,
+  registerRuntimeLookthroughProfile,
+} from "@/lib/lookthrough";
 
 import { ETFDetailsDialog } from "./ETFDetailsDialog";
 import {
@@ -732,6 +737,10 @@ export function ExplainPortfolio() {
   // session, so adding/removing a position later doesn't reflow the tree
   // out from under them.
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
+  // Task #238 — bumped when an on-demand look-through scrape registers a
+  // new runtime profile, so the `portfolio` useMemo recomputes and the
+  // destructive "unmapped ETFs" alert clears for the row.
+  const [runtimeProfileVersion, setRuntimeProfileVersion] = useState(0);
 
   function toggleGroup(assetClass: string, smartDefault: boolean) {
     setExpandedGroups((prev) => {
@@ -931,6 +940,112 @@ export function ExplainPortfolio() {
       ...s,
       positions: s.positions.map((p, i) => (i === index ? { ...p, isin } : p)),
     }));
+    // Task #238 — fire an on-demand look-through scrape for off-catalog
+    // ISINs. The catalog/pool already covers anything with a curated
+    // profile, so we only ping the server when `profileFor` returns
+    // null. On success the result is registered into the runtime
+    // profile registry and `runtimeProfileVersion` bumps so the
+    // `portfolio` useMemo recomputes. On failure we surface a
+    // destructive toast that names the failure mode — we do NOT
+    // silently leave the row in the unmapped-ETFs alert, per the
+    // task contract.
+    const trimmed = isin.trim().toUpperCase();
+    if (!/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(trimmed)) return;
+    if (lookthroughProfileFor(trimmed)) return;
+    void scrapeLookthroughForIsin(trimmed).then((result) => {
+      if (!result.ok) {
+        const reasonDe: Record<typeof result.reason, string> = {
+          invalid_isin: "Ungültige ISIN",
+          network_error: "Netzwerkfehler beim Abrufen",
+          rate_limited: "Zu viele Anfragen — bitte gleich erneut versuchen",
+          lookthrough_incomplete:
+            "justETF lieferte keine Geo-/Sektor-Daten — Position kann nicht analysiert werden",
+          scrape_failed: "Look-through-Abruf fehlgeschlagen",
+        };
+        const reasonEn: Record<typeof result.reason, string> = {
+          invalid_isin: "Invalid ISIN",
+          network_error: "Network error while fetching",
+          rate_limited: "Too many requests — try again shortly",
+          lookthrough_incomplete:
+            "justETF returned no geo/sector data — position cannot be analyzed",
+          scrape_failed: "Look-through scrape failed",
+        };
+        toast.error(
+          lang === "de"
+            ? `${trimmed}: ${reasonDe[result.reason]}`
+            : `${trimmed}: ${reasonEn[result.reason]}`,
+        );
+        // Task #238 round 5 — `setManualIsin` is ONLY invoked from the
+        // manual-entry render branch (`isManual && position.manualMeta`,
+        // call sites at the bottom of this file). Every row that reaches
+        // this code path therefore carries an operator-supplied
+        // `manualMeta.assetClass` (and region) — that IS the documented
+        // override mechanism for off-catalog ISINs whose justETF page
+        // does not parse. Clearing the ISIN here would erase the
+        // operator's intentional manual entry; instead we keep the
+        // typed ISIN, surface the destructive toast above, and let the
+        // existing "Look-through data missing" / "unmapped ETFs" alert
+        // make the gap visible. Catalog-picker rows go through
+        // `pickIsinForRow`, never through here, so this exception
+        // does NOT weaken the picker's per-ISIN coverage guarantee.
+        return;
+      }
+      const scraped = result.profile;
+      // Task #238 round 7 — robust isEquity classification. The previous
+      // heuristic ("equity if sector has any keys") wrongly classified
+      // bond ETFs as equity, because justETF returns
+      // `sector: { Other: 100 }` for most bonds (see the 6 backfilled
+      // bond pool entries fixed in round 6). Use a multi-signal rule:
+      // (1) name keyword match → fixed-income / commodity wins (most
+      // reliable signal — operator-typed off-catalog ISINs always have
+      // a name from the scrape), (2) sector contains a real equity
+      // sector name (Technology, Financials, etc.) → equity, (3)
+      // otherwise (sector is empty OR sector is only "Other") →
+      // conservatively NOT equity, so the position lands in the
+      // fixed-income geo path rather than polluting equity aggregates.
+      const scrapedName = scraped.name ?? "";
+      const RT_BOND_RE =
+        /\b(bond|aggregate|treasury|gilts?|bund|btp|oat|govie|corporate\s+credit|high\s+yield|inflation[- ]?linked|tips|money\s+market|t-?bill)\b/i;
+      const RT_COMMODITY_RE =
+        /\b(gold|silver|platinum|palladium|oil|brent|wti|natural\s+gas|copper|commodit|wheat|corn)\b/i;
+      const REAL_EQUITY_SECTORS = new Set([
+        "Technology",
+        "Financials",
+        "Healthcare",
+        "Consumer Discretionary",
+        "Consumer Staples",
+        "Industrials",
+        "Communication Services",
+        "Energy",
+        "Materials",
+        "Utilities",
+        "Real Estate",
+      ]);
+      const sectorKeys = Object.keys(scraped.sector ?? {});
+      const hasRealEquitySector = sectorKeys.some((k) =>
+        REAL_EQUITY_SECTORS.has(k),
+      );
+      const nameLooksFixedIncome =
+        RT_BOND_RE.test(scrapedName) || RT_COMMODITY_RE.test(scrapedName);
+      const inferredIsEquity = nameLooksFixedIncome
+        ? false
+        : hasRealEquitySector;
+      registerRuntimeLookthroughProfile(trimmed, {
+        isEquity: inferredIsEquity,
+        geo: scraped.geo!,
+        sector: scraped.sector!,
+        currency: scraped.currency ?? {},
+        ...(scraped.topHoldings && scraped.topHoldings.length > 0
+          ? { topHoldings: scraped.topHoldings }
+          : {}),
+      });
+      setRuntimeProfileVersion((v) => v + 1);
+      toast.success(
+        lang === "de"
+          ? `Look-through-Profil geladen für ${trimmed}`
+          : `Look-through profile loaded for ${trimmed}`,
+      );
+    });
   }
 
   function setManualMetaField(
@@ -1092,7 +1207,7 @@ export function ExplainPortfolio() {
         state.baseCurrency,
         lang,
       ),
-    [state.positions, state.baseCurrency, lang],
+    [state.positions, state.baseCurrency, lang, runtimeProfileVersion],
   );
 
   // Task #161 — index ETFImplementation rows by ISIN so PositionRow can

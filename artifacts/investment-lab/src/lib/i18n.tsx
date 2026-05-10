@@ -125,6 +125,8 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "build.lookthrough.col.pctPortfolio": "% of Portfolio",
     "build.lookthrough.col.source": "Source ETF",
     "build.lookthrough.disclaimer": "Underlying weights are typical reference values for the indices these ETFs track and will drift over time; verify against the latest fund factsheets before relying on them.",
+    "build.lookthrough.unmapped.title": "Look-through data missing",
+    "build.lookthrough.unmapped.desc": "{count} ETF position(s) below have no curated look-through profile, so they are NOT included in the geographic / sector / single-stock aggregates above. The portfolio totals understate true exposure by the listed weight. Operators: register the ISIN on the Admin → Operations tab to scrape its profile.",
 
     // Currency overview report
     "build.fx.title": "Consolidated Currency Overview (Post-Hedge)",
@@ -838,6 +840,8 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "build.lookthrough.col.pctPortfolio": "% des Portfolios",
     "build.lookthrough.col.source": "Quell-ETF",
     "build.lookthrough.disclaimer": "Die unterliegenden Gewichte sind typische Referenzwerte der von diesen ETFs abgebildeten Indizes und ändern sich im Zeitverlauf; vor jeder Verwendung mit den aktuellen Fonds-Factsheets verifizieren.",
+    "build.lookthrough.unmapped.title": "Look-through-Daten fehlen",
+    "build.lookthrough.unmapped.desc": "{count} ETF-Position(en) unten haben kein hinterlegtes Look-through-Profil und sind daher NICHT in den geografischen / sektoralen / Einzeltitel-Aggregaten oben enthalten. Die Portfoliosummen unterschätzen die tatsächliche Konzentration um das angezeigte Gewicht. Betreiber: ISIN im Admin → Operations-Tab registrieren, um das Profil zu scrapen.",
 
     // Currency overview report
     "build.fx.title": "Konsolidierte Währungsübersicht (nach Absicherung)",

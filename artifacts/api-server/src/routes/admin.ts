@@ -439,10 +439,16 @@ router.post("/admin/bucket-alternatives", async (req, res) => {
   // surface. The two-PR variant is gone — operators kept losing track
   // of which review still needed approval.
   //
-  // Best-effort: if scraping fails (no data, network blip,
-  // methodology data missing) the PR still goes through with only the
-  // etfs.ts change. The monthly refresh-lookthrough cron will re-try
-  // for the JSON sidecar at the next tick.
+  // Task #238: hard-block on incomplete scrape unless the operator
+  // passes `force: true`. Was previously "best-effort" — landing the
+  // etfs.ts change without its look-through profile meant every Build
+  // user picking the new alternative immediately dropped into the
+  // "unmapped ETFs" alert. The runtime PROFILES merge in
+  // lookthrough.ts only needs geo + sector to render the position;
+  // top-holdings + currency are nice-to-have. Strict gate accepts any
+  // (geo+sector) scrape; force:true lets the operator land the row
+  // anyway if they accept the look-through gap.
+  const forceLegacy = req.body?.force === true;
   let lookthroughEntry:
     | Parameters<typeof openAddBucketAlternativePr>[2]
     | undefined;
@@ -457,8 +463,8 @@ router.post("/admin/bucket-alternatives", async (req, res) => {
     | "pool"
     | "base-file"
     | undefined;
+  const norm = entry.isin.trim().toUpperCase();
   try {
-    const norm = entry.isin.trim().toUpperCase();
     const sources = await readLookthroughSources();
     if (sources.pool[norm] || sources.overrides[norm]) {
       lookthroughAlreadyPresent = true;
@@ -471,26 +477,36 @@ router.post("/admin/bucket-alternatives", async (req, res) => {
       const geo = scraped.geo;
       const sector = scraped.sector;
       const currency = scraped.currency;
-      if (
-        !top ||
-        top.length === 0 ||
-        !geo ||
-        Object.keys(geo).length === 0 ||
-        !sector ||
-        Object.keys(sector).length === 0 ||
-        !currency
-      ) {
-        lookthroughError = `Look-through-Scrape unvollständig für ${norm} — Methodology-Override-Daten fehlen, die Look-through-Daten werden separat per Refresh-Job nachgereicht.`;
+      const haveGeoSector =
+        !!geo && Object.keys(geo).length > 0 &&
+        !!sector && Object.keys(sector).length > 0;
+      if (!haveGeoSector) {
+        lookthroughError = `Look-through-Scrape unvollständig für ${norm}: Geo/Sektor fehlen.`;
+        if (!forceLegacy) {
+          res.status(422).json({
+            error: "lookthrough_incomplete",
+            message: `${lookthroughError} Setze force:true im Request, um die Alternative trotzdem ohne Look-through-Daten anzuhängen — die Position erscheint dann in der Look-through-Analyse als "nicht zugeordnet".`,
+            isin: norm,
+            scraped: {
+              hasGeo: !!geo && Object.keys(geo).length > 0,
+              hasSector: !!sector && Object.keys(sector).length > 0,
+              hasTopHoldings: !!top && top.length > 0,
+              hasCurrency: !!currency,
+            },
+          });
+          return;
+        }
       } else {
         lookthroughEntry = {
           isin: norm,
           entry: {
             ...(scraped.name ? { name: scraped.name } : {}),
-            topHoldings: top,
-            topHoldingsAsOf: scraped.asOf,
+            ...(top && top.length > 0
+              ? { topHoldings: top, topHoldingsAsOf: scraped.asOf }
+              : {}),
             geo,
             sector,
-            currency,
+            ...(currency ? { currency } : {}),
             breakdownsAsOf: scraped.asOf,
             _source: scraped.sourceUrl,
             _addedAt: scraped.asOf,
@@ -501,6 +517,14 @@ router.post("/admin/bucket-alternatives", async (req, res) => {
     }
   } catch (err) {
     lookthroughError = err instanceof Error ? err.message : String(err);
+    if (!forceLegacy && !lookthroughAlreadyPresent) {
+      res.status(422).json({
+        error: "lookthrough_scrape_failed",
+        message: `${lookthroughError} — Setze force:true im Request, um die Alternative trotzdem ohne Look-through-Daten anzuhängen.`,
+        isin: norm,
+      });
+      return;
+    }
   }
 
   let prUrl: string;
@@ -2006,7 +2030,11 @@ router.post("/admin/backfill-lookthrough-pool", async (_req, res) => {
     return;
   }
 
-  // 1. Catalog ISINs (defaults + alternatives), de-duplicated.
+  // 1. Catalog ISINs (defaults + alternatives + pool), de-duplicated.
+  // Task #238: pool ISINs are pickable in Build's "More ETFs" dialog
+  // and Explain's per-bucket IsinPicker — they MUST be backfilled too,
+  // otherwise the Look-through "unmapped ETFs" alert fires for any
+  // pool-selected position even though the catalog technically lists it.
   let catalogIsins: string[];
   try {
     const catalog = await loadCatalog();
@@ -2015,6 +2043,9 @@ router.post("/admin/backfill-lookthrough-pool", async (_req, res) => {
       if (entry?.isin) set.add(entry.isin.toUpperCase());
       for (const alt of entry?.alternatives ?? []) {
         if (alt?.isin) set.add(alt.isin.toUpperCase());
+      }
+      for (const poolItem of entry?.pool ?? []) {
+        if (poolItem?.isin) set.add(poolItem.isin.toUpperCase());
       }
     }
     catalogIsins = [...set];
@@ -2060,20 +2091,22 @@ router.post("/admin/backfill-lookthrough-pool", async (_req, res) => {
       const geo = scraped.geo;
       const sector = scraped.sector;
       const currency = scraped.currency;
+      // Task #238: gate matches the runtime PROFILES merge in
+      // lookthrough.ts (geo + sector are the minimum). Top-holdings is
+      // optional — bond / money-market / synthetic ETFs publish geo +
+      // sector but no top-holdings table, and the runtime accepts that.
+      // Currency falls back to {} at the runtime, so it's optional too,
+      // but we still scrape it when available so the FX overview stays
+      // honest.
       if (
-        !top ||
-        top.length === 0 ||
         !geo ||
         Object.keys(geo).length === 0 ||
         !sector ||
-        Object.keys(sector).length === 0 ||
-        !currency
+        Object.keys(sector).length === 0
       ) {
         const missingFields = [
-          (!top || top.length === 0) && "Top-Holdings",
           (!geo || Object.keys(geo).length === 0) && "Geo",
           (!sector || Object.keys(sector).length === 0) && "Sektor",
-          !currency && "Währung",
         ]
           .filter(Boolean)
           .join(", ");
@@ -2087,11 +2120,12 @@ router.post("/admin/backfill-lookthrough-pool", async (_req, res) => {
         isin,
         entry: {
           ...(scraped.name ? { name: scraped.name } : {}),
-          topHoldings: top,
-          topHoldingsAsOf: scraped.asOf,
+          ...(top && top.length > 0
+            ? { topHoldings: top, topHoldingsAsOf: scraped.asOf }
+            : {}),
           geo,
           sector,
-          currency,
+          ...(currency ? { currency } : {}),
           breakdownsAsOf: scraped.asOf,
           _source: scraped.sourceUrl,
           _addedAt: scraped.asOf,
@@ -3289,6 +3323,10 @@ router.post("/admin/buckets/:key/alternatives", async (req, res) => {
   // also bundles a look-through scrape if the JSON doesn't yet have
   // data for this ISIN — so the attached alternative is usable on
   // day 1 instead of waiting for the monthly refresh job.
+  // Task #238: refuse attach when scrape is incomplete unless the
+  // operator explicitly passes `force: true`. Default is the strict
+  // gate (block); legacy callers that always force can pass force.
+  const force = req.body?.force === true;
   let lookthroughEntry:
     | Parameters<typeof openAttachBucketAlternativePr>[2]
     | undefined;
@@ -3312,26 +3350,34 @@ router.post("/admin/buckets/:key/alternatives", async (req, res) => {
       const geo = scraped.geo;
       const sector = scraped.sector;
       const currency = scraped.currency;
-      if (
-        !top ||
-        top.length === 0 ||
-        !geo ||
-        Object.keys(geo).length === 0 ||
-        !sector ||
-        Object.keys(sector).length === 0 ||
-        !currency
-      ) {
-        lookthroughError = `Look-through-Scrape unvollständig für ${isin} — die Look-through-Daten werden separat per Refresh-Job nachgereicht.`;
+      // Task #238: runtime PROFILES merge (lookthrough.ts) only needs
+      // geo + sector to render the position. Top-holdings + currency
+      // are nice-to-have. Strict gate accepts any (geo+sector) scrape.
+      const haveGeoSector =
+        geo && Object.keys(geo).length > 0 &&
+        sector && Object.keys(sector).length > 0;
+      if (!haveGeoSector) {
+        lookthroughError = `Look-through-Scrape unvollständig für ${isin}: Geo/Sektor fehlen. Setze force:true im Request, um trotzdem als Alternative anzuhängen — die Position erscheint dann in der Look-through-Analyse als "nicht zugeordnet".`;
+        if (!force) {
+          res.status(422).json({
+            error: "lookthrough_incomplete",
+            message: lookthroughError,
+            isin,
+            scraped: { hasGeo: !!geo && Object.keys(geo).length > 0, hasSector: !!sector && Object.keys(sector).length > 0, hasTopHoldings: !!top && top.length > 0, hasCurrency: !!currency },
+          });
+          return;
+        }
       } else {
         lookthroughEntry = {
           isin,
           entry: {
             ...(scraped.name ? { name: scraped.name } : {}),
-            topHoldings: top,
-            topHoldingsAsOf: scraped.asOf,
+            ...(top && top.length > 0
+              ? { topHoldings: top, topHoldingsAsOf: scraped.asOf }
+              : {}),
             geo,
             sector,
-            currency,
+            ...(currency ? { currency } : {}),
             breakdownsAsOf: scraped.asOf,
             _source: scraped.sourceUrl,
             _addedAt: scraped.asOf,
@@ -3342,6 +3388,14 @@ router.post("/admin/buckets/:key/alternatives", async (req, res) => {
     }
   } catch (err) {
     lookthroughError = err instanceof Error ? err.message : String(err);
+    if (!force && !lookthroughAlreadyPresent) {
+      res.status(422).json({
+        error: "lookthrough_scrape_failed",
+        message: `${lookthroughError} — Setze force:true im Request, um die ISIN trotzdem ohne Look-through-Daten anzuhängen.`,
+        isin,
+      });
+      return;
+    }
   }
 
   try {
@@ -3423,7 +3477,67 @@ router.put("/admin/buckets/:key/default", async (req, res) => {
     });
     return;
   }
+  // Task #238: refuse default-swap if the new ISIN has no look-through
+  // profile and no scrape would yield one. The default ISIN is the
+  // most-shown picker option for the bucket — silently letting it
+  // become a "look-through unmapped" position would mislead the user.
+  // `force: true` skips the gate.
+  const forceDefault = req.body?.force === true;
   try {
+    const sources = await readLookthroughSources();
+    const havePresent = !!(sources.pool[isin] || sources.overrides[isin]);
+    if (!havePresent && !forceDefault) {
+      const scraped = await scrapeLookthrough(isin).catch(() => null);
+      const haveGeoSector =
+        !!scraped &&
+        !!scraped.geo && Object.keys(scraped.geo).length > 0 &&
+        !!scraped.sector && Object.keys(scraped.sector).length > 0;
+      if (!haveGeoSector) {
+        res.status(422).json({
+          error: "lookthrough_incomplete",
+          message: `Default-Wechsel auf ${isin} blockiert: kein Look-through-Profil vorhanden und Scrape lieferte keine Geo/Sektor-Daten. Setze force:true, um den Default trotzdem zu setzen — die Position erscheint dann in der Look-through-Analyse als "nicht zugeordnet".`,
+          isin,
+        });
+        return;
+      }
+      // Persist scraped pool entry alongside the default-swap so the
+      // bucket is usable on day one. Direct-write writes JSON to disk;
+      // PR mode opens a separate look-through PR ahead of the default
+      // swap so reviewers can merge both.
+      // Task #238: persist scraped pool entry alongside the default-swap so
+      // the bucket is usable on day one. A failure here MUST hard-block the
+      // default-swap (was previously a silent catch{}) — landing a default
+      // change without its look-through profile would mean every position
+      // shifted to that ISIN immediately drops into the "unmapped ETFs"
+      // alert. `force:true` already bypasses the gate above; if we got
+      // here we promised the operator full coverage.
+      try {
+        await openAddLookthroughPoolPr({
+          isin,
+          entry: {
+            ...(scraped.name ? { name: scraped.name } : {}),
+            ...(scraped.topHoldings && scraped.topHoldings.length > 0
+              ? { topHoldings: scraped.topHoldings, topHoldingsAsOf: scraped.asOf }
+              : {}),
+            geo: scraped.geo!,
+            sector: scraped.sector!,
+            ...(scraped.currency ? { currency: scraped.currency } : {}),
+            breakdownsAsOf: scraped.asOf,
+            _source: scraped.sourceUrl,
+            _addedAt: scraped.asOf,
+            _addedVia: "admin/buckets/:key/default",
+          },
+        });
+      } catch (poolErr) {
+        const poolMsg = poolErr instanceof Error ? poolErr.message : String(poolErr);
+        res.status(502).json({
+          error: "lookthrough_persist_failed",
+          message: `Default-Wechsel auf ${isin} abgebrochen: Look-through-Daten konnten nicht gespeichert werden (${poolMsg}). Setze force:true, um den Default trotzdem zu setzen — die Position erscheint dann in der Look-through-Analyse als "nicht zugeordnet".`,
+          isin,
+        });
+        return;
+      }
+    }
     const pr = await openSetBucketDefaultPr(parentKey, isin);
     res.json({ ok: true, prUrl: pr.url, prNumber: pr.number });
   } catch (err) {
@@ -3459,9 +3573,11 @@ router.put("/admin/buckets/:key/default", async (req, res) => {
 // per-bucket slot — pickable in Build's "More ETFs" dialog and Explain's
 // per-bucket IsinPicker, NOT surfaced as a recommended alternative.
 //
-// No look-through bundling — pool entries are filled by the next
-// monthly refresh job (or via a manual scrape-and-PR through the
-// Operations tab).
+// Task #238: bundles a look-through scrape on attach (mirrors the
+// alternatives flow). Refuses without `force: true` if the scrape can
+// not produce at least geo + sector — pool ETFs are pickable in
+// Build's "More ETFs" dialog and Explain's per-bucket IsinPicker, so
+// they need their own profile.
 router.post("/admin/buckets/:key/pool", async (req, res) => {
   const parentKey = String(req.params.key ?? "");
   if (!parentKey || !/^[A-Z][A-Za-z0-9-]{2,40}$/.test(parentKey)) {
@@ -3488,7 +3604,56 @@ router.post("/admin/buckets/:key/pool", async (req, res) => {
     });
     return;
   }
+  // Task #238: scrape + gate before attaching to pool.
+  const forcePool = req.body?.force === true;
   try {
+    const sources = await readLookthroughSources();
+    const havePresent = !!(sources.pool[isin] || sources.overrides[isin]);
+    if (!havePresent && !forcePool) {
+      const scraped = await scrapeLookthrough(isin).catch(() => null);
+      const haveGeoSector =
+        !!scraped &&
+        !!scraped.geo && Object.keys(scraped.geo).length > 0 &&
+        !!scraped.sector && Object.keys(scraped.sector).length > 0;
+      if (!haveGeoSector) {
+        res.status(422).json({
+          error: "lookthrough_incomplete",
+          message: `Pool-Add für ${isin} blockiert: kein Look-through-Profil und Scrape lieferte keine Geo/Sektor-Daten. Setze force:true, um die ISIN trotzdem in den Pool aufzunehmen.`,
+          isin,
+        });
+        return;
+      }
+      // Task #238: same hard-block contract as the default-swap path —
+      // a failure to persist the look-through profile aborts the
+      // pool-attach so the operator never lands a pickable ISIN that
+      // immediately trips the "unmapped ETFs" alert.
+      try {
+        await openAddLookthroughPoolPr({
+          isin,
+          entry: {
+            ...(scraped.name ? { name: scraped.name } : {}),
+            ...(scraped.topHoldings && scraped.topHoldings.length > 0
+              ? { topHoldings: scraped.topHoldings, topHoldingsAsOf: scraped.asOf }
+              : {}),
+            geo: scraped.geo!,
+            sector: scraped.sector!,
+            ...(scraped.currency ? { currency: scraped.currency } : {}),
+            breakdownsAsOf: scraped.asOf,
+            _source: scraped.sourceUrl,
+            _addedAt: scraped.asOf,
+            _addedVia: "admin/buckets/:key/pool",
+          },
+        });
+      } catch (poolErr) {
+        const poolMsg = poolErr instanceof Error ? poolErr.message : String(poolErr);
+        res.status(502).json({
+          error: "lookthrough_persist_failed",
+          message: `Pool-Add für ${isin} abgebrochen: Look-through-Daten konnten nicht gespeichert werden (${poolMsg}). Setze force:true, um die ISIN trotzdem in den Pool aufzunehmen — sie erscheint dann in der Look-through-Analyse als "nicht zugeordnet".`,
+          isin,
+        });
+        return;
+      }
+    }
     const pr = await openAddBucketPoolPr(parentKey, isin);
     res.json({ ok: true, prUrl: pr.url, prNumber: pr.number });
   } catch (err) {

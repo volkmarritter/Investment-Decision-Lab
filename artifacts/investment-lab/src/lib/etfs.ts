@@ -3580,6 +3580,45 @@ export function validateCatalog(): CatalogValidationIssue[] {
   return issues;
 }
 
+// Task #238 — every catalog ISIN (default, alternative, pool) must
+// have its own look-through profile (PROFILES merged with overrides /
+// pool from `lookthrough.overrides.json`, plus ALIAS redirects). The
+// `unmappedEtfs[]` field on `LookthroughResult` is the user-facing
+// loud-fail; this function is the catalog-side audit. It does NOT
+// import from `lookthrough.ts` (would create a cycle) — instead the
+// caller passes the profile predicate.
+//
+// Returns the catalog ISINs with NO usable look-through profile,
+// grouped by bucket key + role so the operator can see exactly which
+// rows to backfill. An empty array means full coverage.
+export interface LookthroughCoverageGap {
+  bucketKey: string;
+  role: "default" | "alternative" | "pool";
+  isin: string;
+}
+export function validateLookthroughCoverage(
+  hasProfile: (isin: string) => boolean,
+): LookthroughCoverageGap[] {
+  const gaps: LookthroughCoverageGap[] = [];
+  for (const [bucketKey, rec] of Object.entries(CATALOG)) {
+    if (!hasProfile(rec.isin)) {
+      gaps.push({ bucketKey, role: "default", isin: rec.isin });
+    }
+    for (const alt of rec.alternatives ?? []) {
+      if (!hasProfile(alt.isin)) {
+        gaps.push({ bucketKey, role: "alternative", isin: alt.isin });
+      }
+    }
+    const pool = BUCKETS[bucketKey]?.pool ?? [];
+    for (const poolIsin of pool) {
+      if (!hasProfile(poolIsin)) {
+        gaps.push({ bucketKey, role: "pool", isin: poolIsin });
+      }
+    }
+  }
+  return gaps;
+}
+
 // Backwards-compat helper still used elsewhere (e.g. fee/Monte-Carlo flows that look up by name)
 export function getExampleETF(assetClass: string, region: string, input: PortfolioInput): string {
   return getETFDetails(assetClass, region, input).name;

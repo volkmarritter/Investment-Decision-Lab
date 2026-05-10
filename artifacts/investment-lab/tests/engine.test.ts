@@ -301,6 +301,263 @@ describe("look-through coverage", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Task #238 — structured `unmappedEtfs[]` loud-fail + catalog audit
+// ---------------------------------------------------------------------------
+describe("Task #238 — buildLookthrough.unmappedEtfs", () => {
+  it("emits a structured row {isin,name,weight} for every ETF without a profile", () => {
+    const fake = "XX0000000099";
+    const etfs: import("../src/lib/types").ETFImplementation[] = [
+      {
+        bucket: "Equity - USA",
+        assetClass: "Equity",
+        weight: 12.5,
+        intent: "Test fixture",
+        exampleETF: "Fake satellite ETF",
+        rationale: "",
+        isin: fake,
+        ticker: "FAKE",
+        terBps: 10,
+        domicile: "IE",
+        replication: "Physical",
+        distribution: "Accumulating",
+        currency: "USD",
+        comment: "",
+      },
+    ];
+    const lt = buildLookthrough(etfs, "en", "USD");
+    expect(lt.unmappedEtfs).toHaveLength(1);
+    expect(lt.unmappedEtfs[0]).toEqual({
+      isin: fake,
+      name: "Fake satellite ETF",
+      weight: 12.5,
+    });
+    // Legacy human-readable footnote stays in sync.
+    expect(lt.unmapped).toEqual([`Fake satellite ETF (${fake})`]);
+  });
+
+  it("returns an empty unmappedEtfs[] when every position has a profile", () => {
+    const out = buildPortfolio(
+      baseInput({ baseCurrency: "USD", numETFs: 5, riskAppetite: "Moderate" }),
+    );
+    const lt = buildLookthrough(out.etfImplementation, "en", "USD");
+    expect(lt.unmappedEtfs).toEqual([]);
+  });
+});
+
+describe("Task #238 — validateLookthroughCoverage", () => {
+  it("every catalog ISIN (default + alternative + pool) is covered by a curated profile", async () => {
+    const { validateLookthroughCoverage } = await import("../src/lib/etfs");
+    const gaps = validateLookthroughCoverage(
+      (isin: string) => profileFor(isin) !== null,
+    );
+    // Production invariant (Task #238 hardening): EVERY bucket slot
+    // — default, alternative AND pool — must resolve to its OWN
+    // per-ISIN look-through profile. Pool entries are pickable in
+    // Build's "More ETFs" dialog and Explain's per-bucket IsinPicker,
+    // so a missing profile would immediately trip the destructive
+    // "unmapped ETFs" alert for any user who picks them. There is NO
+    // alias / sibling-substitution lookup — every covered ISIN must
+    // appear directly in PROFILES (curated primaries,
+    // SHARED_BASKET_PROFILES variants for true index/share-class
+    // equivalents, or DISTINCT_PROFILES for genuinely distinct funds).
+    // If this assertion fails after adding a new ETF, add a per-ISIN
+    // entry to one of those three groups in src/lib/lookthrough.ts.
+    expect(gaps).toEqual([]);
+  });
+
+  it("reports gaps with bucketKey + role + isin when the predicate misses", async () => {
+    const { validateLookthroughCoverage } = await import("../src/lib/etfs");
+    const gaps = validateLookthroughCoverage(() => false);
+    expect(gaps.length).toBeGreaterThan(0);
+    for (const g of gaps) {
+      expect(["default", "alternative", "pool"]).toContain(g.role);
+      expect(g.isin).toMatch(/^[A-Z]{2}[A-Z0-9]{9}\d$/);
+      expect(typeof g.bucketKey).toBe("string");
+      expect(g.bucketKey.length).toBeGreaterThan(0);
+    }
+  });
+
+  // Anti-substitution sanity check (Task #238 code-review hardening):
+  // genuinely distinct funds in the catalog MUST NOT share their
+  // look-through profile with the bucket default they were lumped
+  // under. This guards against regressing back to ALIAS-style
+  // substitution where e.g. an MSCI World tracker would silently
+  // present S&P 500 data, or a robotics/AI sub-theme would inherit
+  // broad US-tech maps.
+  it("distinct funds keep distinct profiles (no bucket-peer substitution)", () => {
+    // FTSE 100 (UK-only) vs S&P 500 (US-only) — both are equity
+    // single-country trackers but they live in different buckets and
+    // their geo maps must not collapse to each other.
+    const uk = profileFor("IE00B53HP851"); // FTSE 100
+    const us = profileFor("IE00B5BMR087"); // S&P 500
+    expect(uk).not.toBeNull();
+    expect(us).not.toBeNull();
+    expect(uk!.geo).not.toEqual(us!.geo);
+    expect(uk!.geo["United Kingdom"]).toBeGreaterThanOrEqual(95);
+    expect(us!.geo["United States"]).toBeGreaterThanOrEqual(95);
+
+    // Xtrackers MSCI World (LU0274208692) is a pool entry near S&P 500
+    // trackers but the underlying basket includes ~30% non-US DM. It
+    // MUST present its own MSCI World profile, not the S&P 500 one.
+    const msciWorld = profileFor("LU0274208692");
+    expect(msciWorld).not.toBeNull();
+    expect(msciWorld!.geo).not.toEqual(us!.geo);
+    expect(msciWorld!.geo["United States"]).toBeLessThan(85);
+    expect(msciWorld!.geo["Japan"] ?? 0).toBeGreaterThan(0);
+
+    // Global X Robotics & AI (IE00BLCHJB90) — sub-theme, ~22% Japan.
+    // Must NOT collapse to broad S&P 500 IT (IE00B3WJKG14, US-only).
+    const robotics = profileFor("IE00BLCHJB90");
+    const sp500It = profileFor("IE00B3WJKG14");
+    expect(robotics).not.toBeNull();
+    expect(sp500It).not.toBeNull();
+    expect(robotics!.geo).not.toEqual(sp500It!.geo);
+    expect(robotics!.geo["Japan"] ?? 0).toBeGreaterThan(0);
+    expect(sp500It!.geo["Japan"] ?? 0).toBe(0);
+
+    // First Trust Clean Energy (IE00BDBRT036) vs MSCI ESG global
+    // (IE00B1XNHC34) — different funds, different geo concentration
+    // (clean-energy is ~78% US, ESG is broader DM).
+    const cleanEnergy = profileFor("IE00BDBRT036");
+    const esg = profileFor("IE00B1XNHC34");
+    expect(cleanEnergy).not.toBeNull();
+    expect(esg).not.toBeNull();
+    expect(cleanEnergy!.geo).not.toEqual(esg!.geo);
+
+    // iShares Euro Govt 3-7yr (IE00B3VTML14) vs Global Aggregate Bond
+    // (IE00B3F81409) — single-currency EUR sovereign vs multi-currency
+    // multi-sector. Geo and sector must both differ.
+    const euGov = profileFor("IE00B3VTML14");
+    const globalAgg = profileFor("IE00B3F81409");
+    expect(euGov).not.toBeNull();
+    expect(globalAgg).not.toBeNull();
+    expect(euGov!.geo).not.toEqual(globalAgg!.geo);
+    expect(euGov!.sector).not.toEqual(globalAgg!.sector);
+    expect(euGov!.currency).toEqual({ EUR: 100 });
+  });
+
+  // Task #238 round 6 — backfilled bond pool entries MUST be marked
+  // isEquity:false so analyzeLookthrough routes them to the
+  // fixed-income geo path. The 6 bond ISINs added by the
+  // 2026-05-10 backfill (IE00B3F81409, LU0378818131, IE00BG47KH54,
+  // IE00BG47KB92, LU0290355717, IE00BDBRDM35) originally landed
+  // without an explicit isEquity flag and would have defaulted to
+  // true — silently misattributing their geo as equity exposure.
+  // The override file now sets the flag explicitly, AND the loader
+  // also infers it from the entry name as defense-in-depth.
+  it("backfilled bond pool ISINs are profiled as fixed income, not equity", () => {
+    for (const isin of [
+      "IE00B3F81409", // iShares Core Global Aggregate Bond
+      "LU0378818131", // Xtrackers II Global Government Bond
+      "IE00BG47KH54", // Vanguard Global Aggregate Bond EUR Hedged Acc
+      "IE00BG47KB92", // Vanguard Global Aggregate Bond EUR Hedged Dist
+      "LU0290355717", // Xtrackers II Eurozone Government Bond
+      "IE00BDBRDM35", // iShares Core Global Aggregate Bond EUR Hedged
+    ]) {
+      const p = profileFor(isin);
+      expect(p, `profile for ${isin}`).not.toBeNull();
+      expect(p!.isEquity, `${isin} must be isEquity:false`).toBe(false);
+    }
+  });
+
+  // Regression for the user-reported nine-position portfolio (Task
+  // #238 round 3). The exact ISIN list mirrors the reproducer in
+  // tests/e2e/explain-import-lookthrough.spec.ts (REPRO_TEXT). Every
+  // ISIN — including the off-catalog SPDR US Dividend Aristocrats
+  // (IE00B3VWP018) and the off-catalog Amundi MSCI EM (LU1230136894)
+  // that the reviewer specifically flagged — must own its own
+  // per-ISIN profile so the look-through aggregate surfaces the
+  // correct geo attribution without sibling substitution.
+  it("nine-position user-reported portfolio: every ISIN profiled, geo attribution correct", () => {
+    const positions: ETFImplementation[] = [
+      { isin: "IE00B5BMR087", weight: 25, exampleETF: "iShares Core S&P 500", terBps: 7,
+        bucket: "Equity - USA", region: "USA", assetClass: "Equity" },
+      { isin: "IE00BKX55T58", weight: 10, exampleETF: "Vanguard FTSE Developed World", terBps: 12,
+        bucket: "Equity - Global", region: "Global", assetClass: "Equity" },
+      { isin: "IE0005042456", weight: 10, exampleETF: "iShares Core FTSE 100 (Dist)", terBps: 7,
+        bucket: "Equity - UK", region: "UK", assetClass: "Equity" },
+      { isin: "IE00BKM4GZ66", weight: 10, exampleETF: "iShares MSCI EM IMI", terBps: 18,
+        bucket: "Equity - EM", region: "EM", assetClass: "Equity" },
+      { isin: "IE00B53QDK08", weight: 5, exampleETF: "iShares MSCI Japan (Acc)", terBps: 12,
+        bucket: "Equity - Japan", region: "Japan", assetClass: "Equity" },
+      { isin: "IE00B42WWV65", weight: 10, exampleETF: "Vanguard U.K. Gilt", terBps: 5,
+        bucket: "FixedIncome - UK", region: "UK", assetClass: "FixedIncome" },
+      { isin: "IE00B3VWP018", weight: 10, exampleETF: "SPDR S&P US Dividend Aristocrats", terBps: 35,
+        bucket: "Equity - USA", region: "USA", assetClass: "Equity" },
+      { isin: "LU1230136894", weight: 5, exampleETF: "Amundi MSCI Emerging Markets", terBps: 20,
+        bucket: "Equity - EM", region: "EM", assetClass: "Equity" },
+      { isin: "IE00B4ND3602", weight: 15, exampleETF: "iShares Physical Gold", terBps: 12,
+        bucket: "Commodities - Gold", region: "Global", assetClass: "Commodities" },
+    ];
+    const lt = buildLookthrough(positions, "en", "CHF");
+
+    // Anti-substitution check: each off-catalog ISIN that the
+    // reviewer specifically flagged must own its OWN profile.
+    expect(profileFor("IE00B3VWP018")).not.toBeNull();
+    expect(profileFor("LU1230136894")).not.toBeNull();
+    expect(profileFor("IE00B42WWV65")).not.toBeNull();
+
+    const aristo = profileFor("IE00B3VWP018")!;
+    const sp500 = profileFor("IE00B5BMR087")!;
+    expect(aristo.sector).not.toEqual(sp500.sector);
+    const amundiEm = profileFor("LU1230136894")!;
+    const ishEm = profileFor("IE00BKM4GZ66")!;
+    expect(amundiEm.geo).not.toEqual(ishEm.geo);
+
+    expect(lt.unmappedEtfs).toEqual([]);
+
+    const ukGilt = profileFor("IE00B42WWV65")!;
+    expect(ukGilt.isEquity).toBe(false);
+    expect(ukGilt.geo).toEqual({ "United Kingdom": 100 });
+    expect(ukGilt.currency).toEqual({ GBP: 100 });
+  });
+
+  // Original UK-leaning regression (kept verbatim).
+  it("nine-position UK-leaning portfolio surfaces UK geo attribution", () => {
+    const positions: ETFImplementation[] = [
+      // UK home-bias slug (35%): FTSE 100
+      { isin: "IE00B53HP851", weight: 35, exampleETF: "iShares FTSE 100", terBps: 7,
+        bucket: "Equity - UK", region: "UK", assetClass: "Equity" },
+      // S&P 500 (20%)
+      { isin: "IE00B5BMR087", weight: 20, exampleETF: "iShares Core S&P 500", terBps: 7,
+        bucket: "Equity - USA", region: "USA", assetClass: "Equity" },
+      // MSCI Europe (10%)
+      { isin: "IE00B4K48X80", weight: 10, exampleETF: "iShares MSCI Europe", terBps: 12,
+        bucket: "Equity - Europe", region: "Europe", assetClass: "Equity" },
+      // MSCI EM (8%)
+      { isin: "IE00BKM4GZ66", weight: 8, exampleETF: "iShares MSCI EM IMI", terBps: 18,
+        bucket: "Equity - EM", region: "EM", assetClass: "Equity" },
+      // MSCI Japan (7%)
+      { isin: "IE00B4L5YX21", weight: 7, exampleETF: "iShares MSCI Japan", terBps: 12,
+        bucket: "Equity - Japan", region: "Japan", assetClass: "Equity" },
+      // Global Aggregate Bond GBP Hedged (10%) — currency-hedged variant
+      { isin: "IE00BDBRDP65", weight: 10, exampleETF: "iShares Global Agg GBP Hedged", terBps: 10,
+        bucket: "FixedIncome - Global", region: "Global", assetClass: "FixedIncome" },
+      // Gold ETC (5%)
+      { isin: "IE00B579F325", weight: 5, exampleETF: "Invesco Physical Gold", terBps: 12,
+        bucket: "Commodities - Gold", region: "Global", assetClass: "Commodities" },
+      // Bitcoin ETP (5%) — bumped from 3% so weights still total 100
+      // without including a Cash sentinel row (which buildLookthrough
+      // surfaces as "unmapped" by design — see the dedicated Cash
+      // sentinel suite for that path).
+      { isin: "GB00BLD4ZL17", weight: 5, exampleETF: "CoinShares Bitcoin", terBps: 95,
+        bucket: "DigitalAssets - BroadCrypto", region: "Global", assetClass: "DigitalAssets" },
+    ];
+    const lt = buildLookthrough(positions, "en", "GBP");
+    // No row should drop into the destructive unmapped alert — every
+    // ISIN above must own a per-ISIN profile post-Task-#238.
+    expect(lt.unmappedEtfs).toEqual([]);
+    // UK attribution: FTSE 100 contributes 35pp at 100% UK weight, plus
+    // small UK satellite weight from MSCI Europe (~23% of 10pp = ~2.3)
+    // and Global Agg (~5% of the 10pp bond sleeve). So total UK should
+    // be ≥ 35pp — the regression we're guarding against would zero it
+    // out by routing FTSE 100 through a non-UK sibling.
+    const equityGeoMap: Record<string, number> = Object.fromEntries(lt.geoEquity);
+    expect(equityGeoMap["United Kingdom"] ?? 0).toBeGreaterThanOrEqual(35);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Natural bucket count helper
 // ---------------------------------------------------------------------------
 describe("computeNaturalBucketCount", () => {

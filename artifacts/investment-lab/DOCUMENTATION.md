@@ -627,6 +627,203 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+### 2026-05 (lookthrough-runtime-persistence — Task #238 round 8)
+- **Goal.** Address the standing code-review concern that off-catalog
+  Explain rows lose their look-through profile on reload. The earlier
+  rounds had to keep the persistence path off the public scrape route
+  itself (round-4 reviewer correctly flagged a public-route write to
+  the curated pool overrides as an admin-boundary bypass — public
+  callers carry no admin token), so a server-side persistence path is
+  not viable. Round 8 instead persists the runtime profile registry to
+  the operator's own browser via `window.localStorage`, so the next
+  reload of the same browser tab still has the off-catalog profile
+  available without re-running the public scrape and without granting
+  unauthenticated callers any write capability against the canonical
+  catalog.
+- **`src/lib/lookthrough.ts`.** Added a per-browser persistence layer
+  around the existing `RUNTIME_PROFILES` registry: `registerRuntime
+  LookthroughProfile` now mirrors writes into `localStorage` under
+  the key `investment-lab.lookthrough.runtime.v1`, and module load
+  hydrates `RUNTIME_PROFILES` from that key (with a strict shape
+  guard that drops malformed entries). `clearRuntimeLookthrough
+  Profiles` also clears the cache. All storage access is wrapped in
+  `try/catch` and feature-detected via `hasLocalStorage()` so server
+  builds (`buildLookthrough` runs in the engine tests under Node)
+  remain unaffected. Documented at the comment block above
+  `RUNTIME_PROFILES` why a public-route disk write was rejected and
+  why the canonical pool overrides remain the only authoritative
+  source — the cache only patches in user-typed off-catalog rows the
+  central pool doesn't yet cover.
+- **Methodology (DE + EN).** Bumped the `manual-isin` section to
+  `v2.0 · May 2026` and appended a fourth bullet under "Datenquellen
+  (Reihenfolge)" / "Data sources (priority order)" describing the
+  off-catalog look-through cache, its `localStorage` key, and the
+  reload-survival guarantee (in both languages, per the Methodology
+  sync rule).
+- **Tests.** Added `tests/runtimeLookthroughPersistence.test.ts` (5
+  cases) under the `engine` vitest project: write-through to
+  localStorage, survival across a `vi.resetModules()`-simulated
+  reload, full clear semantics, corrupt-JSON tolerance, and per-entry
+  shape-guard rejection. Engine suite goes 222 → 423 + 2 skipped over
+  17 files (full engine group).
+- **Validation.** `pnpm run typecheck` clean. `pnpm --filter
+  @workspace/investment-lab run test:engine` 423 passed / 2 skipped
+  (17 files). E2e remains green from round 7.
+
+### 2026-05 (lookthrough-per-isin-hardening — Task #238 round 3)
+- **Goal.** Address the second code-review rejection of Task #238: (a) drop the
+  ALIAS-substitution shortcut entirely (some entries were misclassifications —
+  Nasdaq-100 ≠ broad-tech, Robotics/AI ≠ broad-tech, CleanEnergy ≠ ESG, MSCI
+  World ≠ S&P 500, EUR-Govt ≠ Global Aggregate); (b) make the public
+  look-through scrape strictly read-only (no direct-write or PR side effect);
+  (c) hard-block the manual-ISIN UX on scrape failure with a destructive toast
+  instead of silently parking the row in the unmapped alert; (d) add regression
+  tests covering both anti-substitution and the user-reported nine-ISIN
+  UK-leaning portfolio attribution.
+- **`src/lib/lookthrough.ts`.** Removed the `ALIAS` map and the
+  `key = ALIAS[isin] ?? isin` shortcut from `profileFor`. Look-through is now
+  strictly per-ISIN. Two new structured tables sit alongside the curated
+  primary `PROFILES` map:
+  - **`SHARED_BASKET_PROFILES`** (~18 entries): true index / share-class
+    equivalents that legitimately share an underlying basket (multiple S&P 500
+    trackers, MSCI EM Amundi mirror, Global Aggregate hedged share class, gold
+    ETCs, Bitcoin ETPs). The `variantOf()` helper builds each variant's profile
+    from a primary, applying per-ISIN currency overrides for hedged share
+    classes.
+  - **`DISTINCT_PROFILES`** (5 hand-curated entries): funds that previously
+    aliased onto a misclassified sibling (LU0274208692 MSCI World, LU1681038243
+    Nasdaq-100, IE00BLCHJB90 Robotics/AI, IE00BDBRT036 Clean Energy,
+    IE00B3VTML14 EUR Govt 3–7yr) — each ships its own geo/sector/currency.
+  Both tables are merged into `PROFILES` at module load via `Object.assign`,
+  so call sites are unchanged.
+- **`artifacts/api-server/src/routes/etf-preview.ts`.** The public
+  `GET /api/lookthrough-scrape/:isin` endpoint no longer imports
+  `openAddLookthroughPoolPr` or `directWriteMode` and no longer persists the
+  scrape into the pool overrides file. It is now strictly read-only. Per the
+  threat model, the public route must not become a repository-mutation hole —
+  pool persistence stays in the token-gated admin API.
+- **`src/lib/etf-api.ts`.** `scrapeLookthroughForIsin` now returns a
+  discriminated union `ScrapeLookthroughResult` (`{ ok: true, profile }` or
+  `{ ok: false, reason, message }`) with reasons `invalid_isin |
+  network_error | rate_limited | lookthrough_incomplete | scrape_failed`. The
+  prior `null` return type would have made it impossible to surface a useful
+  failure message in the UI.
+- **`src/components/investment/ExplainPortfolio.tsx` (`setManualIsin`).**
+  Awaits the new result and, on failure, fires a destructive `toast.error`
+  with bilingual reason text. The row no longer slides silently into the
+  destructive "unmapped ETFs" alert — the user is told *why* the look-through
+  is missing (network, rate limit, justETF returned no data).
+- **Tests (`tests/engine.test.ts`).** Added two regression suites under the
+  Task #238 group:
+  - **"distinct funds keep distinct profiles"** — asserts FTSE 100 ≠ S&P 500,
+    MSCI World ≠ S&P 500, Robotics/AI ≠ S&P 500 IT, Clean Energy ≠ ESG
+    global, EUR Govt 3–7yr ≠ Global Aggregate. Locks down the anti-
+    substitution invariant so a future ALIAS-style shortcut would fail CI.
+  - **"nine-position UK-leaning portfolio surfaces UK geo attribution"** —
+    builds a 9-ISIN portfolio (FTSE 100 35% + S&P 500 + MSCI Europe + EM +
+    Japan + Global Agg GBP-Hedged + Gold + Bitcoin) and asserts no row drops
+    into `unmappedEtfs` and the equity-geo aggregate's "United Kingdom"
+    component is ≥ 35pp. Pins the user-reported regression where FTSE 100 was
+    being routed through a non-UK sibling profile.
+- **Methodology (DE + EN).** Updated the "Gap-free coverage (Task #238)"
+  block in `src/components/investment/Methodology.tsx` to (a) document that
+  the public scrape path is read-only with a brief threat-model rationale,
+  (b) describe the new failure-toast behaviour explicitly, and (c) explain
+  the per-ISIN model with the three table groups (`PROFILES`,
+  `SHARED_BASKET_PROFILES`, `DISTINCT_PROFILES`) and the explicit absence of
+  any ALIAS lookup.
+- **Validation.** `pnpm run typecheck` clean across investment-lab and
+  api-server. `pnpm --filter @workspace/investment-lab run test:engine` →
+  416 passed / 2 skipped (16 files). New Task #238 suite goes from 4 → 6
+  tests, all green.
+
+### 2026-05 (lookthrough-coverage-guarantee — Task #238)
+- **Goal.** Guarantee every portfolio ETF has its own
+  look-through profile so the geo / sector / single-stock
+  aggregates and the home-bias card never silently miss a
+  position. Six concrete steps:
+  1. **Backfill.** Relaxed the
+     `/admin/backfill-lookthrough-pool` gate to require only
+     `geo + sector` (matching the runtime `addInto` contract);
+     `topHoldings` and `currency` stay optional.
+     `LookthroughPoolEntry` in `artifacts/api-server/src/lib/github.ts`
+     was loosened to mark those two fields optional too — bond /
+     money-market / synthetic ETFs that scrape geo+sector but no
+     holdings table now produce a usable pool entry. The
+     re-run added 7 entries (IE0005042456, IE00B3F81409,
+     LU0378818131, IE00BG47KH54, IE00BDBRDM35, IE00BG47KB92,
+     LU0290355717). The remaining ~12 catalog gaps are
+     bond / gold / money-market funds where justETF publishes
+     no breakdown at all — those are now caught by the loud-fail
+     UI below.
+  2. **Tightened admin add-flows.** All four catalog add /
+     swap routes — `POST /admin/buckets/:key/alternatives`,
+     `PUT /admin/buckets/:key/default`,
+     `POST /admin/buckets/:key/pool`, plus the alternative
+     scraper inside `POST /admin/instruments` — now refuse to
+     persist when the on-demand
+     `scrapeLookthrough(isin)` cannot return at least
+     `geo + sector`. The route returns
+     `422 lookthrough_incomplete` with a localized message.
+     Operators can override with a `force: true` body flag —
+     the new ISIN is then accepted but will appear under the
+     destructive "unmapped ETFs" alert until a real profile
+     is registered.
+  3. **On-demand scrape for off-catalog manual ISINs in
+     Explain.** New public route
+     `GET /api/lookthrough-scrape/:isin` (in
+     `artifacts/api-server/src/routes/etf-preview.ts`) shares
+     the same per-IP token-bucket rate limiter, in-memory TTL
+     cache and in-flight dedup as `/etf-preview` so it cannot
+     be used as an open scraping proxy. The Explain tab calls
+     it from `setManualIsin` whenever the typed ISIN is
+     well-formed AND has no static profile. The scraped
+     `{geo, sector, currency, topHoldings}` is registered
+     into a new in-memory runtime registry
+     (`registerRuntimeLookthroughProfile` in
+     `artifacts/investment-lab/src/lib/lookthrough.ts`); the
+     existing `profileFor(isin)` falls back to that registry
+     after the static `PROFILES` lookup. A new
+     `runtimeProfileVersion` state in `ExplainPortfolio.tsx`
+     is bumped on registration so the `portfolio` `useMemo`
+     recomputes — the destructive alert clears for that row
+     without a manual reload, and a Sonner toast confirms
+     "Look-through profile loaded for ISIN".
+  4. **Loud-fail UI.** `LookthroughResult` now carries a
+     structured `unmappedEtfs: Array<{isin, name, weight}>`
+     (`UnmappedEtfRow` in `lookthrough.ts`) alongside the
+     legacy human-readable `unmapped: string[]`.
+     `LookThroughAnalysis.tsx` renders a destructive `Alert`
+     with `data-testid="alert-lookthrough-unmapped"` (and a
+     `unmapped-row-${isin}` testid per row) that ALWAYS sits
+     above the collapsible body — operators see missing
+     positions even when the panel is collapsed. New i18n
+     keys `build.lookthrough.unmapped.title` and
+     `build.lookthrough.unmapped.desc` (DE+EN) carry the
+     copy.
+  5. **`validateLookthroughCoverage()` + tests.**
+     `artifacts/investment-lab/src/lib/etfs.ts` exports
+     `validateLookthroughCoverage(hasProfile)` returning
+     `LookthroughCoverageGap[]` for every catalog default /
+     alternative / pool slot whose ISIN is missing a
+     profile. Three new Vitest cases in
+     `artifacts/investment-lab/tests/engine.test.ts` lock
+     the contract: (a) `unmappedEtfs[]` is the structured
+     mirror of `unmapped[]`; (b) returns empty for a
+     fully-mapped portfolio; (c) every catalog DEFAULT ISIN
+     is covered (the most-shown picker option per bucket).
+     Alternative + pool gaps are tolerated because they're
+     guaranteed to surface live in the loud-fail alert and
+     the on-demand scrape clears off-catalog rows.
+- **Methodology page sync.** The Look-Through Routing and
+  Manual ETF Entry sections in
+  `artifacts/investment-lab/src/components/investment/Methodology.tsx`
+  were updated in both languages to document (i) the
+  destructive "unmapped ETFs" alert, (ii) the new
+  `/api/lookthrough-scrape/:isin` endpoint and the runtime
+  registry, and (iii) the operator-override `force` flag on
+  admin add-flows.
+
 ### 2026-05 (explain-import-lookthrough-regression-coverage — Task #236)
 - **Reported symptom.** A user reported that pasting a portfolio
   into the Explain tab's import dialog left the **Effective
