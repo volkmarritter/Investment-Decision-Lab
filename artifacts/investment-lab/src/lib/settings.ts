@@ -176,7 +176,7 @@ export type CMAUserOverrides = Record<string, CMAUserOverride>;
 // (typo, stale entry, tampering) is silently dropped on read.
 const CMA_VALID_KEYS = new Set<string>([
   "equity_us", "equity_eu", "equity_uk", "equity_ch", "equity_jp", "equity_em",
-  "equity_thematic", "bonds", "cash", "gold", "reits", "crypto",
+  "equity_thematic", "equity_other", "bonds", "cash", "gold", "reits", "crypto",
 ]);
 
 function sanitizeOverrideEntry(v: unknown): CMAUserOverride | null {

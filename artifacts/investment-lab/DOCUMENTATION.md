@@ -627,6 +627,17 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 
 Append a new entry whenever functionality changes. Newest first.
 
+### 2026-05 (other-residual-honest-surfacing — Task #241)
+- **Stop silently leaking the look-through "Other" / Ireland residual into US Equity / North America.** Operator spotted that a 100 % position in IE00BKX55T58 (Vanguard FTSE Developed World) was reported in the Explain tab as ~76 % US Equity even though the fund's published geo profile lists only 63.62 % US. Two upstream "Other"-style slices were being silently re-routed:
+  - **Look-through CMA layer (`src/lib/metrics.ts`)** — `mapAllocationToAssetsLookthrough` walks the `profile.geo` country histogram, looks each country up in `COUNTRY_TO_EQUITY_KEY`, and any unmapped name (e.g. justETF's aggregate "Other" catch-all + context-dependent labels like "Ireland") was funnelled through `routeByRegion(allocationRow.region, share)` → which in turn used the `BENCHMARK` region weights, dumping ~60 % of the residual back into `equity_us` for any Equity-Global / Equity-DM row. Geomap layer (`src/lib/geomap.ts`) was doing the same thing on the other axis: `REGION_BUCKETS` carried explicit `"Other DM" → {NA: 28, Europe: 7, Other: 65}` and `"Other" → {NA: 14, Europe: 4, EM: 35, Other: 47}` rules that pushed several percentage points of the residual into NA / Europe / EM tiles before falling through to the grey "Other" tile.
+  - **Fix.** New CMA bucket `equity_other` ("Other / Residual", μ 7.2 % · σ 17 %, developed-world-equity blend) added to `AssetKey`, `BASE_SEED`, `CMA_BUILDING_BLOCKS`, both correlation matrices `C` / `CRISIS_C` (mirroring developed-equity's correlation profile against US/EU/UK/CH/JP/EM/Thematic + the rest), `WHT_DRAG`, both `mapAllocationToAssets` map inits, the `equityKeys` frontier list and `CORR_DISPLAY_ORDER`. The `routeByRegion(unmappedShare)` call in `mapAllocationToAssetsLookthrough` is replaced by `map.equity_other += unmappedShare`. `REGION_BUCKETS["Other DM"]` and `["Other"]` rows are deleted (with explanatory comment) so those labels fall through `classifyCountry` → `otherPct` honestly. Per code-review, Ireland was also removed from `EUROPE_COUNTRIES` and Canada was removed from `COUNTRY_TO_EQUITY_KEY` so `equity_us` reflects only the published US share and Canada flows through `equity_other` (geographic NA tile on the geomap is unchanged — the geographic-vs-CMA distinction is documented in the Methodology + Geo Map tooltip).
+  - **UI surfacing.** `CurrentAllocationCard` localizes the new bucket label to "Sonstige / Rest" in DE (English label is the CMA default "Other / Residual"). `GeoExposureMap` adds a dedicated grey legend tile (`data-testid="build-geomap-other-tile"`, bilingual tooltip) when `otherPct > 0.5` so the residual is visible at a glance instead of only in the small caption beneath the legend grid. `chartColors.ts` gains an `equityOther` colour (neutral grey `hsl(220, 12%, 55%)`) plus `RULES` / `ORDER_RULES` entries that match both DE and EN labels and sort the bucket *after* all named equity buckets but inside the equity group (rank 35).
+  - **Catalog whitelists.** `CMA_VALID_KEYS` (`settings.ts`), `ASSET_KEYS` (`appDefaults.ts`, api-server `app-defaults.ts`), `ASSET_KEYS_ORDER` (`appDefaultsPresets.ts`), `AppDefaultsAssetKey` (`admin-api.ts`) and `CMA_KEYS_UI` (`AppDefaultsPanel.tsx`) all extended so operators can override μ / σ for the new bucket from `/admin → Globale Defaults`.
+  - **i18n.** `bb.src.equity_other` (DE + EN — Methodology building-blocks card) and `build.geomap.other` (DE + EN — caption beneath the geo legend) reworded to explicitly call out the residual nature and the no-silent-rerouting promise.
+  - **Methodology page.** "Conservative country map" paragraph (`Methodology.tsx`) rewritten DE + EN to explain the residual bucket, the leak it replaces, and where the residual is now visible in the UI. The `noteFor` building-blocks legend gets a new `equity_other: "Catch-all residual (justETF "Other" + Ireland + Canada)"` row in both languages.
+  - **Monte Carlo deliberately untouched** — `monteCarlo.ts` routes from user-set allocation rows where `equity_other` never appears (it only emerges from look-through), so its `bucketKey()` switch needs no new case.
+  - **Tests.** Two new regression tests in `tests/engine.test.ts`: (1) the IE00BKX55T58 case asserts `total ≈ 1.0`, `equity_us` reflects the published US share only, and `equity_other ≈ 15 %` (Other 10.87 + Ireland 1.13 + Canada 3.06); (2) a `buildRegionWeights` test pins that `"Other DM" + "Other"` slices flow entirely into `otherPct` with zero leak into NA / Europe / EM. New e2e test in `tests/e2e/explain-portfolio.spec.ts` ("100 % FTSE Developed World surfaces 'Other / Residual' on Current Allocation and Geo Map legend") asserts the localized residual row on the Current Allocation card and a non-zero `build-geomap-other-tile`.
+
 ### 2026-05 (lookthrough-runtime-persistence — Task #238 round 8)
 - **Goal.** Address the standing code-review concern that off-catalog
   Explain rows lose their look-through profile on reload. The earlier
@@ -1380,7 +1391,6 @@ Implementation: the comparator was extracted as a top-level export
 `comparePickerRows` in the same file (with a tiny `PickerRowForSort`
 type) so the regression test in `tests/engine.test.ts` can exercise
 the order against real catalog data without rendering the picker.
-=======
 ### 2026-05 (scroll-to-top-on-tab-change — Task #193)
 
 Switching tabs now scrolls the window back to the top. Because all four
@@ -1396,7 +1406,6 @@ Compare's "Open in Explain"). The Methodology section deep-link path
 is preserved: when `navigateToTab` is called with a `sectionHash`, the
 top-scroll is skipped so the subsequent `hashchange` can still scroll
 the targeted accordion into view.
->>>>>>> 5ff5be3 (Task #193 — Scroll to top when switching tabs)
 
 ### 2026-05 (cash-mu-display-per-currency — Task #192)
 

@@ -1661,8 +1661,8 @@ export function Methodology() {
             <p className="text-xs font-semibold">{de ? "Konservativer Länder-Map (worauf wird zerlegt)" : "Conservative country map (what gets decomposed)"}</p>
             <p className="text-xs text-muted-foreground">
               {de
-                ? "Aus den Index-Geo-Profilen werden nur eindeutig zuordenbare Länder ausgespalten: UK, CH, JP und US (entwickelte Märkte mit eigenem Bucket) sowie Polen → Equity EM. Mehrdeutige Buckets im Profil — etwa \u201EOther Europe\u201C oder \u201EIreland\u201C — bleiben bewusst beim Region-Bucket der Allokationszeile, damit Total-Gewichte invariant bleiben und keine falschen Vola-Annahmen entstehen. Total-Gewicht ist unter allen Routing-Pfaden identisch."
-                : "Only countries that map unambiguously are split out from the index geo profiles: UK, CH, JP and US (developed markets with their own bucket) plus Poland → Equity EM. Ambiguous profile buckets — such as “Other Europe” or “Ireland” — intentionally fall back to the allocation row’s regional bucket, so total weights stay invariant and no spurious volatility assumptions are introduced. Total weight is identical under all routing paths."}
+                ? "Aus den Index-Geo-Profilen werden nur eindeutig zuordenbare Länder ausgespalten: UK, CH, JP und US (entwickelte Märkte mit eigenem Bucket), kontinentaleuropäische DM-Länder → Equity Europe sowie die grössten EM-Länder → Equity EM. Mehrdeutige bzw. nicht klassifizierbare Slices — justETFs „Other“-Sammelposten (alle Länder ausserhalb der Top ~10 in einem Welt-/DM-Profil zusammengefasst, typisch 5–12 % eines globalen ETFs), kontextabhängige Labels wie „Ireland“ (in S&P-500-Fonds = US-domizilierte Accenture/Medtronic, in Europe-Fonds = Bank of Ireland) sowie „Canada“ (kein eigener equity_ca-Bucket vorhanden) — landen ab Task #241 in einem dedizierten CMA-Bucket „Other / Residual“ (μ 7,2 % · σ 17 %, Developed-World-Mix). Vor dieser Änderung wurden diese Anteile stillschweigend in die nominale Region der Allokationszeile umgeroutet — eine Equity-Global-Zeile drückte so ~60 % des Residuums via BENCHMARK in US-Equity. Total-Gewicht ist unter allen Routing-Pfaden identisch; der Residual-Anteil ist sowohl in der Current-Allocation-Karte als auch in der Look-Through-Karten-Legende sichtbar."
+                : "Only countries that map unambiguously are split out from the index geo profiles: UK, CH, JP and US (developed markets with their own bucket), continental-EU DM countries → Equity Europe, and the largest EM countries → Equity EM. Ambiguous or non-classifiable slices — justETF's “Other” aggregate (every country past the top ~10 in a global / developed-world profile rolled into one, typically 5–12 % of a global fund), context-dependent labels such as “Ireland” (S&P 500 funds = US-domiciled Accenture/Medtronic, Europe funds = Bank of Ireland) and “Canada” (no separate equity_ca bucket) — land from Task #241 onward in a dedicated CMA bucket “Other / Residual” (μ 7.2 % · σ 17 %, developed-world blend). Before this change those shares were silently re-routed into the row's nominal region — an Equity-Global row thus pushed ~60 % of the residual into US Equity via the BENCHMARK proxy. Total weight is identical under all routing paths; the residual share is now visible both on the Current Allocation card and in the Look-Through map legend."}
             </p>
           </div>
 
@@ -2401,6 +2401,7 @@ function noteFor(k: string, de: boolean): string {
     equity_jp: "MSCI Japan proxy",
     equity_em: "MSCI Emerging Markets proxy",
     equity_thematic: "Concentrated thematic basket",
+    equity_other: "Catch-all residual (justETF “Other” + Ireland + Canada)",
     bonds: "Bloomberg Global Aggregate proxy",
     cash: "Money market, currency-dependent",
     gold: "Spot gold (USD)",
@@ -2415,6 +2416,7 @@ function noteFor(k: string, de: boolean): string {
     equity_jp: "MSCI Japan-Proxy",
     equity_em: "MSCI Emerging Markets-Proxy",
     equity_thematic: "Konzentrierter thematischer Korb",
+    equity_other: "Sammel-Residual (justETF „Other“ + Irland + Kanada)",
     bonds: "Bloomberg Global Aggregate-Proxy",
     cash: "Geldmarkt, währungsabhängig",
     gold: "Gold-Spot (USD)",

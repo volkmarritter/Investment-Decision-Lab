@@ -12,6 +12,7 @@ export type AssetKey =
   | "equity_jp"
   | "equity_em"
   | "equity_thematic"
+  | "equity_other"
   | "bonds"
   | "cash"
   | "gold"
@@ -46,6 +47,16 @@ export const BASE_SEED: Record<AssetKey, AssetCMA> = {
   equity_jp:        { key: "equity_jp",        label: "Japan Equity",      expReturn: 0.060, vol: 0.16 },
   equity_em:        { key: "equity_em",        label: "EM Equity",         expReturn: 0.085, vol: 0.22 },
   equity_thematic:  { key: "equity_thematic",  label: "Thematic Equity",   expReturn: 0.080, vol: 0.22 },
+  // Catch-all "Other / Residual" equity bucket. Holds the share of an ETF's
+  // published country breakdown that the look-through router cannot place
+  // unambiguously: justETF's "Other" catch-all slice (typically 5–12 % of
+  // a global / developed-world fund — every country past the top ~10
+  // rolled into one), plus context-dependent labels the global country
+  // map intentionally omits ("Ireland" — see COUNTRY_TO_EQUITY_KEY notes).
+  // μ/σ are a developed-world equity blend (between US 16 % and EM 22 %)
+  // so vol / Sharpe / TE / beta stay close to what the BENCHMARK fallback
+  // produced implicitly before this bucket existed. Task #241, 2026-05.
+  equity_other:     { key: "equity_other",     label: "Other / Residual",  expReturn: 0.072, vol: 0.17 },
   bonds:            { key: "bonds",            label: "Global Bonds",      expReturn: 0.035, vol: 0.06 },
   cash:             { key: "cash",             label: "Cash",              expReturn: 0.030, vol: 0.005 },
   gold:             { key: "gold",             label: "Gold",              expReturn: 0.040, vol: 0.16 },
@@ -299,6 +310,17 @@ export const CMA_BUILDING_BLOCKS: Record<AssetKey, BuildingBlocks> = {
     ],
     source: "bb.src.equity_thematic",
   },
+  equity_other: {
+    family: "equity_ddm",
+    components: [
+      { key: "bb.equity.div", value: 0.020 },
+      { key: "bb.equity.buyback", value: 0.008 },
+      { key: "bb.equity.realGrowth", value: 0.022 },
+      { key: "bb.equity.inflation", value: 0.022 },
+      { key: "bb.equity.valuationDrift", value: 0.000 },
+    ],
+    source: "bb.src.equity_other",
+  },
   bonds: {
     family: "bonds_ytm",
     components: [
@@ -348,13 +370,14 @@ export function sumBuildingBlocks(key: AssetKey): number {
 // drive μ and σ in CMA above. Pairwise (upper-triangular only — corr() is
 // symmetric).
 const C: Partial<Record<AssetKey, Partial<Record<AssetKey, number>>>> = {
-  equity_us: { equity_eu: 0.82, equity_uk: 0.78, equity_ch: 0.70, equity_jp: 0.70, equity_em: 0.72, equity_thematic: 0.85, bonds: 0.10, cash: 0.00, gold: 0.05, reits: 0.70, crypto: 0.30 },
-  equity_eu: { equity_uk: 0.85, equity_ch: 0.78, equity_jp: 0.65, equity_em: 0.72, equity_thematic: 0.78, bonds: 0.10, cash: 0.00, gold: 0.05, reits: 0.70, crypto: 0.28 },
-  equity_uk: { equity_ch: 0.72, equity_jp: 0.55, equity_em: 0.62, equity_thematic: 0.65, bonds: 0.10, cash: 0.00, gold: 0.10, reits: 0.65, crypto: 0.25 },
-  equity_ch: { equity_jp: 0.55, equity_em: 0.60, equity_thematic: 0.65, bonds: 0.15, cash: 0.00, gold: 0.10, reits: 0.62, crypto: 0.20 },
-  equity_jp: { equity_em: 0.60, equity_thematic: 0.65, bonds: 0.10, cash: 0.00, gold: 0.05, reits: 0.55, crypto: 0.22 },
-  equity_em: { equity_thematic: 0.75, bonds: 0.05, cash: 0.00, gold: 0.15, reits: 0.65, crypto: 0.40 },
-  equity_thematic: { bonds: 0.05, cash: 0.00, gold: 0.05, reits: 0.65, crypto: 0.45 },
+  equity_us: { equity_eu: 0.82, equity_uk: 0.78, equity_ch: 0.70, equity_jp: 0.70, equity_em: 0.72, equity_thematic: 0.85, equity_other: 0.85, bonds: 0.10, cash: 0.00, gold: 0.05, reits: 0.70, crypto: 0.30 },
+  equity_eu: { equity_uk: 0.85, equity_ch: 0.78, equity_jp: 0.65, equity_em: 0.72, equity_thematic: 0.78, equity_other: 0.80, bonds: 0.10, cash: 0.00, gold: 0.05, reits: 0.70, crypto: 0.28 },
+  equity_uk: { equity_ch: 0.72, equity_jp: 0.55, equity_em: 0.62, equity_thematic: 0.65, equity_other: 0.75, bonds: 0.10, cash: 0.00, gold: 0.10, reits: 0.65, crypto: 0.25 },
+  equity_ch: { equity_jp: 0.55, equity_em: 0.60, equity_thematic: 0.65, equity_other: 0.70, bonds: 0.15, cash: 0.00, gold: 0.10, reits: 0.62, crypto: 0.20 },
+  equity_jp: { equity_em: 0.60, equity_thematic: 0.65, equity_other: 0.70, bonds: 0.10, cash: 0.00, gold: 0.05, reits: 0.55, crypto: 0.22 },
+  equity_em: { equity_thematic: 0.75, equity_other: 0.75, bonds: 0.05, cash: 0.00, gold: 0.15, reits: 0.65, crypto: 0.40 },
+  equity_thematic: { equity_other: 0.80, bonds: 0.05, cash: 0.00, gold: 0.05, reits: 0.65, crypto: 0.45 },
+  equity_other: { bonds: 0.10, cash: 0.00, gold: 0.05, reits: 0.65, crypto: 0.30 },
   bonds: { cash: 0.40, gold: 0.20, reits: 0.30, crypto: 0.05 },
   cash: { gold: 0.05, reits: 0.00, crypto: 0.00 },
   gold: { reits: 0.10, crypto: 0.20 },
@@ -407,13 +430,14 @@ const CRISIS_C: Partial<Record<AssetKey, Partial<Record<AssetKey, number>>>> = {
   //     deliberately matched to the normal matrix so cash stays a clean diversifier
   //     — any non-zero would dilute the "cash + gold are the only true diversifiers"
   //     narrative documented in Methodology).
-  equity_us: { equity_eu: 0.95, equity_uk: 0.93, equity_ch: 0.90, equity_jp: 0.88, equity_em: 0.90, equity_thematic: 0.95, bonds: 0.30, cash: 0.00, gold: -0.05, reits: 0.88, crypto: 0.65 },
-  equity_eu: { equity_uk: 0.95, equity_ch: 0.92, equity_jp: 0.85, equity_em: 0.88, equity_thematic: 0.92, bonds: 0.30, cash: 0.00, gold: -0.05, reits: 0.85, crypto: 0.62 },
-  equity_uk: { equity_ch: 0.90, equity_jp: 0.82, equity_em: 0.85, equity_thematic: 0.85, bonds: 0.30, cash: 0.00, gold: 0.00, reits: 0.82, crypto: 0.58 },
-  equity_ch: { equity_jp: 0.82, equity_em: 0.85, equity_thematic: 0.85, bonds: 0.30, cash: 0.00, gold: 0.00, reits: 0.80, crypto: 0.55 },
-  equity_jp: { equity_em: 0.85, equity_thematic: 0.85, bonds: 0.25, cash: 0.00, gold: -0.05, reits: 0.78, crypto: 0.55 },
-  equity_em: { equity_thematic: 0.90, bonds: 0.25, cash: 0.00, gold: 0.05, reits: 0.82, crypto: 0.70 },
-  equity_thematic: { bonds: 0.25, cash: 0.00, gold: -0.05, reits: 0.82, crypto: 0.75 },
+  equity_us: { equity_eu: 0.95, equity_uk: 0.93, equity_ch: 0.90, equity_jp: 0.88, equity_em: 0.90, equity_thematic: 0.95, equity_other: 0.93, bonds: 0.30, cash: 0.00, gold: -0.05, reits: 0.88, crypto: 0.65 },
+  equity_eu: { equity_uk: 0.95, equity_ch: 0.92, equity_jp: 0.85, equity_em: 0.88, equity_thematic: 0.92, equity_other: 0.90, bonds: 0.30, cash: 0.00, gold: -0.05, reits: 0.85, crypto: 0.62 },
+  equity_uk: { equity_ch: 0.90, equity_jp: 0.82, equity_em: 0.85, equity_thematic: 0.85, equity_other: 0.88, bonds: 0.30, cash: 0.00, gold: 0.00, reits: 0.82, crypto: 0.58 },
+  equity_ch: { equity_jp: 0.82, equity_em: 0.85, equity_thematic: 0.85, equity_other: 0.85, bonds: 0.30, cash: 0.00, gold: 0.00, reits: 0.80, crypto: 0.55 },
+  equity_jp: { equity_em: 0.85, equity_thematic: 0.85, equity_other: 0.85, bonds: 0.25, cash: 0.00, gold: -0.05, reits: 0.78, crypto: 0.55 },
+  equity_em: { equity_thematic: 0.90, equity_other: 0.85, bonds: 0.25, cash: 0.00, gold: 0.05, reits: 0.82, crypto: 0.70 },
+  equity_thematic: { equity_other: 0.90, bonds: 0.25, cash: 0.00, gold: -0.05, reits: 0.82, crypto: 0.75 },
+  equity_other: { bonds: 0.30, cash: 0.00, gold: -0.05, reits: 0.85, crypto: 0.65 },
   bonds: { cash: 0.40, gold: 0.20, reits: 0.45, crypto: 0.20 },
   cash: { gold: 0.05, reits: 0.05, crypto: 0.00 },
   gold: { reits: 0.05, crypto: 0.10 },
@@ -460,7 +484,7 @@ export function mapAllocationToAssets(
 ): AssetExposure[] {
   const map: Record<AssetKey, number> = {
     equity_us: 0, equity_eu: 0, equity_uk: 0, equity_ch: 0, equity_jp: 0, equity_em: 0,
-    equity_thematic: 0, bonds: 0, cash: 0, gold: 0, reits: 0, crypto: 0,
+    equity_thematic: 0, equity_other: 0, bonds: 0, cash: 0, gold: 0, reits: 0, crypto: 0,
   };
   const benchSum = BENCHMARK.reduce((s, e) => s + e.weight, 0);
   for (const a of allocation) {
@@ -523,14 +547,21 @@ export function mapAllocationToAssets(
 // like "Other" (Europe ETF: 8.6% Other Europe; S&P 500: 3.4% Other DM;
 // EM IMI: 10.6% Other EM) and "Ireland" (Europe ETF: Bank of Ireland;
 // S&P 500: Accenture, Medtronic — US-domiciled but Irish-incorporated)
-// must be omitted so they fall back to routeByRegion(row.region), which
-// routes by the *row's* declared region — the correct context-aware
-// behavior.
+// must be omitted so they fall back to the unmappedShare → equity_other
+// flow at the bottom of the lookthrough loop.
+//
+// Canada is also intentionally absent (Task #241, 2026-05): there is no
+// separate equity_ca CMA bucket and quietly merging Canadian holdings
+// into equity_us caused the look-through US figure to overstate the
+// fund's published US %. Canada now flows into equity_other along with
+// the "Other" / "Ireland" residual, which matches the dedicated
+// "Other / Residual" CMA bucket and the geomap's NA region (the latter
+// still groups US + Canada, since the world choropleth's North America
+// region IS US + Canada — only the *CMA* bucket changes).
 const COUNTRY_TO_EQUITY_KEY: Record<string, AssetKey> = {
-  // Americas → US bucket (Canada has no separate CMA; ~95% US-correlated).
+  // United States → equity_us. Canada is NOT here (see comment above).
   "United States": "equity_us",
   "USA": "equity_us",
-  "Canada": "equity_us",
   // UK home market (FTSE-100).
   "United Kingdom": "equity_uk",
   "UK": "equity_uk",
@@ -619,7 +650,7 @@ export function mapAllocationToAssetsLookthrough(
 
   const map: Record<AssetKey, number> = {
     equity_us: 0, equity_eu: 0, equity_uk: 0, equity_ch: 0, equity_jp: 0, equity_em: 0,
-    equity_thematic: 0, bonds: 0, cash: 0, gold: 0, reits: 0, crypto: 0,
+    equity_thematic: 0, equity_other: 0, bonds: 0, cash: 0, gold: 0, reits: 0, crypto: 0,
   };
   const benchSum = BENCHMARK.reduce((s, e) => s + e.weight, 0);
 
@@ -690,10 +721,20 @@ export function mapAllocationToAssetsLookthrough(
         else unmappedShare += share;
       }
     }
-    // Any unmapped country labels (e.g. a freshly-renamed label not yet in
-    // the country map) fall back to region-based routing so we never
-    // silently drop weight. Total weight per row is invariant.
-    if (unmappedShare > 0) routeByRegion(a, unmappedShare);
+    // Any unmapped country labels — most importantly justETF's "Other"
+    // catch-all slice (every country past the top ~10 rolled into one,
+    // typically 5–12 % of a global / developed-world fund) and the
+    // intentionally-omitted "Ireland" label (context-dependent: in
+    // S&P 500 funds it's US-domiciled Accenture / Medtronic, in Europe
+    // funds it's Bank of Ireland) — flow into a dedicated "Other /
+    // Residual" CMA bucket instead of being silently re-routed by the
+    // row's nominal region. Pre-Task #241 this fell back to
+    // routeByRegion(a, unmappedShare), which dumped the residual onto
+    // whichever region the user happened to label the row with — a
+    // global ETF row labelled Equity-Global thus pushed ~60 % of the
+    // residual into US Equity (BENCHMARK proxy). Total weight per row
+    // is invariant under both routings.
+    if (unmappedShare > 0) map.equity_other += unmappedShare;
   }
 
   return (Object.keys(map) as AssetKey[])
@@ -794,6 +835,7 @@ export const WHT_DRAG: Record<AssetKey, number> = {
   equity_jp:        0.0020,
   equity_em:        0.0040,
   equity_thematic:  0.0020,
+  equity_other:     0.0025,
   bonds:            0,
   cash:             0,
   gold:             0,
@@ -1072,7 +1114,7 @@ export function computeFrontier(
   // displayed `baseCurrency` (legacy phase-1 behaviour) — the swept
   // mix is not the user's specific cash sleeve.
   const cashMu = cashSleeveMu(allocation, baseCurrency);
-  const equityKeys: AssetKey[] = ["equity_us", "equity_eu", "equity_uk", "equity_ch", "equity_jp", "equity_em", "equity_thematic", "reits", "crypto"];
+  const equityKeys: AssetKey[] = ["equity_us", "equity_eu", "equity_uk", "equity_ch", "equity_jp", "equity_em", "equity_thematic", "equity_other", "reits", "crypto"];
   const isEq = (k: AssetKey) => equityKeys.includes(k);
 
   const eqExp = exp.filter((e) => isEq(e.key));
@@ -1139,7 +1181,7 @@ export interface CorrelationCell {
 // finishing with crypto. Matches the visual grouping used in §4 of
 // the Methodology tab.
 const CORR_DISPLAY_ORDER: AssetKey[] = [
-  "equity_us", "equity_eu", "equity_uk", "equity_ch", "equity_jp", "equity_em", "equity_thematic",
+  "equity_us", "equity_eu", "equity_uk", "equity_ch", "equity_jp", "equity_em", "equity_thematic", "equity_other",
   "bonds", "cash",
   "gold", "reits", "crypto",
 ];

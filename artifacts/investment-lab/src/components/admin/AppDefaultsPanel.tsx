@@ -41,6 +41,7 @@ const CMA_KEYS_UI: { key: AppDefaultsAssetKey; label: string }[] = [
   { key: "equity_jp", label: "Japan Equity" },
   { key: "equity_em", label: "EM Equity" },
   { key: "equity_thematic", label: "Thematic Equity" },
+  { key: "equity_other", label: "Other / Residual Equity" },
   { key: "bonds", label: "Global Bonds" },
   { key: "cash", label: "Cash" },
   { key: "gold", label: "Gold" },

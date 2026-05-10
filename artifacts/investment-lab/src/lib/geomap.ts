@@ -8,9 +8,17 @@ export type RegionKey = "NA" | "Europe" | "UK" | "Switzerland" | "Japan" | "EM";
 
 const NA_COUNTRIES = new Set(["United States of America", "Canada"]);
 
+// Note (Task #241, 2026-05): "Ireland" is intentionally NOT classified as
+// Europe here. In the look-through profiles for global/developed funds
+// (e.g. Vanguard FTSE Developed World, S&P 500 trackers), the Ireland row
+// represents US-domiciled but Irish-incorporated companies (Accenture,
+// Medtronic, Eaton) — i.e. it is residual rather than a real European
+// geographic exposure. classifyCountry → "Other" surfaces it honestly via
+// otherPct + the dedicated "Other / Residual" legend tile, matching the
+// equity_other CMA bucket on the metrics side.
 const EUROPE_COUNTRIES = new Set([
   "United Kingdom", "France", "Germany", "Switzerland", "Netherlands", "Italy",
-  "Spain", "Sweden", "Denmark", "Belgium", "Norway", "Finland", "Ireland",
+  "Spain", "Sweden", "Denmark", "Belgium", "Norway", "Finland",
   "Austria", "Portugal", "Poland", "Greece", "Czechia", "Czech Republic",
   "Hungary", "Luxembourg", "Iceland", "Slovakia", "Slovenia", "Romania",
   "Bulgaria", "Croatia", "Lithuania", "Latvia", "Estonia",
@@ -32,9 +40,15 @@ const REGION_BUCKETS: Record<string, Partial<Record<RegionKey | "Other", number>
   Eurozone:      { Europe: 100 },
   EM:            { EM: 100 },
   "EM (IG)":     { EM: 100 },
-  // Other DM ~ Australia 30, Canada 28, HK 14, Singapore 10, Israel 8, Norway 5, NZ 3, Ireland 2
-  "Other DM":    { NA: 28, Europe: 7, Other: 65 },
-  Other:         { NA: 14, Europe: 4, EM: 35, Other: 47 },
+  // Note: aggregate "Other DM" and "Other" labels from upstream profile
+  // data are intentionally NOT split into NA/Europe/EM here (Task #241,
+  // 2026-05). Pre-2026-05 we silently re-routed e.g. 28 % of an "Other DM"
+  // slice into NA — that quietly inflated North-America exposure on the
+  // Look-Through map for global-developed funds whose justETF profile
+  // already aggregates everything past the top ~10 countries into one
+  // "Other" bucket. They now fall through to classifyCountry → "Other"
+  // and are surfaced honestly via `otherPct` (and the dedicated "Other /
+  // Residual" legend tile in GeoExposureMap).
 };
 
 // Map raw country names from profile data to TopoJSON canonical names.

@@ -81,7 +81,15 @@ export function CurrentAllocationCard({
     );
     return lt
       .filter((e) => e.weight > 0)
-      .map((e) => ({ name: CMA[e.key].label, value: e.weight * 100 }))
+      .map((e) => ({
+        // Localize the residual bucket label so the donut + legend read
+        // "Sonstige / Rest" in DE instead of the English CMA label. All
+        // other CMA labels are already neutral enough to stay in English.
+        name: e.key === "equity_other" && lang === "de"
+          ? "Sonstige / Rest"
+          : CMA[e.key].label,
+        value: e.weight * 100,
+      }))
       .sort(compareBuckets);
   })();
 

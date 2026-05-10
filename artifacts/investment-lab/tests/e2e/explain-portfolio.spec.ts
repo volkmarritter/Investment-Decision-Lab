@@ -18,6 +18,13 @@ test.beforeEach(async ({ page, context }) => {
 const ISIN_USA = "IE00B5BMR087";
 const ISIN_FI = "IE00B3F81409";
 const ISIN_EUROPE = "IE00B4K48X80";
+// Vanguard FTSE Developed World — pool member of the "Equity-Global"
+// bucket. Used by the Task #241 residual regression below: a 100 %
+// position in this ISIN must NOT silently push justETF's "Other"
+// (~10.9 %), Ireland (~1.1 %) and Canada (~3.1 %) shares into US Equity
+// or NA on the Look-Through map.
+const ISIN_DEV_WORLD = "IE00BKX55T58";
+const BUCKET_GLOBAL = "Equity-Global";
 
 const BUCKET_USA = "Equity-USA";
 const BUCKET_EUROPE = "Equity-Europe";
@@ -587,5 +594,53 @@ test.describe("ExplainPortfolio · bring-your-own-ETFs (mobile)", () => {
     // wins bug ("3.0" would survive) and any future regression that
     // re-introduces a single-ETF-wins shortcut ("7.0").
     await expect(cells.nth(2)).toHaveText("5.3");
+  });
+
+  // Task #241 — end-to-end residual surfacing. A 100 % position in the
+  // Vanguard FTSE Developed World ETF (Equity-Global pool) must:
+  //   1. show a labelled "Other / Residual" row (~12–16 %) on the
+  //      Current Allocation card, and
+  //   2. show a labelled "Other / Residual" tile on the Look-Through
+  //      Geo Map legend with a non-zero %.
+  // Pre-2026-05 the residual was silently re-routed into US Equity
+  // (CMA) and into NA (geomap) via BENCHMARK / EUROPE_COUNTRIES, making
+  // the Look-Through map quietly understate residual exposure.
+  test("100 % FTSE Developed World surfaces 'Other / Residual' on Current Allocation and Geo Map legend (Task #241)", async ({
+    page,
+    context,
+  }) => {
+    await context.clearCookies();
+    await openExplainTab(page);
+    await page.evaluate(() =>
+      window.localStorage.removeItem("investment-lab.explainPortfolio.v1"),
+    );
+    await page.reload();
+    await dismissWelcomeIfPresent(page);
+    await page.getByRole("tab", { name: /explain my portfolio/i }).tap();
+
+    await addCatalogRow(page, 0, ISIN_DEV_WORLD, BUCKET_GLOBAL, GROUP_EQUITY);
+    await setRowWeight(page, 0, "100");
+    await expect(page.getByTestId("explain-total")).toContainText(/100(\.0)?\s*%/);
+
+    const analysis = page.getByTestId("explain-analysis");
+    await expect(analysis).toBeVisible();
+
+    // 1. Current Allocation card — find the localized "Other / Residual"
+    // row. Default base is CHF (matches Build), but the residual row's
+    // label is base-currency-independent (DE: "Sonstige / Rest", EN:
+    // "Other / Residual" / "Equity Other"). Match either language.
+    const currentAlloc = page.getByTestId("explain-current-allocation");
+    await expect(currentAlloc).toBeVisible();
+    const residualRow = currentAlloc.getByText(
+      /Sonstige \/ Rest|Other \/ Residual|Equity Other/,
+    ).first();
+    await expect(residualRow).toBeVisible();
+
+    // 2. Geo Map legend tile — dedicated test-id + non-zero share.
+    const otherTile = analysis.getByTestId("build-geomap-other-tile");
+    await expect(otherTile).toBeVisible();
+    // The tile renders the share as e.g. "12.0 %" / "12,0 %" — assert
+    // it's a positive percentage, not 0 %.
+    await expect(otherTile).toContainText(/[1-9]\d*([.,]\d+)?\s*%/);
   });
 });

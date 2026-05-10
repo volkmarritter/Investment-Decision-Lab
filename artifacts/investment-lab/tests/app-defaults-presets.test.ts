@@ -20,6 +20,7 @@ const ASSET_KEYS = [
   "equity_jp",
   "equity_em",
   "equity_thematic",
+  "equity_other",
   "bonds",
   "cash",
   "gold",

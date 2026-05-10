@@ -57,6 +57,7 @@ const ASSET_KEYS_ORDER: AppDefaultsAssetKey[] = [
   "equity_jp",
   "equity_em",
   "equity_thematic",
+  "equity_other",
   "bonds",
   "cash",
   "gold",

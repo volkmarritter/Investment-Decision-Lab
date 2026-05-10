@@ -121,6 +121,30 @@ export function GeoExposureMap({ etfs, baseCurrency }: Props) {
               </div>
             </div>
           ))}
+          {/* Surface the "Other / Residual" leg as its own legend tile so it's
+              visible at a glance — the country-level map cannot colour this
+              slice (justETF aggregates it past the top ~10 countries) so it
+              gets a neutral grey swatch and a tooltip. Task #241, 2026-05. */}
+          {otherPct > 0.5 && (
+            <div
+              className="rounded-md border p-2 text-xs"
+              data-testid="build-geomap-other-tile"
+              title={lang === "de"
+                ? "Sonstige / Rest — Anteil des Aktien-Sleeves, der sich nicht eindeutig einer der gefärbten Regionen zuordnen lässt (justETFs „Sonstige“-Sammelposten plus mehrdeutige Labels wie Irland; Kanada ist hier in der NA-Region mit den USA enthalten — die Karte zeigt geografische Regionen, im CMA-Bucket Other/Residual landet Kanada hingegen)."
+                : "Other / Residual — share of the equity sleeve that cannot be unambiguously placed into any of the coloured regions (justETF's “Other” catch-all plus context-dependent labels such as Ireland; Canada is grouped with the US under NA on this geographic map, but lives in the Other/Residual CMA bucket on the metrics side)."}
+            >
+              <div className="flex items-center gap-1.5">
+                <span
+                  className="inline-block h-3 w-3 rounded-sm"
+                  style={{ background: "hsl(220, 12%, 55%)" }}
+                />
+                <span className="font-medium truncate">
+                  {lang === "de" ? "Sonstige / Rest" : "Other / Residual"}
+                </span>
+              </div>
+              <div className="font-mono text-base mt-1">{otherPct.toFixed(1)}%</div>
+            </div>
+          )}
         </div>
 
         {otherPct > 0.5 && (

@@ -16,6 +16,7 @@ const SUB_ASSET_COLOR = {
   equityEM:       "hsl(20, 75%, 55%)",
   equityThematic: "hsl(280, 50%, 58%)",
   equityGlobal:   "hsl(190, 60%, 48%)",
+  equityOther:    "hsl(220, 12%, 55%)",
   bonds:          "hsl(210, 25%, 45%)",
   cash:           "hsl(0, 0%, 62%)",
   gold:           "hsl(35, 75%, 48%)",
@@ -29,6 +30,7 @@ const RULES: Array<{ test: RegExp; color: string }> = [
   { test: /(uk equity|equity\s*[-–]\s*(uk|united kingdom)|aktien\s*(uk|gb))/i,                          color: SUB_ASSET_COLOR.equityUK },
   { test: /(japan equity|equity\s*[-–]\s*japan|aktien\s*japan)/i,                                       color: SUB_ASSET_COLOR.equityJapan },
   { test: /(em equity|equity\s*[-–]\s*em|emerging|schwellen)/i,                                         color: SUB_ASSET_COLOR.equityEM },
+  { test: /(other\s*\/\s*residual|sonstige\s*\/\s*rest|residual|sonstige.*rest)/i,                       color: SUB_ASSET_COLOR.equityOther },
   { test: /(thematic equity|equity\s*[-–]\s*thematic|themat)/i,                                         color: SUB_ASSET_COLOR.equityThematic },
   { test: /(europe equity|equity\s*[-–]\s*europe|europ.*aktien|aktien.*europ)/i,                        color: SUB_ASSET_COLOR.equityEurope },
   { test: /(global equity|equity\s*[-–]\s*global)/i,                                                    color: SUB_ASSET_COLOR.equityGlobal },
@@ -71,6 +73,10 @@ const ORDER_RULES: Array<{ test: RegExp; rank: number }> = [
   // It still needs its own rule that matches BEFORE the generic equity rule
   // — not for ordering, but so the dedicated Thematic color (see RULES) is
   // applied instead of the generic global-equity color.
+  // "Other / Residual" sorts AFTER all named equity buckets but still inside
+  // the equity group — it's the catch-all leak from look-through, not a
+  // satellite asset class.
+  { test: /(other\s*\/\s*residual|sonstige\s*\/\s*rest|residual|sonstige.*rest)/i,                       rank: 35 },
   { test: /(thematic equity|equity\s*[-–]\s*thematic|themat)/i,                                         rank: 30 },
   { test: /(us equity|equity\s*[-–]\s*usa|us[\s-]?aktien|aktien\s*us)/i,                                rank: 30 },
   { test: /(europe equity|equity\s*[-–]\s*europe|europ.*aktien|aktien.*europ)/i,                        rank: 30 },
