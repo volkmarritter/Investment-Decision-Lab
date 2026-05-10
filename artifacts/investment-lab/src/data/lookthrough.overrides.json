@@ -9242,7 +9242,7 @@
           "pct": 2.69
         }
       ],
-      "topHoldingsAsOf": "2026-05-10T10:51:59.461Z",
+      "topHoldingsAsOf": "2026-05-10T10:54:29.639Z",
       "geo": {
         "United Kingdom": 83.62,
         "Switzerland": 2.76,
@@ -9269,10 +9269,216 @@
         "EUR": 1.13,
         "Other": 12.49
       },
-      "breakdownsAsOf": "2026-05-10T10:51:59.461Z",
+      "breakdownsAsOf": "2026-05-10T10:54:29.639Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE0005042456",
-      "_addedAt": "2026-05-10T10:51:59.461Z",
-      "_addedVia": "admin/lookthrough-pool"
+      "_addedAt": "2026-05-10T10:54:29.639Z",
+      "_addedVia": "admin/lookthrough-pool/backfill"
+    },
+    "IE00B3F81409": {
+      "name": "iShares Core Global Aggregate Bond UCITS ETF USD (Dist)",
+      "geo": {
+        "United States": 19.02,
+        "Japan": 9.9,
+        "China": 6.98,
+        "France": 3.47,
+        "United Kingdom": 2.87,
+        "Germany": 2.53,
+        "Ireland": 2.5,
+        "Canada": 1.99,
+        "Italy": 1.94,
+        "Spain": 1.53,
+        "Australia": 1.26,
+        "Other": 46.01
+      },
+      "sector": {
+        "Other": 100
+      },
+      "currency": {
+        "USD": 19.02,
+        "JPY": 9.9,
+        "CNY": 6.98,
+        "EUR": 11.97,
+        "GBP": 2.87,
+        "CAD": 1.99,
+        "AUD": 1.26,
+        "Other": 46.01
+      },
+      "breakdownsAsOf": "2026-05-10T10:55:38.333Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B3F81409",
+      "_addedAt": "2026-05-10T10:55:38.333Z",
+      "_addedVia": "admin/lookthrough-pool/backfill",
+      "isEquity": false
+    },
+    "LU0378818131": {
+      "name": "Xtrackers II Global Government Bond UCITS ETF 1C EUR Hedged",
+      "geo": {
+        "United States": 27.16,
+        "Japan": 12.6,
+        "France": 6.84,
+        "Italy": 5.67,
+        "Germany": 4.6,
+        "Spain": 3.9,
+        "United Kingdom": 3.62,
+        "Belgium": 1.61,
+        "Australia": 1.28,
+        "Netherlands": 1.26,
+        "Canada": 1.06,
+        "Other": 30.4
+      },
+      "sector": {
+        "Other": 100
+      },
+      "currency": {
+        "USD": 27.16,
+        "JPY": 12.6,
+        "EUR": 23.88,
+        "GBP": 3.62,
+        "AUD": 1.28,
+        "CAD": 1.06,
+        "Other": 30.4
+      },
+      "breakdownsAsOf": "2026-05-10T10:55:39.596Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=LU0378818131",
+      "_addedAt": "2026-05-10T10:55:39.596Z",
+      "_addedVia": "admin/lookthrough-pool/backfill",
+      "isEquity": false
+    },
+    "IE00BG47KH54": {
+      "name": "Vanguard Global Aggregate Bond UCITS ETF EUR Hedged Accumulating",
+      "geo": {
+        "United States": 25.57,
+        "Japan": 7.44,
+        "France": 4.72,
+        "Germany": 3.55,
+        "Canada": 3.45,
+        "United Kingdom": 3.21,
+        "Italy": 2.09,
+        "Australia": 1.98,
+        "Netherlands": 1.83,
+        "Luxembourg": 1.44,
+        "South Korea": 1.39,
+        "Spain": 1.23,
+        "Belgium": 1.13,
+        "Other": 40.97
+      },
+      "sector": {
+        "Other": 96.51
+      },
+      "currency": {
+        "USD": 25.57,
+        "JPY": 7.44,
+        "EUR": 15.99,
+        "CAD": 3.45,
+        "GBP": 3.21,
+        "AUD": 1.98,
+        "KRW": 1.39,
+        "Other": 40.97
+      },
+      "breakdownsAsOf": "2026-05-10T10:55:40.777Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BG47KH54",
+      "_addedAt": "2026-05-10T10:55:40.777Z",
+      "_addedVia": "admin/lookthrough-pool/backfill",
+      "isEquity": false
+    },
+    "IE00BDBRDM35": {
+      "name": "iShares Core Global Aggregate Bond UCITS ETF EUR Hedged (Acc)",
+      "geo": {
+        "United States": 19.02,
+        "Japan": 9.9,
+        "China": 6.98,
+        "France": 3.47,
+        "United Kingdom": 2.87,
+        "Germany": 2.53,
+        "Ireland": 2.5,
+        "Canada": 1.99,
+        "Italy": 1.94,
+        "Spain": 1.53,
+        "Australia": 1.26,
+        "Other": 46.01
+      },
+      "sector": {
+        "Other": 100
+      },
+      "currency": {
+        "USD": 19.02,
+        "JPY": 9.9,
+        "CNY": 6.98,
+        "EUR": 11.97,
+        "GBP": 2.87,
+        "CAD": 1.99,
+        "AUD": 1.26,
+        "Other": 46.01
+      },
+      "breakdownsAsOf": "2026-05-10T10:55:42.047Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BDBRDM35",
+      "_addedAt": "2026-05-10T10:55:42.047Z",
+      "_addedVia": "admin/lookthrough-pool/backfill",
+      "isEquity": false
+    },
+    "IE00BG47KB92": {
+      "name": "Vanguard Global Aggregate Bond UCITS ETF EUR Hedged Distributing",
+      "geo": {
+        "United States": 25.57,
+        "Japan": 7.44,
+        "France": 4.72,
+        "Germany": 3.55,
+        "Canada": 3.45,
+        "United Kingdom": 3.21,
+        "Italy": 2.09,
+        "Australia": 1.98,
+        "Netherlands": 1.83,
+        "Luxembourg": 1.44,
+        "South Korea": 1.39,
+        "Spain": 1.23,
+        "Belgium": 1.13,
+        "Other": 40.97
+      },
+      "sector": {
+        "Other": 96.51
+      },
+      "currency": {
+        "USD": 25.57,
+        "JPY": 7.44,
+        "EUR": 15.99,
+        "CAD": 3.45,
+        "GBP": 3.21,
+        "AUD": 1.98,
+        "KRW": 1.39,
+        "Other": 40.97
+      },
+      "breakdownsAsOf": "2026-05-10T10:55:43.256Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BG47KB92",
+      "_addedAt": "2026-05-10T10:55:43.256Z",
+      "_addedVia": "admin/lookthrough-pool/backfill",
+      "isEquity": false
+    },
+    "LU0290355717": {
+      "name": "Xtrackers II Eurozone Government Bond UCITS ETF 1C",
+      "geo": {
+        "France": 21.95,
+        "Italy": 18.23,
+        "Germany": 14.77,
+        "Spain": 12.57,
+        "Belgium": 5.17,
+        "Netherlands": 4.05,
+        "Austria": 2.99,
+        "Portugal": 2.11,
+        "Ireland": 1.75,
+        "Finland": 1.26,
+        "Other": 15.15
+      },
+      "sector": {
+        "Other": 100
+      },
+      "currency": {
+        "EUR": 84.85,
+        "Other": 15.15
+      },
+      "breakdownsAsOf": "2026-05-10T10:55:44.440Z",
+      "_source": "https://www.justetf.com/en/etf-profile.html?isin=LU0290355717",
+      "_addedAt": "2026-05-10T10:55:44.440Z",
+      "_addedVia": "admin/lookthrough-pool/backfill",
+      "isEquity": false
     }
   }
 }

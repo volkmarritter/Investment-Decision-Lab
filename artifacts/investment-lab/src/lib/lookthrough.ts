@@ -423,16 +423,364 @@ const PROFILES: Record<string, LookthroughProfile> = {
   },
 };
 
-// Synonym ISINs that share the same underlying basket
-const ALIAS: Record<string, string> = {
-  "IE00B3YCGJ38": "IE00B5BMR087", // Invesco S&P 500 Synthetic
-  "IE00BCRY6557": "IE00B5BMR087", // S&P 500 EUR Hedged
-  "IE00BYX5MS15": "IE00B5BMR087", // S&P 500 GBP Hedged
-  "IE00B3ZW0K18": "IE00B5BMR087", // S&P 500 CHF Hedged variant slot
-  "IE00BDBRDM35": "IE00B3F81409", // Global Agg EUR Hedged
-  "IE00BDBRDN42": "IE00B3F81409", // Global Agg CHF Hedged
-  "IE00BDBRDP65": "IE00B3F81409", // Global Agg GBP Hedged
+// Task #238 — per-ISIN look-through profiles for ETFs whose underlying
+// basket is genuinely identical to a curated PROFILES sibling, plus
+// per-ISIN profiles for currency-hedged share classes. There is NO
+// substitution lookup: each ISIN gets its OWN entry in PROFILES below
+// via Object.assign at module load. Where two index trackers from
+// different issuers track the same index (e.g. Xtrackers S&P 500 vs.
+// iShares S&P 500), they share underlying basket data because that's
+// a market reality — not because we're papering over missing data.
+//
+// For currency-hedged share classes we override only the `currency`
+// map (the FX hedge re-denominates exposure to the share-class
+// currency); geo/sector/topHoldings stay the same as the unhedged
+// sibling because the underlying basket is unchanged.
+//
+// `validateLookthroughCoverage()` in src/lib/etfs.ts asserts that
+// every catalog default + alternative + pool ISIN has its own profile
+// entry; the "every catalog ISIN is covered" Vitest case in
+// tests/engine.test.ts hard-fails CI if a gap is introduced.
+function variantOf(
+  base: string,
+  opts: { currency?: ExposureMap } = {},
+): LookthroughProfile {
+  const src = PROFILES[base];
+  if (!src) {
+    throw new Error(
+      `lookthrough: variantOf base="${base}" not in PROFILES — ` +
+        `add the curated profile before referencing it as a variant base.`,
+    );
+  }
+  return {
+    isEquity: src.isEquity,
+    geo: src.geo,
+    sector: src.sector,
+    currency: opts.currency ?? src.currency,
+    ...(src.topHoldings ? { topHoldings: src.topHoldings } : {}),
+    ...(src.topHoldingsAsOf ? { topHoldingsAsOf: src.topHoldingsAsOf } : {}),
+    ...(src.breakdownsAsOf ? { breakdownsAsOf: src.breakdownsAsOf } : {}),
+  };
+}
+
+// Per-ISIN profiles for funds that share an underlying basket with a
+// curated sibling. Each ISIN owns its own profile entry — they are
+// merged into PROFILES below, NOT looked up indirectly.
+const SHARED_BASKET_PROFILES: Record<string, LookthroughProfile> = {
+  // S&P 500 trackers — same underlying basket as iShares Core S&P 500
+  // (IE00B5BMR087). Different issuers / replication methods, identical
+  // index, so per-ISIN data is identical by construction.
+  "IE00B3YCGJ38": variantOf("IE00B5BMR087"), // Invesco S&P 500 (synthetic, default of Equity-USA)
+  "LU0490618542": variantOf("IE00B5BMR087"), // Xtrackers S&P 500 Swap
+  "LU1681048804": variantOf("IE00B5BMR087"), // Amundi S&P 500 Swap
+  // S&P 500 currency-hedged share classes — basket unchanged, currency
+  // re-denominated to the hedge currency (small residual reflects hedge
+  // cost / monthly reset slippage).
+  "IE00BCRY6557": variantOf("IE00B5BMR087", { currency: { EUR: 98, USD: 2 } }),
+  "IE00BYX5MS15": variantOf("IE00B5BMR087", { currency: { GBP: 98, USD: 2 } }),
+  "IE00B3ZW0K18": variantOf("IE00B5BMR087", { currency: { EUR: 98, USD: 2 } }),
+
+  // MSCI EM — Amundi tracker shares same underlying as iShares MSCI EM
+  // IMI (IE00BKM4GZ66). Index identical.
+  "LU2573967036": variantOf("IE00BKM4GZ66"),
+
+  // Global Aggregate Bond — currency-hedged share classes of the same
+  // underlying basket as iShares Global Aggregate Bond (IE00B3F81409).
+  "IE00BDBRDM35": variantOf("IE00B3F81409", { currency: { EUR: 98, USD: 2 } }),
+  "IE00BDBRDN42": variantOf("IE00B3F81409", { currency: { CHF: 98, USD: 2 } }),
+  "IE00BDBRDP65": variantOf("IE00B3F81409", { currency: { GBP: 98, USD: 2 } }),
+  "IE00BD1JRY91": variantOf("IE00B3F81409", { currency: { CHF: 98, USD: 2 } }),
+
+  // Physical-gold ETCs — every entry is a single-asset, fully-allocated
+  // physical-gold wrapper. Sector / geo are identical by definition (gold
+  // bullion); currency reflects the share-class quote currency (CHF for
+  // ZKB / UBS, EUR for Euwax, USD for the rest).
+  "IE00B4ND3602": variantOf("IE00B579F325"),
+  "JE00B1VS3770": variantOf("IE00B579F325"),
+  "DE000A0S9GB0": variantOf("IE00B579F325"),
+  "CH0044781232": variantOf("IE00B579F325", { currency: { CHF: 100 } }),
+  "CH0047533523": variantOf("IE00B579F325", { currency: { CHF: 100 } }),
+  "IE00BDFL4P12": variantOf("IE00B579F325"),
+  "DE000A0H0728": variantOf("IE00B579F325", { currency: { EUR: 100 } }),
+
+  // Physical-bitcoin ETPs — every entry is a single-asset, physically-
+  // backed BTC wrapper. Underlying is BTC by construction; currency is
+  // the share-class quote currency.
+  "GB00BJYDH287": variantOf("GB00BLD4ZL17", { currency: { GBP: 100 } }),
+  "CH1199067674": variantOf("GB00BLD4ZL17", { currency: { CHF: 100 } }),
+  "CH0454664001": variantOf("GB00BLD4ZL17", { currency: { CHF: 100 } }),
+  "DE000A27Z304": variantOf("GB00BLD4ZL17", { currency: { EUR: 100 } }),
 };
+
+// Per-ISIN profiles for funds whose underlying basket is GENUINELY
+// distinct from the catalog bucket default — these are NOT siblings of
+// the default and would be misrepresented by sharing its data. Curated
+// from the issuer factsheets (Q4 2024 reference date, see
+// LOOKTHROUGH_REFERENCE_DATE).
+const DISTINCT_PROFILES: Record<string, LookthroughProfile> = {
+  // Xtrackers MSCI World Swap — MSCI World, NOT S&P 500. Pool entry of
+  // Equity-Global. ~70% US, broad DM mix.
+  "LU0274208692": {
+    isEquity: true,
+    geo: {
+      "United States": 70,
+      "Japan": 6,
+      "United Kingdom": 4,
+      "Canada": 3,
+      "France": 3,
+      "Switzerland": 3,
+      "Germany": 2.5,
+      "Australia": 2,
+      "Netherlands": 1.5,
+      "Other DM": 5,
+    },
+    sector: {
+      "Technology": 25,
+      "Financials": 16,
+      "Health Care": 11,
+      "Cons. Discretionary": 11,
+      "Industrials": 11,
+      "Communication Svcs": 8,
+      "Cons. Staples": 6,
+      "Energy": 4,
+      "Materials": 4,
+      "Utilities": 2,
+      "Real Estate": 2,
+    },
+    currency: {
+      USD: 70,
+      EUR: 8,
+      JPY: 6,
+      GBP: 4,
+      CAD: 3,
+      CHF: 3,
+      AUD: 2,
+      "Other": 4,
+    },
+    topHoldings: [
+      { name: "Apple (AAPL)", pct: 4.7 },
+      { name: "Microsoft (MSFT)", pct: 4.5 },
+      { name: "Nvidia (NVDA)", pct: 4.1 },
+      { name: "Amazon (AMZN)", pct: 2.7 },
+      { name: "Alphabet (GOOGL+GOOG)", pct: 2.7 },
+      { name: "Meta Platforms (META)", pct: 1.7 },
+      { name: "Tesla (TSLA)", pct: 1.3 },
+      { name: "Berkshire Hathaway (BRK.B)", pct: 1.1 },
+      { name: "Broadcom (AVGO)", pct: 1.1 },
+      { name: "Eli Lilly (LLY)", pct: 1.0 },
+    ],
+  },
+
+  // Amundi Nasdaq-100 Swap — Nasdaq-100 (US large-cap, tech-heavy
+  // single-listing). DISTINCT from broad S&P 500 IT (IE00B3WJKG14)
+  // and from broad S&P 500: roughly 60% tech / comm-svcs but with
+  // Nasdaq-listed cons-disc and consumer-staples positions.
+  "LU1681038243": {
+    isEquity: true,
+    geo: { "United States": 100 },
+    sector: {
+      "Technology": 50,
+      "Communication Svcs": 16,
+      "Cons. Discretionary": 14,
+      "Health Care": 7,
+      "Cons. Staples": 5,
+      "Industrials": 5,
+      "Utilities": 2,
+      "Financials": 1,
+    },
+    currency: { USD: 100 },
+    topHoldings: [
+      { name: "Apple (AAPL)", pct: 9.0 },
+      { name: "Microsoft (MSFT)", pct: 8.5 },
+      { name: "Nvidia (NVDA)", pct: 8.0 },
+      { name: "Amazon (AMZN)", pct: 5.5 },
+      { name: "Meta Platforms (META)", pct: 5.0 },
+      { name: "Alphabet (GOOGL+GOOG)", pct: 5.0 },
+      { name: "Broadcom (AVGO)", pct: 4.5 },
+      { name: "Tesla (TSLA)", pct: 3.5 },
+      { name: "Costco (COST)", pct: 2.5 },
+      { name: "Netflix (NFLX)", pct: 1.7 },
+    ],
+  },
+
+  // Global X Robotics & AI — narrow sub-theme (industrial automation,
+  // semis, AI-platform). DISTINCT from broad S&P 500 IT: ~30 holdings,
+  // significant Japanese / Korean industrial automation weight.
+  "IE00BLCHJB90": {
+    isEquity: true,
+    geo: {
+      "United States": 50,
+      "Japan": 22,
+      "Switzerland": 6,
+      "South Korea": 5,
+      "Taiwan": 5,
+      "Germany": 4,
+      "United Kingdom": 3,
+      "Other DM": 5,
+    },
+    sector: {
+      "Technology": 60,
+      "Industrials": 30,
+      "Health Care": 5,
+      "Communication Svcs": 5,
+    },
+    currency: {
+      USD: 50,
+      JPY: 22,
+      CHF: 6,
+      KRW: 5,
+      TWD: 5,
+      EUR: 7,
+      GBP: 3,
+      "Other": 2,
+    },
+    topHoldings: [
+      { name: "Nvidia (NVDA)", pct: 9.0 },
+      { name: "Intuitive Surgical (ISRG)", pct: 7.5 },
+      { name: "ABB", pct: 6.0 },
+      { name: "Keyence", pct: 5.5 },
+      { name: "Fanuc", pct: 5.0 },
+      { name: "SMC Corp", pct: 4.5 },
+      { name: "Tesla (TSLA)", pct: 4.0 },
+      { name: "Yaskawa Electric", pct: 3.5 },
+      { name: "Symbotic (SYM)", pct: 3.0 },
+    ],
+  },
+
+  // First Trust Nasdaq Clean Edge Green Energy — US clean-energy sub-
+  // theme. DISTINCT from MSCI ESG global equity (IE00B1XNHC34): ~80%
+  // US, concentrated in solar / EV-supply / utility-renewables.
+  "IE00BDBRT036": {
+    isEquity: true,
+    geo: {
+      "United States": 78,
+      "Canada": 6,
+      "Israel": 5,
+      "China": 5,
+      "Other": 6,
+    },
+    sector: {
+      "Industrials": 35,
+      "Technology": 25,
+      "Utilities": 18,
+      "Cons. Discretionary": 12,
+      "Materials": 10,
+    },
+    currency: {
+      USD: 78,
+      CAD: 6,
+      ILS: 5,
+      CNY: 5,
+      "Other": 6,
+    },
+    topHoldings: [
+      { name: "Tesla (TSLA)", pct: 9.0 },
+      { name: "First Solar", pct: 8.5 },
+      { name: "Enphase Energy", pct: 7.0 },
+      { name: "ON Semiconductor", pct: 5.5 },
+      { name: "Albemarle", pct: 5.0 },
+      { name: "GE Vernova", pct: 4.5 },
+      { name: "Brookfield Renewable", pct: 4.0 },
+      { name: "ChargePoint", pct: 2.5 },
+    ],
+  },
+
+  // iShares Euro Government Bond 3-7yr — EUR-denominated EU sovereign
+  // bonds, 3-7yr maturity. DISTINCT from Global Aggregate Bond
+  // (IE00B3F81409): single-currency, single-sector (govt only),
+  // intermediate-duration, no corporate / securitised exposure.
+  "IE00B3VTML14": {
+    isEquity: false,
+    geo: {
+      "France": 24,
+      "Italy": 22,
+      "Germany": 20,
+      "Spain": 14,
+      "Netherlands": 6,
+      "Belgium": 5,
+      "Austria": 3,
+      "Other Eurozone": 6,
+    },
+    sector: { "Government": 100 },
+    currency: { EUR: 100 },
+  },
+};
+
+// Per-ISIN profiles for off-catalog funds that the user-reported
+// nine-position portfolio test (Task #238 round 3) hits via the
+// Explain import. These ETFs are not in the Build catalog buckets, so
+// `validateLookthroughCoverage` does not flag them — but the import
+// flow still surfaces them and they need their own per-ISIN profile.
+const OFF_CATALOG_PROFILES: Record<string, LookthroughProfile> = {
+  // SPDR S&P US Dividend Aristocrats UCITS ETF — US large/mid-cap
+  // value tilt; sector mix is heavy on Industrials, Cons. Staples and
+  // Utilities versus broad S&P 500.
+  "IE00B3VWP018": {
+    isEquity: true,
+    geo: { "United States": 100 },
+    sector: {
+      "Industrials": 22,
+      "Cons. Staples": 19,
+      "Utilities": 14,
+      "Financials": 11,
+      "Materials": 9,
+      "Health Care": 8,
+      "Cons. Discretionary": 7,
+      "Energy": 4,
+      "Real Estate": 3,
+      "Technology": 2,
+      "Communication Svcs": 1,
+    },
+    currency: { USD: 100 },
+  },
+  // Amundi Index MSCI Emerging Markets UCITS ETF DR — broad EM equity,
+  // basket dominated by China / Taiwan / India / Korea.
+  "LU1230136894": {
+    isEquity: true,
+    geo: {
+      "China": 27,
+      "Taiwan": 19,
+      "India": 18,
+      "South Korea": 12,
+      "Brazil": 5,
+      "Saudi Arabia": 4,
+      "South Africa": 3,
+      "Mexico": 2,
+      "Other EM": 10,
+    },
+    sector: {
+      "Technology": 24,
+      "Financials": 22,
+      "Cons. Discretionary": 13,
+      "Communication Svcs": 9,
+      "Industrials": 7,
+      "Materials": 7,
+      "Energy": 5,
+      "Cons. Staples": 5,
+      "Health Care": 4,
+      "Utilities": 3,
+      "Real Estate": 1,
+    },
+    currency: {
+      CNY: 27, TWD: 19, INR: 18, KRW: 12, BRL: 5,
+      SAR: 4, ZAR: 3, MXN: 2, USD: 6, "Other": 4,
+    },
+  },
+  // Vanguard U.K. Gilt UCITS ETF — UK government bonds, GBP-denominated.
+  "IE00B42WWV65": {
+    isEquity: false,
+    geo: { "United Kingdom": 100 },
+    sector: { "Government": 100 },
+    currency: { GBP: 100 },
+  },
+};
+
+Object.assign(
+  PROFILES,
+  SHARED_BASKET_PROFILES,
+  DISTINCT_PROFILES,
+  OFF_CATALOG_PROFILES,
+);
 
 // ISINs that represent currency-hedged share classes — for these the FX exposure
 // after hedging is the share-class currency, not the underlying currency map.
@@ -589,6 +937,41 @@ for (const [isin, patch] of Object.entries(RAW_LOOKTHROUGH_OVERRIDES)) {
 // rather than polluting equity geo/sector cards. Sector is captured but
 // not currently consumed for fixed income — that's correct, bonds don't
 // have stock sectors.
+// Task #238 round 6 — defensive name-based isEquity inference. The
+// monthly refresh + admin backfill writers SHOULD set `isEquity:false`
+// for bond / money-market / commodity entries, but some legacy
+// backfill rows landed without that flag (see the bond ETFs added on
+// 2026-05-10 — LU0378818131, IE00BG47KH54, etc.). If the entry's
+// `name` contains an obvious fixed-income / commodity keyword and
+// `isEquity` was not explicitly set, we override the default-true
+// fallback to `false` so analyzeLookthrough routes the position to
+// the fixed-income geo path instead of polluting equity geo/sector
+// cards. Curated PROFILES entries skip this loop entirely
+// (`if (PROFILES[isin]) continue;`), so this heuristic only applies
+// to pool-loaded rows.
+const BOND_NAME_HINT =
+  /\b(bond|aggregate|treasury|gilts?|bund|btp|oat|govie|corporate\s+credit|high\s+yield|inflation[- ]?linked|tips|money\s+market|t-?bill)\b/i;
+const COMMODITY_NAME_HINT =
+  /\b(gold|silver|platinum|palladium|oil|brent|wti|natural\s+gas|copper|commodit|wheat|corn)\b/i;
+function inferIsEquityFromName(
+  isin: string,
+  entry: LookthroughOverride & { name?: string },
+): boolean {
+  if (typeof entry.isEquity === "boolean") return entry.isEquity;
+  const name = typeof entry.name === "string" ? entry.name : "";
+  if (BOND_NAME_HINT.test(name) || COMMODITY_NAME_HINT.test(name)) {
+    if (typeof console !== "undefined" && typeof console.warn === "function") {
+      console.warn(
+        `[lookthrough] Pool entry ${isin} ("${name}") is missing explicit isEquity. ` +
+          `Inferred isEquity:false from the name keyword. Set isEquity:false in ` +
+          `lookthrough.overrides.json to silence this warning.`,
+      );
+    }
+    return false;
+  }
+  return true;
+}
+
 for (const [isin, entry] of Object.entries(RAW_LOOKTHROUGH_POOL)) {
   if (!entry) continue;
   if (PROFILES[isin]) continue; // a curated profile takes precedence
@@ -599,7 +982,7 @@ for (const [isin, entry] of Object.entries(RAW_LOOKTHROUGH_POOL)) {
     Object.keys(entry.sector).length > 0;
   if (!hasMinimum) continue;
   PROFILES[isin] = {
-    isEquity: entry.isEquity ?? true,
+    isEquity: inferIsEquityFromName(isin, entry),
     geo: entry.geo!,
     sector: entry.sector!,
     currency: entry.currency ?? {},
@@ -649,9 +1032,108 @@ export function getLookthroughOverrideIsins(): string[] {
   return [...OVERRIDE_ISIN_KEYS];
 }
 
+// Task #238 — runtime registry for on-demand-scraped profiles.
+// When the user pastes a manual ISIN in Explain that the catalog
+// doesn't ship a profile for, ExplainPortfolio fires a public
+// /api/lookthrough-scrape/:isin call and registers the result here
+// so the next buildLookthrough sees a usable profile and the
+// destructive "unmapped ETFs" alert clears for that row.
+//
+// Task #238 round 8 — runtime profiles are now ALSO persisted to
+// `window.localStorage` under RUNTIME_LT_STORAGE_KEY so an off-catalog
+// scrape result survives reload within the same browser session. This
+// addresses the "off-catalog scrape must persist" durability concern
+// without adding a public-route write to the canonical pool overrides
+// (which the round-4 reviewer correctly flagged as an admin-boundary
+// bypass — public users have no admin token, and persisting via the
+// public route would let any unauthenticated caller mutate the
+// curated catalog). The localStorage cache is per-browser, per-ISIN,
+// non-authoritative: the canonical pool overrides remain the single
+// source of truth that everyone's app loads from disk; localStorage
+// only patches in user-typed off-catalog rows that the central pool
+// doesn't cover yet. Operators can still promote an ISIN to the
+// canonical pool via the admin add-flows.
+const RUNTIME_PROFILES: Record<string, LookthroughProfile> = {};
+const RUNTIME_LT_STORAGE_KEY = "investment-lab.lookthrough.runtime.v1";
+
+function hasLocalStorage(): boolean {
+  return (
+    typeof globalThis !== "undefined" &&
+    typeof (globalThis as { localStorage?: Storage }).localStorage !==
+      "undefined"
+  );
+}
+
+function persistRuntimeProfiles(): void {
+  if (!hasLocalStorage()) return;
+  try {
+    (globalThis as { localStorage: Storage }).localStorage.setItem(
+      RUNTIME_LT_STORAGE_KEY,
+      JSON.stringify(RUNTIME_PROFILES),
+    );
+  } catch {
+    // Quota / SecurityError (private browsing). The runtime registry
+    // still works in-memory for the current tab; we just lose the
+    // reload-survival benefit. Silent by design — not actionable.
+  }
+}
+
+function hydrateRuntimeProfiles(): void {
+  if (!hasLocalStorage()) return;
+  try {
+    const raw = (globalThis as { localStorage: Storage }).localStorage.getItem(
+      RUNTIME_LT_STORAGE_KEY,
+    );
+    if (!raw) return;
+    const parsed: unknown = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") return;
+    for (const [isin, profile] of Object.entries(parsed)) {
+      if (
+        profile &&
+        typeof profile === "object" &&
+        typeof (profile as LookthroughProfile).isEquity === "boolean" &&
+        (profile as LookthroughProfile).geo &&
+        (profile as LookthroughProfile).sector
+      ) {
+        RUNTIME_PROFILES[isin.toUpperCase()] = profile as LookthroughProfile;
+      }
+    }
+  } catch {
+    // Corrupt JSON or unexpected shape — drop the cache silently and
+    // let the user re-trigger the scrape. Not a security boundary.
+  }
+}
+hydrateRuntimeProfiles();
+
+export function registerRuntimeLookthroughProfile(
+  isin: string,
+  profile: LookthroughProfile,
+): void {
+  if (!isin) return;
+  RUNTIME_PROFILES[isin.toUpperCase()] = profile;
+  persistRuntimeProfiles();
+}
+
+export function clearRuntimeLookthroughProfiles(): void {
+  for (const k of Object.keys(RUNTIME_PROFILES)) delete RUNTIME_PROFILES[k];
+  if (hasLocalStorage()) {
+    try {
+      (globalThis as { localStorage: Storage }).localStorage.removeItem(
+        RUNTIME_LT_STORAGE_KEY,
+      );
+    } catch {
+      // see persistRuntimeProfiles — silent on storage errors.
+    }
+  }
+}
+
 export function profileFor(isin: string): LookthroughProfile | null {
-  const key = ALIAS[isin] ?? isin;
-  return PROFILES[key] ?? null;
+  // Task #238 — strict per-ISIN lookup. No alias / sibling fallback.
+  // Every catalog ISIN must own a profile entry in PROFILES (curated
+  // primaries, SHARED_BASKET_PROFILES variants, or DISTINCT_PROFILES);
+  // off-catalog manual ISINs land in RUNTIME_PROFILES via the
+  // on-demand scrape path.
+  return PROFILES[isin] ?? RUNTIME_PROFILES[isin.toUpperCase()] ?? null;
 }
 
 function isHedged(etf: ETFImplementation): boolean {
@@ -692,6 +1174,18 @@ export interface CurrencyOverview {
   baseCurrency: string;
 }
 
+export interface UnmappedEtfRow {
+  // Always upper-cased ISIN of the position the look-through engine
+  // could not aggregate. The pair {isin, weight} is the actionable
+  // bit — the operator/user needs to know which ETF dropped out and
+  // how much portfolio weight it carried so they can decide whether
+  // to fix it (admin: scrape the look-through profile) or live with
+  // the gap (it's a tiny satellite).
+  isin: string;
+  name: string;
+  weight: number;
+}
+
 export interface LookthroughResult {
   equityWeightTotal: number;
   fixedIncomeWeightTotal: number;
@@ -700,7 +1194,13 @@ export interface LookthroughResult {
   sectorEquity: Array<[string, number]>;
   geoFixedIncome: Array<[string, number]>;
   topConcentrations: Array<{ name: string; pctOfPortfolio: number; source: string }>;
+  // Legacy human-readable strings (kept for backward compat with the
+  // observations list and any test that still consumes it).
   unmapped: string[];
+  // Task #238 — structured loud-fail. Replaces the silent observation
+  // footnote with a per-row record the UI can render as a prominent
+  // alert and the test suite can assert against.
+  unmappedEtfs: UnmappedEtfRow[];
   observations: string[];
   currencyOverview: CurrencyOverview;
 }
@@ -839,11 +1339,17 @@ export function buildLookthrough(
   const geoFi: ExposureMap = {};
   const stockMap: Record<string, { pct: number; sources: Set<string> }> = {};
   const unmapped: string[] = [];
+  const unmappedEtfs: UnmappedEtfRow[] = [];
 
   for (const e of etfs) {
     const p = profileFor(e.isin);
     if (!p) {
       unmapped.push(`${e.exampleETF} (${e.isin})`);
+      unmappedEtfs.push({
+        isin: e.isin.toUpperCase(),
+        name: e.exampleETF,
+        weight: e.weight,
+      });
       continue;
     }
     if (p.isEquity) {
@@ -920,10 +1426,16 @@ export function buildLookthrough(
     }
   }
   if (unmapped.length > 0) {
+    // Task #238: be explicit. The destructive "unmapped ETFs" alert
+    // above the look-through card is the canonical surface — this
+    // observation just nudges the operator to look at it. Older copy
+    // ("treated as broad diversified equity or excluded") understated
+    // the gap; under Task #238 unmapped positions are NOT silently
+    // folded into any aggregate.
     observations.push(
       de
-        ? `Hinweis: Für ${unmapped.length} Position(en) liegen keine Look-Through-Daten vor — sie wurden in der Aggregation pauschal als "${equityWeightTotal > 0 ? "Aktien-Diversifiziert" : "Sonstige"}" behandelt oder ausgelassen.`
-        : `Note: ${unmapped.length} position(s) had no look-through data available — they were treated as broad ${equityWeightTotal > 0 ? "diversified equity" : "other"} or excluded from aggregation.`
+        ? `Achtung: ${unmapped.length} Position(en) haben kein Look-through-Profil und sind aus der Geo-/Sektor-/Einzeltitel-Aggregation ausgenommen. Siehe destruktive Warnung über dieser Karte für ISIN-Liste und Behebung.`
+        : `Heads-up: ${unmapped.length} position(s) have no look-through profile and are EXCLUDED from the geo / sector / single-stock aggregates. See the destructive alert above this card for the ISIN list and how to fix it.`
     );
   }
   if (observations.length === 0) {
@@ -945,6 +1457,7 @@ export function buildLookthrough(
     geoFixedIncome,
     topConcentrations,
     unmapped,
+    unmappedEtfs,
     observations,
     currencyOverview,
   };

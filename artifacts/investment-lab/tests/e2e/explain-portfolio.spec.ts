@@ -1,5 +1,15 @@
 import { test, expect } from "@playwright/test";
-import { dismissWelcomeIfPresent } from "./utils";
+import { dismissWelcomeIfPresent, resetAppState } from "./utils";
+
+// Task #234 — full client-state reset before every test in this file so
+// the explain-*.spec.ts group runs deterministically end-to-end (not just
+// when each file is invoked on its own). See `resetAppState` for the
+// rationale; the per-test `clearCookies` / `removeItem` calls below are
+// now redundant but kept so individual tests stay self-contained when
+// invoked via `--grep`.
+test.beforeEach(async ({ page, context }) => {
+  await resetAppState(page, context);
+});
 
 // Test ISINs and the catalog buckets they live in. The Explain editor is now
 // a tree-of-buckets: every catalog asset class is a collapsible chevron and

@@ -742,11 +742,16 @@ export interface LookthroughPoolEntry {
   // UCITS ETF (Acc)"). Optional, weil ältere Pool-Einträge den Namen noch
   // nicht haben — der monatliche Refresh-Job backfillt sie automatisch.
   name?: string;
-  topHoldings: Array<{ name: string; pct: number }>;
-  topHoldingsAsOf: string;
+  // Task #238: bond / money-market / synthetic ETFs scrape geo+sector
+  // but no top-holdings table, and some don't expose a currency split
+  // either. The runtime PROFILES merge in lookthrough.ts only requires
+  // geo + sector — top-holdings + currency are now optional so the
+  // backfill helpers can persist a usable profile for those funds too.
+  topHoldings?: Array<{ name: string; pct: number }>;
+  topHoldingsAsOf?: string;
   geo: Record<string, number>;
   sector: Record<string, number>;
-  currency: Record<string, number>;
+  currency?: Record<string, number>;
   breakdownsAsOf: string;
   _source: string;
   _addedAt: string;
@@ -886,10 +891,10 @@ export async function openAddLookthroughPoolPr(args: {
     "- The Methodology override dialog (`profileFor(isin)`) will return a full profile, so the amber \"no look-through data\" warning auto-clears.",
     "",
     "**Scrape stats**",
-    `- Top holdings: ${args.entry.topHoldings.length}`,
+    `- Top holdings: ${args.entry.topHoldings?.length ?? 0}`,
     `- Geo buckets: ${Object.keys(args.entry.geo).length}`,
     `- Sector buckets: ${Object.keys(args.entry.sector).length}`,
-    `- As of: ${args.entry.topHoldingsAsOf}`,
+    `- As of: ${args.entry.topHoldingsAsOf ?? args.entry.breakdownsAsOf}`,
     `- Source: ${args.entry._source}`,
     "",
     "The monthly refresh job will keep this entry up to date going forward.",
@@ -935,13 +940,54 @@ export async function openBulkAddLookthroughPoolPr(args: {
   added: string[];
   skippedAlreadyPresent: string[];
 }> {
+  if (args.entries.length === 0) {
+    throw new Error("openBulkAddLookthroughPoolPr called with zero entries.");
+  }
+  // Direct-write mode (Task #238): in the workspace, edit the bundled
+  // JSON on disk so the bundled SPA picks up the new pool entries on
+  // its next refresh — no PR / merge / republish round-trip.
+  if (directWriteMode()) {
+    const currentContent = await readLookthroughLocal();
+    let parsed: {
+      _meta?: unknown;
+      overrides?: Record<string, unknown>;
+      pool?: Record<string, unknown>;
+      [k: string]: unknown;
+    };
+    try {
+      parsed = JSON.parse(currentContent);
+    } catch (err) {
+      throw new Error(
+        `lookthrough.overrides.json on disk is not valid JSON: ${
+          err instanceof Error ? err.message : String(err)
+        }`,
+      );
+    }
+    const overrides = (parsed.overrides ?? {}) as Record<string, unknown>;
+    const pool = (parsed.pool ?? {}) as Record<string, unknown>;
+    const added: string[] = [];
+    const skippedAlreadyPresent: string[] = [];
+    for (const { isin, entry } of args.entries) {
+      if (overrides[isin] || pool[isin]) {
+        skippedAlreadyPresent.push(isin);
+        continue;
+      }
+      pool[isin] = entry;
+      added.push(isin);
+    }
+    if (added.length === 0) {
+      throw new Error(
+        "Bulk look-through write aborted: all requested ISINs are already in the local file.",
+      );
+    }
+    parsed.pool = pool;
+    await writeLookthroughLocal(JSON.stringify(parsed, null, 2) + "\n");
+    return { url: "", number: 0, added, skippedAlreadyPresent };
+  }
   if (!githubConfigured()) {
     throw new Error(
       "GitHub PR creation is not configured. Set GITHUB_PAT, GITHUB_OWNER, GITHUB_REPO.",
     );
-  }
-  if (args.entries.length === 0) {
-    throw new Error("openBulkAddLookthroughPoolPr called with zero entries.");
   }
   const owner = process.env.GITHUB_OWNER!;
   const repo = process.env.GITHUB_REPO!;
@@ -1040,7 +1086,7 @@ export async function openBulkAddLookthroughPoolPr(args: {
   const isinLines = args.entries
     .filter((e) => added.includes(e.isin))
     .map((e) => {
-      const top = e.entry.topHoldings.length;
+      const top = e.entry.topHoldings?.length ?? 0;
       const geo = Object.keys(e.entry.geo).length;
       const sec = Object.keys(e.entry.sector).length;
       const name = e.entry.name ? ` — ${e.entry.name}` : "";
