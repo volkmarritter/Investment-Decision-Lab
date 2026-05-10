@@ -2703,7 +2703,7 @@ const BUCKETS: Record<string, BucketAssignment> = {
   "Commodities-Gold": B({
     default: "IE00B579F325",
     alternatives: ["IE00B4ND3602", "JE00B1VS3770", "DE000A0S9GB0"],
-    pool: ["CH0044781232"],
+    pool: ["CH0044781232", "CH0047533523", "IE00BDFL4P12", "DE000A0H0728"],
   }),
   "RealEstate-GlobalREITs": B({
     default: "IE00B1FZS350",
