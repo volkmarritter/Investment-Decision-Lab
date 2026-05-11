@@ -1234,7 +1234,9 @@ export function profileFor(isin: string): LookthroughProfile | null {
 function isHedged(etf: ETFImplementation): boolean {
   if (HEDGED_ISINS.has(etf.isin)) return true;
   // Fallback heuristic for any catalog additions that don't get added to the set above.
-  return /Hedged/i.test(etf.exampleETF);
+  // Negative lookbehind so "Unhedged" share classes (e.g. "SPDR MSCI World
+  // UCITS ETF USD Unhedged") aren't mis-detected as currency-hedged.
+  return /(?<!un)hedged/i.test(etf.exampleETF);
 }
 
 function addInto(target: ExposureMap, source: ExposureMap, weight: number) {
