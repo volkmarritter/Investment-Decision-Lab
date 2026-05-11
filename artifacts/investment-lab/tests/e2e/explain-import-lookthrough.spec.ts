@@ -34,10 +34,15 @@ IE00B4ND3602 / 15`;
 // Engine-derived expected region weights for REPRO_TEXT in CHF base
 // (computed from `buildRegionWeights(buildLookthrough(...).geoEquity, "CHF")`).
 // Tolerance ±0.5 absorbs the .toFixed(1) display rounding plus the
-// fan-out from the "Other" aggregate bucket. Re-derived 2026-05 after
-// look-through profile refresh shifted regional shares slightly
-// (previous pin: NA 54.8 / Europe 13.5 / Switzerland 0.7 / Japan 7.4
-// / EM 19.3).
+// fan-out from the "Other" aggregate bucket. Re-derived 2026-05-11
+// against the current 2026-05-01 look-through override snapshot —
+// engine-of-equity values: NA 53.94 / Europe 12.50 / Switzerland 0.66
+// / Japan 7.36 / EM 17.18, which round to the pin below.
+// Prior re-derivations:
+//   2026-05 (after look-through profile refresh shifted regional shares)
+//     → NA 53.9 / Europe 12.5 / Switzerland 0.7 / Japan 7.4 / EM 17.2.
+//   Original pin:
+//     → NA 54.8 / Europe 13.5 / Switzerland 0.7 / Japan 7.4 / EM 19.3.
 const EXPECTED_REGIONS_CHF = {
   NA: 53.9,
   Europe: 12.5,
