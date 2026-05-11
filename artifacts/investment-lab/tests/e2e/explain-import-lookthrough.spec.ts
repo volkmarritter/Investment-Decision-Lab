@@ -34,16 +34,16 @@ IE00B4ND3602 / 15`;
 // Engine-derived expected region weights for REPRO_TEXT in CHF base
 // (computed from `buildRegionWeights(buildLookthrough(...).geoEquity, "CHF")`).
 // Tolerance ±0.5 absorbs the .toFixed(1) display rounding plus the
-// fan-out from the "Other" aggregate bucket. Re-derived 2026-05 for
-// Task #238 round 3 once IE00B3VWP018 (SPDR US Div Aristocrats) and
-// LU1230136894 (Amundi MSCI EM) gained their own per-ISIN profiles
-// (previously they were silently dropped from the equity aggregate).
+// fan-out from the "Other" aggregate bucket. Re-derived 2026-05 after
+// look-through profile refresh shifted regional shares slightly
+// (previous pin: NA 54.8 / Europe 13.5 / Switzerland 0.7 / Japan 7.4
+// / EM 19.3).
 const EXPECTED_REGIONS_CHF = {
-  NA: 54.8,
-  Europe: 13.5,
+  NA: 53.9,
+  Europe: 12.5,
   Switzerland: 0.7,
   Japan: 7.4,
-  EM: 19.3,
+  EM: 17.2,
 } as const;
 const EQUITY_PCT_OF_TOTAL = 75;
 

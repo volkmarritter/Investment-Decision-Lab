@@ -14,18 +14,18 @@
 //      (its job is just to re-render auto rows against the freshly
 //      refreshed look-through profile).
 //
-// Targets `IE00B53L3W79` (iShares Core MSCI World) which exists in
-// `src/lib/etfs.ts` and is already commentSource:"auto" — perfect
-// fixture because we can prove the row flips to "justetf" when the
-// fetcher succeeds without disturbing manual rows. The test runs in
-// dry-run mode so etfs.ts is never written.
+// Targets `IE000GA3D489`, an existing row in `src/lib/etfs.ts` that
+// is currently commentSource:"justetf". `shouldVisit` admits both
+// "auto" and "justetf" rows in mode='all', so the fetcher is invoked
+// and the source-priority contract can be exercised end-to-end. The
+// test runs in dry-run mode so etfs.ts is never written.
 // ----------------------------------------------------------------------------
 
 import { describe, it, expect } from "vitest";
 // @ts-expect-error - .mjs has no .d.ts; runtime import is fine.
 import { backfillCatalogComments } from "../scripts/backfill-comments.mjs";
 
-const TARGET = "IE00B53L3W79";
+const TARGET = "IE000GA3D489";
 
 function makeLog() {
   const lines: string[] = [];

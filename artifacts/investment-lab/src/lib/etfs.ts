@@ -779,7 +779,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 555,
     inceptionDate: "2019-06-18",
   }),
-    "IE00B4ND3602": I({
+  "IE00B4ND3602": I({
     name: "iShares Physical Gold ETC",
     isin: "IE00B4ND3602",
     terBps: 12,
@@ -2266,7 +2266,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 3605,
     inceptionDate: "2013-10-16",
   }),
-    "IE00B53L3W79": I({
+  "IE00B53L3W79": I({
     name: "iShares Core EURO STOXX 50 UCITS ETF EUR (Acc)",
     isin: "IE00B53L3W79",
     terBps: 10,
@@ -2298,7 +2298,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 99,
     inceptionDate: "2023-07-26",
   }),
-    "IE00BD4TXW66": I({
+  "IE00BD4TXW66": I({
     name: "UBS Core S&P 500 UCITS ETF USD acc",
     isin: "IE00BD4TXW66",
     terBps: 3,
@@ -2330,7 +2330,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 23,
     inceptionDate: "2017-03-14",
   }),
-    "IE00B8J37J31": I({
+  "IE00B8J37J31": I({
     name: "iShares MSCI Japan CHF Hedged UCITS ETF (Acc)",
     isin: "IE00B8J37J31",
     terBps: 64,
@@ -2390,7 +2390,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 998,
     inceptionDate: "2018-03-14",
   }),
-    "IE00B3VVMM84": I({
+  "IE00B3VVMM84": I({
     name: "Vanguard FTSE Emerging Markets UCITS ETF (USD) Distributing",
     isin: "IE00B3VVMM84",
     terBps: 17,
@@ -2432,7 +2432,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 418,
     inceptionDate: "2012-05-22",
   }),
-    "IE00BKX55T58": I({
+  "IE00BKX55T58": I({
     name: "Vanguard FTSE Developed World UCITS ETF Distributing",
     isin: "IE00BKX55T58",
     terBps: 12,
@@ -2460,7 +2460,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 17893,
     inceptionDate: "2000-04-27",
   }),
-    "IE00BK5BQX27": I({
+  "IE00BK5BQX27": I({
     name: "Vanguard FTSE Developed Europe UCITS ETF (EUR) Accumulating",
     isin: "IE00BK5BQX27",
     terBps: 10,
@@ -2476,7 +2476,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 2525,
     inceptionDate: "2019-07-23",
   }),
-    "IE00BKX55S42": I({
+  "IE00BKX55S42": I({
     name: "Vanguard FTSE Developed Europe ex UK UCITS ETF (EUR) Distributing",
     isin: "IE00BKX55S42",
     terBps: 10,
