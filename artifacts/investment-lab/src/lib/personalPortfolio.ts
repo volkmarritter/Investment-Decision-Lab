@@ -45,6 +45,17 @@ export interface PersonalPosition {
     name?: string;
     currency?: string;
     terBps?: number;
+    // Task #251 — true when the row's assetClass/region were filled in
+    // by the manual-entry auto-classifier (from the ETF-preview
+    // Stammdaten via `inferAssetClassRegionFromInstrument`) rather than
+    // typed by the operator. Drives a small bilingual hint in the
+    // EtfInfoPreview ("auto-detected — overridable") and gates the
+    // "look-through unavailable" toast in ExplainPortfolio
+    // (`setManualIsin`) so we don't double-warn the operator when the
+    // Stammdaten already classified the row but the geo/sector layer
+    // is missing. Cleared the moment the operator touches either
+    // dropdown (see `setManualMetaField`).
+    autoClassified?: boolean;
   };
 }
 

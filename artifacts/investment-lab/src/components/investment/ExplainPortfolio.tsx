@@ -2,7 +2,7 @@
 // User picks ISINs + weights; the synthesizer feeds the standard analysis cards.
 // State persists to localStorage["investment-lab.explainPortfolio.v1"].
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Plus,
   Trash2,
@@ -195,6 +195,7 @@ function loadState(): PersistedState {
                   ...(typeof p.manualMeta.name === "string" ? { name: p.manualMeta.name } : {}),
                   ...(typeof p.manualMeta.currency === "string" ? { currency: p.manualMeta.currency } : {}),
                   ...(typeof p.manualMeta.terBps === "number" ? { terBps: p.manualMeta.terBps } : {}),
+                  ...(p.manualMeta.autoClassified === true ? { autoClassified: true } : {}),
                 };
               }
               // Task #174 — migrate legacy Cash positions that were entered
@@ -457,6 +458,12 @@ interface PositionRowProps {
   // never overwrites operator input — see EtfInfoPreview for the gating
   // logic).
   onManualMetaQuickFill: (values: QuickFillValues) => void;
+  // Task #251 — auto-classify writer fired by EtfInfoPreview when the
+  // ETF-preview Stammdaten arrive for an off-catalog manual row that
+  // still carries the fresh `{Equity, Global}` defaults. Kept narrow
+  // (only assetClass + region; quick-fill stays separate for name /
+  // currency / TER) so the precedence rule is easy to audit.
+  onAutoClassify: (values: { assetClass: string; region: string }) => void;
   // Task #156 — fill an off-catalog row from an unassigned INSTRUMENTS
   // entry (registered but not slotted into any bucket). Atomic: sets
   // isin AND seeds manualMeta with name/currency/terBps in one shot so
@@ -507,6 +514,7 @@ function PositionRow({
   onManualIsinChange,
   onManualMetaChange,
   onManualMetaQuickFill,
+  onAutoClassify,
   onPickUnassignedInstrument,
   detailsEtf,
   onOpenDetails,
@@ -709,6 +717,10 @@ function PositionRow({
           currentName={position.manualMeta.name}
           currentCurrency={position.manualMeta.currency}
           currentTerBps={position.manualMeta.terBps}
+          currentAssetClass={position.manualMeta.assetClass}
+          currentRegion={position.manualMeta.region}
+          currentAutoClassified={position.manualMeta.autoClassified}
+          onAutoClassify={onAutoClassify}
           onQuickFill={onManualMetaQuickFill}
         />
       )}
@@ -744,6 +756,14 @@ export function ExplainPortfolio() {
   // new runtime profile, so the `portfolio` useMemo recomputes and the
   // destructive "unmapped ETFs" alert clears for the row.
   const [runtimeProfileVersion, setRuntimeProfileVersion] = useState(0);
+  // Task #251 — set of off-catalog ISINs that the EtfInfoPreview's
+  // Stammdaten arrival has already auto-classified into a non-default
+  // assetClass/region. Used by `setManualIsin`'s deferred toast block
+  // to suppress the destructive "look-through unavailable" toast when
+  // the row is NOT silently mis-routed (the in-row amber 0 % banner
+  // is enough). Cleared when the operator manually overrides the
+  // auto-fill via `setManualMetaField`.
+  const autoClassifiedIsinsRef = useRef<Set<string>>(new Set());
 
   function toggleGroup(assetClass: string, smartDefault: boolean) {
     setExpandedGroups((prev) => {
@@ -973,11 +993,29 @@ export function ExplainPortfolio() {
             "justETF returned no geo/sector data — position cannot be analyzed",
           scrape_failed: "Look-through scrape failed",
         };
-        toast.error(
-          lang === "de"
-            ? `${trimmed}: ${reasonDe[result.reason]}`
-            : `${trimmed}: ${reasonEn[result.reason]}`,
-        );
+        // Task #251 — defer the destructive toast briefly so the
+        // ETF-preview Stammdaten scrape (which runs in parallel via
+        // EtfInfoPreview's `useEtfInfo` hook with a 500 ms debounce)
+        // has time to land and auto-classify the row. If the
+        // Stammdaten arrived and the row was auto-classified
+        // (tracked via `autoClassifiedIsinsRef`), the operator
+        // already sees a meaningful preview + the in-row amber 0 %
+        // look-through banner — the redundant red toast is muted.
+        // Only genuinely un-classifiable rows still get the loud
+        // toast.
+        const fireToast = () => {
+          if (autoClassifiedIsinsRef.current.has(trimmed)) return;
+          toast.error(
+            lang === "de"
+              ? `${trimmed}: ${reasonDe[result.reason]}`
+              : `${trimmed}: ${reasonEn[result.reason]}`,
+          );
+        };
+        if (typeof window === "undefined") {
+          fireToast();
+        } else {
+          window.setTimeout(fireToast, 1500);
+        }
         // Task #238 round 5 — `setManualIsin` is ONLY invoked from the
         // manual-entry render branch (`isManual && position.manualMeta`,
         // call sites at the bottom of this file). Every row that reaches
@@ -1061,7 +1099,55 @@ export function ExplainPortfolio() {
       positions: s.positions.map((p, i) => {
         if (i !== index) return p;
         const cur = p.manualMeta ?? { assetClass: "Equity", region: "Global" };
-        return { ...p, manualMeta: { ...cur, [field]: value } };
+        // Task #251 — operator touched a dropdown, so the row is now
+        // operator-curated. Drop the autoClassified flag (the hint
+        // disappears) and unmark the ISIN so the autoClassify effect
+        // won't re-fire later in the same session.
+        const next = { ...cur, [field]: value };
+        delete next.autoClassified;
+        if (p.isin) {
+          autoClassifiedIsinsRef.current.delete(p.isin.trim().toUpperCase());
+        }
+        return { ...p, manualMeta: next };
+      }),
+    }));
+  }
+
+  // Task #251 — atomic auto-classify writer. Fired by EtfInfoPreview
+  // when the ETF-preview Stammdaten arrive for an off-catalog ISIN AND
+  // the row still carries the fresh `{Equity, Global}` defaults. We
+  // re-check the precedence rule here as a server-side-style safety
+  // net (the preview already gates this client-side, but races with a
+  // concurrent operator pick should never overwrite their input).
+  // Also flips the ISIN into `autoClassifiedIsinsRef` so the
+  // look-through toast suppression in `setManualIsin` knows we
+  // already classified the row from Stammdaten — see the deferred
+  // toast block there.
+  function autoClassifyManualMeta(
+    index: number,
+    values: { assetClass: string; region: string },
+  ) {
+    setState((s) => ({
+      ...s,
+      positions: s.positions.map((p, i) => {
+        if (i !== index) return p;
+        const cur = p.manualMeta ?? { assetClass: "Equity", region: "Global" };
+        if (cur.autoClassified) return p;
+        const isFreshDefault =
+          cur.assetClass === "Equity" && cur.region === "Global";
+        if (!isFreshDefault) return p;
+        if (p.isin) {
+          autoClassifiedIsinsRef.current.add(p.isin.trim().toUpperCase());
+        }
+        return {
+          ...p,
+          manualMeta: {
+            ...cur,
+            assetClass: values.assetClass,
+            region: values.region,
+            autoClassified: true,
+          },
+        };
       }),
     }));
   }
@@ -1920,6 +2006,9 @@ export function ExplainPortfolio() {
                                         onManualMetaQuickFill={(values) =>
                                           quickFillManualMeta(i, values)
                                         }
+                                        onAutoClassify={(values) =>
+                                          autoClassifyManualMeta(i, values)
+                                        }
                                         onPickUnassignedInstrument={(rec) =>
                                           pickUnassignedInstrumentForRow(i, rec)
                                         }
@@ -1975,6 +2064,9 @@ export function ExplainPortfolio() {
                         onManualMetaQuickFill={(values) =>
                           quickFillManualMeta(i, values)
                         }
+                        onAutoClassify={(values) =>
+                          autoClassifyManualMeta(i, values)
+                        }
                         onPickUnassignedInstrument={(rec) =>
                           pickUnassignedInstrumentForRow(i, rec)
                         }
@@ -2022,6 +2114,9 @@ export function ExplainPortfolio() {
                         }
                         onManualMetaQuickFill={(values) =>
                           quickFillManualMeta(i, values)
+                        }
+                        onAutoClassify={(values) =>
+                          autoClassifyManualMeta(i, values)
                         }
                         onPickUnassignedInstrument={(rec) =>
                           pickUnassignedInstrumentForRow(i, rec)

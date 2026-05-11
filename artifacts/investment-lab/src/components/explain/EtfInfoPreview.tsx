@@ -24,10 +24,14 @@
 // only into fields the user hasn't explicitly set yet (no clobbering).
 // ----------------------------------------------------------------------------
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { useT } from "@/lib/i18n";
 import { useEtfInfo } from "@/lib/useEtfInfo";
-import { getBucketKeyForIsin, getBucketMeta } from "@/lib/etfs";
+import {
+  getBucketKeyForIsin,
+  getBucketMeta,
+  inferAssetClassRegionFromInstrument,
+} from "@/lib/etfs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,6 +52,21 @@ export interface EtfInfoPreviewProps {
   currentCurrency?: string;
   currentTerBps?: number;
   onQuickFill: (values: QuickFillValues) => void;
+  // Task #251 — auto-classification of off-catalog manual entries.
+  // When the ETF-preview Stammdaten arrive, we run
+  // `inferAssetClassRegionFromInstrument({ name, comment: "", currency })`
+  // and — IF the operator hasn't picked anything other than the fresh
+  // `{Equity, Global}` defaults AND the row hasn't already been
+  // auto-classified once — fire `onAutoClassify` to seed the row's
+  // assetClass/region atomically. Once `currentAutoClassified` is
+  // true, the small "auto-detected — overridable" hint shows up
+  // beneath the master-data block; it disappears the moment the
+  // operator touches either dropdown (which clears the flag in
+  // ExplainPortfolio's `setManualMetaField`).
+  currentAssetClass?: string;
+  currentRegion?: string;
+  currentAutoClassified?: boolean;
+  onAutoClassify?: (values: { assetClass: string; region: string }) => void;
 }
 
 // Pull a number out of the scrape `fields` blob. Some scraper extractors
@@ -100,6 +119,10 @@ export function EtfInfoPreview({
   currentCurrency,
   currentTerBps,
   onQuickFill,
+  currentAssetClass,
+  currentRegion,
+  currentAutoClassified,
+  onAutoClassify,
 }: EtfInfoPreviewProps) {
   const { lang } = useT();
   const de = lang === "de";
@@ -167,6 +190,60 @@ export function EtfInfoPreview({
     const label = `${meta.assetClass} — ${meta.region}${hedgeSuffix}${synthSuffix}`;
     return { bucketKey, label, assetClass: meta.assetClass };
   }, [info.catalogInstrument, isin, de]);
+
+  // Task #251 — auto-classify off-catalog manual rows from the
+  // ETF-preview Stammdaten. Only fires when:
+  //   - operator hasn't picked anything other than the fresh
+  //     `{Equity, Global}` defaults (otherwise their pick wins);
+  //   - row hasn't already been auto-classified once (so a later
+  //     operator override + their own deliberate switch back to
+  //     "Equity / Global" doesn't get silently overwritten);
+  //   - the ETF is NOT already in the curated catalog (those rows
+  //     don't go through the manual-entry classification path —
+  //     `getBucketMeta` already covers them);
+  //   - the scrape returned at least a name (the heuristic's
+  //     keyword rules need it; currency alone isn't enough signal
+  //     except for the CHF → Switzerland fallback inside the
+  //     heuristic).
+  // We also de-dupe per ISIN with a ref so re-renders triggered by
+  // unrelated parent state changes don't re-fire the callback after
+  // the operator manually reverted to the defaults.
+  const lastAutoClassifiedIsinRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!onAutoClassify) return;
+    if (!info.isValidIsin) return;
+    if (info.catalogInstrument) return;
+    if (currentAutoClassified) return;
+    if (lastAutoClassifiedIsinRef.current === isin) return;
+    const isFreshDefault =
+      (currentAssetClass === undefined || currentAssetClass === "Equity") &&
+      (currentRegion === undefined || currentRegion === "Global");
+    if (!isFreshDefault) return;
+    const fields = info.scrape?.fields ?? null;
+    const name = pickStr(fields?.name);
+    if (!name) return;
+    const currency = pickStr(fields?.currency) ?? "";
+    const guess = inferAssetClassRegionFromInstrument({
+      name,
+      comment: "",
+      currency,
+    });
+    // Only fire if the heuristic changes anything — otherwise we'd
+    // flag the row as "auto-classified" while it still shows the
+    // generic Equity/Global default, which is misleading.
+    if (guess.assetClass === "Equity" && guess.region === "Global") return;
+    lastAutoClassifiedIsinRef.current = isin;
+    onAutoClassify(guess);
+  }, [
+    isin,
+    info.isValidIsin,
+    info.catalogInstrument,
+    info.scrape,
+    currentAssetClass,
+    currentRegion,
+    currentAutoClassified,
+    onAutoClassify,
+  ]);
 
   if (!info.isValidIsin) return null;
 
@@ -380,6 +457,18 @@ export function EtfInfoPreview({
           {tx(
             "Keine Look-Through-Daten verfügbar (weder im kuratierten Pool noch über den Live-Abruf von justETF) — diese Position trägt 0 % zu Geo-/Sektor-/Top-Holdings-Karten und Home-Bias bei.",
             "No look-through data available (neither in the curated pool nor from the live justETF lookup) — this position contributes 0 % to Geo / Sector / TopHoldings cards and Home-Bias.",
+          )}
+        </div>
+      )}
+
+      {currentAutoClassified && (
+        <div
+          className="text-[11px] text-muted-foreground italic"
+          data-testid={`etf-info-auto-classified-${rowIndex}`}
+        >
+          {tx(
+            "Asset-Klasse + Region automatisch aus dem Namen abgeleitet — überschreibbar.",
+            "Asset class + region auto-detected from the name — you can override.",
           )}
         </div>
       )}
