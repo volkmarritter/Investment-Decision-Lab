@@ -2150,6 +2150,50 @@ describe("buildLookthrough", () => {
     expect(usdOff?.unhedgedPct).toBe(40);
   });
 
+  it("isHedged() does NOT match ETFs whose name ends in 'Unhedged'", () => {
+    // Regression: the old /Hedged/i fallback also matched "Unhedged"
+    // share classes (e.g. "SPDR MSCI World UCITS ETF USD Unhedged"),
+    // mis-routing their weight into the hedged sleeve.
+    const mk = (
+      overrides: Partial<import("../src/lib/types").ETFImplementation>
+    ): import("../src/lib/types").ETFImplementation => ({
+      bucket: "Equities — Diversified",
+      assetClass: "Equity",
+      weight: 0,
+      intent: "Test fixture",
+      exampleETF: "Fake ETF",
+      rationale: "",
+      isin: "XX0000000FAKE0",
+      ticker: "FAKE",
+      exchange: "—",
+      terBps: 20,
+      domicile: "IE",
+      replication: "Physical",
+      distribution: "Accumulating",
+      currency: "USD",
+      comment: "",
+      catalogKey: null,
+      selectedSlot: 0,
+      selectableOptions: [],
+      ...overrides,
+    });
+    const etfs: import("../src/lib/types").ETFImplementation[] = [
+      mk({
+        weight: 100,
+        ticker: "FAKEUH",
+        isin: "XX0000000UNHED2",
+        exampleETF: "State Street SPDR MSCI World UCITS ETF USD Unhedged",
+        currency: "USD",
+      }),
+    ];
+    const lt = buildLookthrough(etfs, "en", "CHF", { useLookThroughCurrency: false });
+    // The position must NOT count as hedged.
+    expect(lt.currencyOverview.hedgedShareOfPortfolio).toBe(0);
+    const usd = lt.currencyOverview.rows.find((r) => r.currency === "USD");
+    expect(usd?.hedgedPct ?? 0).toBe(0);
+    expect(usd?.unhedgedPct).toBe(100);
+  });
+
   it("currencyOverview ETF-currency-only mode keeps unhedged ETF weight in its share-class currency", () => {
     // EUR base with hedging on — the hedged sleeve still goes to EUR, but
     // any unhedged share class in (say) USD must show up entirely as USD
