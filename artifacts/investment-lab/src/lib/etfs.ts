@@ -578,7 +578,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     listings: { LSE: { ticker: "VEUA" }, XETRA: { ticker: "VGEA" }, Euronext: { ticker: "VGEA" } },
     defaultExchange: "XETRA",
   }),
-      "FR0007054358": I({
+  "FR0007054358": I({
     name: "Amundi EURO STOXX 50 II UCITS ETF Acc",
     isin: "FR0007054358",
     terBps: 20,
@@ -1019,7 +1019,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     listings: { "LSE": { ticker: "UC67" }, "XETRA": { ticker: "UIM6" }, "SIX": { ticker: "USAUSA" } },
     defaultExchange: "LSE",
   }),
-      "IE0008471009": I({
+  "IE0008471009": I({
     name: "iShares Core EURO STOXX 50 UCITS ETF EUR (Dist)",
     isin: "IE0008471009",
     terBps: 10,
@@ -1345,7 +1345,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 683,
     inceptionDate: "2005-11-18",
   }),
-      "IE00B0M63177": I({
+  "IE00B0M63177": I({
     name: "iShares MSCI EM UCITS ETF (Dist)",
     isin: "IE00B0M63177",
     terBps: 18,
@@ -1361,7 +1361,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 8203,
     inceptionDate: "2005-11-18",
   }),
-      "LU0292107645": I({
+  "LU0292107645": I({
     name: "Xtrackers MSCI Emerging Markets Swap UCITS ETF 1C",
     isin: "LU0292107645",
     terBps: 49,
@@ -1497,7 +1497,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 6750,
     inceptionDate: "2007-01-10",
   }),
-      "CH0008899764": I({
+  "CH0008899764": I({
     name: "iShares SMI (CH)",
     isin: "CH0008899764",
     terBps: 35,
@@ -1558,7 +1558,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 805,
     inceptionDate: "2004-10-21",
   }),
-        "IE00B4K6B022": I({
+  "IE00B4K6B022": I({
     name: "HSBC EURO STOXX 50 UCITS ETF EUR",
     isin: "IE00B4K6B022",
     terBps: 5,
@@ -2282,7 +2282,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 7106,
     inceptionDate: "2010-01-26",
   }),
-        "IE000LXEN6X4": I({
+  "IE000LXEN6X4": I({
     name: "iShares EURO STOXX 50 ESG UCITS ETF EUR (Acc)",
     isin: "IE000LXEN6X4",
     terBps: 10,
@@ -2314,7 +2314,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 1406,
     inceptionDate: "2025-08-05",
   }),
-      "IE00BDBRT036": I({
+  "IE00BDBRT036": I({
     name: "First Trust Nasdaq Clean Edge Green Energy UCITS ETF Acc",
     isin: "IE00BDBRT036",
     terBps: 60,
