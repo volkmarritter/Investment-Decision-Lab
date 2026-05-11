@@ -505,6 +505,15 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "fee.disclaimer": "Illustrative only. Real ETF TERs vary; trading, FX, and platform costs are not included.",
     "fee.chart.afterFees": "After Fees",
     "fee.chart.zeroFee": "Zero Fee Baseline",
+    // Task #271 — per-row TER provenance badge in the Fee Estimator.
+    // Only rendered for off-catalog manual rows (catalog rows leave
+    // `terSource` undefined). The tooltip explains the fallback chain.
+    "fee.terSource.operator": "operator",
+    "fee.terSource.justetf": "justETF",
+    "fee.terSource.default": "default",
+    "fee.terSource.tooltip.operator": "TER set by operator (typed in or saved via Quick fill).",
+    "fee.terSource.tooltip.justetf": "TER pulled live from justETF (no operator value saved).",
+    "fee.terSource.tooltip.default": "Asset-class default — no operator value and no live justETF value available. Press Quick fill on the ETF preview to lock in the real number.",
 
     // SavedScenariosUI
     "saved.btn.save": "Save Scenario",
@@ -1211,6 +1220,12 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "fee.disclaimer": "Nur illustrativ. Tatsächliche ETF-TERs variieren; Handels-, FX- und Plattformkosten sind nicht enthalten.",
     "fee.chart.afterFees": "Nach Gebühren",
     "fee.chart.zeroFee": "Null-Gebühren-Baseline",
+    "fee.terSource.operator": "Operator",
+    "fee.terSource.justetf": "justETF",
+    "fee.terSource.default": "Standard",
+    "fee.terSource.tooltip.operator": "TER vom Operator gesetzt (eingegeben oder per Quick-Fill gespeichert).",
+    "fee.terSource.tooltip.justetf": "TER live von justETF abgerufen (kein vom Operator gespeicherter Wert).",
+    "fee.terSource.tooltip.default": "Standardwert der Anlageklasse — weder ein Operator-Wert noch ein Live-Wert von justETF verfügbar. Drücken Sie Quick-Fill in der ETF-Vorschau, um den realen Wert zu übernehmen.",
 
     // SavedScenariosUI
     "saved.btn.save": "Szenario Speichern",

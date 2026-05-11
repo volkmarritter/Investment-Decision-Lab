@@ -43,7 +43,7 @@ export function estimateFees(
      */
     etfImplementations?: ReadonlyArray<
       Pick<ETFImplementation, "bucket" | "terBps"> &
-        Partial<Pick<ETFImplementation, "weight">>
+        Partial<Pick<ETFImplementation, "weight" | "terSource">>
     >;
   } = {},
 ) {
@@ -54,6 +54,18 @@ export function estimateFees(
   const terByBucket = new Map<string, number>();
   const terWeightedSumByBucket = new Map<string, number>();
   const terWeightTotalByBucket = new Map<string, number>();
+  // Task #271 — surface the per-row TER provenance ("operator" / "justetf"
+  // / "default") on the breakdown rows so the Fee Estimator can render a
+  // small badge per row. We only set a source when ALL contributing
+  // implementation rows for a bucket agree on the same source — a mixed
+  // bucket (e.g. one operator-typed + one fallback, OR a catalog row
+  // without source plus a manual row with one) is intentionally left
+  // undefined so we never mislabel a blended row.
+  const terSourceByBucket = new Map<
+    string,
+    "operator" | "justetf" | "default" | "mixed" | undefined
+  >();
+  const bucketHasUnknownSource = new Set<string>();
   for (const e of options.etfImplementations ?? []) {
     if (typeof e.terBps !== "number" || !Number.isFinite(e.terBps)) continue;
     // Treat missing/invalid weight as 1 so a single-ETF bucket still works
@@ -71,6 +83,19 @@ export function estimateFees(
       e.bucket,
       (terWeightTotalByBucket.get(e.bucket) ?? 0) + w
     );
+    if (e.terSource) {
+      const prev = terSourceByBucket.get(e.bucket);
+      if (prev === undefined) {
+        terSourceByBucket.set(e.bucket, e.terSource);
+      } else if (prev !== "mixed" && prev !== e.terSource) {
+        terSourceByBucket.set(e.bucket, "mixed");
+      }
+    } else {
+      // A contributor without a known source (typical for catalog rows)
+      // is itself a distinct provenance — flag the bucket so the
+      // resolver below downgrades to undefined.
+      bucketHasUnknownSource.add(e.bucket);
+    }
   }
   for (const [bucket, weightedSum] of terWeightedSumByBucket) {
     const totalWeight = terWeightTotalByBucket.get(bucket) ?? 0;
@@ -93,11 +118,19 @@ export function estimateFees(
     const contributionBps = terBps * (a.weight / 100);
     totalWeight += a.weight;
     blendedTerBpsWeighted += contributionBps;
+    const rawSource = terSourceByBucket.get(bucketKey);
+    const hasUnknown = bucketHasUnknownSource.has(bucketKey);
+    const terSource: "operator" | "justetf" | "default" | undefined =
+      !hasUnknown &&
+      (rawSource === "operator" || rawSource === "justetf" || rawSource === "default")
+        ? rawSource
+        : undefined;
     return {
       key: bucketKey,
       weight: a.weight,
       terBps,
-      contributionBps
+      contributionBps,
+      terSource,
     };
   });
   

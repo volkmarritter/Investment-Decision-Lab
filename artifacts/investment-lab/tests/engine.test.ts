@@ -1218,6 +1218,53 @@ describe("estimateFees", () => {
     expect(cashRow.terBps).toBe(10);
     expect(r.blendedTerBps).toBeCloseTo((35 + 10) / 2, 1);
   });
+
+  // Task #271 — per-bucket terSource aggregation feeds the Fee Estimator badge.
+  describe("terSource aggregation on breakdown rows", () => {
+    const alloc = [{ assetClass: "Equity", region: "USA", weight: 100 }];
+
+    it("propagates the source when all contributing rows agree", () => {
+      const r = estimateFees(alloc, 10, 100_000, {
+        etfImplementations: [
+          { bucket: "Equity - USA", terBps: 20, weight: 5, terSource: "operator" },
+          { bucket: "Equity - USA", terBps: 25, weight: 5, terSource: "operator" },
+        ],
+      });
+      expect(r.breakdown[0].terSource).toBe("operator");
+    });
+
+    it("returns undefined for buckets with conflicting explicit sources", () => {
+      const r = estimateFees(alloc, 10, 100_000, {
+        etfImplementations: [
+          { bucket: "Equity - USA", terBps: 20, weight: 5, terSource: "operator" },
+          { bucket: "Equity - USA", terBps: 25, weight: 5, terSource: "justetf" },
+        ],
+      });
+      expect(r.breakdown[0].terSource).toBeUndefined();
+    });
+
+    it("returns undefined when a catalog row (no source) is mixed with a manual row (with source)", () => {
+      // Catalog rows leave terSource undefined; pairing one with a
+      // sourced manual row in the same bucket would mislabel the
+      // weighted-blend TER, so the badge must be suppressed.
+      const r = estimateFees(alloc, 10, 100_000, {
+        etfImplementations: [
+          { bucket: "Equity - USA", terBps: 12, weight: 5 },
+          { bucket: "Equity - USA", terBps: 25, weight: 5, terSource: "default" },
+        ],
+      });
+      expect(r.breakdown[0].terSource).toBeUndefined();
+    });
+
+    it("leaves terSource undefined for catalog-only buckets", () => {
+      const r = estimateFees(alloc, 10, 100_000, {
+        etfImplementations: [
+          { bucket: "Equity - USA", terBps: 12, weight: 10 },
+        ],
+      });
+      expect(r.breakdown[0].terSource).toBeUndefined();
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { AssetAllocation, ETFImplementation } from "@/lib/types";
 import { estimateFees } from "@/lib/fees";
 import { parseDecimalInput } from "@/lib/manualWeights";
+import { useT } from "@/lib/i18n";
 
 interface FeeEstimatorProps {
   allocation: AssetAllocation[];
@@ -88,6 +89,7 @@ export function FeeEstimator({
   amountDraft: controlledDraft,
   onAmountDraftChange,
 }: FeeEstimatorProps) {
+  const { t } = useT();
   // Raw text buffer is the source of truth so mobile users on Swiss/German/
   // French keyboards can type either "100000" or "100000,50". The numeric
   // value used by the engine is derived via parseDecimalInput (accepts dot
@@ -237,14 +239,45 @@ export function FeeEstimator({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {results.breakdown.map((row) => (
-                <TableRow key={row.key}>
-                  <TableCell className="font-medium text-sm">{row.key}</TableCell>
-                  <TableCell className="text-right font-mono text-sm">{row.weight.toFixed(1)}%</TableCell>
-                  <TableCell className="text-right font-mono text-sm">{row.terBps.toFixed(1)}</TableCell>
-                  <TableCell className="text-right font-mono text-sm">{(row.contributionBps).toFixed(1)}</TableCell>
-                </TableRow>
-              ))}
+              {results.breakdown.map((row) => {
+                // Task #271 — render a small "operator / justETF / default"
+                // badge next to the TER value when the row's TER comes from
+                // a manual-row fallback chain. Catalog rows leave terSource
+                // undefined and continue to render unchanged.
+                const src = row.terSource;
+                const badgeStyles: Record<
+                  "operator" | "justetf" | "default",
+                  string
+                > = {
+                  operator:
+                    "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30",
+                  justetf:
+                    "bg-blue-500/10 text-blue-700 dark:text-blue-400 border-blue-500/30",
+                  default:
+                    "bg-amber-500/10 text-amber-700 dark:text-amber-500 border-amber-500/30",
+                };
+                return (
+                  <TableRow key={row.key}>
+                    <TableCell className="font-medium text-sm">{row.key}</TableCell>
+                    <TableCell className="text-right font-mono text-sm">{row.weight.toFixed(1)}%</TableCell>
+                    <TableCell className="text-right font-mono text-sm">
+                      <div className="inline-flex items-center justify-end gap-2">
+                        <span>{row.terBps.toFixed(1)}</span>
+                        {src && (
+                          <span
+                            title={t(`fee.terSource.tooltip.${src}`)}
+                            data-testid={`badge-ter-source-${row.key}`}
+                            className={`inline-flex items-center rounded-sm border px-1.5 py-0 text-[10px] font-sans font-medium leading-4 ${badgeStyles[src]}`}
+                          >
+                            {t(`fee.terSource.${src}`)}
+                          </span>
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="text-right font-mono text-sm">{(row.contributionBps).toFixed(1)}</TableCell>
+                  </TableRow>
+                );
+              })}
             </TableBody>
           </Table>
         </div>

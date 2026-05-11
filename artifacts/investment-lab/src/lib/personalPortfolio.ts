@@ -277,14 +277,26 @@ export function synthesizePersonalPortfolio(
       // off-catalog ETF, dragging Blended TER, Annual Fee and the
       // 30-year drag chart with it.
       const lookupBps = terLookup?.(p.isin);
-      const resolvedTerBps =
-        typeof mm.terBps === "number" && Number.isFinite(mm.terBps)
-          ? mm.terBps
-          : typeof lookupBps === "number" &&
-              Number.isFinite(lookupBps) &&
-              lookupBps >= 0
-            ? lookupBps
-            : getETFTer(sleeve.assetClass, sleeve.region);
+      // Track which step of the precedence chain produced the row's TER
+      // so the Fee Estimator can render a "operator / justETF / default"
+      // badge per row (Task #271). Mirrors the precedence below
+      // exactly — keep the two in sync.
+      let resolvedTerBps: number;
+      let terSource: "operator" | "justetf" | "default";
+      if (typeof mm.terBps === "number" && Number.isFinite(mm.terBps)) {
+        resolvedTerBps = mm.terBps;
+        terSource = "operator";
+      } else if (
+        typeof lookupBps === "number" &&
+        Number.isFinite(lookupBps) &&
+        lookupBps >= 0
+      ) {
+        resolvedTerBps = lookupBps;
+        terSource = "justetf";
+      } else {
+        resolvedTerBps = getETFTer(sleeve.assetClass, sleeve.region);
+        terSource = "default";
+      }
       etfImplementation.push({
         bucket: `${sleeve.assetClass} - ${sleeve.region}`,
         assetClass: sleeve.assetClass,
@@ -300,6 +312,7 @@ export function synthesizePersonalPortfolio(
         ticker: "",
         exchange: "",
         terBps: resolvedTerBps,
+        terSource,
         domicile: "",
         replication: "",
         distribution: "Accumulating",

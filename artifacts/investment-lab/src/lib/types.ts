@@ -62,6 +62,15 @@ export interface ETFImplementation {
    *  for future presentation tweaks. */
   commentDe?: string;
   commentSource?: "manual" | "justetf" | "auto";
+  /** Task #271 — provenance of the row's `terBps` value, used by the Fee
+   *  Estimator to render a small "operator / justETF / default" badge so
+   *  the operator can tell whether a manual-row TER reflects a real value
+   *  (typed in or scraped) or the asset-class fallback. Only set for
+   *  off-catalog manual rows synthesized by `synthesizePersonalPortfolio`
+   *  (Explain → Fee Estimator pipeline). Catalog rows from
+   *  `portfolio.ts` leave this undefined so Build/Compare keep rendering
+   *  the table unchanged. */
+  terSource?: "operator" | "justetf" | "default";
   /** Mirrors AssetAllocation.isManualOverride for the implementation row of
    *  the same bucket. Cash is excluded from the implementation table, so the
    *  flag is meaningful only for non-Cash rows. */

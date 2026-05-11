@@ -406,6 +406,26 @@ describe("Manual-entry positions (manualMeta override)", () => {
     expect(lookupRow.terBps).toBe(9);
     // Operator-typed manualMeta.terBps wins over the lookup.
     expect(explicitRow.terBps).toBe(17);
+    // Task #271 — each manual row carries a terSource discriminator
+    // mirroring the precedence step that produced the bps value, so the
+    // Fee Estimator can render a per-row "operator / justETF / default"
+    // badge without re-deriving the chain in the UI.
+    expect(noTerRow.terSource).toBe("default");
+    expect(lookupRow.terSource).toBe("justetf");
+    expect(explicitRow.terSource).toBe("operator");
+  });
+
+  // Task #271 — catalog rows (real instrument lookup) must NOT receive a
+  // terSource: the Build/Compare flow consumes the same ETFImplementation
+  // shape and would start showing badges for curated rows otherwise. Only
+  // off-catalog manual rows are tagged.
+  it("Task #271 — catalog rows leave terSource undefined", () => {
+    const positions: PersonalPosition[] = [
+      { isin: ISIN_USA, bucketKey: "Equity-USA", weight: 100 },
+    ];
+    const out = synthesizePersonalPortfolio(positions, "USD");
+    const row = out.etfImplementation.find((r) => r.isin === ISIN_USA)!;
+    expect(row.terSource).toBeUndefined();
   });
 
   it("validator does not flag manual rows as unknown bucket", () => {
