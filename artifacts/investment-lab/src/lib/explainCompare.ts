@@ -37,6 +37,10 @@ import {
 } from "./personalPortfolio";
 import { defaultExchangeFor } from "./exchange";
 import type { Lang } from "./i18n";
+// Task #270 — re-export the in-tab justETF scrape cache reader so
+// Compare can pass it to `explainWorkspaceToSlotPortfolio` from a
+// single import block (matches the pattern used by ExplainPortfolio).
+export { getCachedScrapeTerBps } from "./useEtfInfo";
 import {
   ALL_BUCKET_KEYS,
   BUCKET_META_CACHE,
@@ -401,6 +405,13 @@ export interface ExplainSlotPortfolio {
 export function explainWorkspaceToSlotPortfolio(
   workspace: ExplainWorkspace,
   lang: Lang = "en",
+  // Task #270 — optional read-through TER lookup, threaded into the
+  // synthesizer so off-catalog manual rows in a Compare slot reflect
+  // the live justETF scrape TER (Compare passes the same
+  // `getCachedScrapeTerBps` Explain uses). Falls back to the asset-
+  // class default inside the synthesizer when the lookup is omitted
+  // or returns undefined.
+  terLookup?: import("./personalPortfolio").ManualTerLookup,
 ): ExplainSlotPortfolio {
   const synth = synthesizePersonalPortfolio(
     // Task #174 — Cash sentinel rows have no ISIN by design but must
@@ -414,6 +425,7 @@ export function explainWorkspaceToSlotPortfolio(
     ),
     workspace.baseCurrency,
     lang,
+    terLookup,
   );
   // Compute equity-style weight for the derived input so any downstream
   // sanity check that reads `targetEquityPct` lands close to reality.

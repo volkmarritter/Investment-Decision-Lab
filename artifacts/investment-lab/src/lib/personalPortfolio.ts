@@ -7,6 +7,7 @@ import {
   pickDefaultListing,
 } from "./etfs";
 import { profileFor } from "./lookthrough";
+import { getETFTer } from "./fees";
 import {
   AssetAllocation,
   BaseCurrency,
@@ -153,10 +154,25 @@ function resolveSleeve(
   return undefined;
 }
 
+/**
+ * Optional read-through TER lookup for off-catalog manual rows. The
+ * synthesizer calls this with the row's ISIN as a fallback after
+ * `manualMeta.terBps` and uses the returned bps if it's a finite,
+ * non-negative number. Used by the Explain → Fee Estimator pipeline
+ * (and by `explainWorkspaceToSlotPortfolio` for Compare hand-offs) so
+ * the Fee Estimator's per-bucket row reflects the live justETF scrape
+ * TER without forcing the operator to first click "Quick fill" on the
+ * EtfInfoPreview card. The lookup must be pure and synchronous; the
+ * canonical source is the module-level `SCRAPE_CACHE` in
+ * `useEtfInfo.ts`. Task #270.
+ */
+export type ManualTerLookup = (isin: string) => number | undefined;
+
 export function synthesizePersonalPortfolio(
   positions: ReadonlyArray<PersonalPosition>,
   baseCurrency: BaseCurrency,
   lang: Lang = "en",
+  terLookup?: ManualTerLookup,
 ): PersonalPortfolio {
   const de = lang === "de";
 
@@ -243,6 +259,32 @@ export function synthesizePersonalPortfolio(
         : de
           ? "Manuell erfasst — keine Katalog-Look-Through-Daten verfügbar."
           : "Manually entered — no catalog look-through data available.";
+      // Resolve the row's TER via a precedence chain instead of a hard-
+      // coded `0` fallback (Task #270). Order:
+      //   1. operator-supplied `manualMeta.terBps` (set by Quick fill or
+      //      typed directly into the manual-entry form)
+      //   2. caller-supplied `terLookup(isin)` — the Explain workspace
+      //      threads in the live justETF scrape cache so the Fee
+      //      Estimator and Implementation table reflect the scrape's
+      //      TER without the operator having to click "Quick fill"
+      //   3. asset-class default from `getETFTer(...)` — same fallback
+      //      `fees.ts` would apply if `terBps` were omitted; mirroring
+      //      it here keeps the synthesized ETFImplementation row's
+      //      displayed TER consistent with what the Fee Estimator
+      //      blends in for that bucket
+      // The previous behaviour (`mm.terBps ?? 0`) drove the per-bucket
+      // row in the Fee Estimator down to 0.0 bps for any unfilled
+      // off-catalog ETF, dragging Blended TER, Annual Fee and the
+      // 30-year drag chart with it.
+      const lookupBps = terLookup?.(p.isin);
+      const resolvedTerBps =
+        typeof mm.terBps === "number" && Number.isFinite(mm.terBps)
+          ? mm.terBps
+          : typeof lookupBps === "number" &&
+              Number.isFinite(lookupBps) &&
+              lookupBps >= 0
+            ? lookupBps
+            : getETFTer(sleeve.assetClass, sleeve.region);
       etfImplementation.push({
         bucket: `${sleeve.assetClass} - ${sleeve.region}`,
         assetClass: sleeve.assetClass,
@@ -257,7 +299,7 @@ export function synthesizePersonalPortfolio(
         isin: p.isin,
         ticker: "",
         exchange: "",
-        terBps: typeof mm.terBps === "number" ? mm.terBps : 0,
+        terBps: resolvedTerBps,
         domicile: "",
         replication: "",
         distribution: "Accumulating",

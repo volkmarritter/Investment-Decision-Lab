@@ -82,6 +82,7 @@ import {
 } from "@/lib/personalPortfolio";
 import { parseDecimalInput } from "@/lib/manualWeights";
 import { EtfInfoPreview, type QuickFillValues } from "@/components/explain/EtfInfoPreview";
+import { getCachedScrapeTerBps } from "@/lib/useEtfInfo";
 import { UnassignedInstrumentPicker } from "@/components/explain/UnassignedInstrumentPicker";
 import type { InstrumentRecord } from "@/lib/etfs";
 import type { RiskRegime } from "@/lib/metrics";
@@ -1374,6 +1375,12 @@ export function ExplainPortfolio() {
         ),
         state.baseCurrency,
         lang,
+        // Task #270 — read-through into the in-tab justETF scrape cache
+        // so the Fee Estimator's per-bucket row shows the live TER for
+        // off-catalog manual rows even when the operator hasn't pressed
+        // the "Quick fill" button on the EtfInfoPreview card. Catalog
+        // rows are unaffected (they use `inst.terBps` directly).
+        getCachedScrapeTerBps,
       ),
     [state.positions, state.baseCurrency, lang, runtimeProfileVersion],
   );

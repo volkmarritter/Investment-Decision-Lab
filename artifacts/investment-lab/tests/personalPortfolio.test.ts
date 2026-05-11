@@ -358,6 +358,56 @@ describe("Manual-entry positions (manualMeta override)", () => {
     expect(impl?.assetClass).toBe("Real Estate");
   });
 
+  // Task #270 — off-catalog manual rows must not silently land at
+  // 0.0 bps in the Fee Estimator. The synthesizer now resolves the
+  // ETFImplementation row's `terBps` via a precedence chain:
+  //   manualMeta.terBps  →  caller-supplied terLookup(isin)  →
+  //   getETFTer(assetClass, region)
+  // The historical bug surfaced as Blended TER and Annual Fee
+  // collapsing to ~0 whenever an Explain row had no Quick-fill TER.
+  it("Task #270 — falls back to terLookup then asset-class default for manual rows", () => {
+    const isinNoTer = "LU2700000001";
+    const isinWithLookup = "LU2700000002";
+    const isinExplicit = "LU2700000003";
+    const positions: PersonalPosition[] = [
+      {
+        isin: isinNoTer,
+        bucketKey: "",
+        weight: 33,
+        manualMeta: { assetClass: "Equity", region: "USA" },
+      },
+      {
+        isin: isinWithLookup,
+        bucketKey: "",
+        weight: 33,
+        manualMeta: { assetClass: "Equity", region: "USA" },
+      },
+      {
+        isin: isinExplicit,
+        bucketKey: "",
+        weight: 34,
+        manualMeta: { assetClass: "Equity", region: "USA", terBps: 17 },
+      },
+    ];
+    const lookup = (isin: string): number | undefined =>
+      isin === isinWithLookup ? 9 : undefined;
+    const out = synthesizePersonalPortfolio(positions, "USD", "en", lookup);
+    const noTerRow = out.etfImplementation.find((r) => r.isin === isinNoTer)!;
+    const lookupRow = out.etfImplementation.find(
+      (r) => r.isin === isinWithLookup,
+    )!;
+    const explicitRow = out.etfImplementation.find(
+      (r) => r.isin === isinExplicit,
+    )!;
+    // No manualMeta.terBps + no lookup hit → asset-class default
+    // (Equity/USA from getETFTer, currently > 0). Critically NOT 0.
+    expect(noTerRow.terBps).toBeGreaterThan(0);
+    // Cache lookup wins when manualMeta.terBps is absent.
+    expect(lookupRow.terBps).toBe(9);
+    // Operator-typed manualMeta.terBps wins over the lookup.
+    expect(explicitRow.terBps).toBe(17);
+  });
+
   it("validator does not flag manual rows as unknown bucket", () => {
     const positions: PersonalPosition[] = [
       { isin: ISIN_USA, bucketKey: "Equity-USA", weight: 30 },

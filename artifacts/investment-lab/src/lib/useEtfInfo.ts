@@ -100,6 +100,39 @@ const SCRAPE_CACHE_TTL_MS = 10 * 60 * 1000;
 const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{9}\d$/;
 const DEBOUNCE_MS = 500;
 
+// Task #270 — read-through accessor for the module-level scrape cache.
+// Used by `synthesizePersonalPortfolio` (via the `terLookup` arg) so the
+// Fee Estimator's per-bucket row reflects the live justETF TER for an
+// off-catalog manual position even when the operator hasn't pressed
+// the "Quick fill" button on the EtfInfoPreview card. Returns the TER
+// in basis points, or undefined when:
+//   - no cache entry exists for the ISIN (lookup hasn't run yet)
+//   - the cached entry is an error (justETF lookup failed)
+//   - the cached entry has expired beyond the in-tab TTL
+//   - the scraper returned no usable TER field
+// We accept either the bps representation (`fields.terBps`) or the
+// percent representation (`fields.ter`) the same way `EtfInfoPreview`
+// does — some justETF extractors emit one or the other.
+export function getCachedScrapeTerBps(
+  rawIsin: string | null | undefined,
+): number | undefined {
+  const isin = normalizeIsin(rawIsin);
+  if (!ISIN_RE.test(isin)) return undefined;
+  const cached = SCRAPE_CACHE.get(isin);
+  if (!cached || Date.now() - cached.at > SCRAPE_CACHE_TTL_MS) return undefined;
+  if (!("ok" in cached)) return undefined;
+  const fields = cached.ok.fields ?? {};
+  const bps = fields.terBps;
+  if (typeof bps === "number" && Number.isFinite(bps) && bps >= 0) return bps;
+  const pct = fields.ter;
+  if (typeof pct === "number" && Number.isFinite(pct) && pct >= 0) {
+    // Same heuristic as EtfInfoPreview.pickTerBps: <= 5 means percent
+    // (0.07 → 7 bps), > 5 means already bps.
+    return pct <= 5 ? Math.round(pct * 100) : Math.round(pct);
+  }
+  return undefined;
+}
+
 function apiBase(): string {
   const env = (import.meta as { env?: Record<string, string | undefined> })
     .env;

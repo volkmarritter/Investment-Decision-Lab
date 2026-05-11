@@ -45,6 +45,7 @@ import {
   type CompareSlotName,
   explainWorkspaceHasContent,
   explainWorkspaceToSlotPortfolio,
+  getCachedScrapeTerBps,
   getLastExplainWorkspace,
   subscribeCompareLoadRequests,
   setCompareSlotsState,
@@ -420,7 +421,7 @@ export function ComparePortfolios() {
   // that don't apply to the personal portfolio.
   const loadFromExplain = (slot: CompareSlotName, ws: ExplainWorkspace) => {
     if (!explainWorkspaceHasContent(ws)) return;
-    const { input, output } = explainWorkspaceToSlotPortfolio(ws, lang);
+    const { input, output } = explainWorkspaceToSlotPortfolio(ws, lang, getCachedScrapeTerBps);
     if (slot === "A") {
       initialLinkPendingRef.current = false;
       if (linked) setLinked(false);
@@ -544,7 +545,7 @@ export function ComparePortfolios() {
     // back to default form values.
     if (explainSourceA) {
       const ws = getLastExplainWorkspace() ?? explainSourceA;
-      const { input, output } = explainWorkspaceToSlotPortfolio(ws, lang);
+      const { input, output } = explainWorkspaceToSlotPortfolio(ws, lang, getCachedScrapeTerBps);
       setOutputA(output);
       setInputA(input);
       setValidationA({ isValid: true, errors: [], warnings: [] });
@@ -563,7 +564,7 @@ export function ComparePortfolios() {
 
     if (explainSourceB) {
       const ws = getLastExplainWorkspace() ?? explainSourceB;
-      const { input, output } = explainWorkspaceToSlotPortfolio(ws, lang);
+      const { input, output } = explainWorkspaceToSlotPortfolio(ws, lang, getCachedScrapeTerBps);
       setOutputB(output);
       setInputB(input);
       setValidationB({ isValid: true, errors: [], warnings: [] });
