@@ -1704,29 +1704,6 @@ export function ExplainPortfolio() {
                 <div className="flex gap-2 flex-wrap justify-end items-center">
                   <Button
                     type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setImportOpen(true)}
-                    className="h-8 text-xs"
-                    data-testid="explain-import-open"
-                  >
-                    <Upload className="mr-1.5 h-3 w-3" />
-                    {t("explain.btn.import")}
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={copyAsText}
-                    disabled={!state.positions.some((p) => !!p.isin)}
-                    className="h-8 text-xs"
-                    data-testid="explain-copy-as-text"
-                  >
-                    <ClipboardCopy className="mr-1.5 h-3 w-3" />
-                    {t("explain.btn.copyAsText")}
-                  </Button>
-                  <Button
-                    type="button"
                     variant="ghost"
                     size="sm"
                     onClick={resetAll}
@@ -1737,6 +1714,33 @@ export function ExplainPortfolio() {
                     {t("explain.btn.reset")}
                   </Button>
                 </div>
+              </div>
+              {/* Import / Copy-as-text live directly above the Save/Load
+               *  slot UI so the prominent Import call-to-action sits next
+               *  to the persistence affordances rather than competing
+               *  with the quiet Reset action in the header. */}
+              <div className="pt-2 flex gap-2 flex-wrap items-center">
+                <Button
+                  type="button"
+                  variant="default"
+                  size="sm"
+                  onClick={() => setImportOpen(true)}
+                  data-testid="explain-import-open"
+                >
+                  <Upload className="mr-1.5 h-4 w-4" />
+                  {t("explain.btn.import")}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={copyAsText}
+                  disabled={!state.positions.some((p) => !!p.isin)}
+                  data-testid="explain-copy-as-text"
+                >
+                  <ClipboardCopy className="mr-1.5 h-4 w-4" />
+                  {t("explain.btn.copyAsText")}
+                </Button>
               </div>
               {/* Save/Load slot UI — independent localStorage namespace from
                *  Build's scenario store so personal-portfolio sessions can be

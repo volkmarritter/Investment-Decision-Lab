@@ -370,7 +370,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "explain.toast.imported": "Imported {count} positions",
 
     // Paste-to-import (Task #227)
-    "explain.btn.import": "Import",
+    "explain.btn.import": "Import via copy / paste",
     "explain.btn.copyAsText": "Copy as text",
     "explain.copyAsText.toast.success": "Copied {n} positions to clipboard",
     "explain.copyAsText.toast.empty": "No positions to copy",
@@ -1075,7 +1075,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "explain.toast.imported": "{count} Positionen importiert",
 
     // Einfügen-Import (Aufgabe #227)
-    "explain.btn.import": "Importieren",
+    "explain.btn.import": "Per Kopieren / Einfügen importieren",
     "explain.btn.copyAsText": "Als Text kopieren",
     "explain.copyAsText.toast.success": "{n} Positionen in die Zwischenablage kopiert",
     "explain.copyAsText.toast.empty": "Keine Positionen zum Kopieren",
