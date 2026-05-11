@@ -1,7 +1,7 @@
 {
   "_meta": {
     "source": "justetf.com",
-    "lastRefreshed": "2026-05-01T11:29:08.195Z",
+    "lastRefreshed": "2026-05-11T15:11:15.851Z",
     "refreshedBy": "scripts/refresh-lookthrough.mjs",
     "note": "ISIN -> partial LookthroughProfile overrides applied on top of the curated PROFILES in src/lib/lookthrough.ts. Populated monthly (1st of month, 04:00 UTC) by the refresh-lookthrough GitHub Action. Refreshed fields: topHoldings (top-10 stocks, per-ISIN topHoldingsAsOf stamp), geo / sector breakdown maps (per-ISIN breakdownsAsOf stamp, scraped from justETF — static profile HTML when complete, Wicket Ajax loadMore endpoint with a session cookie when justETF renders a 'Show more' link), and currency (re-bucketed from the just-refreshed geo map via a country -> local-listing-currency table — justETF doesn't publish a per-ETF currency breakdown directly; skipped for currency-hedged share classes whose curated hedge-currency map remains authoritative). The `pool` map holds bucket-agnostic look-through profiles added via the admin /api/admin/lookthrough-pool endpoint; the same monthly job re-scrapes them so admin-added ISINs stay fresh alongside the catalog."
   },
@@ -49,7 +49,7 @@
           "pct": 1.04
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 58.57,
         "Japan": 5.68,
@@ -81,7 +81,7 @@
         "Real Estate": 2.2,
         "Other": 4.37
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "currency": {
         "USD": 58.57,
         "JPY": 5.68,
@@ -140,7 +140,7 @@
           "pct": 1.57
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 95.16,
         "Ireland": 1.44,
@@ -160,7 +160,7 @@
         "Basic Materials": 1.61,
         "Other": 2.81
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "currency": {
         "USD": 95.16,
         "EUR": 1.44,
@@ -210,7 +210,7 @@
           "pct": 1.34
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United Kingdom": 19.61,
         "France": 14.17,
@@ -241,7 +241,7 @@
         "Real Estate": 0.67,
         "Other": 8.69
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "currency": {
         "GBP": 19.61,
         "EUR": 50.42,
@@ -295,7 +295,7 @@
           "pct": 2.04
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "Switzerland": 79.59,
         "Other": 20.41
@@ -313,7 +313,7 @@
         "Utilities": 0.18,
         "Other": 20.29
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "currency": {
         "CHF": 79.59,
         "Other": 20.41
@@ -362,7 +362,7 @@
           "pct": 1.59
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "Japan": 97.09,
         "Other": 2.91
@@ -381,7 +381,7 @@
         "Energy": 1.22,
         "Other": 2.91
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "currency": {
         "JPY": 97.09,
         "Other": 2.91
@@ -430,7 +430,7 @@
           "pct": 0.63
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "Taiwan": 21.99,
         "China": 21,
@@ -461,7 +461,7 @@
         "Real Estate": 1.72,
         "Other": 6.51
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "currency": {
         "TWD": 21.99,
         "CNY": 21,
@@ -522,7 +522,7 @@
           "pct": 1.69
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 62.83,
         "Japan": 7.8,
@@ -545,7 +545,7 @@
         "Technology": 0.02,
         "Other": 3.16
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "currency": {
         "USD": 62.83,
         "JPY": 7.8,
@@ -603,7 +603,7 @@
           "pct": 1.49
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 94.89,
         "Ireland": 1.16,
@@ -613,7 +613,7 @@
         "Technology": 96.32,
         "Other": 3.68
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "currency": {
         "USD": 94.89,
         "EUR": 1.16,
@@ -663,7 +663,7 @@
           "pct": 1.87
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 63.26,
         "South Korea": 4.2,
@@ -681,7 +681,7 @@
         "Technology": 1.44,
         "Other": 8.86
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "currency": {
         "USD": 63.26,
         "KRW": 4.2,
@@ -736,7 +736,7 @@
           "pct": 2.24
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 29.75,
         "China": 16.65,
@@ -762,7 +762,7 @@
         "Real Estate": 0.15,
         "Other": 13.35
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "currency": {
         "USD": 29.75,
         "CNY": 16.65,
@@ -820,7 +820,7 @@
           "pct": 2.05
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 65.52,
         "Japan": 11.46,
@@ -839,7 +839,7 @@
         "Consumer Discretionary": 0.78,
         "Other": 5.49
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "currency": {
         "USD": 65.52,
         "JPY": 11.46,
@@ -850,6 +850,145 @@
         "SEK": 1.31,
         "EUR": 1.22,
         "Other": 9.95
+      }
+    },
+    "IE00BLCHJB90": {
+      "topHoldings": [
+        {
+          "name": "ABB Ltd.",
+          "pct": 8.32
+        },
+        {
+          "name": "Intuitive Surgical",
+          "pct": 8.31
+        },
+        {
+          "name": "NVIDIA Corp.",
+          "pct": 8.22
+        },
+        {
+          "name": "KEYENCE Corp.",
+          "pct": 8.14
+        },
+        {
+          "name": "FANUC Corp.",
+          "pct": 7.9
+        },
+        {
+          "name": "Daifuku Co., Ltd.",
+          "pct": 4.65
+        },
+        {
+          "name": "SMC Corp. (Japan)",
+          "pct": 4.5
+        },
+        {
+          "name": "Dynatrace",
+          "pct": 3.89
+        },
+        {
+          "name": "AeroVironment",
+          "pct": 3.11
+        },
+        {
+          "name": "Cognex",
+          "pct": 2.66
+        }
+      ],
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
+      "geo": {
+        "United States": 38.23,
+        "Japan": 30.13,
+        "Switzerland": 9.05,
+        "South Korea": 3.33,
+        "China": 1.31,
+        "United Kingdom": 1.19,
+        "Norway": 1.15,
+        "Other": 15.61
+      },
+      "sector": {
+        "Industrials": 39.16,
+        "Technology": 33.18,
+        "Health Care": 11.22,
+        "Financials": 0.83,
+        "Other": 15.61
+      },
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
+      "currency": {
+        "USD": 38.23,
+        "JPY": 30.13,
+        "CHF": 9.05,
+        "KRW": 3.33,
+        "CNY": 1.31,
+        "GBP": 1.19,
+        "NOK": 1.15,
+        "Other": 15.61
+      }
+    },
+    "IE00BDBRT036": {
+      "topHoldings": [
+        {
+          "name": "Monolithic Power Systems",
+          "pct": 7.91
+        },
+        {
+          "name": "First Solar",
+          "pct": 7.85
+        },
+        {
+          "name": "ON Semiconductor",
+          "pct": 7.7
+        },
+        {
+          "name": "Tesla",
+          "pct": 7.63
+        },
+        {
+          "name": "Bloom Energy",
+          "pct": 7.19
+        },
+        {
+          "name": "Nextpower",
+          "pct": 4.74
+        },
+        {
+          "name": "Albemarle",
+          "pct": 4.15
+        },
+        {
+          "name": "Rivian Automotive",
+          "pct": 4.06
+        },
+        {
+          "name": "Advanced Energy Inds",
+          "pct": 3.97
+        },
+        {
+          "name": "Acuity",
+          "pct": 3.84
+        }
+      ],
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
+      "geo": {
+        "United States": 86.93,
+        "Israel": 1.42,
+        "Other": 11.65
+      },
+      "sector": {
+        "Technology": 39.88,
+        "Industrials": 24.78,
+        "Consumer Discretionary": 11.8,
+        "Utilities": 5.75,
+        "Basic Materials": 4.91,
+        "Real Estate": 2.16,
+        "Energy": 0.55,
+        "Other": 10.17
+      },
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
+      "currency": {
+        "USD": 86.93,
+        "ILS": 1.42,
+        "Other": 11.65
       }
     }
   },
@@ -898,7 +1037,7 @@
           "pct": 3.84
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "Switzerland": 79.84,
         "Other": 20.16
@@ -918,7 +1057,7 @@
         "CHF": 79.84,
         "Other": 20.16
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=CH0031768937",
       "_addedAt": "2026-04-27T11:05:00.725Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -967,7 +1106,7 @@
           "pct": 3.01
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 92.9,
         "Other": 7.1
@@ -987,7 +1126,7 @@
         "USD": 92.9,
         "Other": 7.1
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B53SZB19",
       "_addedAt": "2026-04-27T16:24:48.015Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -1036,7 +1175,7 @@
           "pct": 1.3
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 86.02,
         "Netherlands": 3.1,
@@ -1056,7 +1195,7 @@
         "JPY": 3.1,
         "Other": 5.57
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BM67HT60",
       "_addedAt": "2026-04-27T18:13:31.321Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -1104,7 +1243,7 @@
           "pct": 1.14
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 57.47,
         "Japan": 5.76,
@@ -1150,7 +1289,7 @@
         "INR": 1.42,
         "Other": 12.56
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B3RBWM25",
       "_addedAt": "2026-04-27T18:49:41.832Z",
       "_addedVia": "admin/lookthrough-pool",
@@ -1200,7 +1339,7 @@
           "pct": 2.86
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "Germany": 29.44,
         "France": 28.59,
@@ -1228,7 +1367,7 @@
         "EUR": 97.99,
         "Other": 2.01
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=FR0007054358",
       "_addedAt": "2026-04-28T10:49:43.117Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
@@ -1277,7 +1416,7 @@
           "pct": 1.14
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 57.47,
         "Japan": 5.76,
@@ -1323,7 +1462,7 @@
         "INR": 1.42,
         "Other": 12.56
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BK5BQT80",
       "_addedAt": "2026-04-28T11:06:00.752Z",
       "_addedVia": "admin/lookthrough-pool/backfill"
@@ -1372,7 +1511,7 @@
           "pct": 1.16
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 59.63,
         "Japan": 5,
@@ -1418,7 +1557,7 @@
         "INR": 1.24,
         "Other": 11.53
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B6R52259",
       "_addedAt": "2026-04-28T11:06:02.138Z",
       "_addedVia": "admin/lookthrough-pool/backfill"
@@ -1467,7 +1606,7 @@
           "pct": 1.57
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 94.68,
         "Ireland": 1.43,
@@ -1492,7 +1631,7 @@
         "EUR": 1.43,
         "Other": 3.89
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BFMXXD54",
       "_addedAt": "2026-04-28T11:06:02.548Z",
       "_addedVia": "admin/lookthrough-pool/backfill"
@@ -1541,7 +1680,7 @@
           "pct": 1.57
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 95.29,
         "Ireland": 1.44,
@@ -1566,7 +1705,7 @@
         "EUR": 1.44,
         "Other": 3.27
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B6YX5C33",
       "_addedAt": "2026-04-28T11:06:03.043Z",
       "_addedVia": "admin/lookthrough-pool/backfill"
@@ -1615,7 +1754,7 @@
           "pct": 1.25
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United Kingdom": 19.91,
         "France": 13.12,
@@ -1654,7 +1793,7 @@
         "NOK": 1.01,
         "Other": 13.19
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B945VV12",
       "_addedAt": "2026-04-28T11:06:04.940Z",
       "_addedVia": "admin/lookthrough-pool/backfill"
@@ -1703,7 +1842,7 @@
           "pct": 2.69
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United Kingdom": 83.62,
         "Switzerland": 2.76,
@@ -1730,7 +1869,7 @@
         "EUR": 1.13,
         "Other": 12.49
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B53HP851",
       "_addedAt": "2026-04-28T11:06:05.429Z",
       "_addedVia": "admin/lookthrough-pool/backfill"
@@ -1779,7 +1918,7 @@
           "pct": 0.73
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "China": 27.84,
         "Taiwan": 24.67,
@@ -1822,7 +1961,7 @@
         "THB": 1.22,
         "Other": 14.58
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BK5BR733",
       "_addedAt": "2026-04-28T11:06:06.914Z",
       "_addedVia": "admin/lookthrough-pool/backfill"
@@ -1871,7 +2010,7 @@
           "pct": 1.57
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 94.95,
         "Ireland": 1.43,
@@ -1896,7 +2035,7 @@
         "EUR": 1.48,
         "Other": 3.09
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B3ZW0K18",
       "_addedAt": "2026-04-28T11:06:07.550Z",
       "_addedVia": "admin/lookthrough-pool/backfill"
@@ -1944,7 +2083,7 @@
           "pct": 0.74
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "China": 23.37,
         "Taiwan": 21.52,
@@ -1989,7 +2128,7 @@
         "HKD": 1.03,
         "Other": 10.94
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BTJRMP35",
       "_addedAt": "2026-04-27T16:26:39.619Z",
       "_addedVia": "admin/lookthrough-pool",
@@ -2039,7 +2178,7 @@
           "pct": 4.42
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 80.01,
         "Israel": 6.31,
@@ -2060,7 +2199,7 @@
         "CAD": 4.74,
         "Other": 4.02
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BYPLS672",
       "_addedAt": "2026-04-28T14:14:00.455Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
@@ -2109,7 +2248,7 @@
           "pct": 2.39
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 67.78,
         "United Kingdom": 6.2,
@@ -2134,7 +2273,7 @@
         "EUR": 5.7,
         "Other": 10.95
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BM67HK77",
       "_addedAt": "2026-04-28T14:14:22.747Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
@@ -2183,7 +2322,7 @@
           "pct": 1.1
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 67.74,
         "Japan": 5.92,
@@ -2221,7 +2360,7 @@
         "AUD": 1.67,
         "Other": 9.75
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BFNM3J75",
       "_addedAt": "2026-04-28T14:14:48.627Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
@@ -2270,7 +2409,7 @@
           "pct": 2.69
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United Kingdom": 85.14,
         "Switzerland": 2.76,
@@ -2297,7 +2436,7 @@
         "EUR": 1.13,
         "Other": 10.97
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B810Q511",
       "_addedAt": "2026-04-28T14:15:09.421Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
@@ -2346,7 +2485,7 @@
           "pct": 1.6
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 62.33,
         "Japan": 9.43,
@@ -2381,7 +2520,7 @@
         "SEK": 1.56,
         "Other": 5.52
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B5L01S80",
       "_addedAt": "2026-04-28T14:16:04.365Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
@@ -2430,7 +2569,7 @@
           "pct": 4.56
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 71.05,
         "Japan": 7.45,
@@ -2449,7 +2588,7 @@
         "EUR": 3.62,
         "Other": 13.3
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BLPK3577",
       "_addedAt": "2026-04-28T14:32:12.382Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
@@ -2498,7 +2637,7 @@
           "pct": 2.22
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 67.86,
         "Japan": 10.61,
@@ -2527,7 +2666,7 @@
         "HKD": 1.81,
         "Other": 5.09
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=NL0009690239",
       "_addedAt": "2026-04-28T14:32:46.761Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
@@ -2576,7 +2715,7 @@
           "pct": 3.09
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 95.88,
         "Ireland": 2.51,
@@ -2591,7 +2730,7 @@
         "EUR": 2.51,
         "Other": 1.61
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B43HR379",
       "_addedAt": "2026-04-28T14:35:10.414Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -2640,7 +2779,7 @@
           "pct": 1.67
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "Japan": 99.68,
         "Other": 0.32
@@ -2663,7 +2802,7 @@
         "JPY": 99.68,
         "Other": 0.32
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=LU0839027447",
       "_addedAt": "2026-04-28T14:36:22.899Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -2712,7 +2851,7 @@
           "pct": 1.6
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 95.31,
         "Ireland": 1.44,
@@ -2737,7 +2876,7 @@
         "EUR": 1.44,
         "Other": 3.25
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BM67HW99",
       "_addedAt": "2026-04-28T14:36:34.370Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -2786,7 +2925,7 @@
           "pct": 1.55
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "South Korea": 99.37,
         "Other": 0.63
@@ -2808,7 +2947,7 @@
         "KRW": 99.37,
         "Other": 0.63
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=LU0292100046",
       "_addedAt": "2026-04-28T16:17:45.553Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -2857,7 +2996,7 @@
           "pct": 1.1
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 18.08,
         "Taiwan": 13.2,
@@ -2899,7 +3038,7 @@
         "GBP": 1.9,
         "Other": 17.92
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BLRB0242",
       "_addedAt": "2026-04-28T16:21:28.626Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -2948,7 +3087,7 @@
           "pct": 1.56
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 94.87,
         "Ireland": 1.43,
@@ -2973,7 +3112,7 @@
         "EUR": 1.43,
         "Other": 3.7
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B88DZ566",
       "_addedAt": "2026-04-30T05:14:43.212Z",
       "_addedVia": "admin/lookthrough-pool/backfill"
@@ -3022,7 +3161,7 @@
           "pct": 1.41
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 94.68,
         "Ireland": 1.44,
@@ -3047,7 +3186,7 @@
         "EUR": 1.44,
         "Other": 3.88
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=LU0136234654",
       "_addedAt": "2026-04-30T07:00:19.106Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
@@ -3096,7 +3235,7 @@
           "pct": 2.81
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T06:30:37.957Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "France": 30.87,
         "Germany": 29.38,
@@ -3124,7 +3263,7 @@
         "EUR": 99.56,
         "Other": 0.44
       },
-      "breakdownsAsOf": "2026-05-01T06:30:37.957Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE0008471009",
       "_addedAt": "2026-04-30T07:51:13.682Z",
       "_addedVia": "admin/bucket-alternatives (auto)"
@@ -3173,7 +3312,7 @@
           "pct": 1
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:03:37.750Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 67.33,
         "Japan": 5.63,
@@ -3201,7 +3340,7 @@
         "Real Estate": 1.79,
         "Other": 4.32
       },
-      "breakdownsAsOf": "2026-05-01T11:03:37.750Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:03:37.750Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -3260,7 +3399,7 @@
           "pct": 1
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:03:41.451Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 67.32,
         "Japan": 5.63,
@@ -3288,7 +3427,7 @@
         "Real Estate": 1.81,
         "Other": 4.32
       },
-      "breakdownsAsOf": "2026-05-01T11:03:41.451Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:03:41.451Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -3347,7 +3486,7 @@
           "pct": 1.01
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:03:45.007Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 67.54,
         "Japan": 5.67,
@@ -3375,7 +3514,7 @@
         "Real Estate": 1.84,
         "Other": 3.92
       },
-      "breakdownsAsOf": "2026-05-01T11:03:45.007Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:03:45.007Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -3434,7 +3573,7 @@
           "pct": 0.89
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:03:50.506Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 63.62,
         "Japan": 6.37,
@@ -3463,7 +3602,7 @@
         "Real Estate": 1.91,
         "Other": 5.47
       },
-      "breakdownsAsOf": "2026-05-01T11:03:50.506Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:03:50.506Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -3523,7 +3662,7 @@
           "pct": 1.57
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:03:53.210Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 95.16,
         "Ireland": 1.44,
@@ -3543,7 +3682,7 @@
         "Basic Materials": 1.61,
         "Other": 2.81
       },
-      "breakdownsAsOf": "2026-05-01T11:03:53.210Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:03:53.210Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -3597,7 +3736,7 @@
           "pct": 1.33
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:03:55.947Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 86.34,
         "Netherlands": 2.94,
@@ -3611,7 +3750,7 @@
         "Technology": 96.9,
         "Other": 3.1
       },
-      "breakdownsAsOf": "2026-05-01T11:03:55.947Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:03:55.947Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -3667,7 +3806,7 @@
           "pct": 3.04
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:03:58.757Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 92.93,
         "Other": 7.07
@@ -3683,7 +3822,7 @@
         "Energy": 0.65,
         "Other": 4.46
       },
-      "breakdownsAsOf": "2026-05-01T11:03:58.757Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:03:58.757Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -3736,7 +3875,7 @@
           "pct": 2.95
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:04:01.559Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 93.03,
         "Other": 6.97
@@ -3752,7 +3891,7 @@
         "Energy": 0.68,
         "Other": 4.31
       },
-      "breakdownsAsOf": "2026-05-01T11:04:01.559Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:04:01.559Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -3805,7 +3944,7 @@
           "pct": 3.01
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:04:04.360Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 92.9,
         "Other": 7.1
@@ -3821,7 +3960,7 @@
         "Energy": 0.65,
         "Other": 4.39
       },
-      "breakdownsAsOf": "2026-05-01T11:04:04.360Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:04:04.360Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -3874,7 +4013,7 @@
           "pct": 3.58
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:04:09.874Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "Netherlands": 26.85,
         "France": 20.01,
@@ -3898,7 +4037,7 @@
         "Health Care": 3.52,
         "Other": 3.34
       },
-      "breakdownsAsOf": "2026-05-01T11:04:09.874Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:04:09.874Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -3951,7 +4090,7 @@
           "pct": 1.23
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:04:13.531Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United Kingdom": 20.03,
         "France": 14.57,
@@ -3981,7 +4120,7 @@
         "Real Estate": 1.14,
         "Other": 8.75
       },
-      "breakdownsAsOf": "2026-05-01T11:04:13.531Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:04:13.531Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -4039,7 +4178,7 @@
           "pct": 1.23
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:04:17.081Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United Kingdom": 20.35,
         "France": 13.25,
@@ -4069,7 +4208,7 @@
         "Real Estate": 1.15,
         "Other": 9.19
       },
-      "breakdownsAsOf": "2026-05-01T11:04:17.081Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:04:17.081Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -4127,7 +4266,7 @@
           "pct": 2.44
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:04:19.920Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 90.44,
         "Ireland": 5.11,
@@ -4147,7 +4286,7 @@
         "Basic Materials": 0.75,
         "Other": 3.87
       },
-      "breakdownsAsOf": "2026-05-01T11:04:19.920Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:04:19.920Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -4201,7 +4340,7 @@
           "pct": 1.35
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:04:23.585Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United Kingdom": 20.19,
         "France": 14.3,
@@ -4232,7 +4371,7 @@
         "Real Estate": 0.69,
         "Other": 7.78
       },
-      "breakdownsAsOf": "2026-05-01T11:04:23.585Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:04:23.585Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -4290,7 +4429,7 @@
           "pct": 3.9
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:04:26.319Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 99.85,
         "Other": 0.15
@@ -4307,7 +4446,7 @@
         "Telecommunication": 1.94,
         "Other": 0.16
       },
-      "breakdownsAsOf": "2026-05-01T11:04:26.319Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:04:26.319Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -4360,7 +4499,7 @@
           "pct": 2.22
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:04:30.915Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "Netherlands": 58.04,
         "United Kingdom": 22.02,
@@ -4380,7 +4519,7 @@
         "Real Estate": 0.49,
         "Other": 16.8
       },
-      "breakdownsAsOf": "2026-05-01T11:04:30.915Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:04:30.915Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -4434,7 +4573,7 @@
           "pct": 0.72
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:04:34.514Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "China": 23.2,
         "Taiwan": 22.12,
@@ -4464,7 +4603,7 @@
         "Real Estate": 1.16,
         "Other": 5.72
       },
-      "breakdownsAsOf": "2026-05-01T11:04:34.514Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:04:34.514Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -4528,7 +4667,7 @@
           "pct": 1.24
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:04:39.952Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "China": 20.71,
         "Taiwan": 17.43,
@@ -4560,7 +4699,7 @@
         "Real Estate": 0.77,
         "Other": 5.73
       },
-      "breakdownsAsOf": "2026-05-01T11:04:39.952Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:04:39.952Z",
       "_addedVia": "scrape-popular-etfs-pool"
@@ -4609,7 +4748,7 @@
           "pct": 2.01
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:04:42.701Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "Japan": 97.71,
         "Other": 2.29
@@ -4628,7 +4767,7 @@
         "Utilities": 1.2,
         "Other": 2.29
       },
-      "breakdownsAsOf": "2026-05-01T11:04:42.701Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:04:42.701Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -4681,7 +4820,7 @@
           "pct": 2.01
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:04:45.426Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "Japan": 97.73,
         "Other": 2.27
@@ -4700,7 +4839,7 @@
         "Utilities": 1.21,
         "Other": 2.27
       },
-      "breakdownsAsOf": "2026-05-01T11:04:45.426Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:04:45.426Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -4753,7 +4892,7 @@
           "pct": 2.09
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:04:48.264Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "Japan": 99.21,
         "Other": 0.79
@@ -4772,7 +4911,7 @@
         "Utilities": 1.23,
         "Other": 0.8
       },
-      "breakdownsAsOf": "2026-05-01T11:04:48.264Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:04:48.264Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -4825,7 +4964,7 @@
           "pct": 2.64
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:05:02.832Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "Australia": 60.85,
         "Hong Kong": 18.28,
@@ -4847,7 +4986,7 @@
         "Technology": 1.12,
         "Other": 3.09
       },
-      "breakdownsAsOf": "2026-05-01T11:05:02.832Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:05:02.832Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -4902,7 +5041,7 @@
           "pct": 0.97
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:05:06.406Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "China": 31.18,
         "Taiwan": 29.65,
@@ -4928,7 +5067,7 @@
         "Utilities": 1.59,
         "Other": 3.08
       },
-      "breakdownsAsOf": "2026-05-01T11:05:06.406Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:05:06.406Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -4988,7 +5127,7 @@
           "pct": 3.02
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:05:09.194Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "Germany": 93.48,
         "Netherlands": 5.96,
@@ -5007,7 +5146,7 @@
         "Real Estate": 0.99,
         "Other": 0.57
       },
-      "breakdownsAsOf": "2026-05-01T11:05:09.194Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:05:09.194Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -5060,7 +5199,7 @@
           "pct": 3.03
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:05:12.220Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "Germany": 93.61,
         "Netherlands": 5.94,
@@ -5079,7 +5218,7 @@
         "Real Estate": 1,
         "Other": 0.45
       },
-      "breakdownsAsOf": "2026-05-01T11:05:12.220Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:05:12.220Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -5132,7 +5271,7 @@
           "pct": 2.61
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:05:14.965Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "Switzerland": 80.81,
         "Other": 19.19
@@ -5148,7 +5287,7 @@
         "Technology": 0.79,
         "Other": 19.2
       },
-      "breakdownsAsOf": "2026-05-01T11:05:14.965Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:05:14.965Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -5201,7 +5340,7 @@
           "pct": 1.75
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:05:17.672Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "India": 87.74,
         "Other": 12.26
@@ -5220,7 +5359,7 @@
         "Real Estate": 1.22,
         "Other": 12.26
       },
-      "breakdownsAsOf": "2026-05-01T11:05:17.672Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:05:17.672Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -5273,7 +5412,7 @@
           "pct": 1.69
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:05:20.331Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "Japan": 97.2,
         "Other": 2.8
@@ -5292,7 +5431,7 @@
         "Energy": 1.21,
         "Other": 2.8
       },
-      "breakdownsAsOf": "2026-05-01T11:05:20.331Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:05:20.331Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -5345,7 +5484,7 @@
           "pct": 3.46
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:05:23.006Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "China": 95.05,
         "Other": 4.95
@@ -5364,7 +5503,7 @@
         "Utilities": 0.41,
         "Other": 4.03
       },
-      "breakdownsAsOf": "2026-05-01T11:05:23.006Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:05:23.006Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -5417,7 +5556,7 @@
           "pct": 2.82
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:05:26.685Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "France": 31,
         "Germany": 29.51,
@@ -5440,7 +5579,7 @@
         "Basic Materials": 3.76,
         "Telecommunication": 2.82
       },
-      "breakdownsAsOf": "2026-05-01T11:05:26.685Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:05:26.685Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -5493,7 +5632,7 @@
           "pct": 1.86
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:05:28.604Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 97.91,
         "Other": 2.09
@@ -5503,7 +5642,7 @@
         "Consumer Discretionary": 3.43,
         "Other": 2.09
       },
-      "breakdownsAsOf": "2026-05-01T11:05:28.604Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:05:28.604Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -5556,7 +5695,7 @@
           "pct": 2.43
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:05:31.277Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United Kingdom": 25.75,
         "Switzerland": 22.16,
@@ -5573,7 +5712,7 @@
         "Consumer Staples": 2.42,
         "Other": 26.06
       },
-      "breakdownsAsOf": "2026-05-01T11:05:31.277Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:05:31.277Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -5629,7 +5768,7 @@
           "pct": 2.73
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:05:34.851Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 53.21,
         "Japan": 16.34,
@@ -5653,7 +5792,7 @@
         "Basic Materials": 0.11,
         "Other": 2.28
       },
-      "breakdownsAsOf": "2026-05-01T11:05:34.851Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:05:34.851Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -5714,7 +5853,7 @@
           "pct": 4.05
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:05:38.502Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 73.66,
         "South Korea": 11.79,
@@ -5731,7 +5870,7 @@
         "Health Care": 0.01,
         "Other": 7.59
       },
-      "breakdownsAsOf": "2026-05-01T11:05:38.502Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:05:38.502Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -5788,7 +5927,7 @@
           "pct": 4.66
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:05:41.262Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 28.01,
         "Japan": 27.07,
@@ -5807,7 +5946,7 @@
         "Technology": 7.06,
         "Other": 7.17
       },
-      "breakdownsAsOf": "2026-05-01T11:05:41.262Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:05:41.262Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -5868,7 +6007,7 @@
           "pct": 2.28
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:05:44.808Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 70.22,
         "Japan": 4.51,
@@ -5893,7 +6032,7 @@
         "Consumer Staples": 0.06,
         "Other": 3.56
       },
-      "breakdownsAsOf": "2026-05-01T11:05:44.808Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:05:44.808Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -5953,7 +6092,7 @@
           "pct": 1.72
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:05:47.493Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 61.84,
         "Japan": 8.52,
@@ -5973,7 +6112,7 @@
         "Consumer Discretionary": 0.06,
         "Other": 1.61
       },
-      "breakdownsAsOf": "2026-05-01T11:05:47.493Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:05:47.493Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -6034,7 +6173,7 @@
           "pct": 1.57
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:05:50.197Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 94.66,
         "Ireland": 1.46,
@@ -6054,7 +6193,7 @@
         "Basic Materials": 1.51,
         "Other": 3.05
       },
-      "breakdownsAsOf": "2026-05-01T11:05:50.197Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:05:50.197Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -6108,7 +6247,7 @@
           "pct": 4
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:05:51.984Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "China": 93.36,
         "Hong Kong": 1.64,
@@ -6120,7 +6259,7 @@
         "Technology": 23.27,
         "Other": 5
       },
-      "breakdownsAsOf": "2026-05-01T11:05:51.984Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:05:51.984Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -6174,7 +6313,7 @@
           "pct": 2.11
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:05:54.696Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 66.14,
         "Switzerland": 8.7,
@@ -6192,7 +6331,7 @@
         "Consumer Staples": 0.54,
         "Other": 7.16
       },
-      "breakdownsAsOf": "2026-05-01T11:05:54.696Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:05:54.696Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -6251,7 +6390,7 @@
           "pct": 4.39
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:05:57.371Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 61.01,
         "United Kingdom": 11.1,
@@ -6269,7 +6408,7 @@
         "Basic Materials": 1.98,
         "Other": 5.45
       },
-      "breakdownsAsOf": "2026-05-01T11:05:57.371Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:05:57.371Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -6327,7 +6466,7 @@
           "pct": 4.22
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:05:59.188Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 71.62,
         "Other": 28.38
@@ -6336,7 +6475,7 @@
         "Technology": 72.54,
         "Other": 27.46
       },
-      "breakdownsAsOf": "2026-05-01T11:05:59.188Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:05:59.188Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -6389,7 +6528,7 @@
           "pct": 1.59
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:06:13.726Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 38.68,
         "Japan": 20.63,
@@ -6412,7 +6551,7 @@
         "Telecommunication": 0.92,
         "Other": 11.12
       },
-      "breakdownsAsOf": "2026-05-01T11:06:13.726Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:06:13.726Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -6474,7 +6613,7 @@
           "pct": 1.84
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:06:17.321Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 66.94,
         "Switzerland": 4.2,
@@ -6503,7 +6642,7 @@
         "Real Estate": 1.69,
         "Other": 6.88
       },
-      "breakdownsAsOf": "2026-05-01T11:06:17.321Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:06:17.321Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -6546,7 +6685,7 @@
           "pct": 1.68
         },
         {
-          "name": "QUALCOMM",
+          "name": "QUALCOMM, Inc.",
           "pct": 1.66
         },
         {
@@ -6562,7 +6701,7 @@
           "pct": 1.24
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:06:20.887Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 41.09,
         "Japan": 20.86,
@@ -6592,7 +6731,7 @@
         "Real Estate": 1.89,
         "Other": 2.96
       },
-      "breakdownsAsOf": "2026-05-01T11:06:20.887Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:06:20.887Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -6651,7 +6790,7 @@
           "pct": 1.56
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:06:24.504Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 48.34,
         "Japan": 9.95,
@@ -6681,7 +6820,7 @@
         "Real Estate": 1.1,
         "Other": 7.74
       },
-      "breakdownsAsOf": "2026-05-01T11:06:24.504Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:06:24.504Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -6740,7 +6879,7 @@
           "pct": 2
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:06:27.282Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 94.29,
         "Other": 5.71
@@ -6759,7 +6898,7 @@
         "Real Estate": 1.77,
         "Other": 3.19
       },
-      "breakdownsAsOf": "2026-05-01T11:06:27.282Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:06:27.282Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -6812,7 +6951,7 @@
           "pct": 1.57
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:06:30.025Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 93.01,
         "Ireland": 2.25,
@@ -6832,7 +6971,7 @@
         "Telecommunication": 3.7,
         "Other": 3.54
       },
-      "breakdownsAsOf": "2026-05-01T11:06:30.025Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:06:30.025Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -6886,7 +7025,7 @@
           "pct": 1.4
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:06:33.576Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 51.25,
         "Canada": 9.62,
@@ -6920,7 +7059,7 @@
         "Technology": 2.13,
         "Other": 2.4
       },
-      "breakdownsAsOf": "2026-05-01T11:06:33.576Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:06:33.576Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -6984,7 +7123,7 @@
           "pct": 3.35
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:06:37.191Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "Italy": 21.35,
         "Germany": 19.01,
@@ -7008,7 +7147,7 @@
         "Real Estate": 1.94,
         "Energy": 1.69
       },
-      "breakdownsAsOf": "2026-05-01T11:06:37.191Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:06:37.191Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -7060,7 +7199,7 @@
           "pct": 1.36
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:06:40.877Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 67.28,
         "Japan": 5.99,
@@ -7088,7 +7227,7 @@
         "Real Estate": 1.92,
         "Other": 3.8
       },
-      "breakdownsAsOf": "2026-05-01T11:06:40.877Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:06:40.877Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -7147,7 +7286,7 @@
           "pct": 2.11
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:06:44.541Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "Brazil": 22.95,
         "China": 17.88,
@@ -7179,7 +7318,7 @@
         "Consumer Staples": 0.95,
         "Other": 6.7
       },
-      "breakdownsAsOf": "2026-05-01T11:06:44.541Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:06:44.541Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -7243,7 +7382,7 @@
           "pct": 1
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:06:48.238Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "France": 19.36,
         "Germany": 17.72,
@@ -7272,7 +7411,7 @@
         "Consumer Staples": 2.93,
         "Other": 10.57
       },
-      "breakdownsAsOf": "2026-05-01T11:06:48.238Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:06:48.238Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -7325,7 +7464,7 @@
           "pct": 0.2
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:06:51.898Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 52.45,
         "Japan": 12.21,
@@ -7353,7 +7492,7 @@
         "Telecommunication": 2.34,
         "Other": 9.02
       },
-      "breakdownsAsOf": "2026-05-01T11:06:51.898Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:06:51.898Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -7414,7 +7553,7 @@
           "pct": 0.95
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:06:55.577Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 67.18,
         "Japan": 5.79,
@@ -7442,7 +7581,7 @@
         "Real Estate": 2.15,
         "Other": 3.72
       },
-      "breakdownsAsOf": "2026-05-01T11:06:55.577Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:06:55.577Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -7501,7 +7640,7 @@
           "pct": 2.05
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:06:58.270Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 65.52,
         "Japan": 11.46,
@@ -7520,7 +7659,7 @@
         "Consumer Discretionary": 0.78,
         "Other": 5.49
       },
-      "breakdownsAsOf": "2026-05-01T11:06:58.270Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:06:58.270Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -7580,7 +7719,7 @@
           "pct": 0.66
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:09:45.002Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "Taiwan": 23.2,
         "China": 21.12,
@@ -7611,7 +7750,7 @@
         "Utilities": 1.4,
         "Other": 5.9
       },
-      "breakdownsAsOf": "2026-05-01T11:09:45.002Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:09:45.002Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -7676,7 +7815,7 @@
           "pct": 2.76
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:09:51.404Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "France": 22.5,
         "Switzerland": 20.46,
@@ -7692,7 +7831,7 @@
         "Real Estate": 96.81,
         "Other": 3.19
       },
-      "breakdownsAsOf": "2026-05-01T11:09:51.404Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:09:51.404Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -7747,7 +7886,7 @@
           "pct": 1.93
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:10:04.525Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "Japan": 39.81,
         "Australia": 18.99,
@@ -7762,7 +7901,7 @@
         "Technology": 0.13,
         "Other": 2.35
       },
-      "breakdownsAsOf": "2026-05-01T11:10:04.525Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:10:04.525Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -7819,7 +7958,7 @@
           "pct": 0.33
         }
       ],
-      "topHoldingsAsOf": "2026-05-01T11:10:14.994Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "Taiwan": 21.14,
         "India": 15.01,
@@ -7851,7 +7990,7 @@
         "Energy": 2.35,
         "Other": 11.92
       },
-      "breakdownsAsOf": "2026-05-01T11:10:14.994Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:10:14.994Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -7882,7 +8021,7 @@
       "sector": {
         "Other": 100
       },
-      "breakdownsAsOf": "2026-05-01T11:13:13.807Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:13:13.807Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -7902,7 +8041,7 @@
       "sector": {
         "Other": 100
       },
-      "breakdownsAsOf": "2026-05-01T11:13:15.615Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:13:15.615Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -7931,7 +8070,7 @@
       "sector": {
         "Other": 100
       },
-      "breakdownsAsOf": "2026-05-01T11:13:18.276Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:13:18.276Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -7950,7 +8089,7 @@
       "sector": {
         "Other": 100
       },
-      "breakdownsAsOf": "2026-05-01T11:13:20.107Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:13:20.107Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -7969,7 +8108,7 @@
       "sector": {
         "Other": 100
       },
-      "breakdownsAsOf": "2026-05-01T11:13:22.031Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:13:22.031Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -7990,7 +8129,7 @@
       "sector": {
         "Other": 100
       },
-      "breakdownsAsOf": "2026-05-01T11:13:23.925Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:13:23.925Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -8008,7 +8147,7 @@
       "sector": {
         "Other": 100
       },
-      "breakdownsAsOf": "2026-05-01T11:13:25.868Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:13:25.868Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -8038,7 +8177,7 @@
       "sector": {
         "Other": 100
       },
-      "breakdownsAsOf": "2026-05-01T11:13:28.609Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:13:28.609Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -8060,7 +8199,7 @@
       "sector": {
         "Other": 100
       },
-      "breakdownsAsOf": "2026-05-01T11:13:30.467Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:13:30.467Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -8077,7 +8216,7 @@
       "sector": {
         "Other": 100
       },
-      "breakdownsAsOf": "2026-05-01T11:13:32.344Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:13:32.344Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -8120,7 +8259,7 @@
       "sector": {
         "Other": 100
       },
-      "breakdownsAsOf": "2026-05-01T11:13:35.063Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:13:35.063Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -8142,7 +8281,7 @@
       "sector": {
         "Other": 100
       },
-      "breakdownsAsOf": "2026-05-01T11:13:37.828Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:13:37.828Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -8190,7 +8329,7 @@
       "sector": {
         "Other": 100
       },
-      "breakdownsAsOf": "2026-05-01T11:13:40.476Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:13:40.476Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -8221,7 +8360,7 @@
       "sector": {
         "Other": 100
       },
-      "breakdownsAsOf": "2026-05-01T11:13:43.275Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "justetf",
       "_addedAt": "2026-05-01T11:13:43.275Z",
       "_addedVia": "scrape-popular-etfs-pool",
@@ -8271,7 +8410,7 @@
           "pct": 2.81
         }
       ],
-      "topHoldingsAsOf": "2026-05-07T06:22:21.779Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "France": 30.89,
         "Germany": 29.4,
@@ -8299,7 +8438,7 @@
         "EUR": 99.62,
         "Other": 0.38
       },
-      "breakdownsAsOf": "2026-05-07T06:22:21.779Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B53L3W79",
       "_addedAt": "2026-05-07T06:22:21.779Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -8348,7 +8487,7 @@
           "pct": 3.08
         }
       ],
-      "topHoldingsAsOf": "2026-05-07T06:23:17.996Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "Germany": 30.66,
         "France": 29.7,
@@ -8375,7 +8514,7 @@
         "EUR": 97.95,
         "Other": 2.05
       },
-      "breakdownsAsOf": "2026-05-07T06:23:17.996Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE000LXEN6X4",
       "_addedAt": "2026-05-07T06:23:17.996Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -8424,7 +8563,7 @@
           "pct": 1.57
         }
       ],
-      "topHoldingsAsOf": "2026-05-07T06:25:12.446Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 95.04,
         "Ireland": 1.43,
@@ -8449,7 +8588,7 @@
         "EUR": 1.43,
         "Other": 3.53
       },
-      "breakdownsAsOf": "2026-05-07T06:25:12.446Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BD4TXW66",
       "_addedAt": "2026-05-07T06:25:12.446Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -8498,7 +8637,7 @@
           "pct": 2.01
         }
       ],
-      "topHoldingsAsOf": "2026-05-07T06:29:05.171Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "Japan": 97.47,
         "Other": 2.53
@@ -8521,7 +8660,7 @@
         "JPY": 97.47,
         "Other": 2.53
       },
-      "breakdownsAsOf": "2026-05-07T06:29:05.171Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B8J37J31",
       "_addedAt": "2026-05-07T06:29:05.171Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -8570,7 +8709,7 @@
           "pct": 3.38
         }
       ],
-      "topHoldingsAsOf": "2026-05-07T06:32:31.836Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 68.33,
         "Switzerland": 5.76,
@@ -8593,7 +8732,7 @@
         "CAD": 5.41,
         "Other": 20.5
       },
-      "breakdownsAsOf": "2026-05-07T06:32:31.836Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE000GA3D489",
       "_addedAt": "2026-05-07T06:32:31.836Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -8642,7 +8781,7 @@
           "pct": 0.73
         }
       ],
-      "topHoldingsAsOf": "2026-05-07T08:23:42.736Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "China": 27.84,
         "Taiwan": 24.67,
@@ -8685,7 +8824,7 @@
         "THB": 1.22,
         "Other": 14.58
       },
-      "breakdownsAsOf": "2026-05-07T08:23:42.736Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00B3VVMM84",
       "_addedAt": "2026-05-07T08:23:42.736Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -8734,7 +8873,7 @@
           "pct": 0.89
         }
       ],
-      "topHoldingsAsOf": "2026-05-08T05:39:02.567Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 63.62,
         "Japan": 6.37,
@@ -8774,7 +8913,7 @@
         "AUD": 1.8,
         "Other": 10.87
       },
-      "breakdownsAsOf": "2026-05-08T05:39:02.567Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BKX55T58",
       "_addedAt": "2026-05-08T05:39:02.567Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -8823,7 +8962,7 @@
           "pct": 1.25
         }
       ],
-      "topHoldingsAsOf": "2026-05-08T05:43:29.011Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United Kingdom": 19.91,
         "France": 13.12,
@@ -8862,7 +9001,7 @@
         "NOK": 1.01,
         "Other": 13.19
       },
-      "breakdownsAsOf": "2026-05-08T05:43:29.011Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BK5BQX27",
       "_addedAt": "2026-05-08T05:43:29.011Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -8911,7 +9050,7 @@
           "pct": 1.45
         }
       ],
-      "topHoldingsAsOf": "2026-05-08T06:00:16.693Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "France": 17.19,
         "Germany": 17.19,
@@ -8948,7 +9087,7 @@
         "NOK": 1.33,
         "Other": 12.89
       },
-      "breakdownsAsOf": "2026-05-08T06:00:16.693Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BKX55S42",
       "_addedAt": "2026-05-08T06:00:16.693Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -8997,7 +9136,7 @@
           "pct": 3.9
         }
       ],
-      "topHoldingsAsOf": "2026-05-10T09:51:47.693Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "Switzerland": 81.18,
         "Other": 18.82
@@ -9017,7 +9156,7 @@
         "CHF": 81.18,
         "Other": 18.82
       },
-      "breakdownsAsOf": "2026-05-10T09:51:47.693Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=CH0032912732",
       "_addedAt": "2026-05-10T09:51:47.693Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -9066,7 +9205,7 @@
           "pct": 0.98
         }
       ],
-      "topHoldingsAsOf": "2026-05-10T09:55:56.755Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United States": 67.27,
         "Japan": 5.77,
@@ -9104,7 +9243,7 @@
         "AUD": 1.75,
         "Other": 8.59
       },
-      "breakdownsAsOf": "2026-05-10T09:55:56.755Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BJ0KDQ92",
       "_addedAt": "2026-05-10T09:55:56.755Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -9153,7 +9292,7 @@
           "pct": 1.75
         }
       ],
-      "topHoldingsAsOf": "2026-05-10T09:58:51.926Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United Kingdom": 15.54,
         "France": 13.8,
@@ -9193,7 +9332,7 @@
         "DKK": 1.12,
         "Other": 9.16
       },
-      "breakdownsAsOf": "2026-05-10T09:58:51.926Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE00BZ0PKV06",
       "_addedAt": "2026-05-10T09:58:51.926Z",
       "_addedVia": "admin/lookthrough-pool"
@@ -9242,7 +9381,7 @@
           "pct": 2.69
         }
       ],
-      "topHoldingsAsOf": "2026-05-10T10:51:59.461Z",
+      "topHoldingsAsOf": "2026-05-11T15:11:15.851Z",
       "geo": {
         "United Kingdom": 83.62,
         "Switzerland": 2.76,
@@ -9269,7 +9408,7 @@
         "EUR": 1.13,
         "Other": 12.49
       },
-      "breakdownsAsOf": "2026-05-10T10:51:59.461Z",
+      "breakdownsAsOf": "2026-05-11T15:11:15.851Z",
       "_source": "https://www.justetf.com/en/etf-profile.html?isin=IE0005042456",
       "_addedAt": "2026-05-10T10:51:59.461Z",
       "_addedVia": "admin/lookthrough-pool"
