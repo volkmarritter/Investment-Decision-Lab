@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-05 (explain-import-lookthrough-scrape-on-import — Task #259)
+Last updated: 2026-05 (explain-import-lookthrough-pending-spinner — Task #262)
 
 ---
 
@@ -626,6 +626,13 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-05 (explain-import-lookthrough-pending-spinner — Task #262)
+- **Show a small inline spinner on imported off-catalog rows while their look-through scrape is still in flight.** Task #259 made the import path fan out background `lookthrough-scrape` calls for off-catalog ISINs (`found-unassigned`, `off-universe`), but the import dialog closes immediately and the user only sees the eventual success / failure toast. For multi-second scrapes (justETF latency, rate-limit waits) the rows looked "done" while their Geo / Sector / Top-Holdings cards were still empty — no visible cue that data was on its way.
+- **Fix.** New component-local state `pendingScrapeIsins: ReadonlySet<string>` in `ExplainPortfolio.tsx`. `replaceWithImportedRows` captures the list returned by `triggerImportLookthroughScrapes(...)` and seeds the set; the per-ISIN `onResult` callback removes each entry as the scrape resolves (success OR failure) before delegating to `handleManualScrapeResult`. `PositionRow` gains an optional `isLookthroughScrapePending` prop, threaded through all three call sites (catalog tree rows, manual-entries pseudo-group, legacy unassigned tail) by checking `pendingScrapeIsins.has(position.isin)`. When true, an unobtrusive `<Loader2 />` spinner + "Loading look-through… / Lade Look-Through…" line renders right above the manual-row `EtfInfoPreview` block (`data-testid="explain-row-lookthrough-pending-${rowIndex}"`, `role="status"`, `aria-live="polite"`).
+- **Catalog rows are unaffected** — the spinner is gated on `isManual` so curated rows (which always carry bundled look-through) never render it. The set is component-local and resets on full reload, matching the lifetime of the import action.
+- **i18n.** New key `explain.row.lookthroughPending` in both DE ("Lade Look-Through…") and EN ("Loading look-through…").
+- **Tests.** Existing `tests/explainImportPortfolio.test.ts` still pins the fan-out helper; the spinner is purely presentational and gated on the same set this helper returns. No engine / catalog / persistence behaviour changes.
 
 ### 2026-05 (explain-import-lookthrough-scrape-on-import — Task #259)
 - **Trigger look-through scrapes when a portfolio is imported.** Operator pasted a portfolio that contained off-catalog ISINs (`found-unassigned` and `off-universe`) into the Explain → "Import portfolio" dialog and watched the rows arrive in the editor — but the Geo / Sector / Top-Holdings cards stayed empty for those positions. Cause: the on-demand `GET /api/lookthrough-scrape/:isin` only fired from `setManualIsin` (the row-level ISIN editor), never from the import path. The operator had to delete the row and retype the same ISIN to populate the charts.

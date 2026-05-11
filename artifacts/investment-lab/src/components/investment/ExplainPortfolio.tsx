@@ -15,6 +15,7 @@ import {
   ChevronRight,
   Upload,
   ClipboardCopy,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -485,6 +486,11 @@ interface PositionRowProps {
   detailsEtf: ETFImplementation | null;
   onOpenDetails: (etf: ETFImplementation) => void;
   rowIndex: number;
+  // Task #262 — true while an import-triggered look-through scrape for
+  // this off-catalog row's ISIN is still in flight. Shows an inline
+  // spinner near the manualMeta block so the user has a visible cue
+  // that Geo / Sector / Top-Holdings will populate shortly.
+  isLookthroughScrapePending?: boolean;
 }
 
 // Task #174 — Cash is no longer a manual-entry asset class option:
@@ -526,6 +532,7 @@ function PositionRow({
   detailsEtf,
   onOpenDetails,
   rowIndex,
+  isLookthroughScrapePending = false,
 }: PositionRowProps) {
   const { t } = useT();
   const isManual = !!position.manualMeta;
@@ -717,6 +724,17 @@ function PositionRow({
         }
         return null;
       })()}
+      {isManual && isLookthroughScrapePending && (
+        <div
+          className="flex items-center gap-1.5 pl-1 text-[11px] text-muted-foreground"
+          data-testid={`explain-row-lookthrough-pending-${rowIndex}`}
+          role="status"
+          aria-live="polite"
+        >
+          <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+          <span>{t("explain.row.lookthroughPending")}</span>
+        </div>
+      )}
       {isManual && position.manualMeta && (
         <EtfInfoPreview
           isin={position.isin}
@@ -771,6 +789,15 @@ export function ExplainPortfolio() {
   // is enough). Cleared when the operator manually overrides the
   // auto-fill via `setManualMetaField`.
   const autoClassifiedIsinsRef = useRef<Set<string>>(new Set());
+  // Task #262 — set of off-catalog ISINs whose import-triggered
+  // look-through scrape is still in flight. Seeded by
+  // `replaceWithImportedRows` from the list returned by
+  // `triggerImportLookthroughScrapes`; entries are removed once each
+  // scrape resolves (success OR failure) so the inline spinner on the
+  // matching PositionRow disappears either way.
+  const [pendingScrapeIsins, setPendingScrapeIsins] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
 
   function toggleGroup(assetClass: string, smartDefault: boolean) {
     setExpandedGroups((prev) => {
@@ -1221,14 +1248,32 @@ export function ExplainPortfolio() {
     // Stammdaten auto-classifier, so the operator must always see the
     // failure feedback, even for an ISIN that happened to be auto-
     // classified earlier in the same session.
-    triggerImportLookthroughScrapes(rows, {
+    // Task #262 — seed the per-row pending-spinner set with the ISINs
+    // we just fanned out scrapes for, and clear each entry as its
+    // result lands (success OR failure) so the inline spinner on the
+    // matching off-catalog row disappears either way.
+    const triggered = triggerImportLookthroughScrapes(rows, {
       profileFor: lookthroughProfileFor,
-      onResult: (isin, result) =>
+      onResult: (isin, result) => {
+        setPendingScrapeIsins((prev) => {
+          if (!prev.has(isin)) return prev;
+          const next = new Set(prev);
+          next.delete(isin);
+          return next;
+        });
         handleManualScrapeResult(isin, result, {
           deferToast: false,
           allowMute: false,
-        }),
+        });
+      },
     });
+    if (triggered.length > 0) {
+      setPendingScrapeIsins((prev) => {
+        const next = new Set(prev);
+        for (const isin of triggered) next.add(isin);
+        return next;
+      });
+    }
     toast.success(
       t("explain.import.toast.summary", {
         total: rows.length,
@@ -2056,6 +2101,13 @@ export function ExplainPortfolio() {
                                             : null
                                         }
                                         onOpenDetails={setDetailsEtf}
+                                        isLookthroughScrapePending={
+                                          state.positions[i].isin
+                                            ? pendingScrapeIsins.has(
+                                                state.positions[i].isin,
+                                              )
+                                            : false
+                                        }
                                       />
                                     ))}
                                   </div>
@@ -2114,6 +2166,11 @@ export function ExplainPortfolio() {
                             : null
                         }
                         onOpenDetails={setDetailsEtf}
+                        isLookthroughScrapePending={
+                          state.positions[i].isin
+                            ? pendingScrapeIsins.has(state.positions[i].isin)
+                            : false
+                        }
                       />
                     ))}
                   </div>
@@ -2165,6 +2222,11 @@ export function ExplainPortfolio() {
                             : null
                         }
                         onOpenDetails={setDetailsEtf}
+                        isLookthroughScrapePending={
+                          state.positions[i].isin
+                            ? pendingScrapeIsins.has(state.positions[i].isin)
+                            : false
+                        }
                       />
                     ))}
                   </div>

@@ -399,6 +399,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "explain.import.toast.sumWarning": "Weights total {sum}% — use Normalize to scale to 100%.",
     "explain.row.badge.foundUnassigned": "ETF found, but not assigned to a bucket",
     "explain.row.badge.offUniverse": "Not part of the ETF universe",
+    "explain.row.lookthroughPending": "Loading look-through…",
 
     // Saved Explain Portfolios (separate namespace from Build's scenarios)
     "explain.saved.btn.save": "Save Portfolio",
@@ -1104,6 +1105,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "explain.import.toast.sumWarning": "Summe der Gewichte: {sum}% — «Auf 100 % normalisieren» nutzen.",
     "explain.row.badge.foundUnassigned": "ETF gefunden, aber keinem Bucket zugeordnet",
     "explain.row.badge.offUniverse": "Nicht Teil des ETF-Universums",
+    "explain.row.lookthroughPending": "Lade Look-Through…",
 
     // Saved Explain Portfolios (separater Namespace, getrennt von Build)
     "explain.saved.btn.save": "Portfolio Speichern",
