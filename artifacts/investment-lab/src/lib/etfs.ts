@@ -263,7 +263,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     listings: { LSE: { ticker: "IMEU" }, XETRA: { ticker: "SXR7" }, SIX: { ticker: "CEU" }, Euronext: { ticker: "IMAE" } },
     defaultExchange: "XETRA",
   }),
-                "CH0237935652": I({
+  "CH0237935652": I({
     name: "iShares Core SPI",
     isin: "CH0237935652",
     terBps: 10,
@@ -1589,7 +1589,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 392,
     inceptionDate: "2017-03-20",
   }),
-          "IE00BMW42181": I({
+  "IE00BMW42181": I({
     name: "iShares MSCI Europe Health Care Sector UCITS ETF EUR (Acc)",
     isin: "IE00BMW42181",
     terBps: 18,
@@ -1710,7 +1710,7 @@ const INSTRUMENTS: Record<string, InstrumentRecord> = {
     aumMillionsEUR: 1381,
     inceptionDate: "2020-12-09",
   }),
-                          "IE00BJ5JNZ06": I({
+  "IE00BJ5JNZ06": I({
     name: "iShares MSCI World Health Care Sector Advanced UCITS ETF USD (Dist)",
     isin: "IE00BJ5JNZ06",
     terBps: 18,

@@ -36,13 +36,25 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ETFS_TS = resolve(__dirname, "../src/lib/etfs.ts");
 const src = readFileSync(ETFS_TS, "utf8");
 
-// Line-anchored counter — exactly the canonical top-level shape that
-// admin mutators (`injectEntry`, `setBucketDefault`, etc.) and the
-// backfill scripts target. NOT to be confused with `ROW_RE` itself,
-// which is intentionally unanchored so it can be applied with `g`
-// over the whole file.
+// Indent-AGNOSTIC enumerator — matches an INSTRUMENTS row opener at
+// ANY leading-whitespace level (`^ +`, not `^ {2}`). This is the
+// crucial difference from the regex used inside ROW_RE itself: by
+// counting expected rows without committing to a specific indent
+// width, we can detect rows that have drifted away from the
+// canonical 2-space layout. A drifted row (opener at 4 or 6 spaces,
+// closer at 2) parses as TS just fine but is silently skipped by
+// ROW_RE because of its `\2` opener/closer-symmetry backreference,
+// so the previous version of this test (which itself anchored on
+// 2 spaces) had the same blind spot as the production regex and
+// missed the 8-row drift fixed in the 2026-05 follow-up to #275.
+//
+// `\s*I\(\{` keeps the match scoped to INSTRUMENTS rows — BUCKETS
+// values are `BucketAssignment` object literals, not `I({...})`
+// invocations, so they cannot collide with this enumerator.
 const TOP_LEVEL_ROW_LINE_RE =
-  /^ {2}"[A-Z]{2}[A-Z0-9]{9}\d":\s*I\(\{/gm;
+  /^ +"[A-Z]{2}[A-Z0-9]{9}\d":\s*I\(\{/gm;
+
+const CANONICAL_INDENT = 2;
 
 describe("backfill-comments ROW_RE — pinning", () => {
   it("matches every canonical 2-space INSTRUMENTS row", () => {
@@ -62,6 +74,34 @@ describe("backfill-comments ROW_RE — pinning", () => {
         `Re-indent the offending row to the canonical "  \\"ISIN\\": I({ ... })," shape.`,
     ).toEqual([]);
     expect(expectedIsins.size).toBeGreaterThan(0);
+  });
+
+  it("rejects any INSTRUMENTS row whose opener has drifted away from the canonical 2-space indent", () => {
+    // Targeted drift detector — the failing message names the offending
+    // ISIN(s) and indent width so the operator can re-indent in seconds
+    // instead of bisecting the file. This is the guardrail for Task
+    // #275's follow-up: a row written with 4/6/8-space opener but
+    // 2-space closer parses as TS and renders correctly in the app, so
+    // none of the engine/UI tests catch it — but the nightly backfill
+    // step silently skips it because ROW_RE's `\2` backreference
+    // requires opener/closer indent symmetry, meaning its
+    // comment/commentDe never refresh again. Surface it here at CI
+    // time, before the merge, instead of in the next monthly snapshot.
+    const drifted: Array<{ isin: string; indent: number }> = [];
+    for (const m of src.matchAll(TOP_LEVEL_ROW_LINE_RE)) {
+      const indent = m[0].match(/^ +/)![0].length;
+      if (indent !== CANONICAL_INDENT) {
+        const isin = m[0].match(/"([A-Z]{2}[A-Z0-9]{9}\d)"/)![1];
+        drifted.push({ isin, indent });
+      }
+    }
+    expect(
+      drifted,
+      `Found ${drifted.length} INSTRUMENTS row(s) with non-canonical indent in src/lib/etfs.ts:\n` +
+        drifted.map((d) => `  - ${d.isin} (opener at ${d.indent} spaces, expected ${CANONICAL_INDENT})`).join("\n") +
+        `\nFix: open src/lib/etfs.ts and dedent each listed row's "  \\"<ISIN>\\": I({" line ` +
+        `to exactly ${CANONICAL_INDENT} leading spaces. The closing "}),"  must already be at ${CANONICAL_INDENT} spaces.`,
+    ).toEqual([]);
   });
 
   it("matches the specific ISINs that triggered Task #253", () => {
