@@ -89,7 +89,6 @@ function buildPromptEn(input: PortfolioInput): string {
   const etfRange = etfCountRange(input);
 
   const eligibleSatellites: string[] = [];
-  if (input.includeCommodities) eligibleSatellites.push("- Commodities / Precious Metals");
   if (input.includeListedRealEstate) eligibleSatellites.push("- Listed Real Estate (REITs)");
   if (input.includeCrypto) eligibleSatellites.push("- Crypto Assets");
   const satellitesBlock = eligibleSatellites.length > 0
@@ -104,23 +103,26 @@ function buildPromptEn(input: PortfolioInput): string {
   const thematicEquityLine = input.thematicPreference !== "None"
     ? `\n- Thematic equity tilt within the equity sleeve: ${input.thematicPreference} (${THEME_DESCRIPTION.en[input.thematicPreference]}) — small theme-tilted slice carved out of equity (counts toward the equity allocation, not as a satellite)`
     : "";
+  const commoditiesCoreLine = input.includeCommodities
+    ? "\n- Commodities / Precious Metals"
+    : "";
   const coreLines = [
     "- Cash / Money Market",
     "- Bonds",
     equityLine + thematicEquityLine,
-  ].join("\n");
+  ].join("\n") + commoditiesCoreLine;
 
   const hedgingLine = input.includeCurrencyHedging
-    ? "11. State clearly whether currency hedging should be used, where it should be applied, and why."
-    : `11. The investor does NOT want broad currency hedging on equity positions. Only consider hedging where it is structurally important (e.g. foreign-currency bond exposures in the ${input.baseCurrency} base portfolio). Justify any hedging recommendation.`;
-
-  const syntheticLine = input.includeSyntheticETFs
-    ? "13. Include synthetic ETFs where they provide structural advantages, particularly in terms of market efficiency and reduced withholding tax leakage (e.g., for US equity exposure). Ensure transparency and robustness. Reflect and explain their use clearly in section C) Summary of Key Design Decisions (e.g., where they are applied and why)."
-    : "13. Use physical replication only. Do NOT include synthetic / swap-based ETFs even if they would be structurally advantageous; the investor has opted out of synthetic replication.";
+    ? "7. State clearly whether currency hedging should be used, where it should be applied, and why."
+    : `7. The investor does NOT want broad currency hedging on equity positions. Only consider hedging where it is structurally important (e.g. foreign-currency bond exposures in the ${input.baseCurrency} base portfolio). Justify any hedging recommendation.`;
 
   const lookThroughLine = input.lookThroughView
-    ? "12. Where relevant, perform a look-through of the selected ETFs to assess underlying exposures, particularly when broad market indices (e.g. global equity indices) are used for asset allocation. If relevant, include a look-through asset allocation overview after Table 1 to reflect underlying exposures."
-    : "12. A detailed look-through is not required. A short note on any obvious overlap between selected ETFs is sufficient.";
+    ? "8. Where relevant, perform a look-through of the selected ETFs to assess underlying exposures, particularly when broad market indices (e.g. global equity indices) are used for asset allocation. If relevant, include a look-through asset allocation overview after Table 1 to reflect underlying exposures."
+    : "8. A detailed look-through is not required. A short note on any obvious overlap between selected ETFs is sufficient.";
+
+  const syntheticLine = input.includeSyntheticETFs
+    ? "9. Include synthetic ETFs where they provide structural advantages, particularly in terms of market efficiency and reduced withholding tax leakage (e.g., for US equity exposure). Ensure transparency and robustness. Reflect and explain their use clearly in section C) Summary of Key Design Decisions (e.g., where they are applied and why)."
+    : "9. Use physical replication only. Do NOT include synthetic / swap-based ETFs even if they would be structurally advantageous; the investor has opted out of synthetic replication.";
 
   return `Role:
 You act as an independent CFA-level portfolio strategist.
@@ -157,21 +159,44 @@ Requirements and constraints:
 3. ${exchangeLine}
 4. Prefer liquid, low-cost, broad ETFs. Prefer UCITS-compliant ETFs where they are available and consistent with the selected exchange. Avoid niche products unless clearly justified.
 5. Use as few ETFs as practical within the target range of ${etfRange} positions in total without sacrificing diversification or implementation robustness.
-6. Prioritize cost efficiency, diversification, and practical implementability.
-7. Do not make tactical market forecasts, market-timing calls, or short-term return predictions.
-8. Decide using rules and portfolio design principles such as diversification, risk control, costs, and implementability.
-9. Make sensible, explicit, and minimal standard assumptions if information is missing, and flag uncertainty transparently instead of pretending to be precise.
-10. Address ${homeBias} home bias explicitly and explain whether it is warranted or should be limited.
+6. Address ${homeBias} home bias explicitly and explain whether it is warranted or should be limited.
 ${hedgingLine}
 ${lookThroughLine}
 ${syntheticLine}
-14. Ensure the portfolio is well diversified across asset classes and risk drivers, and avoid concentration in a single source of risk.
-15. Write the full answer in clear English.
+10. Ensure the portfolio is well diversified across asset classes and risk drivers, and avoid concentration in a single source of risk.
+11. Critical ETF validation requirement (MANDATORY):
+Before finalising the answer, verify every ETF/ETP identifier against reliable current sources, for example:
+- official issuer factsheets,
+- SIX Swiss Exchange,
+- justETF,
+- Deutsche Boerse,
+- issuer product pages.
+Never rely purely on model memory for:
+- ISINs,
+- tickers,
+- exchange listings,
+- ETF names,
+- share classes.
+For every instrument perform:
+a) ISIN <-> ETF name validation
+b) Ticker <-> exchange validation
+c) Asset class <-> ETF consistency validation
+d) Replication method validation
+e) UCITS status validation where applicable
+If an identifier cannot be verified with high confidence:
+- explicitly state uncertainty,
+- do not guess,
+- and propose a verified alternative.
+12. Final consistency checks (MANDATORY):
+- all ISINs are unique
+- all ETFs are verified as currently active and tradable to the best of available sources
+- exchange preference constraint is respected or exceptions explicitly explained
+13. Write the full answer in clear English.
 
 Output format:
 A) Table 1: Target allocation
-Columns: Group: Cash, Bonds, Equities, Satellites | Asset class | Target weight | Purpose / role in the portfolio (1-2 sentences).
-After Table 1, add a short "Percentage allocation per group" overview that sums the target weights by group: Cash, Bonds, Equities, and Satellites (commodities, listed real estate, and crypto belong to the Satellites group; thematic equity belongs to the Equities group, as it is a tilt within the equity sleeve). Ensure the group totals reconcile with the target allocation and add up to 100%.
+Columns: Group: Cash, Bonds, Equities, Commodities, Satellites | Asset class | Target weight | Purpose / role in the portfolio (1-2 sentences).
+After Table 1, add a short "Percentage allocation per group" overview that sums the target weights by group: Cash, Bonds, Equities, Commodities, and Satellites. Ensure the group totals reconcile with the target allocation and add up to 100%.
 
 B) Table 2: ETF implementation (for each position)
 Columns: Asset class | Target weight | ETF name | ISIN | Ticker (exchange) | TER | Domicile | Replication | Distribution / accumulation | Share class currency | Short comment (1 sentence on fit, liquidity, or tracking quality).
@@ -190,6 +215,14 @@ G) Rough cost estimate expressed as weighted TER for the full portfolio.
 H) Portfolio rationale (brief)
 Provide a short explanation of how diversification improves the portfolio's overall risk-return profile.
 
+I) ETF implementation import file for the Investment Decision Lab "Explain my Portfolio" tab
+Provide a plain-text import block (no table, no markdown fences) using exactly the following per-line format, one position per line:
+ISIN;weight
+- Use the ISIN exactly as in Table 2.
+- weight is the target weight as a plain number without the percent sign and without a thousands separator (use a dot as the decimal separator, e.g. 32.5).
+- One position per line; no header row, no trailing commentary inside the block.
+- The weights across all lines must sum to 100.
+
 Closing instruction:
 Add an investment disclaimer at the end of the answer according to recognized best-practice standards.
 `;
@@ -206,7 +239,6 @@ function buildPromptDe(input: PortfolioInput): string {
   const risk = RISK_DE[input.riskAppetite];
 
   const eligibleSatellites: string[] = [];
-  if (input.includeCommodities) eligibleSatellites.push("- Rohstoffe / Edelmetalle");
   if (input.includeListedRealEstate) eligibleSatellites.push("- Boersennotierte Immobilien (REITs)");
   if (input.includeCrypto) eligibleSatellites.push("- Krypto-Assets");
   const satellitesBlock = eligibleSatellites.length > 0
@@ -221,23 +253,26 @@ function buildPromptDe(input: PortfolioInput): string {
   const thematicEquityLine = input.thematicPreference !== "None"
     ? `\n- Thematischer Aktien-Tilt innerhalb des Aktien-Sleeves: ${input.thematicPreference} (${THEME_DESCRIPTION.de[input.thematicPreference]}) — kleiner themenorientierter Anteil aus dem Aktien-Sleeve (zaehlt zur Aktienquote, nicht zu den Satelliten)`
     : "";
+  const commoditiesCoreLine = input.includeCommodities
+    ? "\n- Rohstoffe / Edelmetalle"
+    : "";
   const coreLines = [
     "- Cash / Geldmarkt",
     "- Anleihen",
     equityLine + thematicEquityLine,
-  ].join("\n");
+  ].join("\n") + commoditiesCoreLine;
 
   const hedgingLine = input.includeCurrencyHedging
-    ? "11. Erlaeutere klar, ob Waehrungsabsicherung eingesetzt werden soll, wo sie angewendet werden soll und warum."
-    : `11. Der Anleger wuenscht KEINE breite Waehrungsabsicherung auf Aktienpositionen. Beruecksichtige Hedging nur dort, wo es strukturell wichtig ist (z. B. Fremdwaehrungs-Anleihen im ${input.baseCurrency}-Basisportfolio). Begruende jede Hedging-Empfehlung.`;
-
-  const syntheticLine = input.includeSyntheticETFs
-    ? "13. Setze synthetische ETFs ein, wo sie strukturelle Vorteile bieten, insbesondere hinsichtlich Markteffizienz und reduzierter Quellensteuer-Leakage (z. B. bei US-Aktien-Exposure). Achte auf Transparenz und Robustheit. Erlaeutere ihren Einsatz klar in Abschnitt C) Zusammenfassung der wesentlichen Designentscheidungen (wo sie eingesetzt werden und warum)."
-    : "13. Verwende ausschliesslich physische Replikation. Setze KEINE synthetischen / Swap-basierten ETFs ein, auch wenn sie strukturelle Vorteile haetten; der Anleger hat sich gegen synthetische Replikation entschieden.";
+    ? "7. Erlaeutere klar, ob Waehrungsabsicherung eingesetzt werden soll, wo sie angewendet werden soll und warum."
+    : `7. Der Anleger wuenscht KEINE breite Waehrungsabsicherung auf Aktienpositionen. Beruecksichtige Hedging nur dort, wo es strukturell wichtig ist (z. B. Fremdwaehrungs-Anleihen im ${input.baseCurrency}-Basisportfolio). Begruende jede Hedging-Empfehlung.`;
 
   const lookThroughLine = input.lookThroughView
-    ? "12. Fuehre, wo sinnvoll, eine Look-Through-Analyse der ausgewaehlten ETFs durch, um die zugrundeliegenden Exposures zu beurteilen, insbesondere wenn breite Marktindizes (z. B. globale Aktienindizes) fuer die Allokation genutzt werden. Falls relevant, ergaenze nach Tabelle 1 eine Look-Through-Allokationsuebersicht."
-    : "12. Eine detaillierte Look-Through-Analyse ist nicht erforderlich. Ein kurzer Hinweis auf offensichtliche Ueberschneidungen zwischen den gewaehlten ETFs reicht aus.";
+    ? "8. Fuehre, wo sinnvoll, eine Look-Through-Analyse der ausgewaehlten ETFs durch, um die zugrundeliegenden Exposures zu beurteilen, insbesondere wenn breite Marktindizes (z. B. globale Aktienindizes) fuer die Allokation genutzt werden. Falls relevant, ergaenze nach Tabelle 1 eine Look-Through-Allokationsuebersicht."
+    : "8. Eine detaillierte Look-Through-Analyse ist nicht erforderlich. Ein kurzer Hinweis auf offensichtliche Ueberschneidungen zwischen den gewaehlten ETFs reicht aus.";
+
+  const syntheticLine = input.includeSyntheticETFs
+    ? "9. Setze synthetische ETFs ein, wo sie strukturelle Vorteile bieten, insbesondere hinsichtlich Markteffizienz und reduzierter Quellensteuer-Leakage (z. B. bei US-Aktien-Exposure). Achte auf Transparenz und Robustheit. Erlaeutere ihren Einsatz klar in Abschnitt C) Zusammenfassung der wesentlichen Designentscheidungen (wo sie eingesetzt werden und warum)."
+    : "9. Verwende ausschliesslich physische Replikation. Setze KEINE synthetischen / Swap-basierten ETFs ein, auch wenn sie strukturelle Vorteile haetten; der Anleger hat sich gegen synthetische Replikation entschieden.";
 
   return `Rolle:
 Du agierst als unabhaengiger Portfolio-Stratege auf CFA-Niveau.
@@ -274,21 +309,44 @@ Vorgaben und Beschraenkungen:
 3. ${exchangeLine}
 4. Bevorzuge liquide, kostenguenstige, breit aufgestellte ETFs. Bevorzuge UCITS-konforme ETFs, sofern sie verfuegbar und mit der gewaehlten Boerse vereinbar sind. Vermeide Nischenprodukte, sofern nicht klar begruendet.
 5. Verwende so wenige ETFs wie praktikabel innerhalb der Zielspanne von ${etfRange} Positionen insgesamt, ohne Diversifikation oder Umsetzungsstabilitaet zu opfern.
-6. Priorisiere Kosteneffizienz, Diversifikation und praktische Umsetzbarkeit.
-7. Triff keine taktischen Marktprognosen, Market-Timing-Aussagen oder kurzfristigen Renditeprognosen.
-8. Entscheide auf Basis von Regeln und Portfolio-Design-Prinzipien wie Diversifikation, Risikokontrolle, Kosten und Umsetzbarkeit.
-9. Treffe sinnvolle, explizite und minimale Standardannahmen, falls Informationen fehlen, und kennzeichne Unsicherheit transparent, statt eine Praezision vorzutaeuschen.
-10. Adressiere den ${homeBias}Home-Bias explizit und erlaeutere, ob er gerechtfertigt oder begrenzt werden sollte.
+6. Adressiere den ${homeBias}Home-Bias explizit und erlaeutere, ob er gerechtfertigt oder begrenzt werden sollte.
 ${hedgingLine}
 ${lookThroughLine}
 ${syntheticLine}
-14. Stelle sicher, dass das Portfolio ueber Anlageklassen und Risikotreiber hinweg gut diversifiziert ist und keine Konzentration in einer einzelnen Risikoquelle aufweist.
-15. Verfasse die gesamte Antwort in klarem Deutsch.
+10. Stelle sicher, dass das Portfolio ueber Anlageklassen und Risikotreiber hinweg gut diversifiziert ist und keine Konzentration in einer einzelnen Risikoquelle aufweist.
+11. Kritische ETF-Validierungsanforderung (VERPFLICHTEND):
+Verifiziere vor Fertigstellung der Antwort jede ETF-/ETP-Kennung gegen verlaessliche, aktuelle Quellen, zum Beispiel:
+- offizielle Emittenten-Factsheets,
+- SIX Swiss Exchange,
+- justETF,
+- Deutsche Boerse,
+- Produktseiten der Emittenten.
+Verlasse dich niemals ausschliesslich auf das Modellgedaechtnis fuer:
+- ISINs,
+- Ticker,
+- Boersennotierungen,
+- ETF-Namen,
+- Anteilsklassen.
+Fuehre fuer jedes Instrument durch:
+a) ISIN <-> ETF-Name-Validierung
+b) Ticker <-> Boersen-Validierung
+c) Anlageklasse <-> ETF-Konsistenzpruefung
+d) Validierung der Replikationsmethode
+e) UCITS-Status-Validierung, soweit anwendbar
+Falls eine Kennung nicht mit hoher Sicherheit verifiziert werden kann:
+- benenne die Unsicherheit explizit,
+- rate nicht,
+- und schlage eine verifizierte Alternative vor.
+12. Abschliessende Konsistenzpruefungen (VERPFLICHTEND):
+- alle ISINs sind eindeutig
+- alle ETFs sind nach bestem verfuegbarem Wissen aktiv und handelbar
+- die Boersenpraeferenz wird respektiert oder Ausnahmen werden ausdruecklich erlaeutert
+13. Verfasse die gesamte Antwort in klarem Deutsch.
 
 Ausgabeformat:
 A) Tabelle 1: Zielallokation
-Spalten: Gruppe: Cash, Anleihen, Aktien, Satelliten | Anlageklasse | Zielgewicht | Zweck / Rolle im Portfolio (1-2 Saetze).
-Ergaenze nach Tabelle 1 eine kurze Uebersicht "Prozentuale Allokation je Gruppe", die die Zielgewichte je Gruppe summiert: Cash, Anleihen, Aktien und Satelliten (Rohstoffe, boersennotierte Immobilien und Krypto gehoeren zur Satelliten-Gruppe; thematische Aktien gehoeren zur Aktien-Gruppe, da es sich um einen Tilt innerhalb des Aktien-Sleeves handelt). Stelle sicher, dass die Gruppensummen mit der Zielallokation uebereinstimmen und in Summe 100% ergeben.
+Spalten: Gruppe: Cash, Anleihen, Aktien, Rohstoffe, Satelliten | Anlageklasse | Zielgewicht | Zweck / Rolle im Portfolio (1-2 Saetze).
+Ergaenze nach Tabelle 1 eine kurze Uebersicht "Prozentuale Allokation je Gruppe", die die Zielgewichte je Gruppe summiert: Cash, Anleihen, Aktien, Rohstoffe und Satelliten. Stelle sicher, dass die Gruppensummen mit der Zielallokation uebereinstimmen und in Summe 100% ergeben.
 
 B) Tabelle 2: ETF-Umsetzung (je Position)
 Spalten: Anlageklasse | Zielgewicht | ETF-Name | ISIN | Ticker (Boerse) | TER | Domizil | Replikation | Ausschuettung / Thesaurierung | Anteilsklassen-Waehrung | Kurzkommentar (1 Satz zu Eignung, Liquiditaet oder Tracking-Qualitaet).
@@ -306,6 +364,14 @@ G) Grobe Kostenschaetzung als gewichteter TER fuer das Gesamtportfolio.
 
 H) Portfolio-Rationale (kurz)
 Erlaeutere kurz, wie Diversifikation das Gesamtrisiko-Rendite-Profil verbessert.
+
+I) ETF-Umsetzungs-Importdatei fuer den Tab "Mein Portfolio erklaeren" des Investment Decision Lab
+Liefere einen reinen Text-Importblock (keine Tabelle, keine Markdown-Codefences) im exakt folgenden Format, eine Position pro Zeile:
+ISIN;weight
+- Verwende die ISIN exakt wie in Tabelle 2.
+- weight ist das Zielgewicht als reine Zahl ohne Prozentzeichen und ohne Tausendertrennzeichen (Punkt als Dezimaltrennzeichen, z. B. 32.5).
+- Eine Position pro Zeile; keine Kopfzeile, kein Begleittext innerhalb des Blocks.
+- Die Gewichte aller Zeilen muessen in Summe 100 ergeben.
 
 Schlussanweisung:
 Fuege am Ende der Antwort einen Anlage-Disclaimer nach anerkannten Best-Practice-Standards an.

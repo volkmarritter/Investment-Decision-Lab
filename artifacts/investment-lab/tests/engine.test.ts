@@ -2642,11 +2642,12 @@ describe("AI Prompt builder (buildAiPrompt)", () => {
     );
     expect(all).toContain("Commodities / Precious Metals");
     expect(all).toContain("Listed Real Estate (REITs)");
-    // Commodities must appear inside the Satellites block (not in the Core list).
+    // Commodities now lives inside the Core asset classes block, NOT under Satellites.
     const satellitesIdx = all.indexOf("Satellites:");
     const commoditiesIdx = all.indexOf("Commodities / Precious Metals");
     expect(satellitesIdx).toBeGreaterThan(0);
-    expect(commoditiesIdx).toBeGreaterThan(satellitesIdx);
+    expect(commoditiesIdx).toBeGreaterThan(0);
+    expect(commoditiesIdx).toBeLessThan(satellitesIdx);
     expect(all).toContain("Crypto Assets");
     // Thematic equity is part of the equity sleeve, not a satellite. It must
     // be described inside the equity description (before the Satellites
@@ -2656,8 +2657,34 @@ describe("AI Prompt builder (buildAiPrompt)", () => {
     expect(thematicIdx).toBeGreaterThan(0);
     expect(thematicIdx).toBeLessThan(satellitesIdx);
     expect(all).not.toMatch(/Satellites:[\s\S]*Thematic equity/);
-    // Group classification inside the Output section also reflects this.
-    expect(all).toContain("thematic equity belongs to the Equities group");
+    // The old "thematic equity belongs to the Equities group" parenthetical
+    // was removed when the Output A) sentence was simplified — make sure it
+    // does not creep back in.
+    expect(all).not.toContain("thematic equity belongs to the Equities group");
+
+    // Crypto-only satellites: header line + crypto bullet, no commodities/REITs entries inside.
+    const cryptoOnly = buildAiPrompt(
+      baseInput({
+        includeCrypto: true,
+        includeListedRealEstate: false,
+        includeCommodities: false,
+        thematicPreference: "None",
+      })
+    );
+    expect(cryptoOnly).toContain("Satellites:\n- Crypto Assets");
+    expect(cryptoOnly).not.toContain("Commodities / Precious Metals");
+    expect(cryptoOnly).not.toContain("Listed Real Estate (REITs)");
+
+    const cryptoOnlyDe = buildAiPrompt(
+      baseInput({
+        includeCrypto: true,
+        includeListedRealEstate: false,
+        includeCommodities: false,
+        thematicPreference: "None",
+      }),
+      "de",
+    );
+    expect(cryptoOnlyDe).toContain("Satelliten:\n- Krypto-Assets");
 
     const none = buildAiPrompt(
       baseInput({
@@ -2674,14 +2701,86 @@ describe("AI Prompt builder (buildAiPrompt)", () => {
     expect(none).toContain("Satellites: none requested");
   });
 
+  it("places Commodities under Core asset classes (not Satellites) when enabled", () => {
+    const en = buildAiPrompt(
+      baseInput({ includeCommodities: true, includeListedRealEstate: false, includeCrypto: false }),
+    );
+    const coreIdx = en.indexOf("Core Asset Classes:");
+    const satIdx = en.indexOf("Satellites");
+    const cIdx = en.indexOf("- Commodities / Precious Metals");
+    expect(coreIdx).toBeGreaterThan(0);
+    expect(satIdx).toBeGreaterThan(coreIdx);
+    expect(cIdx).toBeGreaterThan(coreIdx);
+    expect(cIdx).toBeLessThan(satIdx);
+    expect(en).toContain("Satellites: none requested by the investor.");
+
+    const de = buildAiPrompt(
+      baseInput({ includeCommodities: true, includeListedRealEstate: false, includeCrypto: false }),
+      "de",
+    );
+    const kernIdx = de.indexOf("Kern-Anlageklassen:");
+    const satDeIdx = de.indexOf("Satelliten");
+    const rohIdx = de.indexOf("- Rohstoffe / Edelmetalle");
+    expect(kernIdx).toBeGreaterThan(0);
+    expect(satDeIdx).toBeGreaterThan(kernIdx);
+    expect(rohIdx).toBeGreaterThan(kernIdx);
+    expect(rohIdx).toBeLessThan(satDeIdx);
+    expect(de).toContain("Satelliten: vom Anleger nicht gewuenscht.");
+  });
+
+  it("includes the new MANDATORY validation + consistency blocks (EN + DE)", () => {
+    const en = buildAiPrompt(baseInput());
+    expect(en).toContain("11. Critical ETF validation requirement (MANDATORY):");
+    expect(en).toContain("12. Final consistency checks (MANDATORY):");
+    expect(en).toContain("- all ISINs are unique");
+    expect(en).toContain("13. Write the full answer in clear English.");
+    // Old constraints 6-9 (cost efficiency / no tactical / rules-based / sensible assumptions)
+    // were dropped in the rewrite — their lead phrases must no longer appear.
+    expect(en).not.toContain("Prioritize cost efficiency");
+    expect(en).not.toContain("Do not make tactical market forecasts");
+
+    const de = buildAiPrompt(baseInput(), "de");
+    expect(de).toContain("11. Kritische ETF-Validierungsanforderung (VERPFLICHTEND):");
+    expect(de).toContain("12. Abschliessende Konsistenzpruefungen (VERPFLICHTEND):");
+    expect(de).toContain("- alle ISINs sind eindeutig");
+    expect(de).toContain("13. Verfasse die gesamte Antwort in klarem Deutsch.");
+    expect(de).not.toContain("Priorisiere Kosteneffizienz");
+    expect(de).not.toContain("Triff keine taktischen Marktprognosen");
+  });
+
+  it("includes the Explain-import file section I) in EN + DE", () => {
+    const en = buildAiPrompt(baseInput());
+    expect(en).toContain("I) ETF implementation import file for the Investment Decision Lab \"Explain my Portfolio\" tab");
+    expect(en).toContain("ISIN;weight");
+    expect(en).toContain("must sum to 100");
+    const de = buildAiPrompt(baseInput(), "de");
+    expect(de).toContain("I) ETF-Umsetzungs-Importdatei fuer den Tab \"Mein Portfolio erklaeren\" des Investment Decision Lab");
+    expect(de).toContain("ISIN;weight");
+    expect(de).toContain("in Summe 100 ergeben");
+  });
+
+  it("Table 1 group header lists Commodities as its own group (EN + DE)", () => {
+    const en = buildAiPrompt(baseInput());
+    expect(en).toContain("Group: Cash, Bonds, Equities, Commodities, Satellites");
+    expect(en).toContain("Cash, Bonds, Equities, Commodities, and Satellites");
+    const de = buildAiPrompt(baseInput(), "de");
+    expect(de).toContain("Gruppe: Cash, Anleihen, Aktien, Rohstoffe, Satelliten");
+    expect(de).toContain("Cash, Anleihen, Aktien, Rohstoffe und Satelliten");
+  });
+
   it("toggles the synthetic-ETF and currency-hedging instructions correctly", () => {
     const optedIn = buildAiPrompt(baseInput({ includeSyntheticETFs: true, includeCurrencyHedging: true }));
     expect(optedIn).toContain("Include synthetic ETFs");
     expect(optedIn).toContain("State clearly whether currency hedging");
+    // Lock the new numbering: hedging is constraint 7, synthetic is constraint 9.
+    expect(optedIn).toContain("7. State clearly whether currency hedging");
+    expect(optedIn).toContain("9. Include synthetic ETFs");
 
     const optedOut = buildAiPrompt(baseInput({ includeSyntheticETFs: false, includeCurrencyHedging: false }));
     expect(optedOut).toContain("Use physical replication only");
     expect(optedOut).toContain("does NOT want broad currency hedging");
+    expect(optedOut).toContain("7. The investor does NOT want broad currency hedging");
+    expect(optedOut).toContain("9. Use physical replication only");
   });
 
   it("encodes the requested ETF count range", () => {
@@ -2700,6 +2799,7 @@ describe("AI Prompt builder (buildAiPrompt)", () => {
       "F) Rebalancing concept",
       "G) Rough cost estimate",
       "H) Portfolio rationale",
+      "I) ETF implementation import file for the Investment Decision Lab \"Explain my Portfolio\" tab",
       "Closing instruction:",
     ]) {
       expect(p).toContain(marker);
