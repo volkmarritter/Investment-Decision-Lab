@@ -91,3 +91,25 @@ export function getCatalogPath(): string {
   if (found) return found;
   return catalogCandidates()[0];
 }
+
+function lookthroughTsCandidates(): string[] {
+  return [
+    resolve(HERE, "../../investment-lab/src/lib/lookthrough.ts"),
+    resolve(HERE, "../../../investment-lab/src/lib/lookthrough.ts"),
+    resolve(process.cwd(), "../investment-lab/src/lib/lookthrough.ts"),
+    resolve(process.cwd(), "artifacts/investment-lab/src/lib/lookthrough.ts"),
+  ];
+}
+
+// Path to the canonical lookthrough source file. The admin pane reads this
+// to discover hand-curated profiles (DISTINCT_PROFILES) so the catalog-browse
+// status badge can mark those ISINs as "Curated" instead of "No LT data".
+// Returns null when the file isn't present on disk (production deployment
+// where workspace files don't ship in the bundle).
+export function getLookthroughTsPath(): string | null {
+  if (process.env.INVESTMENT_LAB_LOOKTHROUGH_PATH) {
+    const p = resolve(process.env.INVESTMENT_LAB_LOOKTHROUGH_PATH);
+    return existsSync(p) ? p : null;
+  }
+  return firstExisting(lookthroughTsCandidates());
+}

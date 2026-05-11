@@ -61,7 +61,7 @@ import {
   MAX_ALTERNATIVES_PER_BUCKET,
   MAX_POOL_PER_BUCKET,
 } from "../lib/limits";
-import { getCatalogPath } from "../lib/data-paths";
+import { getCatalogPath, getLookthroughTsPath } from "../lib/data-paths";
 import { scrapePreview, PreviewError, normalizeIsin } from "../lib/etf-scrape";
 import { scrapeLookthrough } from "../lib/lookthrough-scrape";
 // Cross-artifact imports — bundled by esbuild into dist/index.mjs.
@@ -1808,7 +1808,16 @@ router.get("/admin/lookthrough-pool", async (_req, res) => {
       ...Object.keys(overrides),
       ...Object.keys(pool),
     ]);
-    const entries = Array.from(allIsins).map((isin) => {
+    const entries: Array<{
+      isin: string;
+      source: "pool" | "overrides" | "both" | "curated";
+      name: string | null;
+      topHoldingsAsOf: string | null;
+      breakdownsAsOf: string | null;
+      topHoldingCount: number;
+      geoCount: number;
+      sectorCount: number;
+    }> = Array.from(allIsins).map((isin) => {
       const p = pool[isin];
       const o = overrides[isin];
       const src = p ?? o;
@@ -1828,14 +1837,37 @@ router.get("/admin/lookthrough-pool", async (_req, res) => {
         sectorCount: src.sector ? Object.keys(src.sector).length : 0,
       };
     });
+    // Append hand-curated profiles from lookthrough.ts (DISTINCT_PROFILES)
+    // that aren't covered by the override/pool JSON. These are typically
+    // swap-based or niche funds justETF can't scrape — the engine
+    // resolves their look-through correctly via the curated PROFILES
+    // map, so the badge must report "Kuratiert" rather than "Keine
+    // LT-Daten". Sentinel counts (-1) signal the curated-not-scraped
+    // case to the frontend's `computePoolStatus` helper.
+    const curatedIsins = await readDistinctProfileIsinsFromDisk();
+    for (const isin of curatedIsins) {
+      if (allIsins.has(isin)) continue;
+      entries.push({
+        isin,
+        source: "curated",
+        name: null,
+        topHoldingsAsOf: null,
+        breakdownsAsOf: null,
+        topHoldingCount: -1,
+        geoCount: -1,
+        sectorCount: -1,
+      });
+    }
     // Primär nach Quelle gruppieren (Auto-Refresh zuerst, dann Beide,
-    // dann Kuratiert), sekundär nach ISIN. So sieht der Operator alle
-    // dynamisch gescrapeten Einträge zusammen oben — genau die, für die
-    // der gescrapete Name die einzige Identifikation ist.
+    // dann Kuratiert (overrides), dann Hand-Curated), sekundär nach ISIN.
+    // So sieht der Operator alle dynamisch gescrapeten Einträge zusammen
+    // oben — genau die, für die der gescrapete Name die einzige
+    // Identifikation ist.
     const sourceRank: Record<typeof entries[number]["source"], number> = {
       pool: 0,
       both: 1,
       overrides: 2,
+      curated: 3,
     };
     entries.sort((a, b) => {
       const r = sourceRank[a.source] - sourceRank[b.source];
@@ -2391,6 +2423,104 @@ async function readLookthroughSources(): Promise<{
     };
   } catch {
     return { overrides: {}, pool: {} };
+  }
+}
+
+// Reads ISIN keys from the DISTINCT_PROFILES literal in
+// `artifacts/investment-lab/src/lib/lookthrough.ts`. These are
+// hand-curated look-through profiles for ETFs (typically swap-based
+// or niche funds) that justETF cannot scrape — the runtime engine
+// resolves their look-through via these profiles, so the admin
+// catalog-browse status badge must show them as "Kuratiert" instead
+// of "Keine LT-Daten". Returns [] when the file is absent (production
+// deployments where the workspace tree doesn't ship in the bundle).
+let _curatedIsinsCache: { mtimeMs: number; isins: string[] } | null = null;
+async function readDistinctProfileIsinsFromDisk(): Promise<string[]> {
+  const path = getLookthroughTsPath();
+  if (!path) return [];
+  try {
+    const st = await stat(path);
+    if (_curatedIsinsCache && _curatedIsinsCache.mtimeMs === st.mtimeMs) {
+      return _curatedIsinsCache.isins;
+    }
+    const src = await readFile(path, "utf8");
+    const headerIdx = src.indexOf(
+      "const DISTINCT_PROFILES: Record<string, LookthroughProfile> = {",
+    );
+    if (headerIdx < 0) {
+      _curatedIsinsCache = { mtimeMs: st.mtimeMs, isins: [] };
+      return [];
+    }
+    const openBrace = src.indexOf("{", headerIdx);
+    // Walk braces to find the matching close (string-aware) so we
+    // don't accidentally pick up ISINs from later objects in the file.
+    let depth = 0;
+    let close = -1;
+    let inStr: '"' | "'" | "`" | null = null;
+    let inLine = false;
+    let inBlock = false;
+    for (let i = openBrace; i < src.length; i++) {
+      const c = src[i];
+      const next = src[i + 1];
+      if (inLine) {
+        if (c === "\n") inLine = false;
+        continue;
+      }
+      if (inBlock) {
+        if (c === "*" && next === "/") {
+          inBlock = false;
+          i++;
+        }
+        continue;
+      }
+      if (inStr) {
+        if (c === "\\") {
+          i++;
+          continue;
+        }
+        if (c === inStr) inStr = null;
+        continue;
+      }
+      if (c === "/" && next === "/") {
+        inLine = true;
+        continue;
+      }
+      if (c === "/" && next === "*") {
+        inBlock = true;
+        i++;
+        continue;
+      }
+      if (c === '"' || c === "'" || c === "`") {
+        inStr = c as '"' | "'" | "`";
+        continue;
+      }
+      if (c === "{") depth++;
+      else if (c === "}") {
+        depth--;
+        if (depth === 0) {
+          close = i;
+          break;
+        }
+      }
+    }
+    if (close < 0) {
+      _curatedIsinsCache = { mtimeMs: st.mtimeMs, isins: [] };
+      return [];
+    }
+    const body = src.slice(openBrace + 1, close);
+    // Pick up `"<ISIN>":` keys at any depth — only top-level entry
+    // keys match the ISIN regex (a 12-char alphanumeric where the
+    // first two are letters), so accidentally matching nested values
+    // is not a real risk.
+    const re = /"([A-Z]{2}[A-Z0-9]{9}\d)"\s*:/g;
+    const found = new Set<string>();
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(body)) !== null) found.add(m[1]);
+    const isins = Array.from(found).sort();
+    _curatedIsinsCache = { mtimeMs: st.mtimeMs, isins };
+    return isins;
+  } catch {
+    return [];
   }
 }
 

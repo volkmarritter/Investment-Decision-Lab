@@ -8,7 +8,7 @@ import type { LookthroughPoolEntry } from "@/lib/admin-api";
 import { useAdminT } from "@/lib/admin-i18n";
 import { Badge } from "@/components/ui/badge";
 
-export type PoolStatusTone = "ok" | "stale" | "missing";
+export type PoolStatusTone = "ok" | "stale" | "missing" | "curated";
 export type PoolStatus = { tone: PoolStatusTone };
 
 // Pool status heuristic: an entry is "ok" when all three sources
@@ -16,7 +16,15 @@ export type PoolStatus = { tone: PoolStatusTone };
 // recent scrape is younger than 60 days. Older → "stale". At least
 // one source empty → "missing". Lets the operator see at a glance
 // which pool entries need manual attention.
+//
+// "curated" wins ahead of every other check: an ISIN whose
+// look-through profile is hand-curated in `DISTINCT_PROFILES`
+// (lookthrough.ts) is delivered by the server with
+// `source === "curated"` and sentinel counts of -1. The engine
+// resolves its look-through correctly — the badge must reflect that
+// rather than falsely claim the data is missing.
 export function computePoolStatus(e: LookthroughPoolEntry): PoolStatus {
+  if (e.source === "curated") return { tone: "curated" };
   const hasAll = e.topHoldingCount > 0 && e.geoCount > 0 && e.sectorCount > 0;
   if (!hasAll) return { tone: "missing" };
   const asOf = e.topHoldingsAsOf || e.breakdownsAsOf;
@@ -34,6 +42,7 @@ export function poolStatusLabel(
 ): string {
   if (tone === "ok") return lang === "de" ? "Daten OK" : "Data OK";
   if (tone === "stale") return lang === "de" ? "Veraltet" : "Stale";
+  if (tone === "curated") return lang === "de" ? "Kuratiert" : "Curated";
   return lang === "de" ? "Daten fehlen" : "Data missing";
 }
 
@@ -54,17 +63,23 @@ export function LookthroughStatusBadge({
     );
   }
   const status = computePoolStatus(entry);
+  const className =
+    status.tone === "ok"
+      ? "border-emerald-600 text-emerald-700 dark:text-emerald-400"
+      : status.tone === "stale"
+        ? "border-amber-600 text-amber-700 dark:text-amber-400"
+        : status.tone === "curated"
+          ? "border-indigo-600 text-indigo-700 dark:text-indigo-400"
+          : "border-rose-600 text-rose-700 dark:text-rose-400";
+  const title =
+    status.tone === "curated"
+      ? t({
+          de: "Look-through-Profil ist hand-kuratiert in lookthrough.ts (DISTINCT_PROFILES) und wird nicht von justETF gescraped.",
+          en: "Look-through profile is hand-curated in lookthrough.ts (DISTINCT_PROFILES) and is not scraped from justETF.",
+        })
+      : undefined;
   return (
-    <Badge
-      variant="outline"
-      className={
-        status.tone === "ok"
-          ? "border-emerald-600 text-emerald-700 dark:text-emerald-400"
-          : status.tone === "stale"
-            ? "border-amber-600 text-amber-700 dark:text-amber-400"
-            : "border-rose-600 text-rose-700 dark:text-rose-400"
-      }
-    >
+    <Badge variant="outline" className={className} title={title}>
       {poolStatusLabel(status.tone, lang)}
     </Badge>
   );

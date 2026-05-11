@@ -934,7 +934,12 @@ export interface LookthroughPoolEntry {
   //   "pool"      = vom monatlichen Refresh-Job geschriebene Live-Daten,
   //   "both"      = ISIN existiert in beiden Sektionen (pool gewinnt
   //                 inhaltlich, weil frischer).
-  source: "overrides" | "pool" | "both";
+  //   "curated"   = hand-curated Profil aus DISTINCT_PROFILES in
+  //                 lookthrough.ts — die ISIN ist NICHT in der Override-
+  //                 JSON, das Engine löst aber Look-through korrekt
+  //                 über das curated Profil. topHoldingCount/geoCount/
+  //                 sectorCount sind dann Sentinel -1 (nicht gescraped).
+  source: "overrides" | "pool" | "both" | "curated";
   // Offizieller ETF-Name vom justETF-Profilkopf, persistiert beim Scrape.
   // null für Pool-Einträge die vor Einführung des Name-Felds (2026-04-27)
   // geschrieben wurden — der monatliche Refresh-Job backfillt sie auf
