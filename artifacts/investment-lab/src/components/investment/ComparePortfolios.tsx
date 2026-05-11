@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, type ReactNode } from "react";
+import { useState, useRef, useEffect, useMemo, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
 import { AlertCircle, CheckCircle2, Scale, ShieldAlert, Target, Link2, PinOff, Sparkles, Unlink } from "lucide-react";
@@ -51,6 +51,7 @@ import {
   setCompareSlotsState,
   subscribeLastExplainWorkspace,
   takePendingCompareLoadRequest,
+  triggerCompareSlotPreviewWarmups,
 } from "@/lib/explainCompare";
 import type { ExplainWorkspace } from "@/lib/savedExplainPortfolios";
 import { PortfolioMetrics } from "./PortfolioMetrics";
@@ -145,6 +146,26 @@ export function ComparePortfolios() {
   // skip overwriting Slot A while it carries an Explain personal portfolio.
   const [explainSourceA, setExplainSourceA] = useState<ExplainWorkspace | null>(null);
   const [explainSourceB, setExplainSourceB] = useState<ExplainWorkspace | null>(null);
+  // Task #272 — per-slot set of off-catalog ISINs whose Compare-loader
+  // `/api/etf-preview/:isin` warm-up is still in flight. The Fee
+  // Estimator renders an inline spinner on the matching bucket row
+  // (mirrors the Explain spinner pattern from Task #262); entries are
+  // removed as each warm-up resolves (success OR error) and the slot's
+  // synthesized output is re-built so the now-cached justETF TER
+  // flows through `getCachedScrapeTerBps`.
+  const [pendingPreviewIsinsA, setPendingPreviewIsinsA] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const [pendingPreviewIsinsB, setPendingPreviewIsinsB] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  // Per-slot epoch tokens — bumped on every loadFromExplain call (and on
+  // detach) so an in-flight warm-up that resolves AFTER the operator has
+  // moved the slot on to a different workspace doesn't overwrite the
+  // newer state with a stale re-synthesise. Mirrors the same epoch
+  // pattern useEtfInfo uses to drop late preview responses.
+  const explainSlotEpochA = useRef(0);
+  const explainSlotEpochB = useRef(0);
   // Tracks whether the Explain tab has any usable workspace right now —
   // drives the enabled state of each slot's "Load from Explain" button.
   const [hasExplainContent, setHasExplainContent] = useState<boolean>(() =>
@@ -384,6 +405,30 @@ export function ComparePortfolios() {
     return parseDecimalInput(cleaned, { min: 0 }) ?? 0;
   })();
 
+  // Task #272 — translate the per-slot pending-warmup ISIN sets into the
+  // bucket-key sets the FeeEstimator renders against. Bucket key matches
+  // `${assetClass} - ${region}` (see `synthesizePersonalPortfolio` /
+  // `estimateFees` — same convention used for the per-row TER source
+  // badge), so the FeeEstimator can do a direct row.key lookup. Computed
+  // here so each FeeEstimator instance (mobile + desktop, A + B) shares
+  // the same set without re-deriving on every render.
+  const pendingPreviewBucketsA = useMemo<ReadonlySet<string>>(() => {
+    if (pendingPreviewIsinsA.size === 0 || !outputA) return new Set();
+    const buckets = new Set<string>();
+    for (const e of outputA.etfImplementation) {
+      if (e.isin && pendingPreviewIsinsA.has(e.isin)) buckets.add(e.bucket);
+    }
+    return buckets;
+  }, [pendingPreviewIsinsA, outputA]);
+  const pendingPreviewBucketsB = useMemo<ReadonlySet<string>>(() => {
+    if (pendingPreviewIsinsB.size === 0 || !outputB) return new Set();
+    const buckets = new Set<string>();
+    for (const e of outputB.etfImplementation) {
+      if (e.isin && pendingPreviewIsinsB.has(e.isin)) buckets.add(e.bucket);
+    }
+    return buckets;
+  }, [pendingPreviewIsinsB, outputB]);
+
   const parseSide = (p: PortfolioInput): PortfolioInput => ({
     ...p,
     horizon: Number(p.horizon),
@@ -422,6 +467,14 @@ export function ComparePortfolios() {
   const loadFromExplain = (slot: CompareSlotName, ws: ExplainWorkspace) => {
     if (!explainWorkspaceHasContent(ws)) return;
     const { input, output } = explainWorkspaceToSlotPortfolio(ws, lang, getCachedScrapeTerBps);
+    // Bump the per-slot epoch BEFORE installing the new workspace so any
+    // still-in-flight warm-up callback from the previous load (or from
+    // the same slot reloaded a moment ago) sees a stale token and skips
+    // its re-synthesise + pending-clear.
+    const myEpoch =
+      slot === "A"
+        ? ++explainSlotEpochA.current
+        : ++explainSlotEpochB.current;
     if (slot === "A") {
       initialLinkPendingRef.current = false;
       if (linked) setLinked(false);
@@ -443,6 +496,49 @@ export function ComparePortfolios() {
       setValidationB({ isValid: true, errors: [], warnings: [] });
     }
     setHasGenerated(true);
+    // Task #272 — fan out `/api/etf-preview/:isin` warm-ups for the
+    // workspace's off-catalog ISINs that don't yet have a fresh entry
+    // in the in-tab SCRAPE_CACHE. As each one resolves, we re-synthesise
+    // the slot so the freshly-cached justETF TER flows through into the
+    // Fee Estimator. Catalog rows and already-cached rows are skipped
+    // inside the helper, so this is a no-op for warm caches.
+    const triggered = triggerCompareSlotPreviewWarmups(ws, {
+      onResult: (isin) => {
+        const currentEpoch =
+          slot === "A" ? explainSlotEpochA.current : explainSlotEpochB.current;
+        if (currentEpoch !== myEpoch) return;
+        const setPending =
+          slot === "A" ? setPendingPreviewIsinsA : setPendingPreviewIsinsB;
+        setPending((prev) => {
+          if (!prev.has(isin)) return prev;
+          const next = new Set(prev);
+          next.delete(isin);
+          return next;
+        });
+        const fresh = explainWorkspaceToSlotPortfolio(
+          ws,
+          lang,
+          getCachedScrapeTerBps,
+        );
+        if (slot === "A") {
+          setOutputA(fresh.output);
+          setInputA(fresh.input);
+        } else {
+          setOutputB(fresh.output);
+          setInputB(fresh.input);
+        }
+      },
+    });
+    if (triggered.length > 0) {
+      const setPending =
+        slot === "A" ? setPendingPreviewIsinsA : setPendingPreviewIsinsB;
+      setPending(() => new Set(triggered));
+    } else {
+      // Clear any stale pending set from a previous load on the same slot.
+      const setPending =
+        slot === "A" ? setPendingPreviewIsinsA : setPendingPreviewIsinsB;
+      setPending((prev) => (prev.size === 0 ? prev : new Set()));
+    }
     toast.success(t("compare.slot.explainLoadedToast", { slot }));
     setTimeout(() => {
       resultsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -490,8 +586,17 @@ export function ComparePortfolios() {
   // Portfolios" again — feels less destructive than wiping the whole
   // results section.
   const detachExplainSource = (slot: CompareSlotName) => {
-    if (slot === "A") setExplainSourceA(null);
-    else setExplainSourceB(null);
+    if (slot === "A") {
+      setExplainSourceA(null);
+      // Drop any in-flight warm-up callbacks so they don't repaint the
+      // detached slot once the operator has switched it back to Build.
+      explainSlotEpochA.current++;
+      setPendingPreviewIsinsA((prev) => (prev.size === 0 ? prev : new Set()));
+    } else {
+      setExplainSourceB(null);
+      explainSlotEpochB.current++;
+      setPendingPreviewIsinsB((prev) => (prev.size === 0 ? prev : new Set()));
+    }
   };
 
   // Per-side rebuild used by the Look-Through toggle so toggling that
@@ -1768,6 +1873,7 @@ export function ComparePortfolios() {
                                 etfImplementations={outputA.etfImplementation}
                                 amountDraft={portAFeeAmountDraft}
                                 onAmountDraftChange={setPortAFeeAmountDraft}
+                                pendingPreviewBuckets={pendingPreviewBucketsA}
                               />
                             </TabsContent>
                             <TabsContent value="B" className="mt-4 min-w-0">
@@ -1777,6 +1883,7 @@ export function ComparePortfolios() {
                                 baseCurrency={inputB.baseCurrency}
                                 hedged={inputB.includeCurrencyHedging}
                                 etfImplementations={outputB.etfImplementation}
+                                pendingPreviewBuckets={pendingPreviewBucketsB}
                               />
                             </TabsContent>
                           </Tabs>
@@ -1793,6 +1900,7 @@ export function ComparePortfolios() {
                               etfImplementations={outputA.etfImplementation}
                               amountDraft={portAFeeAmountDraft}
                               onAmountDraftChange={setPortAFeeAmountDraft}
+                              pendingPreviewBuckets={pendingPreviewBucketsA}
                             />
                           </div>
                           <div className="min-w-0">
@@ -1803,6 +1911,7 @@ export function ComparePortfolios() {
                               baseCurrency={inputB.baseCurrency}
                               hedged={inputB.includeCurrencyHedging}
                               etfImplementations={outputB.etfImplementation}
+                              pendingPreviewBuckets={pendingPreviewBucketsB}
                             />
                           </div>
                         </div>

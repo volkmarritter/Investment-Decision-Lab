@@ -400,6 +400,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "explain.row.badge.foundUnassigned": "ETF found, but not assigned to a bucket",
     "explain.row.badge.offUniverse": "Not part of the ETF universe",
     "explain.row.lookthroughPending": "Loading look-through…",
+    "fee.previewPending": "Loading live ETF fee data…",
 
     // Saved Explain Portfolios (separate namespace from Build's scenarios)
     "explain.saved.btn.save": "Save Portfolio",
@@ -1115,6 +1116,7 @@ export const TRANSLATIONS: Record<Lang, Record<string, string>> = {
     "explain.row.badge.foundUnassigned": "ETF gefunden, aber keinem Bucket zugeordnet",
     "explain.row.badge.offUniverse": "Nicht Teil des ETF-Universums",
     "explain.row.lookthroughPending": "Lade Look-Through…",
+    "fee.previewPending": "Lade Live-ETF-Gebührendaten…",
 
     // Saved Explain Portfolios (separater Namespace, getrennt von Build)
     "explain.saved.btn.save": "Portfolio Speichern",

@@ -133,6 +133,79 @@ export function getCachedScrapeTerBps(
   return undefined;
 }
 
+// Task #272 — fire-and-forget warm-up for the in-tab `/api/etf-preview/`
+// scrape cache, so consumers that don't render the EtfInfoPreview card
+// (notably Compare, when an Explain workspace with off-catalog ISINs is
+// loaded directly into a slot) can still benefit from the live justETF
+// TER via `getCachedScrapeTerBps`. Returns the same {ok|err} shape the
+// hook caches; resolves immediately if a fresh cache entry already
+// exists or the ISIN is malformed (no network call). Mirrors the same
+// fetch + parse + cache contract as the hook's effect — the SCRAPE_CACHE
+// is a single shared map, so a hit here is also a hit for any future
+// useEtfInfo render of the same ISIN.
+export type WarmEtfPreviewResult =
+  | { ok: true; result: EtfScrapeResult }
+  | { ok: false; reason: "invalid_isin" | "cached_error" | "network_error"; message: string }
+  | { ok: false; reason: "skipped"; message: string };
+
+export async function warmEtfPreviewCache(
+  rawIsin: string | null | undefined,
+): Promise<WarmEtfPreviewResult> {
+  const isin = normalizeIsin(rawIsin);
+  if (!ISIN_RE.test(isin)) {
+    return { ok: false, reason: "invalid_isin", message: "Malformed ISIN" };
+  }
+  const cached = SCRAPE_CACHE.get(isin);
+  if (cached && Date.now() - cached.at < SCRAPE_CACHE_TTL_MS) {
+    if ("ok" in cached) return { ok: true, result: cached.ok };
+    return { ok: false, reason: "cached_error", message: cached.err };
+  }
+  let res: Response;
+  try {
+    res = await fetch(`${apiBase()}/api/etf-preview/${encodeURIComponent(isin)}`);
+  } catch (err) {
+    // Don't poison the cache on transport-level failures (matches the
+    // hook's behaviour) so a follow-up render gets a fresh attempt.
+    const msg = err instanceof Error ? err.message : String(err);
+    return { ok: false, reason: "network_error", message: msg };
+  }
+  const body = (await res.json().catch(() => null)) as
+    | EtfScrapeResult
+    | { error?: string; message?: string }
+    | null;
+  if (!res.ok) {
+    const msg =
+      (body && "message" in body && body.message) ||
+      (body && "error" in body && body.error) ||
+      `HTTP ${res.status}`;
+    SCRAPE_CACHE.set(isin, { at: Date.now(), err: String(msg) });
+    return { ok: false, reason: "cached_error", message: String(msg) };
+  }
+  if (!body || typeof body !== "object" || !("isin" in body)) {
+    const msg = "ETF_PREVIEW_MALFORMED";
+    SCRAPE_CACHE.set(isin, { at: Date.now(), err: msg });
+    return { ok: false, reason: "cached_error", message: msg };
+  }
+  const ok = body as EtfScrapeResult;
+  SCRAPE_CACHE.set(isin, { at: Date.now(), ok });
+  return { ok: true, result: ok };
+}
+
+// Task #272 — read-only cache probe used by the Compare slot loader to
+// avoid spinning up a redundant warm-up fetch when an entry is already
+// present. Returns true iff `isin` has a fresh SCRAPE_CACHE entry
+// (success OR error — both count, since a cached error tells us the
+// scrape was attempted recently and won't yield a TER on retry).
+export function hasFreshScrapeCacheEntry(
+  rawIsin: string | null | undefined,
+): boolean {
+  const isin = normalizeIsin(rawIsin);
+  if (!ISIN_RE.test(isin)) return false;
+  const cached = SCRAPE_CACHE.get(isin);
+  if (!cached) return false;
+  return Date.now() - cached.at < SCRAPE_CACHE_TTL_MS;
+}
+
 function apiBase(): string {
   const env = (import.meta as { env?: Record<string, string | undefined> })
     .env;

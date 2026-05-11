@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Coins, TrendingDown, Wallet } from "lucide-react";
+import { Coins, Loader2, TrendingDown, Wallet } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip as RechartsTooltip, ResponsiveContainer, CartesianGrid, Legend } from "recharts";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,6 +38,17 @@ interface FeeEstimatorProps {
    */
   amountDraft?: string;
   onAmountDraftChange?: (draft: string) => void;
+  /**
+   * Task #272 — set of bucket keys (`${assetClass} - ${region}`) whose
+   * Compare-loader `/api/etf-preview/:isin` warm-up is still in flight.
+   * Used by the Compare tab when an Explain workspace is loaded
+   * directly into a slot and one or more off-catalog ISINs need their
+   * justETF TER scraped before the asset-class fallback in this row
+   * resolves to the live value. Renders an inline spinner next to the
+   * bucket name (mirrors the Explain spinner pattern from Task #262).
+   * Build leaves this undefined; the spinner never renders there.
+   */
+  pendingPreviewBuckets?: ReadonlySet<string>;
 }
 
 // Format an integer with Swiss-style thousand separators ("100'000"). The
@@ -88,6 +99,7 @@ export function FeeEstimator({
   etfImplementations,
   amountDraft: controlledDraft,
   onAmountDraftChange,
+  pendingPreviewBuckets,
 }: FeeEstimatorProps) {
   const { t } = useT();
   // Raw text buffer is the source of truth so mobile users on Swiss/German/
@@ -256,9 +268,25 @@ export function FeeEstimator({
                   default:
                     "bg-amber-500/10 text-amber-700 dark:text-amber-500 border-amber-500/30",
                 };
+                const isPending = !!pendingPreviewBuckets?.has(row.key);
                 return (
                   <TableRow key={row.key}>
-                    <TableCell className="font-medium text-sm">{row.key}</TableCell>
+                    <TableCell className="font-medium text-sm">
+                      <span className="inline-flex items-center gap-1.5">
+                        <span>{row.key}</span>
+                        {isPending && (
+                          <span
+                            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground"
+                            data-testid={`fee-row-preview-pending-${row.key}`}
+                            role="status"
+                            aria-live="polite"
+                            title={t("fee.previewPending")}
+                          >
+                            <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+                          </span>
+                        )}
+                      </span>
+                    </TableCell>
                     <TableCell className="text-right font-mono text-sm">{row.weight.toFixed(1)}%</TableCell>
                     <TableCell className="text-right font-mono text-sm">
                       <div className="inline-flex items-center justify-end gap-2">

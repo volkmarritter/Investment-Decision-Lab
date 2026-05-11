@@ -42,6 +42,12 @@ import type { Lang } from "./i18n";
 // single import block (matches the pattern used by ExplainPortfolio).
 export { getCachedScrapeTerBps } from "./useEtfInfo";
 import {
+  hasFreshScrapeCacheEntry,
+  warmEtfPreviewCache,
+  type WarmEtfPreviewResult,
+} from "./useEtfInfo";
+import { getInstrumentByIsin } from "./etfs";
+import {
   ALL_BUCKET_KEYS,
   BUCKET_META_CACHE,
   getBucketKeyForIsin,
@@ -470,6 +476,67 @@ export function explainWorkspaceToSlotPortfolio(
   };
 
   return { input, output };
+}
+
+// ---------------------------------------------------------------------------
+// Task #272 — Compare-slot off-catalog ISIN warm-up
+// ---------------------------------------------------------------------------
+//
+// When Compare loads an Explain workspace into a slot directly (i.e. the
+// operator never visited the Explain tab in this session, so the per-row
+// EtfInfoPreview component never mounted to seed the in-tab
+// `/api/etf-preview/:isin` SCRAPE_CACHE), off-catalog manual rows fall
+// back to the asset-class default in the Fee Estimator because
+// `getCachedScrapeTerBps` returns undefined for them. This helper fans
+// out the same `/api/etf-preview/:isin` request the Explain manual-row
+// preview hook would have fired, populating the shared SCRAPE_CACHE so
+// the next `explainWorkspaceToSlotPortfolio` re-synthesise picks up the
+// live justETF TER. Mirrors the structure of
+// `triggerImportLookthroughScrapes` in `importLookthroughScrape.ts`.
+//
+// Skipped for:
+//   - catalog ISINs (INSTRUMENTS hit — TER is curated, no scrape needed)
+//   - ISINs already cached in this tab (success OR error — see
+//     `hasFreshScrapeCacheEntry`)
+//   - cash sentinel rows (no ISIN by design)
+//   - positions with `manualMeta.terBps` set (operator-confirmed value
+//     wins per `synthesizePersonalPortfolio`'s precedence chain — there
+//     is nothing the scrape could improve for that row)
+
+const ISIN_RE = /^[A-Z]{2}[A-Z0-9]{9}\d$/;
+
+export interface CompareSlotWarmupDeps {
+  warm?: (isin: string) => Promise<WarmEtfPreviewResult>;
+  onResult?: (isin: string, result: WarmEtfPreviewResult) => void;
+}
+
+export function triggerCompareSlotPreviewWarmups(
+  workspace: ExplainWorkspace,
+  deps: CompareSlotWarmupDeps = {},
+): string[] {
+  const warm = deps.warm ?? warmEtfPreviewCache;
+  const triggered: string[] = [];
+  const seen = new Set<string>();
+  for (const p of workspace.positions) {
+    const isin = (p.isin ?? "").trim().toUpperCase();
+    if (!ISIN_RE.test(isin)) continue;
+    if (seen.has(isin)) continue;
+    seen.add(isin);
+    if (getInstrumentByIsin(isin)) continue;
+    if (
+      p.manualMeta &&
+      typeof p.manualMeta.terBps === "number" &&
+      Number.isFinite(p.manualMeta.terBps)
+    ) {
+      continue;
+    }
+    if (hasFreshScrapeCacheEntry(isin)) continue;
+    triggered.push(isin);
+    void warm(isin).then((result) => {
+      deps.onResult?.(isin, result);
+    });
+  }
+  return triggered;
 }
 
 /**
