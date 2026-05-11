@@ -1,0 +1,37 @@
+Execution mode
+Reasoning discipline (MANDATORY):
+- Follow the portfolio construction steps in the defined order.
+- Do not skip steps and do not jump directly to the final allocation.
+- Justify each allocation decision using at least one of the following:
+  - diversification benefit
+  - impact on portfolio risk contribution
+  - implementation efficiency
+- Keep reasoning structured, explicit, and decision-oriented.
+- Avoid generic, repetitive, or purely narrative explanations.
+
+Internal validation (MANDATORY before final answer):
+- Verify that:
+  - all tables are internally consistent
+  - no redundant exposures are included without justification
+  - minimum position sizes are respected unless explicitly justified
+  - diversification is meaningful and not only superficial
+- Ensure the portfolio cannot be simplified further without materially reducing diversification quality or implementation robustness.
+- If inconsistencies, redundancies, or weaknesses are detected, correct them before presenting the final answer.
+
+Portfolio construction methodology (MANDATORY):
+Construct the portfolio using a mean-variance optimisation logic consistent with the efficient frontier.
+- Base the allocation on long-term assumptions for expected return (qualitative), volatility, and correlation between asset classes.
+- Include each asset class only if it improves the portfolio's risk-return profile.
+- Ensure allocations reflect diversification benefits and contribution to total portfolio risk.
+- Approximate optimisation by combining low-correlated assets, avoiding redundant exposures, and balancing risk contributions across asset classes.
+- Apply the following logic conceptually: minimise risk for a given return and maximise return for a given level of risk.
+
+
+
+
+Output format:
+
+H) Portfolio construction rationale (Efficient Frontier perspective)
+Provide a structured explanation covering relative return expectations (qualitative), volatility relationships, correlation structure, key diversification drivers, how the allocation improves risk-adjusted returns, and trade-offs versus a purely theoretical optimal portfolio.
+Explain why the resulting allocation is close to an efficient portfolio, given real-world constraints.
+Keep this section concise and linked to the actual allocation. Do not describe Efficient Frontier theory generically; explain the actual allocation choices.
