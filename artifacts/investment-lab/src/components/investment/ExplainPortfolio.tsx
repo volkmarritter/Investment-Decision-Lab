@@ -86,7 +86,14 @@ import type { InstrumentRecord } from "@/lib/etfs";
 import type { RiskRegime } from "@/lib/metrics";
 import { effectiveCashExpReturn } from "@/lib/metrics";
 import { useT } from "@/lib/i18n";
-import { scrapeLookthroughForIsin } from "@/lib/etf-api";
+import {
+  scrapeLookthroughForIsin,
+  type ScrapeLookthroughResult,
+} from "@/lib/etf-api";
+import {
+  shouldSuppressScrapeFailureToast,
+  triggerImportLookthroughScrapes,
+} from "@/lib/importLookthroughScrape";
 import {
   profileFor as lookthroughProfileFor,
   registerRuntimeLookthroughProfile,
@@ -958,6 +965,111 @@ export function ExplainPortfolio() {
     }));
   }
 
+  // Task #259 — handle a look-through scrape result for an off-catalog
+  // manual ISIN. Extracted out of setManualIsin so the import path can
+  // share the success-path (registerRuntimeLookthroughProfile + version
+  // bump + success toast) and failure-path (destructive toast) handling
+  // with the row-level editor. `deferToast` controls whether the failure
+  // toast is fired immediately (import path — the row is already
+  // operator-classified via the import dialog's manualMeta seed) or
+  // delayed by 1500 ms (setManualIsin path — the parallel
+  // EtfInfoPreview Stammdaten scrape may auto-classify the row before
+  // the toast fires). `allowMute` controls whether a previously
+  // auto-classified ISIN suppresses the redundant red toast — only the
+  // setManualIsin path opts in; the import path always shows the toast
+  // because the row's classification came from the import dialog and
+  // not from the parallel Stammdaten scrape.
+  function handleManualScrapeResult(
+    trimmed: string,
+    result: ScrapeLookthroughResult,
+    opts: { deferToast: boolean; allowMute?: boolean },
+  ) {
+    if (!result.ok) {
+      const reasonDe: Record<typeof result.reason, string> = {
+        invalid_isin: "Ungültige ISIN",
+        network_error: "Netzwerkfehler beim Abrufen",
+        rate_limited: "Zu viele Anfragen — bitte gleich erneut versuchen",
+        lookthrough_incomplete:
+          "justETF lieferte keine Geo-/Sektor-Daten — Position kann nicht analysiert werden",
+        scrape_failed: "Look-through-Abruf fehlgeschlagen",
+      };
+      const reasonEn: Record<typeof result.reason, string> = {
+        invalid_isin: "Invalid ISIN",
+        network_error: "Network error while fetching",
+        rate_limited: "Too many requests — try again shortly",
+        lookthrough_incomplete:
+          "justETF returned no geo/sector data — position cannot be analyzed",
+        scrape_failed: "Look-through scrape failed",
+      };
+      const allowMute = opts.allowMute ?? true;
+      const fireToast = () => {
+        if (
+          shouldSuppressScrapeFailureToast({
+            trimmed,
+            autoClassifiedIsins: autoClassifiedIsinsRef.current,
+            allowMute,
+          })
+        ) {
+          return;
+        }
+        toast.error(
+          lang === "de"
+            ? `${trimmed}: ${reasonDe[result.reason]}`
+            : `${trimmed}: ${reasonEn[result.reason]}`,
+        );
+      };
+      if (opts.deferToast && typeof window !== "undefined") {
+        window.setTimeout(fireToast, 1500);
+      } else {
+        fireToast();
+      }
+      return;
+    }
+    const scraped = result.profile;
+    const scrapedName = scraped.name ?? "";
+    const RT_BOND_RE =
+      /\b(bond|aggregate|treasury|gilts?|bund|btp|oat|govie|corporate\s+credit|high\s+yield|inflation[- ]?linked|tips|money\s+market|t-?bill)\b/i;
+    const RT_COMMODITY_RE =
+      /\b(gold|silver|platinum|palladium|oil|brent|wti|natural\s+gas|copper|commodit|wheat|corn)\b/i;
+    const REAL_EQUITY_SECTORS = new Set([
+      "Technology",
+      "Financials",
+      "Healthcare",
+      "Consumer Discretionary",
+      "Consumer Staples",
+      "Industrials",
+      "Communication Services",
+      "Energy",
+      "Materials",
+      "Utilities",
+      "Real Estate",
+    ]);
+    const sectorKeys = Object.keys(scraped.sector ?? {});
+    const hasRealEquitySector = sectorKeys.some((k) =>
+      REAL_EQUITY_SECTORS.has(k),
+    );
+    const nameLooksFixedIncome =
+      RT_BOND_RE.test(scrapedName) || RT_COMMODITY_RE.test(scrapedName);
+    const inferredIsEquity = nameLooksFixedIncome
+      ? false
+      : hasRealEquitySector;
+    registerRuntimeLookthroughProfile(trimmed, {
+      isEquity: inferredIsEquity,
+      geo: scraped.geo!,
+      sector: scraped.sector!,
+      currency: scraped.currency ?? {},
+      ...(scraped.topHoldings && scraped.topHoldings.length > 0
+        ? { topHoldings: scraped.topHoldings }
+        : {}),
+    });
+    setRuntimeProfileVersion((v) => v + 1);
+    toast.success(
+      lang === "de"
+        ? `Look-through-Profil geladen für ${trimmed}`
+        : `Look-through profile loaded for ${trimmed}`,
+    );
+  }
+
   function setManualIsin(index: number, isin: string) {
     setState((s) => ({
       ...s,
@@ -976,116 +1088,14 @@ export function ExplainPortfolio() {
     if (!/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(trimmed)) return;
     if (lookthroughProfileFor(trimmed)) return;
     void scrapeLookthroughForIsin(trimmed).then((result) => {
-      if (!result.ok) {
-        const reasonDe: Record<typeof result.reason, string> = {
-          invalid_isin: "Ungültige ISIN",
-          network_error: "Netzwerkfehler beim Abrufen",
-          rate_limited: "Zu viele Anfragen — bitte gleich erneut versuchen",
-          lookthrough_incomplete:
-            "justETF lieferte keine Geo-/Sektor-Daten — Position kann nicht analysiert werden",
-          scrape_failed: "Look-through-Abruf fehlgeschlagen",
-        };
-        const reasonEn: Record<typeof result.reason, string> = {
-          invalid_isin: "Invalid ISIN",
-          network_error: "Network error while fetching",
-          rate_limited: "Too many requests — try again shortly",
-          lookthrough_incomplete:
-            "justETF returned no geo/sector data — position cannot be analyzed",
-          scrape_failed: "Look-through scrape failed",
-        };
-        // Task #251 — defer the destructive toast briefly so the
-        // ETF-preview Stammdaten scrape (which runs in parallel via
-        // EtfInfoPreview's `useEtfInfo` hook with a 500 ms debounce)
-        // has time to land and auto-classify the row. If the
-        // Stammdaten arrived and the row was auto-classified
-        // (tracked via `autoClassifiedIsinsRef`), the operator
-        // already sees a meaningful preview + the in-row amber 0 %
-        // look-through banner — the redundant red toast is muted.
-        // Only genuinely un-classifiable rows still get the loud
-        // toast.
-        const fireToast = () => {
-          if (autoClassifiedIsinsRef.current.has(trimmed)) return;
-          toast.error(
-            lang === "de"
-              ? `${trimmed}: ${reasonDe[result.reason]}`
-              : `${trimmed}: ${reasonEn[result.reason]}`,
-          );
-        };
-        if (typeof window === "undefined") {
-          fireToast();
-        } else {
-          window.setTimeout(fireToast, 1500);
-        }
-        // Task #238 round 5 — `setManualIsin` is ONLY invoked from the
-        // manual-entry render branch (`isManual && position.manualMeta`,
-        // call sites at the bottom of this file). Every row that reaches
-        // this code path therefore carries an operator-supplied
-        // `manualMeta.assetClass` (and region) — that IS the documented
-        // override mechanism for off-catalog ISINs whose justETF page
-        // does not parse. Clearing the ISIN here would erase the
-        // operator's intentional manual entry; instead we keep the
-        // typed ISIN, surface the destructive toast above, and let the
-        // existing "Look-through data missing" / "unmapped ETFs" alert
-        // make the gap visible. Catalog-picker rows go through
-        // `pickIsinForRow`, never through here, so this exception
-        // does NOT weaken the picker's per-ISIN coverage guarantee.
-        return;
-      }
-      const scraped = result.profile;
-      // Task #238 round 7 — robust isEquity classification. The previous
-      // heuristic ("equity if sector has any keys") wrongly classified
-      // bond ETFs as equity, because justETF returns
-      // `sector: { Other: 100 }` for most bonds (see the 6 backfilled
-      // bond pool entries fixed in round 6). Use a multi-signal rule:
-      // (1) name keyword match → fixed-income / commodity wins (most
-      // reliable signal — operator-typed off-catalog ISINs always have
-      // a name from the scrape), (2) sector contains a real equity
-      // sector name (Technology, Financials, etc.) → equity, (3)
-      // otherwise (sector is empty OR sector is only "Other") →
-      // conservatively NOT equity, so the position lands in the
-      // fixed-income geo path rather than polluting equity aggregates.
-      const scrapedName = scraped.name ?? "";
-      const RT_BOND_RE =
-        /\b(bond|aggregate|treasury|gilts?|bund|btp|oat|govie|corporate\s+credit|high\s+yield|inflation[- ]?linked|tips|money\s+market|t-?bill)\b/i;
-      const RT_COMMODITY_RE =
-        /\b(gold|silver|platinum|palladium|oil|brent|wti|natural\s+gas|copper|commodit|wheat|corn)\b/i;
-      const REAL_EQUITY_SECTORS = new Set([
-        "Technology",
-        "Financials",
-        "Healthcare",
-        "Consumer Discretionary",
-        "Consumer Staples",
-        "Industrials",
-        "Communication Services",
-        "Energy",
-        "Materials",
-        "Utilities",
-        "Real Estate",
-      ]);
-      const sectorKeys = Object.keys(scraped.sector ?? {});
-      const hasRealEquitySector = sectorKeys.some((k) =>
-        REAL_EQUITY_SECTORS.has(k),
-      );
-      const nameLooksFixedIncome =
-        RT_BOND_RE.test(scrapedName) || RT_COMMODITY_RE.test(scrapedName);
-      const inferredIsEquity = nameLooksFixedIncome
-        ? false
-        : hasRealEquitySector;
-      registerRuntimeLookthroughProfile(trimmed, {
-        isEquity: inferredIsEquity,
-        geo: scraped.geo!,
-        sector: scraped.sector!,
-        currency: scraped.currency ?? {},
-        ...(scraped.topHoldings && scraped.topHoldings.length > 0
-          ? { topHoldings: scraped.topHoldings }
-          : {}),
-      });
-      setRuntimeProfileVersion((v) => v + 1);
-      toast.success(
-        lang === "de"
-          ? `Look-through-Profil geladen für ${trimmed}`
-          : `Look-through profile loaded for ${trimmed}`,
-      );
+      // Task #251 — defer the destructive toast 1500 ms so the parallel
+      // Stammdaten auto-classify can mute it (see
+      // `handleManualScrapeResult`). Task #259 — the success-path
+      // (registerRuntimeLookthroughProfile + version bump + success
+      // toast) and the failure-toast wording / equity classification
+      // logic live in the shared helper so the import path can reuse
+      // them without drift.
+      handleManualScrapeResult(trimmed, result, { deferToast: true });
     });
   }
 
@@ -1195,6 +1205,30 @@ export function ExplainPortfolio() {
     if (rows.length === 0) return;
     setState((s) => ({ ...s, positions: rows }));
     setWeightDrafts(rows.map((p) => (p.weight > 0 ? String(p.weight) : "")));
+    // Task #259 — fire on-demand look-through scrapes for the off-catalog
+    // imported rows. Without this, the Geo / Sector / Top-Holdings charts
+    // stayed empty for `found-unassigned` and `off-universe` ISINs until
+    // the user re-pasted the same ISIN into the row editor (the only
+    // other code path that triggers `scrapeLookthroughForIsin`).
+    // `lookthroughProfileFor` skips ISINs already covered by the bundled
+    // overrides or the runtime registry, so duplicate imports don't
+    // re-fan-out. The error toast fires immediately (deferToast=false)
+    // because the import dialog has already operator-classified each
+    // manual row's `manualMeta`, so the 1500 ms Stammdaten-mute gate
+    // used by `setManualIsin` is not needed here. `allowMute=false`
+    // also bypasses the `autoClassifiedIsinsRef` suppression — the
+    // import path's classification did not come from the parallel
+    // Stammdaten auto-classifier, so the operator must always see the
+    // failure feedback, even for an ISIN that happened to be auto-
+    // classified earlier in the same session.
+    triggerImportLookthroughScrapes(rows, {
+      profileFor: lookthroughProfileFor,
+      onResult: (isin, result) =>
+        handleManualScrapeResult(isin, result, {
+          deferToast: false,
+          allowMute: false,
+        }),
+    });
     toast.success(
       t("explain.import.toast.summary", {
         total: rows.length,

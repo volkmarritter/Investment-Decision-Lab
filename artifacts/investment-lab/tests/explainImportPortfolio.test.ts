@@ -1,9 +1,14 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   parseImportText,
   classifyImportLines,
   buildPositionsFromMapping,
 } from "@/components/investment/ImportPortfolioDialog";
+import {
+  shouldSuppressScrapeFailureToast,
+  triggerImportLookthroughScrapes,
+} from "@/lib/importLookthroughScrape";
+import type { ScrapeLookthroughResult } from "@/lib/etf-api";
 import {
   getBucketKeyForIsin,
   getInstrumentByIsin,
@@ -473,5 +478,181 @@ describe("Task #236 — paste-import vs picker look-through parity", () => {
     expect(toMap(ltImport.geoFixedIncome)).toEqual(
       toMap(ltPicker.geoFixedIncome),
     );
+  });
+});
+
+// Task #259 — when a portfolio is imported, off-catalog ISINs
+// (`found-unassigned` and `off-universe`) must trigger a background
+// look-through scrape so the Geo / Sector / Top-Holdings charts populate
+// without the operator having to re-paste each ISIN. Catalog rows already
+// carry curated look-through data and must NOT be scraped.
+describe("Task #259 — import triggers look-through scrape for off-catalog ISINs", () => {
+  it("scrapes only the off-catalog rows (skipping catalog rows)", async () => {
+    const text = `${ISIN_USA} / 50\n${ISIN_OFF} / 50`;
+    const rows = buildPositionsFromMapping(
+      classifyImportLines(parseImportText(text)),
+    );
+
+    // Catalog rows have no manualMeta; off-catalog rows do.
+    expect(rows.find((r) => r.isin === ISIN_USA)?.manualMeta).toBeUndefined();
+    expect(rows.find((r) => r.isin === ISIN_OFF)?.manualMeta).toBeTruthy();
+
+    const fakeOk: ScrapeLookthroughResult = {
+      ok: true,
+      profile: {
+        isin: ISIN_OFF,
+        asOf: "2026-05-11",
+        sourceUrl: "https://example.test",
+        geo: { "United States": 100 },
+        sector: { Technology: 100 },
+        currency: { USD: 100 },
+      },
+    };
+    const scrape = vi.fn(async (_isin: string) => fakeOk);
+    const onResult = vi.fn();
+
+    const triggered = triggerImportLookthroughScrapes(rows, {
+      // Off-catalog ISIN is not in the bundled overrides → null. Catalog
+      // ISIN is, but the helper short-circuits earlier on missing
+      // manualMeta — return null here too to prove the manualMeta gate
+      // (not the profileFor gate) is what skips it.
+      profileFor: () => null,
+      scrape,
+      onResult,
+    });
+
+    expect(triggered).toEqual([ISIN_OFF]);
+    expect(scrape).toHaveBeenCalledTimes(1);
+    expect(scrape).toHaveBeenCalledWith(ISIN_OFF);
+    // Resolve the awaited scrape promise so onResult fires before we assert.
+    await new Promise((r) => setTimeout(r, 0));
+    expect(onResult).toHaveBeenCalledTimes(1);
+    expect(onResult).toHaveBeenCalledWith(ISIN_OFF, fakeOk);
+  });
+
+  it("skips off-catalog ISINs whose look-through is already cached", () => {
+    const rows: PersonalPosition[] = [
+      {
+        isin: ISIN_OFF,
+        bucketKey: "",
+        weight: 100,
+        manualMeta: { assetClass: "Equity", region: "Global" },
+      },
+    ];
+    const scrape = vi.fn();
+    const triggered = triggerImportLookthroughScrapes(rows, {
+      // Pretend a runtime profile is already registered.
+      profileFor: () => ({
+        isEquity: true,
+        geo: { "United States": 100 },
+        sector: { Technology: 100 },
+        currency: { USD: 100 },
+      }),
+      scrape: scrape as unknown as (
+        isin: string,
+      ) => Promise<ScrapeLookthroughResult>,
+    });
+    expect(triggered).toEqual([]);
+    expect(scrape).not.toHaveBeenCalled();
+  });
+
+  it("skips malformed ISINs", () => {
+    const rows: PersonalPosition[] = [
+      {
+        isin: "NOTANISIN",
+        bucketKey: "",
+        weight: 100,
+        manualMeta: { assetClass: "Equity", region: "Global" },
+      },
+    ];
+    const scrape = vi.fn();
+    const triggered = triggerImportLookthroughScrapes(rows, {
+      profileFor: () => null,
+      scrape: scrape as unknown as (
+        isin: string,
+      ) => Promise<ScrapeLookthroughResult>,
+    });
+    expect(triggered).toEqual([]);
+    expect(scrape).not.toHaveBeenCalled();
+  });
+
+  it("deduplicates the same off-catalog ISIN appearing twice in the import", () => {
+    const rows: PersonalPosition[] = [
+      {
+        isin: ISIN_OFF,
+        bucketKey: "",
+        weight: 50,
+        manualMeta: { assetClass: "Equity", region: "Global" },
+      },
+      {
+        isin: ISIN_OFF,
+        bucketKey: "",
+        weight: 50,
+        manualMeta: { assetClass: "Equity", region: "Global" },
+      },
+    ];
+    const scrape = vi.fn(
+      async (): Promise<ScrapeLookthroughResult> => ({
+        ok: false,
+        reason: "scrape_failed",
+        message: "x",
+      }),
+    );
+    const triggered = triggerImportLookthroughScrapes(rows, {
+      profileFor: () => null,
+      scrape,
+    });
+    expect(triggered).toEqual([ISIN_OFF]);
+    expect(scrape).toHaveBeenCalledTimes(1);
+  });
+});
+
+// Task #259 — the import path must NOT inherit setManualIsin's
+// auto-classified mute behavior. setManualIsin opts into the mute via
+// `allowMute: true` so the parallel Stammdaten auto-classifier can
+// suppress a redundant red toast. The import path passes
+// `allowMute: false` because its classification came from the import
+// dialog's manualMeta seed, not from the auto-classifier — the operator
+// must always see the failure feedback even if the same ISIN happened
+// to be auto-classified earlier in the same session.
+describe("Task #259 — shouldSuppressScrapeFailureToast", () => {
+  it("suppresses the toast for setManualIsin path when the ISIN was auto-classified", () => {
+    const set = new Set([ISIN_OFF]);
+    expect(
+      shouldSuppressScrapeFailureToast({
+        trimmed: ISIN_OFF,
+        autoClassifiedIsins: set,
+        allowMute: true,
+      }),
+    ).toBe(true);
+  });
+
+  it("does NOT suppress the toast for the import path even if the ISIN was auto-classified earlier", () => {
+    const set = new Set([ISIN_OFF]);
+    expect(
+      shouldSuppressScrapeFailureToast({
+        trimmed: ISIN_OFF,
+        autoClassifiedIsins: set,
+        allowMute: false,
+      }),
+    ).toBe(false);
+  });
+
+  it("does not suppress when the ISIN was never auto-classified, regardless of allowMute", () => {
+    const set = new Set<string>();
+    expect(
+      shouldSuppressScrapeFailureToast({
+        trimmed: ISIN_OFF,
+        autoClassifiedIsins: set,
+        allowMute: true,
+      }),
+    ).toBe(false);
+    expect(
+      shouldSuppressScrapeFailureToast({
+        trimmed: ISIN_OFF,
+        autoClassifiedIsins: set,
+        allowMute: false,
+      }),
+    ).toBe(false);
   });
 });

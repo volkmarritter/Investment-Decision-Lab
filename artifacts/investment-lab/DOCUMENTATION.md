@@ -2,7 +2,7 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
-Last updated: 2026-05 (explain-import-lookthrough-stale-fix)
+Last updated: 2026-05 (explain-import-lookthrough-scrape-on-import — Task #259)
 
 ---
 
@@ -626,6 +626,14 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-05 (explain-import-lookthrough-scrape-on-import — Task #259)
+- **Trigger look-through scrapes when a portfolio is imported.** Operator pasted a portfolio that contained off-catalog ISINs (`found-unassigned` and `off-universe`) into the Explain → "Import portfolio" dialog and watched the rows arrive in the editor — but the Geo / Sector / Top-Holdings cards stayed empty for those positions. Cause: the on-demand `GET /api/lookthrough-scrape/:isin` only fired from `setManualIsin` (the row-level ISIN editor), never from the import path. The operator had to delete the row and retype the same ISIN to populate the charts.
+- **Fix.** New pure helper `triggerImportLookthroughScrapes(rows, { profileFor, scrape, onResult })` in `src/lib/importLookthroughScrape.ts` iterates the imported rows, picks the ones with `manualMeta` and a well-formed ISIN whose `lookthroughProfileFor` returns null (i.e. neither curated nor already cached at runtime), de-dupes, and fires the scrape. Catalog rows (no `manualMeta`) and bundled-overrides hits are skipped automatically. Wired from `replaceWithImportedRows` (`src/components/investment/ExplainPortfolio.tsx`) right after the `setState` + weight-draft writes.
+- **Shared result handling.** Extracted the success / failure post-scrape logic out of `setManualIsin` into a new in-component `handleManualScrapeResult(trimmed, result, { deferToast, allowMute })` helper so the import path reuses the same equity / fixed-income classification, `registerRuntimeLookthroughProfile` write, version bump, success toast, and bilingual destructive-toast wording. Two flags control the failure-path differences between the two callers:
+  - `deferToast` — the import path passes `false` (fire immediately) because import rows already carry an operator-classified `manualMeta` from the dialog and don't need the 1500 ms Stammdaten-mute gate that protects fresh in-row edits in `setManualIsin` (which still passes `true`).
+  - `allowMute` — the import path passes `false`, bypassing the `autoClassifiedIsinsRef` suppression. The `setManualIsin` path opts in (`true`) so a parallel auto-classification can suppress the redundant red toast — but the import path's classification did NOT come from the auto-classifier, so the operator must always see the failure feedback even if the same ISIN happened to be auto-classified earlier in the same session. The mute decision lives in a tiny pure helper `shouldSuppressScrapeFailureToast({ trimmed, autoClassifiedIsins, allowMute })` (`src/lib/importLookthroughScrape.ts`) so it is unit-tested independently.
+- **Tests.** New cases in `tests/explainImportPortfolio.test.ts`: "import triggers look-through scrape for off-catalog ISINs" uses an injected fake `scrape` and pins (a) catalog rows are not scraped; only the off-catalog row is, (b) ISINs already covered by `profileFor` are skipped, (c) malformed ISINs are skipped, (d) duplicate off-catalog ISINs in the same import fan out to a single scrape call. A second describe block "shouldSuppressScrapeFailureToast" pins (e) the setManualIsin path mutes auto-classified ISINs, (f) the import path does NOT mute even when the ISIN was auto-classified earlier, (g) absence from the auto-classified set never mutes regardless of `allowMute`. All 30 Explain e2e specs continue to pass — the existing "off-catalog ISIN clears the unmapped-ETF alert once the scrape resolves" e2e is now also satisfied by the import path, not just by typing.
 
 ### 2026-05 (admin-curated-lookthrough-badge — Task #252)
 - **Fix the look-through status badge for hand-curated profiles in the admin Catalog → Browse view.** ETFs whose look-through profile lives in `DISTINCT_PROFILES` (`src/lib/lookthrough.ts`) — typically swap-based or niche funds that justETF cannot scrape (LU0274208692, LU1681038243, IE00BLCHJB90, …; ~7 ISINs) — were rendered with a red "Keine LT-Daten" / "No LT data" badge in the per-bucket tree, even though the engine resolves their look-through correctly via the curated profile.
