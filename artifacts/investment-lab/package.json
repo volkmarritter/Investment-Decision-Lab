@@ -20,7 +20,9 @@
     "test:e2e:welcome": "playwright test --config=playwright.config.ts tests/e2e/welcome-*.spec.ts",
     "test:e2e:admin": "playwright test --config=playwright.config.ts tests/e2e/admin-*.spec.ts",
     "test:e2e:misc": "playwright test --config=playwright.config.ts tests/e2e/manual-weight.spec.ts tests/e2e/methodology-*.spec.ts",
-    "test:e2e:install": "playwright install chromium"
+    "test:e2e:install": "playwright install chromium",
+    "refresh:listings": "node scripts/refresh-justetf.mjs --mode=listings",
+    "refresh:listings:dry": "DRY_RUN=1 node scripts/refresh-justetf.mjs --mode=listings"
   },
   "devDependencies": {
     "@hookform/resolvers": "^3.10.0",

@@ -52,7 +52,7 @@ describe("backfill-comments ROW_RE — pinning", () => {
       ),
     );
     const matchedIsins = new Set(
-      [...src.matchAll(ROW_RE)].map((m) => m[2]),
+      [...src.matchAll(ROW_RE)].map((m) => m[3]),
     );
     const missing = [...expectedIsins].filter((i) => !matchedIsins.has(i));
     expect(
@@ -69,7 +69,7 @@ describe("backfill-comments ROW_RE — pinning", () => {
     // in the past. Pin them by name so a future drift surfaces as a
     // targeted failure rather than a generic count mismatch.
     const matchedIsins = new Set(
-      [...src.matchAll(ROW_RE)].map((m) => m[2]),
+      [...src.matchAll(ROW_RE)].map((m) => m[3]),
     );
     for (const isin of ["IE000GA3D489", "IE00B53L3W79"]) {
       expect(

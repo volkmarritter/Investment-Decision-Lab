@@ -192,16 +192,14 @@ async function main() {
   }
 
   if (process.env.DRY_RUN) {
-    console.log("\nDRY_RUN set — not writing override file.");
-    await appendRunLogEntry(RUN_LOG_MD, {
-      startedAt,
-      script: "refresh-justetf",
-      mode,
-      isinCount: isins.length,
-      okCount,
-      failCount,
-      dryRun: true,
-    });
+    // Task #275 — DRY_RUN must leave all three persisted files untouched
+    // (etfs.overrides.json, refresh-changes.log.jsonl, AND refresh-runs.log.md)
+    // so the local dry-run script is genuinely read-only. Console output below
+    // is the operator's signal that the run finished.
+    console.log("\nDRY_RUN set — not writing override file or run-log entry.");
+    console.log(
+      `DRY_RUN summary: mode=${mode} isins=${isins.length} ok=${okCount} failed=${failCount}`,
+    );
     process.exit(failCount > okCount ? 1 : 0);
   }
 

@@ -56,10 +56,17 @@ const REQUEST_DELAY_MS = 1500;
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-// Per-row regex. Anchored to canonical 2-space indent. ANY change to the
-// INSTRUMENTS row layout in etfs.ts must be reflected here.
+// Per-row regex. Matches the INSTRUMENTS row block keyed by ISIN. The
+// leading-whitespace prefix is captured (`\n( +)`) so a row written with
+// any indent — the canonical 2-space form OR an admin-write that drifted
+// to 4 spaces (Task #275 saw such a row on main and the previous
+// 2-space-anchored regex silently skipped it, breaking
+// backfillSourcePriority.test.ts in CI) — is still picked up. The closing
+// `}),` is then required to sit at exactly the same indent as the opener,
+// which keeps the match scoped to a single row even when other braces
+// nest inside.
 const ROW_RE =
-  /( {2}"([A-Z]{2}[A-Z0-9]{9}\d)":\s*I\(\{)([\s\S]*?)(\n {2}\}\),)/g;
+  /(\n( +)"([A-Z]{2}[A-Z0-9]{9}\d)":\s*I\(\{)([\s\S]*?)(\n\2\}\),)/g;
 
 function extractField(body, key) {
   const re = new RegExp(`\\n\\s+${key}:\\s*"((?:\\\\.|[^"\\\\])*)"\\s*,`);
@@ -241,7 +248,7 @@ export async function backfillCatalogComments({
 
   const candidates = [];
   for (const m of src.matchAll(ROW_RE)) {
-    const [, , isin, body] = m;
+    const [, , , isin, body] = m;
     if (targetIsins.length && !targetIsins.includes(isin)) continue;
     const comment = extractField(body, "comment") ?? "";
     const commentSource = extractField(body, "commentSource");
@@ -287,14 +294,14 @@ export async function backfillCatalogComments({
     } else {
       // Auto fallback via describeEtf().
       const rowReFresh = new RegExp(
-        `( {2}"${isin}":\\s*I\\(\\{)([\\s\\S]*?)(\\n {2}\\}\\),)`,
+        `(\\n( +)"${isin}":\\s*I\\(\\{)([\\s\\S]*?)(\\n\\2\\}\\),)`,
       );
       const rowMatch = next.match(rowReFresh);
       if (!rowMatch) {
         failed++;
         continue;
       }
-      const [, , bodyNow] = rowMatch;
+      const [, , , bodyNow] = rowMatch;
       const facts = extractCatalogFacts(bodyNow);
       const name = extractField(bodyNow, "name") ?? "";
       const profile = coerceProfile(profiles[isin]);
@@ -315,8 +322,10 @@ export async function backfillCatalogComments({
 
     // Apply the patch. Re-match because earlier iterations may have
     // shifted offsets.
+    // Indent-tolerant — same shape as ROW_RE / rowReFresh above so a row
+    // written with non-canonical indent (Task #275) still patches.
     const rowRe = new RegExp(
-      `( {2}"${isin}":\\s*I\\(\\{)([\\s\\S]*?)(\\n {2}\\}\\),)`,
+      `(\\n( +)"${isin}":\\s*I\\(\\{)([\\s\\S]*?)(\\n\\2\\}\\),)`,
     );
     const rowMatch = next.match(rowRe);
     if (!rowMatch) {
@@ -324,7 +333,7 @@ export async function backfillCatalogComments({
       failed++;
       continue;
     }
-    const [, head, body, tail] = rowMatch;
+    const [, head, , body, tail] = rowMatch;
     const rowChanges = [];
     let patchedBody = body;
     if (chosenEn !== undefined) {

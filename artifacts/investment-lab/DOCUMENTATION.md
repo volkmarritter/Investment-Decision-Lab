@@ -438,6 +438,18 @@ node scripts/refresh-justetf.mjs IE00B5BMR087    # one ISIN only
 DRY_RUN=1 node scripts/refresh-justetf.mjs       # parse & log, do not write
 ```
 
+**One-command listings refresh (Task #275).** The same nightly job that runs in CI as `Refresh ETF listings (nightly justETF snapshot)` (`.github/workflows/refresh-listings.yml`, cron + `workflow_dispatch`) is exposed as two pnpm scripts so an operator can reproduce the run locally without typing the long invocation:
+
+```bash
+# from the workspace root
+pnpm --filter @workspace/investment-lab run refresh:listings      # real run — writes etfs.overrides.json + run-log + changes log
+pnpm --filter @workspace/investment-lab run refresh:listings:dry  # DRY_RUN — fetches & parses, writes nothing on disk
+```
+
+The dry-run variant sets `DRY_RUN=1` and is genuinely read-only: it leaves `src/data/etfs.overrides.json`, `src/data/refresh-runs.log.md`, and `src/data/refresh-changes.log.jsonl` untouched (and the opportunistic `backfill-comments` pass that follows the real run is also skipped, so `src/lib/etfs.ts` is never written either). Use it before a manual `workflow_dispatch` to confirm the extractors still match justETF's current markup.
+
+To trigger the same job in GitHub instead, open the **Actions** tab → **Refresh ETF listings (nightly justETF snapshot)** → **Run workflow** (the workflow's `workflow_dispatch` entry is what the cron path calls into; both run identical steps).
+
 **Edit before deploying to your fork.** Update the `User-Agent` string in `scripts/refresh-justetf.mjs` to point at your own contact address; justETF asks scrapers to identify themselves.
 
 ---
@@ -626,6 +638,14 @@ Also registered as the named validation step **`test`** and **`typecheck`**.
 ## 11. Changelog
 
 Append a new entry whenever functionality changes. Newest first.
+
+### 2026-05 (refresh-listings-row-regex-and-local-script — Task #275)
+- **Diagnosed and fixed the nightly `Refresh ETF listings` GitHub Action failure (run #19, 2026-05-11).** The justETF scrape step itself was green (139 ok / 27 fail — well under the half-fail abort threshold), but the follow-up `pnpm run typecheck && pnpm run test` step failed with `tests/backfillSourcePriority.test.ts` expecting `[ 'IE00B53L3W79' ]` and getting `[]`. Root cause: the `IE00B53L3W79` row in `src/lib/etfs.ts` on `main` had been written with **4-space indent** (drifted from the 2-space canonical form, almost certainly via an admin direct-write helper), and `ROW_RE` in `scripts/backfill-comments.mjs` was anchored to exactly two spaces — so the regex silently skipped that row, the mocked fetcher was never called, and the assertion failed. Locally the same test passed because the workspace copy of `etfs.ts` still has the correct 2-space indent.
+- **Fix.** `ROW_RE` now captures the leading whitespace (`(\n( +)"<ISIN>": I\(\{...\n\2\}\),)`) and requires the closing `}),` to sit at the same indent as the opener — so any indent level (2, 4, …) is matched and back-referenced for the closer, preventing future indent drift from silently muting the backfill. The helper-internal `rowReFresh` regex inside `backfillCatalogComments` was relaxed identically. Capture-group destructuring updated (`m[3]` is now the ISIN, `m[4]` the row body).
+- **One-command local trigger.** Two new pnpm scripts in `artifacts/investment-lab/package.json` reproduce the same nightly job locally: `pnpm --filter @workspace/investment-lab run refresh:listings` (real run — same as CI) and `pnpm --filter @workspace/investment-lab run refresh:listings:dry` (sets `DRY_RUN=1`). Section 5.2 documents both invocations alongside the existing `workflow_dispatch` path.
+- **Honest dry-run.** `scripts/refresh-justetf.mjs`'s `DRY_RUN` branch no longer appends a `dryRun:true` entry to `refresh-runs.log.md` — the dry-run is now genuinely read-only across all three persisted files (`etfs.overrides.json`, `refresh-runs.log.md`, `refresh-changes.log.jsonl`), and the opportunistic `backfill-comments` pass that would write `etfs.ts` is already skipped via the early `process.exit` so `src/lib/etfs.ts` is also untouched.
+- **Tests.** `tests/backfillSourcePriority.test.ts` (3 cases) and `tests/scrapers.test.ts` (66 cases) both green; root `pnpm run typecheck` clean.
+- **Methodology page** unchanged — no engine, MC, look-through, allocation, hedging, catalog, or persistence behaviour changed; this is a script-robustness fix plus operator ergonomics.
 
 ### 2026-05 (compare-slot-preview-warmup — Task #272)
 - **Compare slots loaded from an Explain workspace now auto-fetch live justETF TER for off-catalog ISINs.** Task #270's three-step manual-row TER fallback (operator → cached scrape → asset-class default) reaches step 2 only if the in-tab `SCRAPE_CACHE` already has the ISIN. In Explain that cache is warmed by `useEtfInfo`'s manual-entry preview hook the moment the row renders. In Compare, when the user taps "Load from Explain" with a fresh tab (no Explain visit beforehand), the cache is cold for every off-catalog ISIN, so the Fee Estimator silently fell through to the asset-class default — a Vanguard FTSE All-World row could land on a generic "Equity-World" 18 bps default instead of its real ~22 bps justETF TER, with no visible cue that better data was reachable.
