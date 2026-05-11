@@ -1044,38 +1044,42 @@ export function BuildPortfolio() {
                   {t("build.btn.generate")}
                 </Button>
 
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      className="w-full"
-                      onClick={async () => {
-                        const current = form.getValues();
-                        const parsed: PortfolioInput = {
-                          ...current,
-                          horizon: Number(current.horizon),
-                          targetEquityPct: Number(current.targetEquityPct),
-                          numETFs: Number(current.numETFs),
-                          numETFsMin: Number(current.numETFsMin ?? current.numETFs),
-                        };
-                        const prompt = buildAiPrompt(parsed, lang);
-                        try {
-                          await navigator.clipboard.writeText(prompt);
-                          toast.success(t("build.toast.aiPromptCopied"));
-                        } catch {
-                          toast.error(t("build.toast.aiPromptError"));
-                        }
-                      }}
-                    >
-                      <ClipboardCopy className="h-4 w-4 mr-2" />
-                      {t("build.btn.copyAiPrompt")}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-xs">
-                    {t("build.btn.copyAiPrompt.tooltip")}
-                  </TooltipContent>
-                </Tooltip>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["basic", "pro"] as const).map((mode) => (
+                    <Tooltip key={mode}>
+                      <TooltipTrigger asChild>
+                        <Button
+                          type="button"
+                          variant="secondary"
+                          className="w-full"
+                          onClick={async () => {
+                            const current = form.getValues();
+                            const parsed: PortfolioInput = {
+                              ...current,
+                              horizon: Number(current.horizon),
+                              targetEquityPct: Number(current.targetEquityPct),
+                              numETFs: Number(current.numETFs),
+                              numETFsMin: Number(current.numETFsMin ?? current.numETFs),
+                            };
+                            const prompt = buildAiPrompt(parsed, lang, mode);
+                            try {
+                              await navigator.clipboard.writeText(prompt);
+                              toast.success(t("build.toast.aiPromptCopied"));
+                            } catch {
+                              toast.error(t("build.toast.aiPromptError"));
+                            }
+                          }}
+                        >
+                          <ClipboardCopy className="h-4 w-4 mr-2" />
+                          {t(mode === "basic" ? "build.btn.copyAiPromptBasic" : "build.btn.copyAiPromptPro")}
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent className="max-w-xs">
+                        {t(mode === "basic" ? "build.btn.copyAiPromptBasic.tooltip" : "build.btn.copyAiPromptPro.tooltip")}
+                      </TooltipContent>
+                    </Tooltip>
+                  ))}
+                </div>
               </form>
             </Form>
           </CardContent>

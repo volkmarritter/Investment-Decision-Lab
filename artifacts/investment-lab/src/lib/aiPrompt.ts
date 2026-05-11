@@ -1,6 +1,7 @@
 import type { PortfolioInput, BaseCurrency, PreferredExchange, ThematicPreference } from "./types";
 
 export type PromptLang = "en" | "de";
+export type PromptMode = "basic" | "pro";
 
 const HOME_BIAS_LABEL: Record<PromptLang, Record<BaseCurrency, string>> = {
   en: { CHF: "Swiss", EUR: "Eurozone", GBP: "UK", USD: "US" },
@@ -74,15 +75,23 @@ function etfCountRange(input: PortfolioInput): string {
  *
  * @param input  current Build-Portfolio parameters
  * @param lang   "en" (default) or "de" — produces an English or German prompt
+ * @param mode   "basic" (default) heuristic / quick variant, or "pro" for the
+ *               stricter mean-variance / efficient-frontier variant with a
+ *               mandatory pre-answer validation gate and a deeper rationale
+ *               section
  */
-export function buildAiPrompt(input: PortfolioInput, lang: PromptLang = "en"): string {
-  return lang === "de" ? buildPromptDe(input) : buildPromptEn(input);
+export function buildAiPrompt(
+  input: PortfolioInput,
+  lang: PromptLang = "en",
+  mode: PromptMode = "basic",
+): string {
+  return lang === "de" ? buildPromptDe(input, mode) : buildPromptEn(input, mode);
 }
 
 // ---------------------------------------------------------------------------
 // English prompt
 // ---------------------------------------------------------------------------
-function buildPromptEn(input: PortfolioInput): string {
+function buildPromptEn(input: PortfolioInput, mode: PromptMode): string {
   const { lo, hi } = equityRange(input.targetEquityPct);
   const homeBias = HOME_BIAS_LABEL.en[input.baseCurrency];
   const exchangeLine = EXCHANGE_LINE.en[input.preferredExchange];
@@ -124,6 +133,58 @@ function buildPromptEn(input: PortfolioInput): string {
     ? "9. Include synthetic ETFs where they provide structural advantages, particularly in terms of market efficiency and reduced withholding tax leakage (e.g., for US equity exposure). Ensure transparency and robustness. Reflect and explain their use clearly in section C) Summary of Key Design Decisions (e.g., where they are applied and why)."
     : "9. Use physical replication only. Do NOT include synthetic / swap-based ETFs even if they would be structurally advantageous; the investor has opted out of synthetic replication.";
 
+  const executionModeBlock = mode === "pro"
+    ? `Execution mode (MANDATORY reasoning discipline):
+- Follow the steps in the order they are given; do not reorder or skip any of them.
+- Justify every allocation decision with at least one of: diversification benefit, risk-contribution impact, or implementation efficiency.
+- Make the reasoning structured and explicit; reference the specific assumption or constraint that drives each choice.
+- Do not produce generic narration, marketing language, or filler commentary.`
+    : `Execution mode:
+- Focus on speed and clarity.
+- Apply a pragmatic, heuristic portfolio construction approach.
+- Keep reasoning concise and avoid unnecessary complexity.
+- Do not perform extensive internal validation loops.
+- Prioritise a clean, intuitive, and implementable result.`;
+
+  const constructionBlock = mode === "pro"
+    ? `Portfolio construction methodology (mean-variance / efficient frontier):
+- Base allocations on long-term return, volatility, and correlation assumptions for each asset class.
+- Include an asset class only when it improves the portfolio's risk-return profile; drop it otherwise.
+- Approximate the efficient frontier by combining low-correlated assets, avoiding redundant exposures, and balancing risk contributions across the portfolio.
+- For the targeted return level, minimise risk; equivalently, for the targeted risk level, maximise expected return.
+- Make the trade-offs (return vs. risk vs. diversification) explicit when they drive a sizing decision.`
+    : `Portfolio construction approach:
+Construct a well-diversified portfolio using sound portfolio design principles.
+- Combine asset classes with different risk and return characteristics.
+- Use diversification to improve the overall risk-return profile.
+- Avoid unnecessary overlap and concentration.
+- Aim for a balanced mix of growth drivers and stabilising elements.`;
+
+  const internalValidationBlock = mode === "pro"
+    ? `\nInternal validation (MANDATORY before final answer):
+Before presenting the final answer, run an explicit self-check and correct any issue you find:
+- Verify that all tables are internally consistent (group totals reconcile, weights sum to 100%, identifiers in Table 1 and Table 2 match).
+- Confirm there are no unjustified redundant exposures (no two ETFs covering essentially the same exposure without a clear reason).
+- Confirm minimum position sizes are respected and no position is implementation-irrelevant.
+- Confirm the portfolio cannot be simplified further without materially reducing diversification quality.
+- If any check fails, correct the construction before presenting the final answer; do not surface the issue without resolving it.
+`
+    : "";
+
+  const sectionH = mode === "pro"
+    ? `H) Portfolio construction rationale (Efficient Frontier perspective)
+Explain concisely, with direct reference to this specific allocation, how it sits relative to an efficient portfolio. Cover:
+- relative return expectations across the chosen asset classes (qualitative ranking, not point estimates),
+- volatility relationships between the sleeves,
+- the correlation structure that drives the diversification benefit,
+- the key diversification drivers in this allocation,
+- how the chosen mix improves risk-adjusted returns versus a naive single-asset or equal-weight benchmark,
+- the trade-offs versus a purely theoretical optimal portfolio (constraints such as ETF universe, exchange preference, home bias, hedging policy),
+- and why this allocation is close to an efficient portfolio given those real-world constraints.
+Stay concise and tied to the actual allocation; do not restate generic efficient-frontier theory.`
+    : `H) Portfolio rationale (brief)
+Provide a short explanation of how diversification improves the portfolio's overall risk-return profile.`;
+
   return `Role:
 You act as an independent CFA-level portfolio strategist.
 
@@ -134,20 +195,10 @@ Create a broadly diversified, return-oriented reference portfolio for an investo
 - Investment horizon: ${horizonLabel(input.horizon, "en")}
 - Equity allocation between ${lo}% and ${hi}%
 
-Execution mode:
-- Focus on speed and clarity.
-- Apply a pragmatic, heuristic portfolio construction approach.
-- Keep reasoning concise and avoid unnecessary complexity.
-- Do not perform extensive internal validation loops.
-- Prioritise a clean, intuitive, and implementable result.
+${executionModeBlock}
 
-Portfolio construction approach:
-Construct a well-diversified portfolio using sound portfolio design principles.
-- Combine asset classes with different risk and return characteristics.
-- Use diversification to improve the overall risk-return profile.
-- Avoid unnecessary overlap and concentration.
-- Aim for a balanced mix of growth drivers and stabilising elements.
-
+${constructionBlock}
+${internalValidationBlock}
 Eligible asset classes:
 Core Asset Classes:
 ${coreLines}
@@ -212,8 +263,7 @@ F) Rebalancing concept including trigger, frequency, and tolerance bands.
 
 G) Rough cost estimate expressed as weighted TER for the full portfolio.
 
-H) Portfolio rationale (brief)
-Provide a short explanation of how diversification improves the portfolio's overall risk-return profile.
+${sectionH}
 
 I) ETF implementation import file for the Investment Decision Lab "Explain my Portfolio" tab
 Provide a plain-text import block (no table, no markdown fences) using exactly the following per-line format, one position per line:
@@ -231,7 +281,7 @@ Add an investment disclaimer at the end of the answer according to recognized be
 // ---------------------------------------------------------------------------
 // German prompt
 // ---------------------------------------------------------------------------
-function buildPromptDe(input: PortfolioInput): string {
+function buildPromptDe(input: PortfolioInput, mode: PromptMode): string {
   const { lo, hi } = equityRange(input.targetEquityPct);
   const homeBias = HOME_BIAS_LABEL.de[input.baseCurrency];
   const exchangeLine = EXCHANGE_LINE.de[input.preferredExchange];
@@ -274,6 +324,58 @@ function buildPromptDe(input: PortfolioInput): string {
     ? "9. Setze synthetische ETFs ein, wo sie strukturelle Vorteile bieten, insbesondere hinsichtlich Markteffizienz und reduzierter Quellensteuer-Leakage (z. B. bei US-Aktien-Exposure). Achte auf Transparenz und Robustheit. Erlaeutere ihren Einsatz klar in Abschnitt C) Zusammenfassung der wesentlichen Designentscheidungen (wo sie eingesetzt werden und warum)."
     : "9. Verwende ausschliesslich physische Replikation. Setze KEINE synthetischen / Swap-basierten ETFs ein, auch wenn sie strukturelle Vorteile haetten; der Anleger hat sich gegen synthetische Replikation entschieden.";
 
+  const executionModeBlock = mode === "pro"
+    ? `Bearbeitungsmodus (VERPFLICHTENDE Begruendungs-Disziplin):
+- Bearbeite die Schritte in der vorgegebenen Reihenfolge; weder umordnen noch ueberspringen.
+- Begruende jede Allokationsentscheidung mit mindestens einem von: Diversifikationsnutzen, Wirkung auf den Risikobeitrag oder Umsetzungseffizienz.
+- Halte die Begruendung strukturiert und explizit; verweise auf die konkrete Annahme oder Vorgabe, die jede Entscheidung treibt.
+- Keine generische Erzaehlung, kein Marketing-Sprech, keine Fuelltexte.`
+    : `Bearbeitungsmodus:
+- Fokus auf Geschwindigkeit und Klarheit.
+- Wende einen pragmatischen, heuristischen Konstruktionsansatz an.
+- Halte die Begruendung knapp und vermeide unnoetige Komplexitaet.
+- Fuehre keine ausgedehnten internen Validierungsschleifen durch.
+- Priorisiere ein sauberes, intuitives und umsetzbares Ergebnis.`;
+
+  const constructionBlock = mode === "pro"
+    ? `Konstruktionsmethodik (Mean-Variance / Efficient Frontier):
+- Stuetze die Allokation auf langfristige Annahmen zu Rendite, Volatilitaet und Korrelation je Anlageklasse.
+- Nimm eine Anlageklasse nur dann auf, wenn sie das Rendite-Risiko-Profil des Portfolios verbessert; sonst weglassen.
+- Naehere die Efficient Frontier an, indem du gering korrelierte Anlagen kombinierst, redundante Exposures vermeidest und Risikobeitraege ueber das Portfolio ausbalancierst.
+- Minimiere bei gegebenem Renditeziel das Risiko bzw. maximiere bei gegebenem Risikoniveau die erwartete Rendite.
+- Mache die Trade-offs (Rendite vs. Risiko vs. Diversifikation) explizit, sobald sie eine Sizing-Entscheidung treiben.`
+    : `Konstruktionsansatz:
+Konstruiere ein gut diversifiziertes Portfolio nach soliden Portfolio-Design-Prinzipien.
+- Kombiniere Anlageklassen mit unterschiedlichen Risiko- und Renditeprofilen.
+- Nutze Diversifikation, um das Gesamtrisiko-Rendite-Profil zu verbessern.
+- Vermeide unnoetige Ueberschneidungen und Konzentration.
+- Strebe eine ausgewogene Mischung aus Wachstumstreibern und stabilisierenden Elementen an.`;
+
+  const internalValidationBlock = mode === "pro"
+    ? `\nInterne Validierung (VERPFLICHTEND vor der finalen Antwort):
+Fuehre vor der finalen Antwort eine explizite Selbstpruefung durch und korrigiere jeden gefundenen Mangel:
+- Pruefe, dass alle Tabellen in sich konsistent sind (Gruppensummen stimmen, Gewichte summieren sich zu 100%, Kennungen in Tabelle 1 und Tabelle 2 stimmen ueberein).
+- Stelle sicher, dass keine ungerechtfertigten redundanten Exposures bestehen (keine zwei ETFs, die im Wesentlichen dasselbe Exposure ohne klaren Grund abdecken).
+- Stelle sicher, dass Mindestpositionsgroessen eingehalten werden und keine Position umsetzungstechnisch irrelevant ist.
+- Stelle sicher, dass das Portfolio nicht weiter vereinfacht werden kann, ohne die Diversifikationsqualitaet wesentlich zu mindern.
+- Falls eine Pruefung fehlschlaegt, korrigiere die Konstruktion vor der finalen Antwort; bringe das Problem nicht ungeloest an die Oberflaeche.
+`
+    : "";
+
+  const sectionH = mode === "pro"
+    ? `H) Portfolio-Konstruktionsrationale (Sicht der Efficient Frontier)
+Erlaeutere knapp und mit direktem Bezug auf diese konkrete Allokation, wo sie relativ zu einem effizienten Portfolio steht. Behandle dabei:
+- relative Renditeerwartungen der gewaehlten Anlageklassen (qualitative Reihenfolge, keine Punktschaetzungen),
+- Volatilitaetsbeziehungen zwischen den Sleeves,
+- die Korrelationsstruktur, die den Diversifikationsnutzen treibt,
+- die wesentlichen Diversifikationstreiber dieser Allokation,
+- wie die gewaehlte Mischung das risikoadjustierte Ergebnis gegenueber einer naiven Einzelanlage oder Gleichgewichtung verbessert,
+- die Trade-offs gegenueber einem rein theoretisch optimalen Portfolio (Restriktionen wie ETF-Universum, Boersenpraeferenz, Home-Bias, Hedging-Politik),
+- und warum diese Allokation unter den realen Restriktionen nahe an einem effizienten Portfolio liegt.
+Bleibe knapp und an die tatsaechliche Allokation gebunden; keine generische Wiederholung der Efficient-Frontier-Theorie.`
+    : `H) Portfolio-Rationale (kurz)
+Erlaeutere kurz, wie Diversifikation das Gesamtrisiko-Rendite-Profil verbessert.`;
+
   return `Rolle:
 Du agierst als unabhaengiger Portfolio-Stratege auf CFA-Niveau.
 
@@ -284,20 +386,10 @@ Erstelle ein breit diversifiziertes, renditeorientiertes Referenzportfolio fuer 
 - Anlagehorizont: ${horizonLabel(input.horizon, "de")}
 - Aktienallokation zwischen ${lo}% und ${hi}%
 
-Bearbeitungsmodus:
-- Fokus auf Geschwindigkeit und Klarheit.
-- Wende einen pragmatischen, heuristischen Konstruktionsansatz an.
-- Halte die Begruendung knapp und vermeide unnoetige Komplexitaet.
-- Fuehre keine ausgedehnten internen Validierungsschleifen durch.
-- Priorisiere ein sauberes, intuitives und umsetzbares Ergebnis.
+${executionModeBlock}
 
-Konstruktionsansatz:
-Konstruiere ein gut diversifiziertes Portfolio nach soliden Portfolio-Design-Prinzipien.
-- Kombiniere Anlageklassen mit unterschiedlichen Risiko- und Renditeprofilen.
-- Nutze Diversifikation, um das Gesamtrisiko-Rendite-Profil zu verbessern.
-- Vermeide unnoetige Ueberschneidungen und Konzentration.
-- Strebe eine ausgewogene Mischung aus Wachstumstreibern und stabilisierenden Elementen an.
-
+${constructionBlock}
+${internalValidationBlock}
 Zulaessige Anlageklassen:
 Kern-Anlageklassen:
 ${coreLines}
@@ -362,8 +454,7 @@ F) Rebalancing-Konzept inkl. Trigger, Frequenz und Toleranzbaender.
 
 G) Grobe Kostenschaetzung als gewichteter TER fuer das Gesamtportfolio.
 
-H) Portfolio-Rationale (kurz)
-Erlaeutere kurz, wie Diversifikation das Gesamtrisiko-Rendite-Profil verbessert.
+${sectionH}
 
 I) ETF-Umsetzungs-Importdatei fuer den Tab "Mein Portfolio erklaeren" des Investment Decision Lab
 Liefere einen reinen Text-Importblock (keine Tabelle, keine Markdown-Codefences) im exakt folgenden Format, eine Position pro Zeile:
