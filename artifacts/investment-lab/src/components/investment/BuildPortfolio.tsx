@@ -19,7 +19,8 @@ import {
   clearAllETFSelections,
   type ETFSlot,
 } from "@/lib/etfSelection";
-import { buildAiPrompt } from "@/lib/aiPrompt";
+import type { PromptMode } from "@/lib/aiPrompt";
+import { AiPromptPreviewDialog } from "./AiPromptPreviewDialog";
 import { AllocationGroupSummary } from "./AllocationGroupSummary";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
@@ -139,6 +140,11 @@ export function BuildPortfolio() {
   // already non-empty content in the Explain workspace; an empty workspace
   // is overwritten without prompting.
   const [sendToExplainOpen, setSendToExplainOpen] = useState(false);
+  const [aiPromptPreview, setAiPromptPreview] = useState<{ open: boolean; mode: PromptMode; input: PortfolioInput | null }>({
+    open: false,
+    mode: "basic",
+    input: null,
+  });
   const [detailsEtf, setDetailsEtf] = useState<import("@/lib/types").ETFImplementation | null>(null);
   // Persisted open/closed state for the "Rationale & Key Risks" collapsible
   // (Task #85). Hydrated synchronously from localStorage so the first render
@@ -1056,7 +1062,7 @@ export function BuildPortfolio() {
                           type="button"
                           variant="secondary"
                           className="w-full"
-                          onClick={async () => {
+                          onClick={() => {
                             const current = form.getValues();
                             const parsed: PortfolioInput = {
                               ...current,
@@ -1065,13 +1071,7 @@ export function BuildPortfolio() {
                               numETFs: Number(current.numETFs),
                               numETFsMin: Number(current.numETFsMin ?? current.numETFs),
                             };
-                            const prompt = buildAiPrompt(parsed, lang, mode);
-                            try {
-                              await navigator.clipboard.writeText(prompt);
-                              toast.success(t("build.toast.aiPromptCopied"));
-                            } catch {
-                              toast.error(t("build.toast.aiPromptError"));
-                            }
+                            setAiPromptPreview({ open: true, mode, input: parsed });
                           }}
                         >
                           <ClipboardCopy className="h-4 w-4 mr-2" />
@@ -2069,6 +2069,13 @@ export function BuildPortfolio() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AiPromptPreviewDialog
+        open={aiPromptPreview.open}
+        onOpenChange={(open) => setAiPromptPreview((s) => ({ ...s, open }))}
+        input={aiPromptPreview.input}
+        initialMode={aiPromptPreview.mode}
+      />
     </div>
   );
 }
