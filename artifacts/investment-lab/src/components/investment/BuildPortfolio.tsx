@@ -1044,7 +1044,11 @@ export function BuildPortfolio() {
                   {t("build.btn.generate")}
                 </Button>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-3 rounded-lg border p-3 shadow-sm">
+                  <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    {t("build.aiPrompt.section")}
+                  </h4>
+                  <div className="grid grid-cols-2 gap-2">
                   {(["basic", "pro"] as const).map((mode) => (
                     <Tooltip key={mode}>
                       <TooltipTrigger asChild>
@@ -1079,6 +1083,7 @@ export function BuildPortfolio() {
                       </TooltipContent>
                     </Tooltip>
                   ))}
+                  </div>
                 </div>
               </form>
             </Form>
