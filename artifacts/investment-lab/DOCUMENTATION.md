@@ -2,6 +2,8 @@
 
 > **Maintenance rule:** This file MUST be updated whenever a feature is added, removed, or its behaviour changes. Each change should also append an entry to the **Changelog** section at the bottom.
 
+> **See also:** `DB_MIGRATION_OVERVIEW.md` — five-phase plan for migrating the data-as-code catalog/overrides to a database.
+
 Last updated: 2026-05 (explain-import-lookthrough-pending-spinner — Task #262)
 
 ---

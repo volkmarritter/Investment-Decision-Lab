@@ -5,6 +5,7 @@
 > **Companion docs:**
 > - `DOCUMENTATION.md` — full functional / engine logic.
 > - `scripts/README.md` — exact CLI flags for each scraper.
+> - `DB_MIGRATION_OVERVIEW.md` — five-phase plan for migrating the data-as-code catalog/overrides to a database.
 
 Last updated: 2026-04-25
 
