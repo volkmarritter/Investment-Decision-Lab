@@ -48,6 +48,7 @@ const catalogInclude = [
   "tests/backfillCommentsModes.test.ts",
   "tests/backfillManualProtection.test.ts",
   "tests/backfillSourcePriority.test.ts",
+  "tests/backfillRowRegex.test.ts",
   "tests/changesShimExpand.test.ts",
   "tests/etfImplementationCommentResolver.test.ts",
   "tests/exportEtfImplementationXlsx.test.ts",
