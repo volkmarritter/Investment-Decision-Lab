@@ -410,7 +410,7 @@ export function Methodology() {
       items: [
         { value: "bench", label: de ? "Benchmark (MSCI ACWI Proxy)" : "Benchmark (MSCI ACWI Proxy)" },
         { value: "limits", label: de ? "Was diese App NICHT tut" : "What this app does NOT do" },
-        { value: "excel-export", label: de ? "Excel-Exporte" : "Excel Exports", version: sectionVersionShort("excel-export") },
+        { value: "excel-export", label: de ? "Excel-Snapshot" : "Excel Snapshot", version: sectionVersionShort("excel-export") },
       ],
     },
   ];
@@ -575,8 +575,8 @@ export function Methodology() {
             ? "Katalog-Picker, Bucket-Hinweis & Live-Vorschau für manuell erfasste ISINs"
             : "Catalog picker, bucket hint & live preview for manually-entered ISINs";
           map["excel-export"] = de
-            ? "ETF-Implementierung & Snapshot als Excel herunterladen"
-            : "Download ETF Implementation & snapshot as Excel";
+            ? "Excel-Snapshot — sehen, wie alles berechnet wird"
+            : "Excel snapshot — see how everything is calculated";
           return map;
         })()}
         de={de}
@@ -2183,36 +2183,35 @@ export function Methodology() {
         <Section
           value="excel-export"
           icon={<FileSpreadsheet className="h-4 w-4" />}
-          title={de ? "Excel-Exporte" : "Excel Exports"}
+          title={de ? "Excel-Snapshot — sehen, wie alles berechnet wird" : "Excel snapshot — see how everything is calculated"}
           version={sectionVersionLong("excel-export")}
         >
           <p className="text-sm text-muted-foreground">
             {de
-              ? "Die App stellt zwei eigenständige Excel-Downloads bereit. Beide sind reine Snapshots — sie enthalten keine Live-Marktdaten und werden nicht automatisch aktualisiert, sobald sich der Browser-Zustand ändert."
-              : "The app exposes two independent Excel downloads. Both are pure snapshots — they contain no live market data and do not auto-refresh once browser state changes."}
+              ? "Im Header-Bereich dieser Methodik-Seite (oben) verlinkt die Schaltfläche „Excel-Snapshot des Standardprofils herunterladen“ eine statisch generierte .xlsx-Datei, die jede einzelne Berechnung dieser App offenlegt. Die Datei ist kein eingefrorenes Bild der Ergebnisse, sondern ein voll funktionsfähiges Rechenmodell: jede abgeleitete Zelle ist eine echte Excel-Formel, so dass Sie μ, σ, Korrelationen oder Gewichte direkt in der Datei verändern und alle Kennzahlen sofort neu rechnen lassen können."
+              : "The header card of this Methodology page (above) links to a statically-generated .xlsx file via the \"Download default-profile Excel snapshot\" button — and that file lays out every single calculation this app performs. It is not a frozen picture of the results but a fully working computation model: every derived cell is a live Excel formula, so you can vary μ, σ, correlations or weights directly in the file and watch every metric recompute on the spot."}
           </p>
 
           <div className="rounded-md border bg-muted/20 p-3 space-y-2">
             <div className="text-sm font-semibold">
-              {de ? "1) ETF-Implementierungs-Export (Build-Tab)" : "1) ETF Implementation export (Build tab)"}
+              {de ? "Inhalt: sieben Tabellenblätter" : "Contents: seven sheets"}
             </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              {de
-                ? "Im Build-Tab erzeugt die Schaltfläche „Nach Excel exportieren“ am unteren Ende des Abschnitts „ETF-Implementierung“ eine .xlsx-Datei mit der aktuell empfohlenen Umsetzung. Exportierte Spalten: Anlageklasse, Gewicht %, Name, ISIN, Ticker/Börse, TER %, Domizil, Replikation, Ausschüttung, Währung, Kommentar. Die Spaltenüberschriften werden in der aktiven UI-Sprache (DE/EN) ausgegeben; Gewicht und TER sind echte Zahlen mit Excel-Format „0.00%“ (also als Prozentsatz formatiert, nicht als Text). Unterhalb der Tabelle folgt nach einer Leerzeile ein vollständiger achtteiliger rechtlicher Disclaimer."
-                : "On the Build tab, the \"Export to Excel\" button at the bottom of the ETF Implementation section produces an .xlsx file mirroring the currently recommended implementation. Exported columns: Asset Class, Weight %, Name, ISIN, Ticker/Exchange, TER %, Domicile, Replication, Distribution, Currency, Comment. Column headers are emitted in the active UI language (DE/EN); Weight and TER are real numbers with Excel `0.00%` format (i.e. typed as percentages, not text). Below the table, separated by a blank spacer row, the full eight-section legal disclaimer is appended."}
-            </p>
+            <ul className="text-xs text-muted-foreground leading-relaxed list-disc pl-5 space-y-1">
+              <li><span className="font-mono">Allocation</span> — {de ? "Asset-Class- und Regionen-Gewichte des kodierten Profils" : "asset-class and regional weights of the encoded profile"}</li>
+              <li><span className="font-mono">CMA Assumptions</span> — {de ? "erwartete Renditen μ, Volatilitäten σ und Risk-Free-Rate je Bauklotz, mit Verweis auf die Engine-Konstanten" : "expected returns μ, volatilities σ and the risk-free rate per building block, with a pointer to the engine constants"}</li>
+              <li><span className="font-mono">Correlations</span> — {de ? "die volle Korrelationsmatrix" : "the full correlation matrix"}</li>
+              <li><span className="font-mono">Look-through Exposures</span> — {de ? "tatsächliche Regionen-, Sektor- und Währungsanteile pro Bucket nach Auflösung der ETF-Holdings" : "actual region, sector and currency shares per bucket once the ETF holdings are resolved"}</li>
+              <li><span className="font-mono">_Covariance</span> — {de ? "aus Korrelationen × σ × σ aufgebaute Kovarianzmatrix als Formel-Bauteil für die Portfolio-Varianz" : "covariance matrix built as correlations × σ × σ — the formula building block for the portfolio variance"}</li>
+              <li><span className="font-mono">Risk & Performance</span> — {de ? "die acht Kennzahlen (erwartete Rendite, Volatilität, Sharpe, Sortino, MaxDD, VaR 95 %, CVaR 95 %, Beta) als Live-Formeln auf den anderen Blättern" : "the eight metrics (expected return, volatility, Sharpe, Sortino, MaxDD, VaR 95 %, CVaR 95 %, Beta) as live formulas referencing the other sheets"}</li>
+              <li><span className="font-mono">Parameters</span> — {de ? "alle Eingangsgrößen des Profils auf einen Blick" : "every input parameter of the profile at a glance"}</li>
+            </ul>
           </div>
 
-          <div className="rounded-md border bg-muted/20 p-3 space-y-2">
-            <div className="text-sm font-semibold">
-              {de ? "2) Standardprofil-Snapshot (Methodik-Header)" : "2) Default-profile snapshot (Methodology header)"}
-            </div>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              {de
-                ? "Im Header-Bereich dieser Methodik-Seite (oben) verlinkt die Schaltfläche „Excel-Snapshot des Standardprofils herunterladen“ eine statisch generierte .xlsx-Datei. Sie enthält sieben Tabellenblätter: Allocation, CMA Assumptions, Correlations, Look-through Exposures, _Covariance, Risk & Performance sowie Parameters. Jede abgeleitete Zelle ist eine echte Excel-Formel (kein eingefrorener Zahlenwert), so dass Sie μ, σ oder Korrelationen in der Datei selbst variieren und die Kennzahlen neu rechnen lassen können. Das kodierte Profil ist fest: CHF / Risiko Hoch / 10 Jahre / 60 % Aktien-Ziel / Gold ✓ / REITs ✗ / Krypto ✗ / ohne Hedging."
-                : "The header card of this Methodology page (above) links to a statically-generated .xlsx file via the \"Download default-profile Excel snapshot\" button. It contains seven sheets: Allocation, CMA Assumptions, Correlations, Look-through Exposures, _Covariance, Risk & Performance, and Parameters. Every derived cell is a live Excel formula (not a frozen numeric value), so you can vary μ, σ or correlations directly in the file and have the metrics recompute. The encoded profile is fixed: CHF / High risk / 10 yr / 60 % equity target / Gold ✓ / REITs ✗ / Crypto ✗ / no hedging."}
-            </p>
-          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            {de
+              ? "Das kodierte Profil ist fest: CHF / Risiko Hoch / 10 Jahre / 60 % Aktien-Ziel / Gold ✓ / REITs ✗ / Krypto ✗ / ohne Hedging. Es spiegelt nicht Ihre aktuellen Build-Eingaben — es ist als Lehrbeispiel gedacht, an dem die volle Rechen-Pipeline der App in einer offenen, prüfbaren Form sichtbar wird."
+              : "The encoded profile is fixed: CHF / High risk / 10 yr / 60 % equity target / Gold ✓ / REITs ✗ / Crypto ✗ / no hedging. It does not mirror your current Build inputs — it is intended as a worked example that exposes the app's full calculation pipeline in an open, auditable form."}
+          </p>
         </Section>
       </Accordion>
 

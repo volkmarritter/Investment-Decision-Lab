@@ -2648,25 +2648,24 @@ existing inline `EtfInfoPreview` behaviour is preserved untouched.
 - **Reset button** added to Build Portfolio header. Restores all defaults while preserving Base Currency, Horizon and Risk Appetite. Icon-only (`RotateCcw`) with bilingual tooltip.
 - **DOCUMENTATION.md** created (this file). Maintenance policy: every functional change updates this document and adds a changelog entry.
 
-- **Methodology: Excel exports section in What's New (Task #288).** Added a
+- **Methodology: Excel snapshot section in What's New (Task #288).** Added a
   new accordion section `value="excel-export"` (icon `FileSpreadsheet`) under
-  the "Reference & context" group of the Methodology page, documenting both
-  Excel exports the app already ships: (1) the Build tab's "Export to Excel"
-  button on the ETF Implementation section (columns Asset Class, Weight %,
-  Name, ISIN, Ticker/Exchange, TER %, Domicile, Replication, Distribution,
-  Currency, Comment; headers translated; Weight/TER as real numbers with
-  Excel `0.00%` format; eight-section legal disclaimer appended below a
-  spacer row), and (2) the static default-profile snapshot linked from the
-  Methodology header (seven sheets — Allocation, CMA Assumptions,
-  Correlations, Look-through Exposures, _Covariance, Risk & Performance,
-  Parameters — every derived cell a live Excel formula; profile
-  fixed at CHF / High / 10 yr / 60 % equity / Gold ✓ / REITs ✗ / Crypto ✗ /
-  no hedging). Wiring: `"excel-export"` added to `VALID_SECTION_IDS`,
-  `SECTION_VERSIONS` (v2.1 · May 2026 — floats it to the top of the
-  What's New panel), `tocBlocks` reference group, and the WhatsNewPanel
-  label-override map (DE "ETF-Implementierung & Snapshot als Excel
-  herunterladen" / EN "Download ETF Implementation & snapshot as Excel").
-  Bilingual (DE+EN). No change to export logic.
+  the "Reference & context" group of the Methodology page, focused on the
+  static default-profile snapshot linked from the Methodology header. The
+  section explains that the .xlsx is a working calculation model — every
+  derived cell is a live Excel formula, so users can change μ, σ,
+  correlations or weights and watch the metrics recompute. Lists the seven
+  sheets and what each contains: Allocation, CMA Assumptions, Correlations,
+  Look-through Exposures, _Covariance, Risk & Performance, Parameters. The
+  encoded profile is fixed at CHF / High / 10 yr / 60 % equity / Gold ✓ /
+  REITs ✗ / Crypto ✗ / no hedging. Wiring: `"excel-export"` added to
+  `VALID_SECTION_IDS`, `SECTION_VERSIONS` (v2.1 · May 2026 — floats it to
+  the top of the What's New panel), `tocBlocks` reference group, and the
+  WhatsNewPanel label-override map (DE "Excel-Snapshot — sehen, wie alles
+  berechnet wird" / EN "Excel snapshot — see how everything is calculated").
+  Bilingual (DE+EN). The Build-tab ETF Implementation export is
+  intentionally out of scope here — the section is explicitly about the
+  snapshot.
 
 ### Earlier (consolidated)
 - **Min–Max ETF range** in Build & Compare (3–15) replacing the single `numETFs` input. Min is advisory; Max is the hard cap. Inline warning suggests an optimal range when the user's range is incompatible with their inputs.
