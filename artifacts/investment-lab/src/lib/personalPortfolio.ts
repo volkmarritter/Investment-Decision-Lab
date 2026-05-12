@@ -114,6 +114,25 @@ export function assetClassNeedsRegion(assetClass: string): boolean {
   return !NO_REGION_ASSET_CLASSES.has(assetClass);
 }
 
+// Task #286 — backward-compat upgrade for legacy saved portfolios that
+// stored the long-form region labels ("Emerging Markets", "United
+// Kingdom") on `manualMeta.region`. The Explain manual-entry picker
+// now uses the short forms ("EM", "UK") to match the catalog's bucket
+// region labels, so when an old saved file is read back from
+// localStorage we silently rewrite the region to the new canonical
+// string. The engine's `lookupKey` already accepts both spellings via
+// `.includes()` guards, so this is purely a display/UI normalisation
+// — no behaviour change for old files that aren't re-saved. Wired
+// from `loadState` in `ExplainPortfolio.tsx`.
+const MANUAL_REGION_UPGRADES: Readonly<Record<string, string>> = {
+  "Emerging Markets": "EM",
+  "United Kingdom": "UK",
+};
+
+export function normalizeManualRegion(region: string): string {
+  return MANUAL_REGION_UPGRADES[region] ?? region;
+}
+
 function round1(n: number): number {
   return Math.round(n * 10) / 10;
 }

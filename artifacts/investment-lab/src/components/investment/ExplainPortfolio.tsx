@@ -76,6 +76,7 @@ import {
   PersonalPosition,
   EXPLAIN_CASH_BUCKET_SENTINEL,
   assetClassNeedsRegion,
+  normalizeManualRegion,
   normalizeWeights,
   runExplainValidation,
   synthesizePersonalPortfolio,
@@ -200,7 +201,10 @@ function loadState(): PersistedState {
               ) {
                 out.manualMeta = {
                   assetClass: p.manualMeta.assetClass,
-                  region: p.manualMeta.region,
+                  // Task #286 — silently upgrade legacy region labels
+                  // ("Emerging Markets" → "EM", "United Kingdom" → "UK")
+                  // so the dropdown shows the new canonical value.
+                  region: normalizeManualRegion(p.manualMeta.region),
                   ...(typeof p.manualMeta.name === "string" ? { name: p.manualMeta.name } : {}),
                   ...(typeof p.manualMeta.currency === "string" ? { currency: p.manualMeta.currency } : {}),
                   ...(typeof p.manualMeta.terBps === "number" ? { terBps: p.manualMeta.terBps } : {}),
@@ -506,16 +510,31 @@ const MANUAL_ASSET_CLASSES = [
   "Commodities",
   "Digital Assets",
 ];
+// Aligned with the catalog's bucket regions (Task #286). Strings here
+// must match the region labels that `lookupKey` in `etfs.ts` resolves
+// to actual `Equity-*` bucket keys via its `.includes()` guards
+// (e.g. "UK" → Equity-UK, "EM" → Equity-EM). "Asia Pacific ex-Japan"
+// and "Thematic" don't have dedicated catalog buckets but remain
+// valid operator choices and fall through to the manual-only sleeve.
+// "Other" is a catch-all for off-catalog fund types. Legacy saved
+// portfolios that stored "Emerging Markets" / "United Kingdom" are
+// silently upgraded by `normalizeManualRegion` in `personalPortfolio.ts`
+// at load time.
 const MANUAL_REGIONS = [
   "Global",
   "USA",
   "Europe",
-  "United Kingdom",
   "Switzerland",
-  "Emerging Markets",
+  "UK",
   "Japan",
+  "EM",
   "Asia Pacific ex-Japan",
+  "Technology",
+  "Healthcare",
+  "Sustainability",
+  "Cybersecurity",
   "Thematic",
+  "Other",
 ];
 
 function PositionRow({

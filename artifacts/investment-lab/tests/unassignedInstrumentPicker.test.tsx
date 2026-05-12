@@ -181,8 +181,8 @@ describe("inferAssetClassRegionFromInstrument (Task #156 derivation)", () => {
     expect(infer("Vanguard FTSE 100", "FTSE 100 UK").region).toBe("Europe");
   });
 
-  it("derives Emerging Markets from EM keywords", () => {
-    expect(infer("Xtrackers MSCI EM", "EM equity").region).toBe("Emerging Markets");
+  it("derives EM from EM keywords (Task #286 — short label aligned with manual picker)", () => {
+    expect(infer("Xtrackers MSCI EM", "EM equity").region).toBe("EM");
   });
 
   it("derives Japan from Nikkei/Topix", () => {

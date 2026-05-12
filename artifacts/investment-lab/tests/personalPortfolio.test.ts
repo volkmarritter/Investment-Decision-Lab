@@ -3,6 +3,7 @@ import { describe, it, expect } from "vitest";
 import {
   synthesizePersonalPortfolio,
   runExplainValidation,
+  normalizeManualRegion,
   normalizeWeights,
   assetClassNeedsRegion,
   NO_REGION_ASSET_CLASSES,
@@ -266,6 +267,20 @@ describe("Explain integration: synthesizer + validator agree on sums", () => {
   });
 });
 
+
+describe("normalizeManualRegion (Task #286 — legacy region label upgrade)", () => {
+  it("rewrites 'Emerging Markets' → 'EM'", () => {
+    expect(normalizeManualRegion("Emerging Markets")).toBe("EM");
+  });
+  it("rewrites 'United Kingdom' → 'UK'", () => {
+    expect(normalizeManualRegion("United Kingdom")).toBe("UK");
+  });
+  it("passes through new canonical labels unchanged", () => {
+    for (const r of ["EM", "UK", "USA", "Europe", "Switzerland", "Japan", "Global", "Technology", "Healthcare", "Sustainability", "Cybersecurity", "Other", "Thematic", "Asia Pacific ex-Japan"]) {
+      expect(normalizeManualRegion(r)).toBe(r);
+    }
+  });
+});
 
 describe("normalizeWeights", () => {
   it("scales positions whose weights sum to <100% up to exactly 100%", () => {

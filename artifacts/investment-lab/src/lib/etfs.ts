@@ -3317,7 +3317,11 @@ export function inferAssetClassRegionFromInstrument(
     if (/\b(switzerland|swiss|smi|spi)\b/.test(hay) || rec.currency === "CHF") {
       region = "Switzerland";
     } else if (/\b(emerging markets|em equity|em bond|emerging|em\b)\b/.test(hay)) {
-      region = "Emerging Markets";
+      // Task #286 — keep this label aligned with `MANUAL_REGIONS` in
+      // ExplainPortfolio.tsx so auto-classified rows land on a value
+      // that is actually in the picker dropdown. `lookupKey` already
+      // resolves both "EM" and "Emerging Markets" to `Equity-EM`.
+      region = "EM";
     } else if (/\b(japan|nikkei|topix)\b/.test(hay)) {
       region = "Japan";
     } else if (
