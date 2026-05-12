@@ -48,6 +48,7 @@ const SECTION_VERSIONS: Record<string, { version: string; month: string }> = {
   "tail-realism": { version: "v1.6", month: "Apr 2026" },
   mc: { version: "v1.7", month: "Apr 2026" },
   "manual-isin": { version: "v2.0", month: "May 2026" },
+  "excel-export": { version: "v2.1", month: "May 2026" },
 };
 const sectionVersionShort = (id: string): string | undefined =>
   SECTION_VERSIONS[id]?.version;
@@ -86,6 +87,7 @@ export const VALID_SECTION_IDS = new Set<string>([
   // Reference & context
   "bench",
   "limits",
+  "excel-export",
 ]);
 
 export function Methodology() {
@@ -406,7 +408,9 @@ export function Methodology() {
       id: "reference",
       title: de ? "Referenz & Kontext" : "Reference & context",
       items: [
-        { value: "bench", label: de ? "Benchmark (MSCI ACWI Proxy)" : "Benchmark (MSCI ACWI Proxy)" },        { value: "limits", label: de ? "Was diese App NICHT tut" : "What this app does NOT do" },
+        { value: "bench", label: de ? "Benchmark (MSCI ACWI Proxy)" : "Benchmark (MSCI ACWI Proxy)" },
+        { value: "limits", label: de ? "Was diese App NICHT tut" : "What this app does NOT do" },
+        { value: "excel-export", label: de ? "Excel-Exporte" : "Excel Exports", version: sectionVersionShort("excel-export") },
       ],
     },
   ];
@@ -570,6 +574,9 @@ export function Methodology() {
           map["manual-isin"] = de
             ? "Katalog-Picker, Bucket-Hinweis & Live-Vorschau für manuell erfasste ISINs"
             : "Catalog picker, bucket hint & live preview for manually-entered ISINs";
+          map["excel-export"] = de
+            ? "ETF-Implementierung & Snapshot als Excel herunterladen"
+            : "Download ETF Implementation & snapshot as Excel";
           return map;
         })()}
         de={de}
@@ -2172,6 +2179,40 @@ export function Methodology() {
             <li>{de ? "Keine Garantie für die Verfügbarkeit oder Eignung der gezeigten ETFs in Ihrer Jurisdiktion." : "No guarantee that listed ETFs are available or suitable in your jurisdiction."}</li>
             <li>{de ? "Keine dynamische Allokation, kein Rebalancing-Tracking, keine Cash-Flow-Modelle." : "No dynamic allocation, no rebalancing tracking, no cash-flow modelling."}</li>
           </ul>
+        </Section>
+        <Section
+          value="excel-export"
+          icon={<FileSpreadsheet className="h-4 w-4" />}
+          title={de ? "Excel-Exporte" : "Excel Exports"}
+          version={sectionVersionLong("excel-export")}
+        >
+          <p className="text-sm text-muted-foreground">
+            {de
+              ? "Die App stellt zwei eigenständige Excel-Downloads bereit. Beide sind reine Snapshots — sie enthalten keine Live-Marktdaten und werden nicht automatisch aktualisiert, sobald sich der Browser-Zustand ändert."
+              : "The app exposes two independent Excel downloads. Both are pure snapshots — they contain no live market data and do not auto-refresh once browser state changes."}
+          </p>
+
+          <div className="rounded-md border bg-muted/20 p-3 space-y-2">
+            <div className="text-sm font-semibold">
+              {de ? "1) ETF-Implementierungs-Export (Build-Tab)" : "1) ETF Implementation export (Build tab)"}
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {de
+                ? "Im Build-Tab erzeugt die Schaltfläche „Nach Excel exportieren“ am unteren Ende des Abschnitts „ETF-Implementierung“ eine .xlsx-Datei mit der aktuell empfohlenen Umsetzung. Exportierte Spalten: Anlageklasse, Gewicht %, Name, ISIN, Ticker/Börse, TER %, Domizil, Replikation, Ausschüttung, Währung, Kommentar. Die Spaltenüberschriften werden in der aktiven UI-Sprache (DE/EN) ausgegeben; Gewicht und TER sind echte Zahlen mit Excel-Format „0.00%“ (also als Prozentsatz formatiert, nicht als Text). Unterhalb der Tabelle folgt nach einer Leerzeile ein vollständiger achtteiliger rechtlicher Disclaimer."
+                : "On the Build tab, the \"Export to Excel\" button at the bottom of the ETF Implementation section produces an .xlsx file mirroring the currently recommended implementation. Exported columns: Asset Class, Weight %, Name, ISIN, Ticker/Exchange, TER %, Domicile, Replication, Distribution, Currency, Comment. Column headers are emitted in the active UI language (DE/EN); Weight and TER are real numbers with Excel `0.00%` format (i.e. typed as percentages, not text). Below the table, separated by a blank spacer row, the full eight-section legal disclaimer is appended."}
+            </p>
+          </div>
+
+          <div className="rounded-md border bg-muted/20 p-3 space-y-2">
+            <div className="text-sm font-semibold">
+              {de ? "2) Standardprofil-Snapshot (Methodik-Header)" : "2) Default-profile snapshot (Methodology header)"}
+            </div>
+            <p className="text-xs text-muted-foreground leading-relaxed">
+              {de
+                ? "Im Header-Bereich dieser Methodik-Seite (oben) verlinkt die Schaltfläche „Excel-Snapshot des Standardprofils herunterladen“ eine statisch generierte .xlsx-Datei. Sie enthält sieben Tabellenblätter: Allocation, CMA Assumptions, Correlations, Look-through Exposures, _Covariance, Risk & Performance sowie Parameters. Jede abgeleitete Zelle ist eine echte Excel-Formel (kein eingefrorener Zahlenwert), so dass Sie μ, σ oder Korrelationen in der Datei selbst variieren und die Kennzahlen neu rechnen lassen können. Das kodierte Profil ist fest: CHF / Risiko Hoch / 10 Jahre / 60 % Aktien-Ziel / Gold ✓ / REITs ✗ / Krypto ✗ / ohne Hedging."
+                : "The header card of this Methodology page (above) links to a statically-generated .xlsx file via the \"Download default-profile Excel snapshot\" button. It contains seven sheets: Allocation, CMA Assumptions, Correlations, Look-through Exposures, _Covariance, Risk & Performance, and Parameters. Every derived cell is a live Excel formula (not a frozen numeric value), so you can vary μ, σ or correlations directly in the file and have the metrics recompute. The encoded profile is fixed: CHF / High risk / 10 yr / 60 % equity target / Gold ✓ / REITs ✗ / Crypto ✗ / no hedging."}
+            </p>
+          </div>
         </Section>
       </Accordion>
 
