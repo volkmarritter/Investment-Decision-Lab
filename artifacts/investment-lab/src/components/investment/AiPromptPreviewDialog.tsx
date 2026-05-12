@@ -46,7 +46,7 @@ export function AiPromptPreviewDialog({ open, onOpenChange, input, initialMode }
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="max-w-3xl w-[calc(100vw-2rem)] sm:w-full p-4 sm:p-6"
+        className="max-w-3xl w-[calc(100vw-2rem)] sm:w-full p-4 sm:p-6 flex flex-col max-h-[90dvh] overflow-hidden"
         closeLabel={t("build.aiPrompt.preview.close")}
         data-testid="ai-prompt-preview-dialog"
       >
@@ -73,8 +73,7 @@ export function AiPromptPreviewDialog({ open, onOpenChange, input, initialMode }
           </div>
         </DialogHeader>
         <pre
-          className="font-mono text-xs leading-relaxed whitespace-pre-wrap break-words overflow-y-auto rounded-md border bg-muted/30 p-3"
-          style={{ maxHeight: "70vh" }}
+          className="font-mono text-xs leading-relaxed whitespace-pre-wrap break-words flex-1 min-h-0 overflow-y-auto rounded-md border bg-muted/30 p-3"
           data-testid="ai-prompt-preview-body"
         >
           {prompt}
