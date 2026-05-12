@@ -195,4 +195,76 @@ describe("inferAssetClassRegionFromInstrument (Task #156 derivation)", () => {
       "Global",
     );
   });
+
+  // Task #287 — sector themes auto-detection.
+  it("derives Technology from technology / semiconductor / AI / robotics keywords", () => {
+    expect(
+      infer("Xtrackers MSCI World Information Technology", "World tech sector").region,
+    ).toBe("Technology");
+    expect(infer("VanEck Semiconductor UCITS", "Semiconductors").region).toBe(
+      "Technology",
+    );
+    expect(
+      infer("WisdomTree Artificial Intelligence", "AI thematic").region,
+    ).toBe("Technology");
+    expect(infer("iShares Automation & Robotics", "Robotics").region).toBe(
+      "Technology",
+    );
+  });
+
+  it("derives Healthcare from healthcare / biotech / pharma / medical keywords", () => {
+    expect(infer("iShares Healthcare Innovation", "Healthcare").region).toBe(
+      "Healthcare",
+    );
+    expect(infer("SPDR MSCI World Biotech", "Biotechnology").region).toBe(
+      "Healthcare",
+    );
+    expect(infer("Xtrackers Pharma", "Pharmaceuticals").region).toBe("Healthcare");
+    expect(infer("iShares Medical Devices", "Medical devices").region).toBe(
+      "Healthcare",
+    );
+  });
+
+  it("derives Cybersecurity from cybersecurity / cyber security keywords", () => {
+    expect(infer("L&G Cyber Security UCITS", "Cybersecurity thematic").region).toBe(
+      "Cybersecurity",
+    );
+    expect(
+      infer("WisdomTree Cybersecurity", "Cyber security exposure").region,
+    ).toBe("Cybersecurity");
+  });
+
+  it("derives Sustainability from clean energy / ESG / climate / sustainable keywords", () => {
+    expect(infer("iShares Global Clean Energy", "Clean energy").region).toBe(
+      "Sustainability",
+    );
+    expect(infer("UBS MSCI World ESG Universal", "ESG screened").region).toBe(
+      "Sustainability",
+    );
+    expect(infer("Lyxor MSCI Climate Change", "Climate change").region).toBe(
+      "Sustainability",
+    );
+    expect(
+      infer("Amundi Sustainable Equity", "Sustainable equity").region,
+    ).toBe("Sustainability");
+  });
+
+  it("keeps geographic region when both geo and sector keywords are present", () => {
+    // S&P 500 IT → still USA, sector path is opt-in via missing geo.
+    expect(
+      infer("iShares S&P 500 Information Technology", "S&P 500 IT sector")
+        .region,
+    ).toBe("USA");
+    // Europe biotech → still Europe.
+    expect(
+      infer("iShares EURO STOXX Healthcare", "Eurozone healthcare").region,
+    ).toBe("Europe");
+  });
+
+  it("does not promote sector themes for non-equity asset classes", () => {
+    // Healthcare bond ETF would still be Fixed Income / Global.
+    const r = infer("iShares Healthcare Bond", "Healthcare corporate bond");
+    expect(r.assetClass).toBe("Fixed Income");
+    expect(r.region).toBe("Global");
+  });
 });

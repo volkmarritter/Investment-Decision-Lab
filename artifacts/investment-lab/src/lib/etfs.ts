@@ -3339,6 +3339,37 @@ export function inferAssetClassRegionFromInstrument(
     }
   }
 
+  // ---- sector themes (Task #287) -------------------------------------
+  // Equity-only, opt-in: only fires when no geographic region was
+  // detected above (region is still the "Global" default). This keeps
+  // e.g. "S&P 500 Information Technology" classified as USA, while a
+  // geo-less "MSCI World Information Technology" lands on Technology.
+  if (assetClass === "Equity" && region === "Global") {
+    if (
+      /\b(cybersecurity|cyber security|cyber-security|cyber)\b/.test(hay)
+    ) {
+      region = "Cybersecurity";
+    } else if (
+      /\b(healthcare|health care|biotech|biotechnology|pharma|pharmaceutical|pharmaceuticals|medical|medtech)\b/.test(
+        hay,
+      )
+    ) {
+      region = "Healthcare";
+    } else if (
+      /\b(clean energy|renewable|renewables|sustainable|sustainability|esg|climate|green energy|low carbon)\b/.test(
+        hay,
+      )
+    ) {
+      region = "Sustainability";
+    } else if (
+      /\b(technology|information technology|info tech|infotech|semiconductor|semiconductors|artificial intelligence|ai|robotics|software)\b/.test(
+        hay,
+      )
+    ) {
+      region = "Technology";
+    }
+  }
+
   return { assetClass, region };
 }
 
