@@ -6,3 +6,9 @@ id = "GRfYFSTISBF_9PwpWUg7R"
 uri = "file://artifacts/investment-lab/ETF_DATA_CONTROL.md"
 type = "text"
 title = "ETF Data Control Guide (updated)"
+
+[[outputs]]
+id = "8QthQNP_TIScYBkiPaiMc"
+uri = "file://scripts/output/default-profile-snapshot.xlsx"
+type = "table"
+title = "Default Profile Snapshot — formulas + risk metrics"

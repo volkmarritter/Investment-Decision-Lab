@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BookOpen, Database, Calculator, AlertTriangle, ExternalLink, RotateCcw, ShieldQuestion, Layers, Activity, GitCompare, Building2, RefreshCw, Pencil, Replace, Coins, Sparkles } from "lucide-react";
+import { BookOpen, Database, Calculator, AlertTriangle, ExternalLink, RotateCcw, ShieldQuestion, Layers, Activity, GitCompare, Building2, RefreshCw, Pencil, Replace, Coins, Sparkles, FileSpreadsheet } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -428,6 +428,31 @@ export function Methodology() {
             <Badge variant="outline">{de ? "Frontend-only" : "Frontend-only"}</Badge>
             <Badge variant="outline">{de ? "Keine Live-Marktdaten" : "No live market data"}</Badge>
             <Badge variant="outline">{de ? "Zuletzt geprüft" : "Last reviewed"}: {LAST_REVIEWED}</Badge>
+          </div>
+          <div className="pt-3">
+            <a
+              href={`${import.meta.env.BASE_URL}default-profile-snapshot.xlsx`}
+              download
+              data-testid="link-default-profile-snapshot"
+              className="inline-flex items-center gap-2 rounded-md border bg-background px-3 py-2 text-xs font-medium text-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+            >
+              <FileSpreadsheet className="h-4 w-4 text-primary" />
+              <span>
+                {de
+                  ? "Excel-Snapshot des Standardprofils herunterladen"
+                  : "Download default-profile Excel snapshot"}
+              </span>
+              <span className="text-muted-foreground">
+                {de
+                  ? "(.xlsx, mit Live-Formeln, Stand 2026-05-12)"
+                  : "(.xlsx, with live formulas, as of 2026-05-12)"}
+              </span>
+            </a>
+            <p className="text-[11px] text-muted-foreground leading-relaxed pt-1.5">
+              {de
+                ? "Enthält Allokation, CMA-Annahmen, Korrelationen, Look-Through-Exposures, Kovarianzmatrix und die acht Risiko-/Performance-Metriken — alle abgeleiteten Zellen sind Excel-Formeln. Profil: CHF / Risiko Hoch / 10 Jahre / 60 % Aktien-Ziel / Gold ✓ / REITs ✗ / Krypto ✗ / ohne Hedging."
+                : "Contains the allocation, CMA assumptions, correlations, look-through exposures, covariance matrix and the eight risk/performance metrics — every derived cell is a live Excel formula. Profile: CHF / High risk / 10 years / 60 % equity target / Gold ✓ / REITs ✗ / Crypto ✗ / no hedging."}
+            </p>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">

@@ -6,10 +6,14 @@
   "scripts": {
     "hello": "tsx ./src/hello.ts",
     "translate-comments": "tsx ./src/translate-etf-comments.mts",
+    "default-profile-snapshot": "tsx ./src/default-profile-snapshot.mts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "devDependencies": {
     "@types/node": "catalog:",
     "tsx": "catalog:"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0"
   }
 }
