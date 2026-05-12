@@ -64,6 +64,13 @@ function sanitizeWorkspace(raw: unknown): ExplainWorkspace | null {
           bucketKey: pos.bucketKey,
           weight: pos.weight,
         };
+        // Task #292 — round-trip the stable per-row uid when present.
+        // Saved files written before stable identity was introduced
+        // simply omit the field and the loader will backfill a fresh
+        // uid via `ensurePositionUid` on import.
+        if (typeof pos.uid === "string" && pos.uid.length > 0) {
+          out.uid = pos.uid;
+        }
         // Task #174 — preserve the optional Cash sentinel currency on
         // round-trip (saved-portfolio export/import + autosave). Same
         // BaseCurrency whitelist used elsewhere; an unknown value is

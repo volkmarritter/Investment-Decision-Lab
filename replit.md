@@ -41,11 +41,13 @@ catalog or persistence actually *does* (or any user-visible behaviour
 the page documents) does. This is in addition to the
 DOCUMENTATION.md changelog rule below.
 
-## Validation policy (user preference — 2026-05)
+## Validation policy (user preference — 2026-05, reinforced 2026-05-12)
 
-Match validation effort to the size of the change. Do not run the full suite
-for small edits. Use the narrowest test group that covers what you touched
-(see Task #210 for the per-group script split).
+**Always scale tests to the complexity of the change.** Do not over-test
+small edits and do not under-test risky ones. Pick the narrowest test
+group(s) that actually cover what you touched (see Task #210 for the
+per-group script split). The mapping below is the default; deviate only
+with an explicit reason.
 
 - **Copy-only tweaks in `i18n.tsx` (no JSX, no logic)** → `pnpm run typecheck`.
 - **Component JSX, props, or styling changes** → `pnpm run typecheck` + `pnpm --filter @workspace/investment-lab run test:components`.

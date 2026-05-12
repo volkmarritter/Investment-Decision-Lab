@@ -76,6 +76,8 @@ import {
   PersonalPosition,
   EXPLAIN_CASH_BUCKET_SENTINEL,
   assetClassNeedsRegion,
+  ensurePositionUid,
+  generatePositionUid,
   normalizeManualRegion,
   normalizeWeights,
   runExplainValidation,
@@ -184,6 +186,14 @@ function loadState(): PersistedState {
             })
             .map((p: PersonalPosition) => {
               const out: PersonalPosition = {
+                // Task #292 — preserve a persisted uid if present, or
+                // backfill a fresh one for legacy rows that were saved
+                // before stable-identity was introduced. Every in-flight
+                // position from this point on carries a uid.
+                uid:
+                  typeof p.uid === "string" && p.uid.length > 0
+                    ? p.uid
+                    : generatePositionUid(),
                 isin: p.isin,
                 bucketKey: p.bucketKey,
                 weight: p.weight,
@@ -562,9 +572,18 @@ function PositionRow({
   const isinButtonTestId = position.bucketKey
     ? `explain-etf-isin-button-${position.bucketKey}`
     : `explain-etf-isin-button-manual-${rowIndex}`;
+  // Task #292 follow-up — visually frame each row so users can tell at
+  // a glance which controls / preview card belong to the same ETF.
+  // Manual rows accumulate the most content (controls, asset/region,
+  // origin badge, scrape spinner, EtfInfoPreview) so the framing
+  // matters most for them, but catalog rows get a lighter version of
+  // the same treatment for visual consistency within a bucket group.
+  const rowFrameClass = isManual
+    ? "space-y-2 rounded-md border border-border/70 bg-card/40 p-3"
+    : "space-y-2 rounded-md border border-border/40 bg-card/20 p-2";
   return (
     <div
-      className="space-y-2"
+      className={rowFrameClass}
       data-testid={`explain-row-${rowIndex}`}
     >
       <div className="grid grid-cols-[minmax(0,22rem)_5.5rem_2rem] gap-2 items-center">
@@ -858,10 +877,12 @@ export function ExplainPortfolio() {
     const apply = (workspace: ExplainWorkspace) => {
       const next: PersistedState = {
         ...workspace,
-        positions: workspace.positions.map((p) => ({
-          ...p,
-          ...(p.manualMeta ? { manualMeta: { ...p.manualMeta } } : {}),
-        })),
+        positions: workspace.positions.map((p) =>
+          ensurePositionUid({
+            ...p,
+            ...(p.manualMeta ? { manualMeta: { ...p.manualMeta } } : {}),
+          }),
+        ),
       };
       setState(next);
       syncDraftsFromPositions(next.positions);
@@ -903,7 +924,13 @@ export function ExplainPortfolio() {
   }
 
   function addPositionInBucket(bucketKey: string) {
-    setState((s) => ({ ...s, positions: [...s.positions, { isin: "", bucketKey, weight: 0 }] }));
+    setState((s) => ({
+      ...s,
+      positions: [
+        ...s.positions,
+        { uid: generatePositionUid(), isin: "", bucketKey, weight: 0 },
+      ],
+    }));
     setWeightDrafts((d) => [...d, ""]);
   }
 
@@ -921,6 +948,7 @@ export function ExplainPortfolio() {
       positions: [
         ...s.positions,
         {
+          uid: generatePositionUid(),
           isin: "",
           bucketKey: EXPLAIN_CASH_BUCKET_SENTINEL,
           weight: 0,
@@ -946,6 +974,7 @@ export function ExplainPortfolio() {
       positions: [
         ...s.positions,
         {
+          uid: generatePositionUid(),
           isin: "",
           bucketKey: "",
           weight: 0,
@@ -1250,8 +1279,11 @@ export function ExplainPortfolio() {
     summary: ImportSummary,
   ) {
     if (rows.length === 0) return;
-    setState((s) => ({ ...s, positions: rows }));
-    setWeightDrafts(rows.map((p) => (p.weight > 0 ? String(p.weight) : "")));
+    // Task #292 — every imported row gets a stable uid so the editor's
+    // React keys stay correct after subsequent deletes.
+    const rowsWithUid = rows.map((p) => ensurePositionUid(p));
+    setState((s) => ({ ...s, positions: rowsWithUid }));
+    setWeightDrafts(rowsWithUid.map((p) => (p.weight > 0 ? String(p.weight) : "")));
     // Task #259 — fire on-demand look-through scrapes for the off-catalog
     // imported rows. Without this, the Geo / Sector / Top-Holdings charts
     // stayed empty for `found-unassigned` and `off-universe` ISINs until
@@ -1357,9 +1389,11 @@ export function ExplainPortfolio() {
     // Replace the current Explain workspace with a saved one. The state
     // sanitizer in savedExplainPortfolios already enforces the shape, so
     // this is a clean atomic swap. Drafts are re-derived so the input
-    // strings line up with the restored numeric weights.
-    setState({ ...workspace, positions: workspace.positions.map((p) => ({ ...p })) });
-    syncDraftsFromPositions(workspace.positions);
+    // strings line up with the restored numeric weights. Task #292 —
+    // backfill a uid on any saved row that predates stable identity.
+    const positions = workspace.positions.map((p) => ensurePositionUid({ ...p }));
+    setState({ ...workspace, positions });
+    syncDraftsFromPositions(positions);
   }
 
 
@@ -1450,6 +1484,45 @@ export function ExplainPortfolio() {
     }
     return m;
   }, [portfolio.etfImplementation, state.positions]);
+
+  // Task #292 — resolve the ETFImplementation row for the clickable
+  // ISIN look-through button on each position. Catalog rows resolve via
+  // the synthesizer/`etfByIsin` map above. Off-catalog manual rows
+  // (typed ISIN doesn't match any registered instrument) used to be
+  // skipped, hiding the look-through affordance even when the ISIN was
+  // a perfectly valid off-universe fund. Synthesize a minimal row from
+  // `manualMeta` so the existing `ETFDetailsDialog` can render — the
+  // dialog itself gracefully handles "no profile" rendering for
+  // unrecognised ISINs.
+  function detailsEtfForRow(i: number): ETFImplementation | null {
+    const p = state.positions[i];
+    if (!p?.isin) return null;
+    const fromCatalog = etfByIsin.get(p.isin);
+    if (fromCatalog) return fromCatalog;
+    if (!p.manualMeta) return null;
+    if (!/^[A-Z]{2}[A-Z0-9]{9}\d$/.test(p.isin)) return null;
+    return {
+      bucket: "",
+      assetClass: p.manualMeta.assetClass ?? "",
+      weight: Number.isFinite(p.weight) ? p.weight : 0,
+      intent: "",
+      exampleETF: p.manualMeta.name ?? p.isin,
+      rationale: "",
+      isin: p.isin,
+      ticker: "—",
+      exchange: "—",
+      terBps:
+        typeof p.manualMeta.terBps === "number" ? p.manualMeta.terBps : 0,
+      domicile: "—",
+      replication: "—",
+      distribution: "Accumulating",
+      currency: p.manualMeta.currency ?? "—",
+      comment: "",
+      catalogKey: null,
+      selectedSlot: 0,
+      selectableOptions: [],
+    };
+  }
 
   const totalSum = useMemo(() => {
     let s = 0;
@@ -1956,7 +2029,7 @@ export function ExplainPortfolio() {
                                   const p = state.positions[i];
                                   return (
                                     <div
-                                      key={i}
+                                      key={p.uid ?? `cash-${i}`}
                                       className="space-y-2"
                                       data-testid={`explain-row-${i}`}
                                     >
@@ -2098,7 +2171,7 @@ export function ExplainPortfolio() {
                                   <div className="space-y-2 pl-4">
                                     {idx.map((i) => (
                                       <PositionRow
-                                        key={i}
+                                        key={state.positions[i].uid ?? `cat-${i}`}
                                         rowIndex={i}
                                         position={state.positions[i]}
                                         weightDraft={weightDrafts[i] ?? ""}
@@ -2121,11 +2194,7 @@ export function ExplainPortfolio() {
                                         onPickUnassignedInstrument={(rec) =>
                                           pickUnassignedInstrumentForRow(i, rec)
                                         }
-                                        detailsEtf={
-                                          state.positions[i].isin
-                                            ? etfByIsin.get(state.positions[i].isin) ?? null
-                                            : null
-                                        }
+                                        detailsEtf={detailsEtfForRow(i)}
                                         onOpenDetails={setDetailsEtf}
                                         isLookthroughScrapePending={
                                           state.positions[i].isin
@@ -2165,7 +2234,7 @@ export function ExplainPortfolio() {
                   <div className="px-2.5 pb-2 space-y-2 pl-4">
                     {manualRowIndices.map((i) => (
                       <PositionRow
-                        key={i}
+                        key={state.positions[i].uid ?? `manual-${i}`}
                         rowIndex={i}
                         position={state.positions[i]}
                         weightDraft={weightDrafts[i] ?? ""}
@@ -2186,11 +2255,7 @@ export function ExplainPortfolio() {
                         onPickUnassignedInstrument={(rec) =>
                           pickUnassignedInstrumentForRow(i, rec)
                         }
-                        detailsEtf={
-                          state.positions[i].isin
-                            ? etfByIsin.get(state.positions[i].isin) ?? null
-                            : null
-                        }
+                        detailsEtf={detailsEtfForRow(i)}
                         onOpenDetails={setDetailsEtf}
                         isLookthroughScrapePending={
                           state.positions[i].isin
@@ -2221,7 +2286,7 @@ export function ExplainPortfolio() {
                   <div className="px-2.5 pb-2 space-y-2 pl-4">
                     {unassignedRowIndices.map((i) => (
                       <PositionRow
-                        key={i}
+                        key={state.positions[i].uid ?? `unassigned-${i}`}
                         rowIndex={i}
                         position={state.positions[i]}
                         weightDraft={weightDrafts[i] ?? ""}
@@ -2242,11 +2307,7 @@ export function ExplainPortfolio() {
                         onPickUnassignedInstrument={(rec) =>
                           pickUnassignedInstrumentForRow(i, rec)
                         }
-                        detailsEtf={
-                          state.positions[i].isin
-                            ? etfByIsin.get(state.positions[i].isin) ?? null
-                            : null
-                        }
+                        detailsEtf={detailsEtfForRow(i)}
                         onOpenDetails={setDetailsEtf}
                         isLookthroughScrapePending={
                           state.positions[i].isin

@@ -393,12 +393,97 @@ test.describe("ExplainPortfolio · bring-your-own-ETFs (mobile)", () => {
     ).toBeVisible();
   });
 
+  // Task #292 — deleting a manual row in the middle of the Manual entries
+  // group must remove EXACTLY that row (and not visually drop a sibling
+  // due to React key reuse). Before stable per-row uids, every manual
+  // row keyed off its array index, so removing index 1 made React
+  // reconcile what-was-row-2's transient input/popover state onto
+  // what-is-now-row-1, and the uncontrolled bits of the surviving row
+  // appeared "deleted". This test guards the regression by typing a
+  // distinct ISIN into each row and asserting the survivors retain
+  // their typed ISINs after a middle delete.
+  test("deleting a middle Manual row preserves its siblings (stable per-row identity)", async ({
+    page,
+    context,
+  }) => {
+    await context.clearCookies();
+    await openExplainTab(page);
+    await page.evaluate(() =>
+      window.localStorage.removeItem("investment-lab.explainPortfolio.v1"),
+    );
+    await page.reload();
+    await dismissWelcomeIfPresent(page);
+    await page.getByRole("tab", { name: /explain my portfolio/i }).tap();
+
+    // Three manual rows with distinct off-catalog ISINs.
+    const ISIN_A = "LU0000000111";
+    const ISIN_B = "LU0000000222";
+    const ISIN_C = "LU0000000333";
+
+    await page.getByTestId("explain-add-manual").tap();
+    await page.getByTestId("explain-manual-isin-0").fill(ISIN_A);
+    await page.getByTestId("explain-add-manual").tap();
+    await page.getByTestId("explain-manual-isin-1").fill(ISIN_B);
+    await page.getByTestId("explain-add-manual").tap();
+    await page.getByTestId("explain-manual-isin-2").fill(ISIN_C);
+
+    await expect(page.getByTestId("explain-manual-isin-0")).toHaveValue(ISIN_A);
+    await expect(page.getByTestId("explain-manual-isin-1")).toHaveValue(ISIN_B);
+    await expect(page.getByTestId("explain-manual-isin-2")).toHaveValue(ISIN_C);
+
+    // Delete the middle row (B). After the splice the remaining rows
+    // re-index to 0 and 1 — their ISINs must be A and C respectively.
+    await page.getByTestId("explain-remove-1").tap();
+
+    await expect(page.getByTestId("explain-manual-isin-2")).toHaveCount(0);
+    await expect(page.getByTestId("explain-manual-isin-0")).toHaveValue(ISIN_A);
+    await expect(page.getByTestId("explain-manual-isin-1")).toHaveValue(ISIN_C);
+  });
+
+  // Task #292 — off-catalog manual ISINs (not registered in the
+  // catalog) used to be the only manual rows that did NOT expose the
+  // clickable ISIN look-through affordance, even when the typed value
+  // was a perfectly valid off-universe ISIN. The synthesizer now emits
+  // a minimal ETFImplementation row for those entries so the same
+  // shared ETFDetailsDialog renders (the dialog's own "no profile"
+  // empty state covers the unrecognised-ISIN case gracefully).
+  test("an off-catalog manual ISIN exposes the clickable ISIN look-through affordance", async ({
+    page,
+    context,
+  }) => {
+    await context.clearCookies();
+    await openExplainTab(page);
+    await page.evaluate(() =>
+      window.localStorage.removeItem("investment-lab.explainPortfolio.v1"),
+    );
+    await page.reload();
+    await dismissWelcomeIfPresent(page);
+    await page.getByRole("tab", { name: /explain my portfolio/i }).tap();
+
+    const OFF_ISIN = "LU0000000444";
+    await page.getByTestId("explain-add-manual").tap();
+    await page.getByTestId("explain-manual-isin-0").fill(OFF_ISIN);
+
+    const manualButton = page.getByTestId("explain-etf-isin-button-manual-0");
+    await expect(manualButton).toBeVisible();
+    await expect(manualButton).toContainText(OFF_ISIN);
+    await manualButton.scrollIntoViewIfNeeded();
+    await manualButton.click({ force: true });
+
+    const dialog = page.getByTestId("etf-details-dialog");
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toContainText(OFF_ISIN);
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toBeHidden();
+    await waitForRadixOverlayRelease(page);
+  });
+
   // Task #161 — manual rows whose typed ISIN happens to match a
   // registered catalog instrument should also expose the clickable
   // ISIN affordance (testid `explain-etf-isin-button-manual-${idx}`).
-  // Off-catalog manual ISINs intentionally do NOT get the button —
-  // that path is already covered indirectly by the manual-asset-class
-  // test above (it uses LU0000000123, no button asserted, no failure).
+  // (Task #292: off-catalog manual ISINs now also expose this button —
+  // see the dedicated test above.)
   test("a manual row with a catalog-registered ISIN exposes the clickable ISIN affordance", async ({
     page,
     context,

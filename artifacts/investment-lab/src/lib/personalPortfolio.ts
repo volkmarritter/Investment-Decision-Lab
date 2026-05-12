@@ -32,6 +32,18 @@ import type { Lang } from "./i18n";
 export const EXPLAIN_CASH_BUCKET_SENTINEL = "Cash" as const;
 
 export interface PersonalPosition {
+  // Task #292 — stable per-row identity, generated when the row is
+  // created (or backfilled at load time for legacy persisted rows).
+  // Used by the Explain editor as the React key and as the lookup
+  // for `removePositionByUid` / `weightDrafts`, so deleting one row
+  // never causes React to reconcile a different row's transient
+  // input/popover state onto the survivor (which previously made
+  // deleting row B visually drop row A in the Manual entries group).
+  // Optional in the type for backward compatibility with persisted
+  // workspaces and external callers; the Explain editor backfills any
+  // missing uid through `ensurePositionUid` on load/import so all
+  // in-flight rows always carry one.
+  uid?: string;
   isin: string;
   bucketKey: string;
   weight: number;
@@ -131,6 +143,25 @@ const MANUAL_REGION_UPGRADES: Readonly<Record<string, string>> = {
 
 export function normalizeManualRegion(region: string): string {
   return MANUAL_REGION_UPGRADES[region] ?? region;
+}
+
+// Task #292 — short, low-collision identifier for a position row.
+// Prefer crypto.randomUUID() when available; fall back to a Math.random
+// suffix in environments that lack it (older browsers / SSR fallback).
+export function generatePositionUid(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `pos-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+// Task #292 — return a copy of the position with a uid set, generating
+// one if the input lacks it. Used by the Explain editor's load /
+// import / Build-handoff paths to backfill legacy rows that were
+// persisted before uids existed.
+export function ensurePositionUid(p: PersonalPosition): PersonalPosition {
+  if (p.uid && p.uid.length > 0) return p;
+  return { ...p, uid: generatePositionUid() };
 }
 
 function round1(n: number): number {
