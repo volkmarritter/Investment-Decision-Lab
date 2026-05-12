@@ -803,6 +803,16 @@ export function Methodology() {
               ? "Langfristige erwartete Renditen und Volatilitäten je Anlageklasse. Bewusst konservativ und stabil über die Zeit. Diese Werte stammen NICHT aus Live-Daten – sie sind handgepflegte Konsens-Schätzungen aus öffentlich publizierten Long-Term Capital Market Assumptions großer Asset Manager."
               : "Long-run expected returns and volatilities per asset class. Deliberately conservative and stable over time. These values are NOT live — they are hand-curated consensus estimates drawn from publicly published Long-Term Capital Market Assumptions of major asset managers."}
           </p>
+          <div className="rounded-md border bg-muted/30 p-3 text-xs space-y-1.5" data-testid="cma-routing-note">
+            <div className="font-semibold uppercase tracking-wider text-[10px] text-muted-foreground">
+              {de ? "Wo landen ETFs ohne erkannte Region in dieser Tabelle?" : "Where do ETFs without a recognised region land in this table?"}
+            </div>
+            <p className="text-muted-foreground">
+              {de
+                ? "Aktien-ETFs mit einer der gelisteten Regionen (USA, Europa, UK, Schweiz, Japan, EM) fließen direkt in die entsprechende Zeile. ETFs ohne erkannte Region oder mit einem Sektor-/Themen-Label (z. B. Technologie, Healthcare, Asien-Pazifik ex-Japan) landen in »Thematic Equity«. Look-Through-Länderscheiben, die zu keinem dedizierten Bucket passen (Kanada, Irland, justETFs »Other«, …), landen in »Other / Residual«. Die vollständigen Routing-Tabellen stehen weiter unten im Abschnitt »Look-Through«."
+                : "Equity ETFs whose declared region matches one of the listed rows (USA, Europe, UK, Switzerland, Japan, EM) flow directly into that row. ETFs with no recognised region or a sector/theme label (e.g. Technology, Healthcare, Asia Pacific ex-Japan) land in \"Thematic Equity\". Look-through country slices that don't map to a dedicated bucket (Canada, Ireland, justETF's \"Other\", …) land in \"Other / Residual\". The full routing tables live further down in the \"Look-Through\" section."}
+            </p>
+          </div>
           <div className="rounded-md border border-primary/20 bg-primary/5 p-3 text-xs space-y-1.5">
             <div className="font-semibold uppercase tracking-wider text-[10px] text-primary/80">
               {de ? "Wo diese Werte im Tool verwendet werden" : "Where these values are used in the tool"}
