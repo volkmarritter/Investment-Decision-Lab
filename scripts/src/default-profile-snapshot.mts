@@ -43,7 +43,7 @@ const CMA: Record<AssetKey, { label: string; mu: number; sigma: number }> = {
   equity_thematic: { label: "Thematic Equity",    mu: 0.080, sigma: 0.22 },
   equity_other:    { label: "Other / Residual",   mu: 0.072, sigma: 0.17 },
   bonds:           { label: "Global Bonds",       mu: 0.035, sigma: 0.06 },
-  cash:            { label: "Cash",               mu: 0.030, sigma: 0.005 },
+  cash:            { label: "Cash",               mu: 0.0040 /* RF.CHF */, sigma: 0.005 },
   gold:            { label: "Gold",               mu: 0.040, sigma: 0.16 },
   reits:           { label: "Listed Real Estate", mu: 0.065, sigma: 0.18 },
   crypto:          { label: "Crypto",             mu: 0.120, sigma: 0.70 },
