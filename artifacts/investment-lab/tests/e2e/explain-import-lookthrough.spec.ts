@@ -34,21 +34,25 @@ IE00B4ND3602 / 15`;
 // Engine-derived expected region weights for REPRO_TEXT in CHF base
 // (computed from `buildRegionWeights(buildLookthrough(...).geoEquity, "CHF")`).
 // Tolerance ±0.5 absorbs the .toFixed(1) display rounding plus the
-// fan-out from the "Other" aggregate bucket. Re-derived 2026-05-11
-// against the current 2026-05-01 look-through override snapshot —
-// engine-of-equity values: NA 53.94 / Europe 12.50 / Switzerland 0.66
-// / Japan 7.36 / EM 17.18, which round to the pin below.
+// fan-out from the "Other" aggregate bucket. Re-derived 2026-05-13
+// after Task #298 brought the geomap into sync with the engine —
+// Ireland now classifies as Europe (was "Other"), so the Europe
+// share grows by ~0.6pp and the Other tile shrinks by the same.
 // Prior re-derivations:
-//   2026-05 (after look-through profile refresh shifted regional shares)
+//   2026-05-13 — Task #298 geomap alignment: Europe 12.5 → 13.1
+//     (Ireland now classified Europe), and EM 17.2 → 18.5 (full MSCI
+//     EM constituent list now classifies — e.g. Vietnam, Egypt, Qatar,
+//     Kuwait, Peru — countries previously falling to Other/Residual).
+//   2026-05-11 (look-through override snapshot)
 //     → NA 53.9 / Europe 12.5 / Switzerland 0.7 / Japan 7.4 / EM 17.2.
 //   Original pin:
 //     → NA 54.8 / Europe 13.5 / Switzerland 0.7 / Japan 7.4 / EM 19.3.
 const EXPECTED_REGIONS_CHF = {
   NA: 53.9,
-  Europe: 12.5,
+  Europe: 13.1,
   Switzerland: 0.7,
   Japan: 7.4,
-  EM: 17.2,
+  EM: 18.5,
 } as const;
 const EQUITY_PCT_OF_TOTAL = 75;
 

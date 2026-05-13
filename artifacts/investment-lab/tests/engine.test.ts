@@ -1638,6 +1638,162 @@ describe("metrics", () => {
     expect(weights.EM).toBe(0);
   });
 
+  // -------------------------------------------------------------------------
+  // Task #298 — geomap region routing aligned with the engine's
+  // COUNTRY_TO_EQUITY_KEY table. Pins the Ireland → Europe move, the
+  // APAC-developed → Japan-region merge, the expanded EM list and the
+  // Poland/Greece/Hungary/Czechia Europe→EM correction.
+  // -------------------------------------------------------------------------
+  describe("Task #298 — geomap aligned with engine country routing", () => {
+    it("Ireland classifies as Europe (no longer 'Other')", async () => {
+      const { classifyCountry } = await import("../src/lib/geomap");
+      expect(classifyCountry("Ireland", "USD")).toBe("Europe");
+    });
+
+    it("APAC-developed countries (Australia/HK/SG/NZ) classify as the Japan region", async () => {
+      const { classifyCountry } = await import("../src/lib/geomap");
+      for (const c of ["Australia", "Hong Kong", "Singapore", "New Zealand"]) {
+        expect(classifyCountry(c, "USD")).toBe("Japan");
+      }
+    });
+
+    it("Poland/Greece/Hungary/Czechia/Czech Republic classify as EM (regression for Europe→EM correction)", async () => {
+      const { classifyCountry } = await import("../src/lib/geomap");
+      for (const c of [
+        "Poland", "Greece", "Hungary", "Czechia", "Czech Republic",
+      ]) {
+        expect(classifyCountry(c, "USD")).toBe("EM");
+      }
+    });
+
+    it("EM additions (Brazil/Indonesia/Turkey/UAE/etc.) that previously fell to 'Other' classify as EM", async () => {
+      const { classifyCountry } = await import("../src/lib/geomap");
+      for (const c of [
+        "Brazil", "Mexico", "Saudi Arabia", "South Africa", "Indonesia",
+        "Thailand", "Malaysia", "United Arab Emirates", "Qatar", "Kuwait",
+        "Egypt", "Turkey", "Chile", "Colombia", "Peru", "Philippines",
+        "Vietnam",
+      ]) {
+        expect(classifyCountry(c, "USD")).toBe("EM");
+      }
+    });
+
+    it("IE00B3YLTY66-shaped geo profile produces otherPct ≈ 11.7% (only justETF's 'Other' row remains)", async () => {
+      const { buildRegionWeights } = await import("../src/lib/geomap");
+      // Mirrors the Vanguard FTSE All-World profile in
+      // src/data/lookthrough.overrides.json (IE00B3YLTY66).
+      const profile: Array<[string, number]> = [
+        ["United States", 58.57],
+        ["Japan", 5.68],
+        ["United Kingdom", 3.25],
+        ["Canada", 2.92],
+        ["Taiwan", 2.56],
+        ["China", 2.45],
+        ["France", 2.05],
+        ["Germany", 1.94],
+        ["Switzerland", 1.85],
+        ["South Korea", 1.77],
+        ["Australia", 1.65],
+        ["India", 1.35],
+        ["Netherlands", 1.24],
+        ["Ireland", 1.03],
+        ["Other", 11.69],
+      ];
+      const { weights, otherPct } = buildRegionWeights(profile, "USD");
+      // North America = US + Canada.
+      expect(weights.NA).toBeCloseTo(61.49, 2);
+      // Japan tile aggregates Japan + Australia ≈ 7.33%.
+      expect(weights.Japan).toBeCloseTo(7.33, 2);
+      // Europe now includes Ireland (1.03) plus the rest of DM Europe.
+      expect(weights.Europe).toBeCloseTo(11.36, 2);
+      // EM = Taiwan + China + South Korea + India.
+      expect(weights.EM).toBeCloseTo(8.13, 2);
+      // The only residual left is justETF's own catch-all "Other" row.
+      expect(otherPct).toBeCloseTo(11.69, 2);
+    });
+
+    it("drift-guard: every key of the engine's COUNTRY_TO_EQUITY_KEY resolves to a non-'Other' region on the map", async () => {
+      const { classifyCountry, buildRegionWeights } = await import("../src/lib/geomap");
+      const { COUNTRY_TO_EQUITY_KEY } = await import("../src/lib/metrics");
+      // Source-of-truth assertion: iterate the engine's actual table
+      // (now exported from metrics.ts) so any future addition to
+      // COUNTRY_TO_EQUITY_KEY that the geomap doesn't classify will
+      // fail this test. We exclude the engine's aggregate-row pseudo
+      // entries ("Europe", "Europe ex-UK", "Other Europe", "Other EU",
+      // "Other EM", "EM") — those are upstream profile labels routed
+      // by the engine for back-compat; the geomap handles them via
+      // REGION_BUCKETS, not classifyCountry.
+      const AGGREGATE_PSEUDO_KEYS = new Set([
+        "Europe", "Europe ex-UK", "Other Europe", "Other EU", "Other EM", "EM",
+      ]);
+      const aliasToTopo: Record<string, string> = {
+        "United States": "United States of America",
+        USA: "United States of America",
+        UAE: "United Arab Emirates",
+        UK: "United Kingdom",
+      };
+      const drift: Array<{ engineKey: string; probed: string }> = [];
+      for (const engineKey of Object.keys(COUNTRY_TO_EQUITY_KEY)) {
+        if (AGGREGATE_PSEUDO_KEYS.has(engineKey)) continue;
+        const probed = aliasToTopo[engineKey] ?? engineKey;
+        const region = classifyCountry(probed, "USD");
+        if (region === "Other") drift.push({ engineKey, probed });
+      }
+      expect(drift).toEqual([]);
+
+      // Companion: every aggregate pseudo-key must also classify via
+      // the REGION_BUCKETS path (i.e. a single-row geoEquity input
+      // with that label must produce zero otherPct).
+      for (const aggKey of AGGREGATE_PSEUDO_KEYS) {
+        const { otherPct } = buildRegionWeights([[aggKey, 100]], "USD");
+        expect(otherPct, `aggregate key ${aggKey} fell to Other on the map`).toBe(0);
+      }
+    });
+
+    it("regionLabel widens the Japan tile to 'Japan + Asia-Pacific' only when an APAC-developed country is actually in the look-through; pure Japan keeps the plain label", async () => {
+      const { regionLabel } = await import("../src/lib/geomap");
+      // Backward-compatible default (no presentCountries arg) keeps
+      // the wider label so legacy callers don't regress.
+      expect(regionLabel("Japan", "en")).toBe("Japan + Asia-Pacific");
+      expect(regionLabel("Japan", "de")).toBe("Japan + Asien-Pazifik");
+      // Pure Japan-only look-through → plain "Japan".
+      expect(regionLabel("Japan", "en", [{ country: "Japan" }])).toBe("Japan");
+      expect(regionLabel("Japan", "de", [{ country: "Japan" }])).toBe("Japan");
+      // Any APAC-developed country present → widened label.
+      expect(regionLabel("Japan", "en", [{ country: "Japan" }, { country: "Australia" }]))
+        .toBe("Japan + Asia-Pacific");
+      expect(regionLabel("Japan", "de", [{ country: "Hong Kong" }]))
+        .toBe("Japan + Asien-Pazifik");
+      // Empty country list → plain "Japan" (the tile shows zero, no
+      // implied APAC coverage).
+      expect(regionLabel("Japan", "en", [])).toBe("Japan");
+    });
+
+    it("buildRegionWeights surfaces per-region present countries so tile tooltips can show only what's really in the look-through", async () => {
+      const { buildRegionWeights } = await import("../src/lib/geomap");
+      // A 100% Japan-only geo profile must NOT list Australia / HK /
+      // Singapore / NZ in the Japan region's present-countries list —
+      // those are catalogue possibilities, not look-through reality.
+      const japanOnly = buildRegionWeights([["Japan", 100]], "USD");
+      expect(japanOnly.regionCountries.Japan.map((c) => c.country)).toEqual(["Japan"]);
+      // Mixed Japan + Australia → both present, sorted by pct desc.
+      const mixed = buildRegionWeights(
+        [["Japan", 60], ["Australia", 10]],
+        "USD",
+      );
+      expect(mixed.regionCountries.Japan.map((c) => c.country)).toEqual([
+        "Japan", "Australia",
+      ]);
+      expect(mixed.regionCountries.Japan[0].pct).toBeCloseTo(60, 5);
+      expect(mixed.regionCountries.Japan[1].pct).toBeCloseTo(10, 5);
+      // Aggregate "Europe" row contributes to regionAggregates, NOT
+      // regionCountries (it has no country granularity).
+      const agg = buildRegionWeights([["Europe", 30]], "USD");
+      expect(agg.regionCountries.Europe).toEqual([]);
+      expect(agg.regionAggregates.Europe).toBeCloseTo(30, 5);
+    });
+  });
+
   it("mapAllocationToAssetsLookthrough preserves total weight, falls back for non-equity, and is backwards-compatible when etfImplementation is missing", () => {
     // Three invariants this test pins:
     //  (1) Total exposure weight is identical between region-based and

@@ -49,6 +49,7 @@ const SECTION_VERSIONS: Record<string, { version: string; month: string }> = {
   mc: { version: "v1.7", month: "Apr 2026" },
   "manual-isin": { version: "v2.0", month: "May 2026" },
   "excel-export": { version: "v2.1", month: "May 2026" },
+  lookthrough: { version: "v2.2", month: "May 2026" },
 };
 const sectionVersionShort = (id: string): string | undefined =>
   SECTION_VERSIONS[id]?.version;
@@ -1653,7 +1654,29 @@ export function Methodology() {
             </p>
           )}
         </Section>
-        <Section value="lookthrough" icon={<Layers className="h-4 w-4" />} title={de ? "Look-Through-Routing" : "Look-Through Routing"}>
+        <Section
+          value="lookthrough"
+          icon={<Layers className="h-4 w-4" />}
+          title={de ? "Look-Through-Routing" : "Look-Through Routing"}
+          version={sectionVersionLong("lookthrough")}
+        >
+          <div
+            className="rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3 space-y-1"
+            data-testid="whats-new-lookthrough"
+          >
+            <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300 inline-flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5" />
+              {de
+                ? "Neu in v2.2 (Mai 2026) — Länderscharfe Look-Through-Weltkarte"
+                : "New in v2.2 (May 2026) — country-accurate look-through world map"}
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {de
+                ? "Die Weltkarte im Look-Through-Panel färbt jetzt ausschliesslich Länder ein, denen im Look-Through tatsächlich ein Anteil zugewiesen ist — und die Einfärbungs-Intensität skaliert mit dem länderspezifischen Anteil, nicht mit der Region. Ein reiner Japan-ETF färbt also nur Japan ein; Australien, Hongkong, Singapur und Neuseeland bleiben grau, sofern sie nicht wirklich im Profil enthalten sind. Jede Legendenkachel zeigt zusätzlich per Tooltip exakt jene Länder, die in den Anteil eingeflossen sind (absteigend sortiert), und die Japan-Kachel heisst nur dann „Japan + Asien-Pazifik“, wenn ein Asia-Pazifik-DM-Land tatsächlich vorkommt — ansonsten schlicht „Japan“. Aggregierte Europa-/EM-Zeilen ohne Länderdetail werden weiterhin in der Kachel-Summe ausgewiesen, malen aber keine pauschalen Länder ein."
+                : "The world map in the look-through panel now colours only countries that actually carry a non-zero share in the look-through — and the fill intensity scales with that per-country share, not with the region's total. A Japan-only ETF therefore lights up Japan and nothing else; Australia, Hong Kong, Singapore and New Zealand stay grey unless they're really in the profile. Each legend tile also exposes a tooltip listing exactly the countries that contributed to its share (sorted descending), and the Japan tile is labelled “Japan + Asia-Pacific” only when an Asia-Pacific DM country is really present — otherwise it stays plain “Japan”. Aggregate Europe / EM rows without per-country detail still surface their weight on the tile but no longer paint every classified country."}
+            </p>
+          </div>
+
           <p className="text-sm text-muted-foreground">
             {de
               ? "ETFs wie iShares Core MSCI Europe (IE00B4K48X80) sind aus Sicht der Risiko-Engine keine homogene \u201EEurope\u201C-Position: rund 20 % entfallen auf UK und 14 % auf die Schweiz, der Rest auf Kontinental-EU. Die Look-Through-Logik nutzt die kuratierten Index-Geo-Profile (siehe Look-Through-Pool unten) und routet jede Allokationszeile gewichtet auf die korrekten Länder-Buckets — bevor Vola, Beta, TE, Alpha, der TE-Beitrag und die Korrelationsmatrix berechnet werden."
@@ -1703,8 +1726,8 @@ export function Methodology() {
             <p className="text-xs font-semibold">{de ? "Konservativer Länder-Map (worauf wird zerlegt)" : "Conservative country map (what gets decomposed)"}</p>
             <p className="text-xs text-muted-foreground">
               {de
-                ? "Aus den Index-Geo-Profilen werden Länder mit eindeutigem CMA-Bucket ausgespalten: UK, CH, JP und US (entwickelte Märkte mit eigenem Bucket), kontinentaleuropäische DM-Länder → Equity Europe sowie die grössten EM-Länder → Equity EM. Seit Task #294 (2026-05) gilt zusätzlich — und konsistent mit und ohne Look-Through — Kanada → US-Equity, Irland → Europe-Equity sowie die Asia-Pazifik-DM-Länder (Australien, Hongkong, Singapur, Neuseeland) → Japan-Equity. Echte Restposten — justETFs „Other“-Sammelposten (alle Länder ausserhalb der Top ~10 in einem Welt-/DM-Profil zusammengefasst, typisch 5–12 % eines globalen ETFs) und die manuelle Region „Other“ — landen weiterhin im dedizierten CMA-Bucket „Other / Residual“ (μ 7,2 % · σ 17 %, Developed-World-Mix). Total-Gewicht ist unter allen Routing-Pfaden identisch; der Residual-Anteil ist sowohl in der Current-Allocation-Karte als auch in der Look-Through-Karten-Legende sichtbar."
-                : "Countries whose CMA bucket is unambiguous are split out from the index geo profiles: UK, CH, JP and US (developed markets with their own bucket), continental-EU DM countries → Equity Europe, and the largest EM countries → Equity EM. As of Task #294 (2026-05), and identically with look-through ON or OFF, Canada → US Equity, Ireland → Europe Equity, and the Asia-Pacific DM countries (Australia, Hong Kong, Singapore, New Zealand) → Japan Equity. Genuine residuals — justETF's “Other” aggregate (every country past the top ~10 in a global / developed-world profile rolled into one, typically 5–12 % of a global fund) and the manual region “Other” — still land in the dedicated CMA bucket “Other / Residual” (μ 7.2 % · σ 17 %, developed-world blend). Total weight is identical under all routing paths; the residual share is visible both on the Current Allocation card and in the Look-Through map legend."}
+                ? "Aus den Index-Geo-Profilen werden Länder mit eindeutigem CMA-Bucket ausgespalten: UK, CH, JP und US (entwickelte Märkte mit eigenem Bucket), kontinentaleuropäische DM-Länder → Equity Europe sowie die grössten EM-Länder → Equity EM. Seit Task #294 (2026-05) gilt zusätzlich — und konsistent mit und ohne Look-Through — Kanada → US-Equity, Irland → Europe-Equity sowie die Asia-Pazifik-DM-Länder (Australien, Hongkong, Singapur, Neuseeland) → Japan-Equity. Seit Task #298 (2026-05) spiegelt die Look-Through-Weltkarte dieses Routing 1:1: Irland wird als Europa eingefärbt, die Asia-Pazifik-DM-Länder als Japan, und die Japan-Legendenkachel heisst „Japan + Asien-Pazifik“ — aber nur dann, wenn tatsächlich ein Asia-Pazifik-DM-Land im Look-Through auftaucht; bei reinen Japan-Engagements bleibt die Kachel schlicht „Japan“. Per Tile-Tooltip werden zusätzlich genau jene Länder aufgelistet, die im Look-Through wirklich vorhanden sind (ohne erfundene „Möglichkeiten“ aus der Karten-Klassifikation). Die EM-Liste der Karte deckt jetzt den vollen MSCI-EM-Konstituentensatz ab (inkl. Polen, Griechenland, Ungarn, Tschechien — vor #298 fälschlich noch in der Europa-Menge der Karte), so dass Karte und Engine übereinstimmen. Echte Restposten — justETFs „Other“-Sammelposten (alle Länder ausserhalb der Top ~10 in einem Welt-/DM-Profil zusammengefasst, typisch 5–12 % eines globalen ETFs) und die manuelle Region „Other“ — landen weiterhin im dedizierten CMA-Bucket „Other / Residual“ (μ 7,2 % · σ 17 %, Developed-World-Mix). Total-Gewicht ist unter allen Routing-Pfaden identisch; der Residual-Anteil ist sowohl in der Current-Allocation-Karte als auch in der Look-Through-Karten-Legende sichtbar."
+                : "Countries whose CMA bucket is unambiguous are split out from the index geo profiles: UK, CH, JP and US (developed markets with their own bucket), continental-EU DM countries → Equity Europe, and the largest EM countries → Equity EM. As of Task #294 (2026-05), and identically with look-through ON or OFF, Canada → US Equity, Ireland → Europe Equity, and the Asia-Pacific DM countries (Australia, Hong Kong, Singapore, New Zealand) → Japan Equity. As of Task #298 (2026-05), the Look-Through world map mirrors this routing 1:1: Ireland is coloured as Europe, the Asia-Pacific DM countries as Japan, and the Japan legend tile is labelled “Japan + Asia-Pacific” — but only when an Asia-Pacific DM country actually shows up in the look-through; for pure Japan exposure the tile keeps the plain “Japan” label. Each tile's tooltip additionally lists exactly the countries that are really present in the look-through (no fabricated “possibilities” inherited from the map's classification). The map's EM set now covers the full MSCI EM constituent list (incl. Poland, Greece, Hungary, Czechia — until #298 still incorrectly part of the map's Europe set), so the map and the engine now agree. Genuine residuals — justETF's “Other” aggregate (every country past the top ~10 in a global / developed-world profile rolled into one, typically 5–12 % of a global fund) and the manual region “Other” — still land in the dedicated CMA bucket “Other / Residual” (μ 7.2 % · σ 17 %, developed-world blend). Total weight is identical under all routing paths; the residual share is visible both on the Current Allocation card and in the Look-Through map legend."}
             </p>
           </div>
 

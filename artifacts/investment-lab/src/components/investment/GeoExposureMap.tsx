@@ -23,7 +23,7 @@ const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json"
 export function GeoExposureMap({ etfs, baseCurrency }: Props) {
   const { t, lang } = useT();
   const result = buildLookthrough(etfs, lang, baseCurrency);
-  const { weights, otherPct, countryToRegion } = useMemo(
+  const { weights, otherPct, regionCountries, regionAggregates } = useMemo(
     () => buildRegionWeights(result.geoEquity, baseCurrency),
     [result.geoEquity, baseCurrency],
   );
@@ -35,7 +35,33 @@ export function GeoExposureMap({ etfs, baseCurrency }: Props) {
       return true;
     });
 
-  const maxPct = Math.max(...activeRegions.map((r) => weights[r]), 0.0001);
+  // Reflect-reality choropleth (Task #298 follow-up, 2026-05): the
+  // map colours ONLY countries that actually carry a non-zero pct in
+  // the look-through. We no longer paint every catalogue-classified
+  // country in a region — e.g. a Japan-only ETF must not light up
+  // Australia / HK / Singapore / NZ just because they share the
+  // Japan tile. Aggregate "Europe"/"EM" rows have no per-country
+  // detail; those weights are surfaced in the legend tile only and
+  // the choropleth stays grey for them so the map can't lie about
+  // country-level coverage.
+  const presentCountryFill = useMemo(() => {
+    const map = new Map<string, { region: RegionKey; pct: number }>();
+    for (const r of activeRegions) {
+      for (const { country, pct } of regionCountries[r]) {
+        if (pct > 0) map.set(country, { region: r, pct });
+      }
+    }
+    return map;
+  }, [regionCountries, activeRegions]);
+
+  // Country-level fill scales by the country's own pct, capped by the
+  // largest single-country pct in the look-through. Tiny ~0.5% slices
+  // still get a visible (low-opacity) tint so they don't read as "no
+  // exposure".
+  const maxCountryPct = useMemo(
+    () => Math.max(0.0001, ...Array.from(presentCountryFill.values()).map((v) => v.pct)),
+    [presentCountryFill],
+  );
   const [hovered, setHovered] = useState<{ name: string; region: RegionKey | null; pct: number } | null>(null);
 
   return (
@@ -62,10 +88,9 @@ export function GeoExposureMap({ etfs, baseCurrency }: Props) {
               {({ geographies }) =>
                 geographies.map((geo) => {
                   const name: string = geo.properties.name;
-                  const region = countryToRegion.get(name) ?? null;
-                  const pct = region ? weights[region] : 0;
-                  const fill = region && pct > 0
-                    ? regionFill(region, pct, maxPct)
+                  const present = presentCountryFill.get(name) ?? null;
+                  const fill = present
+                    ? regionFill(present.region, present.pct, maxCountryPct)
                     : "hsl(var(--muted))";
                   return (
                     <Geography
@@ -74,7 +99,13 @@ export function GeoExposureMap({ etfs, baseCurrency }: Props) {
                       fill={fill}
                       stroke="hsl(var(--border))"
                       strokeWidth={0.4}
-                      onMouseEnter={() => setHovered({ name, region, pct })}
+                      onMouseEnter={() =>
+                        setHovered({
+                          name,
+                          region: present?.region ?? null,
+                          pct: present?.pct ?? 0,
+                        })
+                      }
                       onMouseLeave={() => setHovered(null)}
                       style={{
                         default: { outline: "none" },
@@ -92,7 +123,7 @@ export function GeoExposureMap({ etfs, baseCurrency }: Props) {
               <div className="font-semibold">{hovered.name}</div>
               <div className="text-muted-foreground">
                 {hovered.region
-                  ? `${regionLabel(hovered.region, lang)} · ${hovered.pct.toFixed(1)}%`
+                  ? `${regionLabel(hovered.region, lang, regionCountries[hovered.region])} · ${hovered.pct.toFixed(1)}%`
                   : t("build.geomap.noExposure")}
               </div>
             </div>
@@ -100,38 +131,69 @@ export function GeoExposureMap({ etfs, baseCurrency }: Props) {
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
-          {activeRegions.map((r) => (
-            <div
-              key={r}
-              data-testid={`geo-region-${r}`}
-              className="rounded-md border p-2 text-xs"
-            >
-              <div className="flex items-center gap-1.5">
-                <span
-                  className="inline-block h-3 w-3 rounded-sm"
-                  style={{ background: REGION_COLORS[r] }}
-                />
-                <span className="font-medium truncate">{regionLabel(r, lang)}</span>
-              </div>
+          {activeRegions.map((r) => {
+            // Reflect-reality tooltip (Task #298 follow-up, 2026-05):
+            // list the actual countries that contributed to this
+            // region, in descending pct order, plus any aggregate
+            // ("Europe" / "EM") roll-up the upstream profile lumped
+            // together. A region tile with weights[r] > 0 but an
+            // empty country list (pure aggregate row) still shows
+            // the aggregate line so the source of the % is visible.
+            const items = regionCountries[r];
+            const aggPct = regionAggregates[r];
+            const lines: string[] = items.map(
+              (it) => `${it.country}: ${it.pct.toFixed(1)}%`,
+            );
+            if (aggPct > 0.05) {
+              lines.push(
+                lang === "de"
+                  ? `Sammelposten Region: ${aggPct.toFixed(1)}%`
+                  : `Aggregate region row: ${aggPct.toFixed(1)}%`,
+              );
+            }
+            const tooltip = lines.length > 0
+              ? lines.join("\n")
+              : (lang === "de"
+                  ? "Keine Länder im Look-Through für diese Region."
+                  : "No countries in look-through for this region.");
+            return (
               <div
-                data-testid={`geo-region-${r}-pct`}
-                className="font-mono text-base mt-1"
+                key={r}
+                data-testid={`geo-region-${r}`}
+                className="rounded-md border p-2 text-xs"
+                title={tooltip}
               >
-                {weights[r].toFixed(1)}%
+                <div className="flex items-center gap-1.5">
+                  <span
+                    className="inline-block h-3 w-3 rounded-sm"
+                    style={{ background: REGION_COLORS[r] }}
+                  />
+                  <span className="font-medium truncate">
+                    {regionLabel(r, lang, items)}
+                  </span>
+                </div>
+                <div
+                  data-testid={`geo-region-${r}-pct`}
+                  className="font-mono text-base mt-1"
+                >
+                  {weights[r].toFixed(1)}%
+                </div>
               </div>
-            </div>
-          ))}
+            );
+          })}
           {/* Surface the "Other / Residual" leg as its own legend tile so it's
               visible at a glance — the country-level map cannot colour this
               slice (justETF aggregates it past the top ~10 countries) so it
-              gets a neutral grey swatch and a tooltip. Task #241, 2026-05. */}
+              gets a neutral grey swatch and a tooltip. Task #241, 2026-05;
+              tooltip copy refreshed in Task #298 (2026-05) once the geomap
+              region routing was brought back in sync with the engine. */}
           {otherPct > 0.5 && (
             <div
               className="rounded-md border p-2 text-xs"
               data-testid="build-geomap-other-tile"
               title={lang === "de"
-                ? "Sonstige / Rest — Anteil des Aktien-Sleeves, der sich nicht eindeutig einer der gefärbten Regionen zuordnen lässt (justETFs „Sonstige“-Sammelposten plus mehrdeutige Labels wie Irland; Kanada ist hier in der NA-Region mit den USA enthalten — die Karte zeigt geografische Regionen, im CMA-Bucket Other/Residual landet Kanada hingegen)."
-                : "Other / Residual — share of the equity sleeve that cannot be unambiguously placed into any of the coloured regions (justETF's “Other” catch-all plus context-dependent labels such as Ireland; Canada is grouped with the US under NA on this geographic map, but lives in the Other/Residual CMA bucket on the metrics side)."}
+                ? "Sonstige / Rest — Anteil des Aktien-Sleeves, der sich nicht eindeutig einer der gefärbten Regionen zuordnen lässt: justETFs eigener „Other“-Sammelposten im zugrundeliegenden ETF-Profil (alle Länder ausserhalb der Top ~10 zusammengefasst) plus jedes Land, das weder diese Karte noch die CMA-Bucket-Tabelle der Engine klassifiziert (Task #298, 2026-05)."
+                : "Other / Residual — share of the equity sleeve that cannot be unambiguously placed into any of the coloured regions: justETF's own catch-all \"Other\" row in the underlying ETF profile (every country past the top ~10 rolled into one) plus any country that neither this map nor the engine's CMA bucket table classifies (Task #298, 2026-05)."}
             >
               <div className="flex items-center gap-1.5">
                 <span

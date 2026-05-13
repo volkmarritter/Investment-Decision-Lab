@@ -1,6 +1,16 @@
 // Aggregate the lookthrough equity geography into the 6 display regions:
 // NA, Europe, UK (only if base=GBP), Switzerland (only if base=CHF), Japan, EM.
 // Country names match the TopoJSON `properties.name` values from world-atlas.
+//
+// Note (Task #298, 2026-05): the country sets below are kept in 1:1 sync
+// with the engine's `COUNTRY_TO_EQUITY_KEY` table in `metrics.ts`. Any
+// country the engine routes to an `equity_*` bucket must also have a
+// region assignment here, and the disagreements that existed before
+// Task #298 (Poland / Greece / Hungary / Czechia in Europe on the map
+// but routed to `equity_em` by the engine; Ireland and APAC-developed
+// landing in "Other / Residual") are removed. The drift-guard test in
+// `tests/engine.test.ts` asserts that every key of
+// `COUNTRY_TO_EQUITY_KEY` resolves to a non-`"Other"` region here.
 
 import { BaseCurrency } from "./types";
 
@@ -8,29 +18,44 @@ export type RegionKey = "NA" | "Europe" | "UK" | "Switzerland" | "Japan" | "EM";
 
 const NA_COUNTRIES = new Set(["United States of America", "Canada"]);
 
-// Note (Task #241, 2026-05): "Ireland" is intentionally NOT classified as
-// Europe here. In the look-through profiles for global/developed funds
-// (e.g. Vanguard FTSE Developed World, S&P 500 trackers), the Ireland row
-// represents US-domiciled but Irish-incorporated companies (Accenture,
-// Medtronic, Eaton) — i.e. it is residual rather than a real European
-// geographic exposure. classifyCountry → "Other" surfaces it honestly via
-// otherPct + the dedicated "Other / Residual" legend tile, matching the
-// equity_other CMA bucket on the metrics side.
+// Continental Europe + UK + Switzerland + Ireland (Task #298, 2026-05).
+// Mirrors `COUNTRY_TO_EQUITY_KEY` in metrics.ts: every developed
+// European country routed to `equity_eu` (or to its own `equity_uk` /
+// `equity_ch` bucket) is also classified as "Europe" here. Poland,
+// Greece, Hungary, Czechia and Czech Republic moved to EM (see below).
 const EUROPE_COUNTRIES = new Set([
   "United Kingdom", "France", "Germany", "Switzerland", "Netherlands", "Italy",
   "Spain", "Sweden", "Denmark", "Belgium", "Norway", "Finland",
-  "Austria", "Portugal", "Poland", "Greece", "Czechia", "Czech Republic",
-  "Hungary", "Luxembourg", "Iceland", "Slovakia", "Slovenia", "Romania",
+  "Austria", "Portugal", "Ireland",
+  "Luxembourg", "Iceland", "Slovakia", "Slovenia", "Romania",
   "Bulgaria", "Croatia", "Lithuania", "Latvia", "Estonia",
 ]);
 
-// Only the largest MSCI EM index constituents — together ~90% of EM index weight.
+// Full MSCI EM constituent set, mirroring `equity_em` in metrics.ts
+// (Task #298, 2026-05). Poland, Greece, Hungary, Czechia and Czech
+// Republic are EM here — MSCI reclassified Poland in 2018 and Greece
+// in 2013; the engine has been treating all four as `equity_em` since
+// Task #294, the geomap was the last piece holding the old MSCI Europe
+// classification.
 const EM_COUNTRIES = new Set([
   "China", "India", "Taiwan", "South Korea", "Brazil", "Saudi Arabia",
-  "South Africa", "Mexico",
+  "South Africa", "Mexico", "Indonesia", "Thailand", "Malaysia",
+  "United Arab Emirates", "Qatar", "Kuwait", "Egypt", "Turkey",
+  "Chile", "Colombia", "Peru", "Philippines", "Vietnam",
+  "Poland", "Greece", "Hungary", "Czechia", "Czech Republic",
 ]);
 
 const JAPAN_COUNTRIES = new Set(["Japan"]);
+
+// Asia-Pacific developed ex-Japan (Task #298, 2026-05). The engine has
+// no separate `equity_apxj` CMA bucket and routes these countries to
+// `equity_jp` as the closest developed-Asia proxy; the geomap follows
+// suit by classifying them as the "Japan" RegionKey (i.e. they get the
+// Japan colour on the choropleth and their weight is added to the Japan
+// legend tile, which is now labelled "Japan + Asia-Pacific").
+const APAC_COUNTRIES = new Set([
+  "Australia", "Hong Kong", "Singapore", "New Zealand",
+]);
 
 // Distribution of aggregate buckets by REGION (not country).
 // Values are %; they sum to ~100 for the bucket.
@@ -38,8 +63,15 @@ const REGION_BUCKETS: Record<string, Partial<Record<RegionKey | "Other", number>
   Europe:        { Europe: 100 },
   "Europe ex-UK": { Europe: 100 },
   Eurozone:      { Europe: 100 },
+  // Engine-aliases for the same continental-EU concept (Task #298 follow-up,
+  // 2026-05). The engine routes "Other Europe" / "Other EU" → equity_eu;
+  // mirror that here so the drift-guard test passes and so any upstream
+  // profile carrying these labels is honoured by the geomap.
+  "Other Europe": { Europe: 100 },
+  "Other EU":     { Europe: 100 },
   EM:            { EM: 100 },
   "EM (IG)":     { EM: 100 },
+  "Other EM":    { EM: 100 },
   // Note: aggregate "Other DM" and "Other" labels from upstream profile
   // data are intentionally NOT split into NA/Europe/EM here (Task #241,
   // 2026-05). Pre-2026-05 we silently re-routed e.g. 28 % of an "Other DM"
@@ -54,6 +86,11 @@ const REGION_BUCKETS: Record<string, Partial<Record<RegionKey | "Other", number>
 // Map raw country names from profile data to TopoJSON canonical names.
 const COUNTRY_ALIAS: Record<string, string> = {
   "United States": "United States of America",
+  // Engine-side aliases for EM countries (Task #298, 2026-05) so a
+  // profile listing "UAE" or "USA" classifies the same way as the
+  // canonical TopoJSON name.
+  "USA": "United States of America",
+  "UAE": "United Arab Emirates",
 };
 
 const SKIP_KEYS = new Set([
@@ -61,12 +98,13 @@ const SKIP_KEYS = new Set([
   "Gold Bullion",
 ]);
 
-function classifyCountry(
+export function classifyCountry(
   topoName: string,
   baseCurrency: BaseCurrency,
 ): RegionKey | "Other" {
   if (NA_COUNTRIES.has(topoName)) return "NA";
   if (JAPAN_COUNTRIES.has(topoName)) return "Japan";
+  if (APAC_COUNTRIES.has(topoName)) return "Japan";
   if (topoName === "United Kingdom" && baseCurrency === "GBP") return "UK";
   if (topoName === "Switzerland" && baseCurrency === "CHF") return "Switzerland";
   if (EUROPE_COUNTRIES.has(topoName)) return "Europe";
@@ -79,6 +117,18 @@ export interface RegionWeights {
   otherPct: number;
   // Country → region used for choropleth fill. Only the 6 active regions.
   countryToRegion: Map<string, RegionKey>;
+  // Per-region list of countries that actually contributed non-zero
+  // weight, with their pct. Used by the legend tiles to (a) display a
+  // truthful country-by-country tooltip and (b) drive the dynamic
+  // `regionLabel(...)` qualifier (e.g. "Japan + Asia-Pacific" only
+  // when an APAC-developed country is genuinely in the look-through;
+  // plain "Japan" otherwise).
+  regionCountries: Record<RegionKey, Array<{ country: string; pct: number }>>;
+  // Per-region break-down rolled in from aggregate buckets ("Europe",
+  // "EM", …) where the upstream profile lumps multiple countries into
+  // a single row. Surfaced in the tile tooltip so the user can see
+  // "from aggregate Europe row: 12.3%" alongside the country list.
+  regionAggregates: Record<RegionKey, number>;
 }
 
 export function buildRegionWeights(
@@ -88,17 +138,38 @@ export function buildRegionWeights(
   const weights: Record<RegionKey, number> = {
     NA: 0, Europe: 0, UK: 0, Switzerland: 0, Japan: 0, EM: 0,
   };
+  const regionAggregates: Record<RegionKey, number> = {
+    NA: 0, Europe: 0, UK: 0, Switzerland: 0, Japan: 0, EM: 0,
+  };
+  // Per-region accumulator of country → pct. We aggregate by country
+  // name (not raw row label) so multiple raw rows for the same country
+  // collapse into a single tooltip entry.
+  const regionCountriesMap: Record<RegionKey, Map<string, number>> = {
+    NA: new Map(), Europe: new Map(), UK: new Map(),
+    Switzerland: new Map(), Japan: new Map(), EM: new Map(),
+  };
   let otherPct = 0;
 
-  const addToRegion = (region: RegionKey | "Other", pct: number) => {
+  const addToRegion = (
+    region: RegionKey | "Other",
+    pct: number,
+    country: string | null,
+  ) => {
     if (region === "Other") {
       otherPct += pct;
-    } else if (region === "UK" && baseCurrency !== "GBP") {
-      weights.Europe += pct;
-    } else if (region === "Switzerland" && baseCurrency !== "CHF") {
-      weights.Europe += pct;
+      return;
+    }
+    let target: RegionKey = region;
+    if (region === "UK" && baseCurrency !== "GBP") target = "Europe";
+    else if (region === "Switzerland" && baseCurrency !== "CHF") target = "Europe";
+    weights[target] += pct;
+    if (country) {
+      regionCountriesMap[target].set(
+        country,
+        (regionCountriesMap[target].get(country) ?? 0) + pct,
+      );
     } else {
-      weights[region] += pct;
+      regionAggregates[target] += pct;
     }
   };
 
@@ -110,7 +181,7 @@ export function buildRegionWeights(
       const total = Object.values(bucket).reduce((a, b) => a + (b ?? 0), 0);
       for (const [region, weight] of Object.entries(bucket)) {
         if (!weight) continue;
-        addToRegion(region as RegionKey | "Other", (pct * weight) / total);
+        addToRegion(region as RegionKey | "Other", (pct * weight) / total, null);
       }
       // For aggregate Europe buckets, when base=GBP we want a piece in UK.
       // Approximate UK share of MSCI Europe ≈ 22%; Europe ex-UK has 0.
@@ -132,20 +203,30 @@ export function buildRegionWeights(
     } else {
       const topoName = COUNTRY_ALIAS[rawName] ?? rawName;
       const region = classifyCountry(topoName, baseCurrency);
-      addToRegion(region, pct);
+      addToRegion(region, pct, region === "Other" ? null : topoName);
     }
+  }
+
+  const regionCountries: Record<RegionKey, Array<{ country: string; pct: number }>> = {
+    NA: [], Europe: [], UK: [], Switzerland: [], Japan: [], EM: [],
+  };
+  for (const r of Object.keys(regionCountriesMap) as RegionKey[]) {
+    regionCountries[r] = Array.from(regionCountriesMap[r].entries())
+      .map(([country, pct]) => ({ country, pct }))
+      .sort((a, b) => b.pct - a.pct);
   }
 
   // Build the country-to-region lookup for the choropleth.
   const countryToRegion = new Map<string, RegionKey>();
   for (const c of NA_COUNTRIES) countryToRegion.set(c, "NA");
   for (const c of JAPAN_COUNTRIES) countryToRegion.set(c, "Japan");
+  for (const c of APAC_COUNTRIES) countryToRegion.set(c, "Japan");
   for (const c of EUROPE_COUNTRIES) countryToRegion.set(c, "Europe");
   for (const c of EM_COUNTRIES) countryToRegion.set(c, "EM");
   if (baseCurrency === "GBP") countryToRegion.set("United Kingdom", "UK");
   if (baseCurrency === "CHF") countryToRegion.set("Switzerland", "Switzerland");
 
-  return { weights, otherPct, countryToRegion };
+  return { weights, otherPct, countryToRegion, regionCountries, regionAggregates };
 }
 
 // One distinct base color per region; opacity is scaled by the region's weight
@@ -179,22 +260,43 @@ function hexWithOpacity(hex: string, opacity: number): string {
   return `rgba(${r}, ${g}, ${b}, ${opacity.toFixed(2)})`;
 }
 
-export function regionLabel(region: RegionKey, lang: "en" | "de"): string {
-  const en: Record<RegionKey, string> = {
+// Reflect-reality labelling (Task #298 follow-up, 2026-05): the Japan
+// tile is widened to "Japan + Asia-Pacific" ONLY when an APAC-developed
+// proxy country (Australia, Hong Kong, Singapore, New Zealand) actually
+// shows up in the look-through. A pure Japan-only ETF/portfolio (or one
+// where no APAC country has non-zero pct) keeps the plain "Japan"
+// label so the legend never implies coverage that isn't there. All
+// other regions use a single fixed label.
+export function regionLabel(
+  region: RegionKey,
+  lang: "en" | "de",
+  presentCountries?: ReadonlyArray<{ country: string }>,
+): string {
+  if (region === "Japan") {
+    const hasApac = (presentCountries ?? []).some((c) => APAC_COUNTRIES.has(c.country));
+    if (presentCountries && !hasApac) {
+      return lang === "de" ? "Japan" : "Japan";
+    }
+    return lang === "de" ? "Japan + Asien-Pazifik" : "Japan + Asia-Pacific";
+  }
+  const en: Record<Exclude<RegionKey, "Japan">, string> = {
     NA: "North America",
     Europe: "Europe",
     UK: "United Kingdom",
     Switzerland: "Switzerland",
-    Japan: "Japan",
     EM: "Emerging Markets",
   };
-  const de: Record<RegionKey, string> = {
+  const de: Record<Exclude<RegionKey, "Japan">, string> = {
     NA: "Nordamerika",
     Europe: "Europa",
     UK: "Vereinigtes Königreich",
     Switzerland: "Schweiz",
-    Japan: "Japan",
     EM: "Schwellenländer",
   };
   return (lang === "de" ? de : en)[region];
 }
+
+// Re-export the country sets so the GeoExposureMap tile tooltip and
+// the unit tests can reason about region membership without
+// duplicating the list.
+export { APAC_COUNTRIES };

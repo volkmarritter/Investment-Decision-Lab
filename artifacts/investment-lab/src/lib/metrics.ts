@@ -571,7 +571,7 @@ export function mapAllocationToAssets(
 // region "Asia Pacific ex-Japan" → equity_jp and manual region
 // "Other" → equity_other so the bucket assignment is invariant under
 // the Look-Through Analysis toggle.
-const COUNTRY_TO_EQUITY_KEY: Record<string, AssetKey> = {
+export const COUNTRY_TO_EQUITY_KEY: Record<string, AssetKey> = {
   // United States → equity_us. Canada also routes to equity_us
   // (see Task #294 comment above) — there is no separate equity_ca
   // bucket and the geomap already groups NA = US + Canada.
