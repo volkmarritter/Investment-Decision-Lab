@@ -1789,7 +1789,7 @@ export function BuildPortfolio() {
                               type="button"
                               variant="ghost"
                               size="icon"
-                              className="hidden md:inline-flex h-8 w-8"
+                              className="inline-flex h-8 w-8"
                               disabled={!hasEtfSelections}
                               onClick={() => {
                                 clearAllETFSelections();
