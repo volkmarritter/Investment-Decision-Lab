@@ -1477,15 +1477,15 @@ describe("metrics", () => {
     expect(eu).toBeDefined();
     expect(uk.weight).toBeCloseTo(0.14 * ukPct, 6);
     expect(ch.weight).toBeCloseTo(0.14 * chPct, 6);
-    // Continental-EU bucket is what's left after UK + CH are carved out
-    // AND after the Task #241 residual ("Other" + "Ireland" — context-
-    // dependent labels in this Europe ETF) is split into equity_other.
-    const irelandPct = (profile.geo["Ireland"] ?? 0) / totalGeo;
+    // Continental-EU bucket is what's left after UK + CH are carved out.
+    // Task #294 (2026-05): Ireland now routes to equity_eu (not residual),
+    // so it is INCLUDED in continental-EU, and only the generic "Other"
+    // catch-all flows into equity_other.
     const otherPct = (profile.geo["Other"] ?? 0) / totalGeo;
-    expect(eu.weight).toBeCloseTo(0.14 * (1 - ukPct - chPct - irelandPct - otherPct), 4);
-    if (irelandPct + otherPct > 0) {
+    expect(eu.weight).toBeCloseTo(0.14 * (1 - ukPct - chPct - otherPct), 4);
+    if (otherPct > 0) {
       const otherBucket = lookthrough.find((e) => e.key === "equity_other")!;
-      expect(otherBucket.weight).toBeCloseTo(0.14 * (irelandPct + otherPct), 4);
+      expect(otherBucket.weight).toBeCloseTo(0.14 * otherPct, 4);
     }
 
     // Closure: total exposure preserved (no weight silently dropped to
@@ -1494,32 +1494,25 @@ describe("metrics", () => {
     expect(total).toBeCloseTo(0.14, 6);
   });
 
-  it("Task #241 — Vanguard FTSE Developed World routes residual into equity_other instead of leaking into US/region buckets", () => {
-    // Operator-spotted leak: a 100 % position in IE00BKX55T58 (Vanguard
-    // FTSE Developed World) should NOT show ~76 % US Equity. The fund's
-    // published geo profile lists US 63.62 % plus an aggregate 10.87 %
-    // "Other" slice (every country past the top ~10 rolled into one) and
-    // 1.13 % Ireland (context-dependent: in this fund it's
-    // US-domiciled Accenture / Medtronic). Pre-2026-05 both shares
-    // silently fell through to routeByRegion → BENCHMARK proxy, dumping
-    // ~60 % of the residual back into equity_us. Post-Task #241 they
-    // land in the dedicated equity_other CMA bucket, total weight is
-    // conserved, and US Equity matches the profile's published US %.
+  it("Task #241 / #294 — Vanguard FTSE Developed World: only justETF 'Other' lands in equity_other; Canada → US, Ireland → EU", () => {
+    // Operator-spotted leak (Task #241): a 100 % position in
+    // IE00BKX55T58 (Vanguard FTSE Developed World) should NOT show
+    // ~76 % US Equity via the BENCHMARK proxy. Task #294 (2026-05)
+    // refines the residual rule: Canada and Ireland now route to
+    // equity_us / equity_eu respectively (no equity_ca / equity_ie
+    // buckets, and this keeps the look-through ON / OFF buckets
+    // consistent with the row-region router); only the generic
+    // "Other" catch-all still flows into equity_other.
     const ISIN = "IE00BKX55T58";
     const profile = profileFor(ISIN)!;
     expect(profile?.isEquity).toBe(true);
     const totalGeo = Object.values(profile.geo).reduce((s, v) => s + v, 0);
-    // Task #241: equity_us must equal the fund's *published* US share
-    // — nothing else. Canada is no longer silently merged into equity_us
-    // (no separate equity_ca bucket exists, and merging it understated
-    // the leak that motivated Task #241), so the Canadian slice flows
-    // into equity_other together with the "Other" + "Ireland" residual.
-    const usExpectedPct = (profile.geo["United States"] ?? 0) / totalGeo;
-    const canadaSliceRaw = (profile.geo["Canada"] ?? 0) / totalGeo;
-    const otherSliceRaw = (profile.geo["Other"] ?? 0) / totalGeo;
-    const irelandSliceRaw = (profile.geo["Ireland"] ?? 0) / totalGeo;
+    const usPubPct = (profile.geo["United States"] ?? 0) / totalGeo;
+    const canadaPct = (profile.geo["Canada"] ?? 0) / totalGeo;
+    const otherPct = (profile.geo["Other"] ?? 0) / totalGeo;
+    const irelandPct = (profile.geo["Ireland"] ?? 0) / totalGeo;
     // Sanity: the residual must be material for this regression to bite.
-    expect(otherSliceRaw).toBeGreaterThan(0.05);
+    expect(otherPct).toBeGreaterThan(0.05);
 
     const allocation: AssetAllocation[] = [
       { assetClass: "Equity", region: "Global", weight: 100 },
@@ -1536,20 +1529,89 @@ describe("metrics", () => {
     const lookthrough = mapAllocationToAssetsLookthrough(allocation, etfImpl);
     const total = lookthrough.reduce((s, e) => s + e.weight, 0);
     const us = lookthrough.find((e) => e.key === "equity_us")?.weight ?? 0;
+    const eu = lookthrough.find((e) => e.key === "equity_eu")?.weight ?? 0;
     const other = lookthrough.find((e) => e.key === "equity_other")?.weight ?? 0;
 
     // Total weight conserved.
     expect(total).toBeCloseTo(1.0, 6);
-    // US equity equals the published US %, with NO residual leak from
-    // "Other" / "Ireland" / "Canada" (the regression).
-    expect(us).toBeCloseTo(usExpectedPct, 4);
-    // equity_other captures Canada + the "Other" aggregate + the Ireland
-    // slice (all three intentionally absent from COUNTRY_TO_EQUITY_KEY —
-    // see metrics.ts).
-    expect(other).toBeCloseTo(canadaSliceRaw + otherSliceRaw + irelandSliceRaw, 4);
-    expect(other).toBeGreaterThan(0.10);
-    expect(other).toBeLessThan(0.20);
+    // Task #294: equity_us = published US + Canada (no equity_ca bucket).
+    expect(us).toBeCloseTo(usPubPct + canadaPct, 4);
+    // Task #294: only the generic "Other" catch-all hits equity_other —
+    // Ireland now contributes to equity_eu instead.
+    expect(other).toBeCloseTo(otherPct, 4);
+    // Defensive lower bound: Ireland's slice must show up *inside*
+    // equity_eu (not equity_other), so equity_eu ≥ irelandPct.
+    if (irelandPct > 0) {
+      expect(eu).toBeGreaterThanOrEqual(irelandPct - 1e-6);
+    }
   });
+
+  it("Task #294 — Ireland slice of iShares Core MSCI Europe routes to equity_eu (not equity_other)", () => {
+    // Pre-Task #294 the "Ireland" country label was intentionally absent
+    // from COUNTRY_TO_EQUITY_KEY and fell into the unmappedShare →
+    // equity_other residual. Task #294 adds Ireland → equity_eu so the
+    // slice contributes to continental EU (Bank of Ireland is part of
+    // MSCI Europe). The Core MSCI Europe ETF (IE00B4K48X80) carries a
+    // small Ireland slice in its curated profile — assert it now flows
+    // into equity_eu and nothing other than the generic "Other" label
+    // hits equity_other.
+    const ISIN = "IE00B4K48X80";
+    const profile = profileFor(ISIN)!;
+    const totalGeo = Object.values(profile.geo).reduce((s, v) => s + v, 0);
+    const irelandPct = (profile.geo["Ireland"] ?? 0) / totalGeo;
+    const otherPct = (profile.geo["Other"] ?? 0) / totalGeo;
+    if (irelandPct <= 0) return; // profile refresh dropped the label; nothing to prove.
+
+    const allocation: AssetAllocation[] = [
+      { assetClass: "Equity", region: "Europe", weight: 100 },
+    ];
+    const etfImpl: ETFImplementation[] = [{
+      bucket: "Equity - Europe",
+      assetClass: "Equity", weight: 100, intent: "",
+      exampleETF: "iShares Core MSCI Europe UCITS", rationale: "",
+      isin: ISIN, ticker: "", exchange: "", terBps: 12, domicile: "IE",
+      replication: "Physical", distribution: "Accumulating",
+      currency: "EUR", comment: "",
+    }];
+    const lt = mapAllocationToAssetsLookthrough(allocation, etfImpl);
+    const other = lt.find((e) => e.key === "equity_other")?.weight ?? 0;
+    // equity_other now equals only the generic "Other" slice — the
+    // Ireland share is gone from the residual. Pre-#294 it would have
+    // been (irelandPct + otherPct).
+    expect(other).toBeCloseTo(otherPct, 4);
+    if (otherPct > 0) {
+      expect(other).toBeLessThan(irelandPct + otherPct - 1e-6);
+    }
+  });
+
+  it("Task #294 — mapAllocationToAssets routes 'Asia Pacific ex-Japan' → equity_jp and 'Other' → equity_other (look-through OFF)", () => {
+    const exp = mapAllocationToAssets([
+      { assetClass: "Equity", region: "Asia Pacific ex-Japan", weight: 30 },
+      { assetClass: "Equity", region: "Other", weight: 20 },
+      // Catch-all preserved: sector labels still flow into thematic.
+      { assetClass: "Equity", region: "Technology", weight: 10 },
+    ]);
+    const get = (k: string) => exp.find((e) => e.key === k)?.weight ?? 0;
+    expect(get("equity_jp")).toBeCloseTo(0.3, 6);
+    expect(get("equity_other")).toBeCloseTo(0.2, 6);
+    expect(get("equity_thematic")).toBeCloseTo(0.1, 6);
+  });
+
+  it("Task #294 — routeByRegion fallback (look-through ON, no profile) routes 'Asia Pacific ex-Japan' → equity_jp and 'Other' → equity_other", () => {
+    // No etfImplementation rows match the bucket keys, so every row
+    // falls through to routeByRegion inside mapAllocationToAssetsLookthrough.
+    const allocation: AssetAllocation[] = [
+      { assetClass: "Equity", region: "Asia Pacific ex-Japan", weight: 30 },
+      { assetClass: "Equity", region: "Other", weight: 20 },
+      { assetClass: "Equity", region: "Technology", weight: 10 },
+    ];
+    const lt = mapAllocationToAssetsLookthrough(allocation, []);
+    const get = (k: string) => lt.find((e) => e.key === k)?.weight ?? 0;
+    expect(get("equity_jp")).toBeCloseTo(0.3, 6);
+    expect(get("equity_other")).toBeCloseTo(0.2, 6);
+    expect(get("equity_thematic")).toBeCloseTo(0.1, 6);
+  });
+
 
   it("Task #241 — buildRegionWeights surfaces 'Other' slices into otherPct instead of inflating NA/EM", async () => {
     // Companion of the metrics.ts test above, on the geomap layer.
@@ -1779,18 +1841,34 @@ describe("metrics", () => {
     expect(chAfter.portfolioWeight).toBeCloseTo(0.139 + 0.087 * chPctInEurope, 6);
 
     // Continental EU exposure is correspondingly smaller: only the
-    // non-UK / non-CH content of the Europe ETF that has an unambiguous
-    // continental-EU label. Task #241 carves out Ireland + "Other" into
-    // equity_other so they no longer inflate equity_eu either.
-    const irelandPctInEurope = (europeProfile.geo["Ireland"] ?? 0) / europeTotalGeo;
-    const otherPctInEurope = (europeProfile.geo["Other"] ?? 0) / europeTotalGeo;
+    // continental-EU labels in the Europe ETF profile contribute to
+    // equity_eu. Task #241 carves out the generic "Other" catch-all
+    // into equity_other; Task #294 (2026-05) restored Ireland →
+    // equity_eu so it now contributes here too. We enumerate the
+    // continental-EU labels explicitly to stay robust against profile
+    // refreshes that may add/remove minor markets (e.g. Poland → EM).
+    const EU_LABELS = [
+      "France", "Germany", "Netherlands", "Sweden", "Italy", "Spain",
+      "Denmark", "Norway", "Belgium", "Austria", "Finland", "Portugal",
+      "Ireland", "Other Europe", "Other EU", "Europe", "Europe ex-UK",
+    ];
+    const euPctInEurope =
+      EU_LABELS.reduce((s, c) => s + (europeProfile.geo[c] ?? 0), 0) /
+      europeTotalGeo;
     const euBefore = dBefore.rows.find((r) => r.key === "equity_eu")!;
     const euAfter = dAfter.rows.find((r) => r.key === "equity_eu")!;
     expect(euAfter.portfolioWeight).toBeLessThan(euBefore.portfolioWeight);
-    expect(euAfter.portfolioWeight).toBeCloseTo(
-      0.087 * (1 - ukPctInEurope - chPctInEurope - irelandPctInEurope - otherPctInEurope),
-      4,
+    // Lower bound: equity_eu must include at least the Europe ETF's EU
+    // country slices (0.087 × euPctInEurope). It may legitimately exceed
+    // this because other ETFs in the test (S&P 500, SLI, EM IMI) can
+    // contribute small Ireland / "Other Europe" slices that — post-Task
+    // #294 — now also map to equity_eu.
+    expect(euAfter.portfolioWeight).toBeGreaterThanOrEqual(
+      0.087 * euPctInEurope - 1e-6,
     );
+    // Upper bound: still well below the region-only baseline (the whole
+    // 8.7% Europe row).
+    expect(euAfter.portfolioWeight).toBeLessThan(0.087);
   });
 
   it("computeMetrics returns sane numbers for a default portfolio", () => {

@@ -49,13 +49,15 @@ export const BASE_SEED: Record<AssetKey, AssetCMA> = {
   equity_thematic:  { key: "equity_thematic",  label: "Thematic Equity",   expReturn: 0.080, vol: 0.22 },
   // Catch-all "Other / Residual" equity bucket. Holds the share of an ETF's
   // published country breakdown that the look-through router cannot place
-  // unambiguously: justETF's "Other" catch-all slice (typically 5–12 % of
-  // a global / developed-world fund — every country past the top ~10
-  // rolled into one), plus context-dependent labels the global country
-  // map intentionally omits ("Ireland" — see COUNTRY_TO_EQUITY_KEY notes).
-  // μ/σ are a developed-world equity blend (between US 16 % and EM 22 %)
-  // so vol / Sharpe / TE / beta stay close to what the BENCHMARK fallback
-  // produced implicitly before this bucket existed. Task #241, 2026-05.
+  // unambiguously — i.e. justETF's "Other" catch-all slice (typically
+  // 5–12 % of a global / developed-world fund: every country past the
+  // top ~10 rolled into one) and any country labels not present in
+  // COUNTRY_TO_EQUITY_KEY. Task #294 (2026-05) added Canada → equity_us
+  // and Ireland → equity_eu to that map, so neither falls into this
+  // bucket any more. μ/σ are a developed-world equity blend (between US
+  // 16 % and EM 22 %) so vol / Sharpe / TE / beta stay close to what the
+  // BENCHMARK fallback produced implicitly before this bucket existed.
+  // Task #241, 2026-05.
   equity_other:     { key: "equity_other",     label: "Other / Residual",  expReturn: 0.072, vol: 0.17 },
   bonds:            { key: "bonds",            label: "Global Bonds",      expReturn: 0.035, vol: 0.06 },
   cash:             { key: "cash",             label: "Cash",              expReturn: 0.030, vol: 0.005 },
@@ -502,6 +504,11 @@ export function mapAllocationToAssets(
       else if (r === "Switzerland") map.equity_ch += w;
       else if (r === "Japan") map.equity_jp += w;
       else if (r === "EM") map.equity_em += w;
+      // Asia Pacific ex-Japan: no dedicated CMA bucket; route to Japan as
+      // the nearest developed-Asia proxy. Mirrors COUNTRY_TO_EQUITY_KEY's
+      // treatment of Australia / Hong Kong / Singapore / New Zealand so
+      // toggling look-through doesn't move the bucket (Task #294).
+      else if (r === "Asia Pacific ex-Japan") map.equity_jp += w;
       // Equity sleeve compaction: when the ETF budget is too tight to give
       // every region its own slot, the engine emits "Equity-Home" + "Equity-
       // Global" rows (see portfolio.ts:280-287, etfs.ts:480-494). Resolve
@@ -514,6 +521,12 @@ export function mapAllocationToAssets(
       else if (r === "Global") {
         for (const b of BENCHMARK) map[b.key] += w * (b.weight / benchSum);
       }
+      // Manual region "Other" → Other / Residual, matching the look-through
+      // router's residual flow (justETF's "Other" already lands in
+      // equity_other). Sector / theme labels (Technology, Healthcare,
+      // Sustainability, Cybersecurity, Thematic, …) keep falling through
+      // to equity_thematic via the catch-all below.
+      else if (r === "Other") map.equity_other += w;
       else map.equity_thematic += w;
     }
   }
@@ -542,26 +555,29 @@ export function mapAllocationToAssets(
 // CMA buckets by those geo percentages. Non-equity rows and rows whose ETF
 // has no curated profile fall back to the region-based routing above so the
 // total weight is preserved.
-// IMPORTANT: only list country labels whose CMA bucket is unambiguous
-// regardless of which ETF the label appears in. Context-dependent labels
-// like "Other" (Europe ETF: 8.6% Other Europe; S&P 500: 3.4% Other DM;
-// EM IMI: 10.6% Other EM) and "Ireland" (Europe ETF: Bank of Ireland;
-// S&P 500: Accenture, Medtronic — US-domiciled but Irish-incorporated)
-// must be omitted so they fall back to the unmappedShare → equity_other
-// flow at the bottom of the lookthrough loop.
+// IMPORTANT: list country labels whose CMA bucket is unambiguous in
+// the context where look-through actually emits them. Context-dependent
+// labels like "Other" (Europe ETF: 8.6% Other Europe; S&P 500: 3.4%
+// Other DM; EM IMI: 10.6% Other EM) must still fall back to the
+// unmappedShare → equity_other flow at the bottom of the lookthrough
+// loop.
 //
-// Canada is also intentionally absent (Task #241, 2026-05): there is no
-// separate equity_ca CMA bucket and quietly merging Canadian holdings
-// into equity_us caused the look-through US figure to overstate the
-// fund's published US %. Canada now flows into equity_other along with
-// the "Other" / "Ireland" residual, which matches the dedicated
-// "Other / Residual" CMA bucket and the geomap's NA region (the latter
-// still groups US + Canada, since the world choropleth's North America
-// region IS US + Canada — only the *CMA* bucket changes).
+// Task #294 (2026-05) updates the previous Task #241 conservatism:
+// the catalog has no equity_ca / equity_ie buckets, so to keep the
+// look-through ON / OFF buckets consistent we now explicitly route
+// Canada → equity_us and Ireland → equity_eu (the geomap's NA region
+// already groups US + Canada, and Ireland is part of MSCI Europe DM).
+// This matches the row-region router below, which routes manual
+// region "Asia Pacific ex-Japan" → equity_jp and manual region
+// "Other" → equity_other so the bucket assignment is invariant under
+// the Look-Through Analysis toggle.
 const COUNTRY_TO_EQUITY_KEY: Record<string, AssetKey> = {
-  // United States → equity_us. Canada is NOT here (see comment above).
+  // United States → equity_us. Canada also routes to equity_us
+  // (see Task #294 comment above) — there is no separate equity_ca
+  // bucket and the geomap already groups NA = US + Canada.
   "United States": "equity_us",
   "USA": "equity_us",
+  "Canada": "equity_us",
   // UK home market (FTSE-100).
   "United Kingdom": "equity_uk",
   "UK": "equity_uk",
@@ -582,6 +598,11 @@ const COUNTRY_TO_EQUITY_KEY: Record<string, AssetKey> = {
   "Austria": "equity_eu",
   "Finland": "equity_eu",
   "Portugal": "equity_eu",
+  // Ireland → equity_eu (Task #294). Note: in S&P 500 funds the
+  // "Ireland" label is largely US-domiciled Accenture / Medtronic; we
+  // accept that small mis-attribution to keep the bucket invariant
+  // under the look-through toggle (no equity_ie bucket exists).
+  "Ireland": "equity_eu",
   "Other Europe": "equity_eu",
   "Other EU": "equity_eu",
   // Generic "Europe" buckets in look-through profiles (e.g. MSCI World) lump
@@ -672,10 +693,16 @@ export function mapAllocationToAssetsLookthrough(
       else if (r === "Switzerland") map.equity_ch += w;
       else if (r === "Japan") map.equity_jp += w;
       else if (r === "EM") map.equity_em += w;
+      // Mirror mapAllocationToAssets: keep the manual "Asia Pacific
+      // ex-Japan" and "Other" regions on the same CMA buckets when
+      // look-through is ON so the bucket assignment is invariant under
+      // the Look-Through Analysis toggle (Task #294).
+      else if (r === "Asia Pacific ex-Japan") map.equity_jp += w;
       else if (r === "Home") map[HOME_EQUITY_KEY[baseCurrency]] += w;
       else if (r === "Global") {
         for (const b of BENCHMARK) map[b.key] += w * (b.weight / benchSum);
       }
+      else if (r === "Other") map.equity_other += w;
       else map.equity_thematic += w;
     }
   };
@@ -723,17 +750,18 @@ export function mapAllocationToAssetsLookthrough(
     }
     // Any unmapped country labels — most importantly justETF's "Other"
     // catch-all slice (every country past the top ~10 rolled into one,
-    // typically 5–12 % of a global / developed-world fund) and the
-    // intentionally-omitted "Ireland" label (context-dependent: in
-    // S&P 500 funds it's US-domiciled Accenture / Medtronic, in Europe
-    // funds it's Bank of Ireland) — flow into a dedicated "Other /
-    // Residual" CMA bucket instead of being silently re-routed by the
-    // row's nominal region. Pre-Task #241 this fell back to
-    // routeByRegion(a, unmappedShare), which dumped the residual onto
-    // whichever region the user happened to label the row with — a
-    // global ETF row labelled Equity-Global thus pushed ~60 % of the
-    // residual into US Equity (BENCHMARK proxy). Total weight per row
-    // is invariant under both routings.
+    // typically 5–12 % of a global / developed-world fund) — flow into
+    // a dedicated "Other / Residual" CMA bucket instead of being
+    // silently re-routed by the row's nominal region. Pre-Task #241
+    // this fell back to routeByRegion(a, unmappedShare), which dumped
+    // the residual onto whichever region the user happened to label
+    // the row with — a global ETF row labelled Equity-Global thus
+    // pushed ~60 % of the residual into US Equity (BENCHMARK proxy).
+    // Total weight per row is invariant under both routings.
+    // Task #294 (2026-05) moved Canada → equity_us and Ireland →
+    // equity_eu out of this residual into their named buckets, leaving
+    // only the generic "Other" catch-all (and any other unrecognised
+    // country labels) here.
     if (unmappedShare > 0) map.equity_other += unmappedShare;
   }
 

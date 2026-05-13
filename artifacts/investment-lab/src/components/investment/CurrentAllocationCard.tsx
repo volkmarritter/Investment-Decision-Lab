@@ -5,8 +5,16 @@
 //
 // Respects Explain's existing Look-Through toggle: when ON and an ETF
 // implementation is present, the donut + bar are decomposed via
-// `mapAllocationToAssetsLookthrough`; the table below always shows the
-// user's row-level buckets (same wording rationale as Build).
+// `mapAllocationToAssetsLookthrough`; when OFF the donut + bar route
+// each user row through the shared region-only router
+// `mapAllocationToAssets`, so the displayed CMA buckets are invariant
+// under the Look-Through toggle (Task #294 — same rule applies in
+// PortfolioMetrics). Without this, manual rows like
+// "Equity - Asia Pacific ex-Japan" or "Equity - Other" would appear as
+// raw row labels in OFF mode but as "Japan Equity" / "Other / Residual"
+// in ON mode, contradicting the routing-consistency contract. The table
+// below still shows the user's row-level buckets verbatim (same wording
+// rationale as Build).
 import {
   PieChart,
   Pie,
@@ -36,7 +44,12 @@ import type {
   BaseCurrency,
   ETFImplementation,
 } from "@/lib/types";
-import { CMA, mapAllocationToAssetsLookthrough } from "@/lib/metrics";
+import {
+  CMA,
+  mapAllocationToAssets,
+  mapAllocationToAssetsLookthrough,
+  type AssetExposure,
+} from "@/lib/metrics";
 import { colorForBucket, compareBuckets } from "@/lib/chartColors";
 import { useT } from "@/lib/i18n";
 
@@ -62,24 +75,11 @@ export function CurrentAllocationCard({
 }: Props) {
   const { t, lang } = useT();
 
-  const baseChartData = allocation
-    .map((a) => ({
-      name: `${a.assetClass} - ${a.region}`,
-      value: a.weight,
-    }))
-    .slice()
-    .sort(compareBuckets);
-
-  const chartData = (() => {
-    if (!lookThroughView || etfImplementation.length === 0) {
-      return baseChartData;
-    }
-    const lt = mapAllocationToAssetsLookthrough(
-      allocation,
-      etfImplementation,
-      baseCurrency,
-    );
-    return lt
+  // Map a CMA-router result (region-only or look-through) to the
+  // donut/legend shape, applying the same DE residual-bucket
+  // localization in both branches so OFF and ON modes look consistent.
+  const cmaToChart = (rows: AssetExposure[]) =>
+    rows
       .filter((e) => e.weight > 0)
       .map((e) => ({
         // Localize the residual bucket label so the donut + legend read
@@ -91,6 +91,22 @@ export function CurrentAllocationCard({
         value: e.weight * 100,
       }))
       .sort(compareBuckets);
+
+  const chartData = (() => {
+    if (lookThroughView && etfImplementation.length > 0) {
+      return cmaToChart(
+        mapAllocationToAssetsLookthrough(
+          allocation,
+          etfImplementation,
+          baseCurrency,
+        ),
+      );
+    }
+    // Look-Through OFF: route each user row through the shared
+    // region-only router so manual rows (e.g. Asia Pacific ex-Japan,
+    // Other) land on the same CMA bucket the look-through path would
+    // pick. Task #294.
+    return cmaToChart(mapAllocationToAssets(allocation, baseCurrency));
   })();
 
   return (
@@ -191,8 +207,8 @@ export function CurrentAllocationCard({
                 ? "Diese Tabelle zeigt die von dir gewählten Buckets — ohne Look-Through. Pie und Balken oben sind über die ETF-Bestände zerlegt."
                 : "This table shows the buckets you picked — without look-through. The pie and bar above are decomposed via the ETF holdings."
               : lang === "de"
-                ? "Die von dir gewählten Buckets. Look-Through ist aus, daher zeigen Pie, Balken und Tabelle dieselbe Sicht."
-                : "The buckets you picked. Look-through is off, so the pie, bar and table all show the same view."}
+                ? "Die von dir gewählten Buckets. Look-Through ist aus — Pie und Balken oben sind in CMA-Klassen geroutet (z. B. „Asia Pacific ex-Japan“ → Japan-Aktien), die Tabelle unten zeigt deine Zeilen-Buckets unverändert."
+                : "The buckets you picked. Look-through is off — the pie and bar above are routed into CMA classes (e.g. \u201CAsia Pacific ex-Japan\u201D \u2192 Japan Equity), while the table below shows your row buckets verbatim."}
           </p>
         </div>
         <div className="rounded-md border">
