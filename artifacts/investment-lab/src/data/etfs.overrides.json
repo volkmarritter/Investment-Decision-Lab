@@ -1,10 +1,10 @@
 {
   "_meta": {
     "source": "justetf.com",
-    "lastRefreshed": "2026-05-12T05:49:36.916Z",
+    "lastRefreshed": "2026-05-13T06:00:25.920Z",
     "lastRefreshedMode": "listings",
     "lastCoreRefresh": "2026-05-11T15:05:03.179Z",
-    "lastListingsRefresh": "2026-05-12T05:49:36.916Z",
+    "lastListingsRefresh": "2026-05-13T06:00:25.920Z",
     "refreshedBy": "scripts/refresh-justetf.mjs",
     "note": "ISIN -> partial ETFRecord overrides applied on top of the in-code CATALOG in src/lib/etfs.ts. Populated by two CI cadences: weekly (Sundays 03:00 UTC) for core fund metadata and nightly (02:00 UTC) for the per-exchange listings map. Only fields present in this file override the catalog defaults; everything else stays as defined in code."
   },
@@ -2687,6 +2687,153 @@
         },
         "XETRA": {
           "ticker": "VFEM"
+        }
+      }
+    },
+    "DE000A0S9GB0": {
+      "listings": {
+        "XETRA": {
+          "ticker": "4GLD"
+        }
+      }
+    },
+    "IE00B42WWV65": {
+      "listings": {
+        "LSE": {
+          "ticker": "VGOV"
+        },
+        "XETRA": {
+          "ticker": "VGOV"
+        }
+      }
+    },
+    "IE00BKX55T58": {
+      "listings": {
+        "Euronext": {
+          "ticker": "VEVE"
+        },
+        "LSE": {
+          "ticker": "VDEV"
+        },
+        "SIX": {
+          "ticker": "VEVE"
+        },
+        "XETRA": {
+          "ticker": "VGVE"
+        }
+      }
+    },
+    "IE0005042456": {
+      "listings": {
+        "LSE": {
+          "ticker": "ISFU"
+        },
+        "Euronext": {
+          "ticker": "ISFA"
+        },
+        "SIX": {
+          "ticker": "ISF"
+        },
+        "XETRA": {
+          "ticker": "IUSZ"
+        }
+      }
+    },
+    "IE00BK5BQX27": {
+      "listings": {
+        "Euronext": {
+          "ticker": "VWCG"
+        },
+        "LSE": {
+          "ticker": "VWCG"
+        },
+        "SIX": {
+          "ticker": "VWCG"
+        },
+        "XETRA": {
+          "ticker": "VWCG"
+        }
+      }
+    },
+    "IE00BKX55S42": {
+      "listings": {
+        "Euronext": {
+          "ticker": "VERX"
+        },
+        "LSE": {
+          "ticker": "VERX"
+        },
+        "XETRA": {
+          "ticker": "VERX"
+        }
+      }
+    },
+    "CH0032912732": {
+      "listings": {
+        "SIX": {
+          "ticker": "SLICHA"
+        }
+      }
+    },
+    "CH0047533523": {
+      "listings": {
+        "SIX": {
+          "ticker": "ZGLDEU"
+        }
+      }
+    },
+    "IE00BDFL4P12": {
+      "listings": {
+        "LSE": {
+          "ticker": "ICOM"
+        },
+        "XETRA": {
+          "ticker": "SXRS"
+        }
+      }
+    },
+    "IE00B3VTML14": {
+      "listings": {
+        "LSE": {
+          "ticker": "CSBGE7"
+        },
+        "Euronext": {
+          "ticker": "CBE7"
+        },
+        "SIX": {
+          "ticker": "CSBGE7"
+        },
+        "XETRA": {
+          "ticker": "SXRP"
+        }
+      }
+    },
+    "IE00BJ0KDQ92": {
+      "listings": {
+        "LSE": {
+          "ticker": "XDWD"
+        },
+        "SIX": {
+          "ticker": "XDWD"
+        },
+        "XETRA": {
+          "ticker": "XDWD"
+        }
+      }
+    },
+    "CH0454664001": {
+      "listings": {
+        "Euronext": {
+          "ticker": "ABTC"
+        },
+        "SIX": {
+          "ticker": "ABTC"
+        },
+        "LSE": {
+          "ticker": "BTCU"
+        },
+        "XETRA": {
+          "ticker": "2BTD"
         }
       }
     }
