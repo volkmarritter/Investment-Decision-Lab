@@ -123,7 +123,9 @@ function buildPromptEn(input: PortfolioInput, mode: PromptMode): string {
 
   const hedgingLine = input.includeCurrencyHedging
     ? "7. State clearly whether currency hedging should be used, where it should be applied, and why."
-    : "7. The investor does NOT want broad currency hedging on equity positions.";
+    : input.hedgeForeignBonds !== false
+      ? "7. The investor does NOT want broad currency hedging on equity positions. Only consider hedging where it is structurally important (e.g. foreign-currency bond exposures in the CHF base portfolio). Justify any hedging recommendation."
+      : "7. The investor does NOT want currency hedging on any positions.";
 
   const lookThroughLine = input.lookThroughView
     ? "8. Where relevant, perform a look-through of the selected ETFs to assess underlying exposures, particularly when broad market indices (e.g. global equity indices) are used for asset allocation. If relevant, include a look-through asset allocation overview after Table 1 to reflect underlying exposures."
@@ -314,7 +316,9 @@ function buildPromptDe(input: PortfolioInput, mode: PromptMode): string {
 
   const hedgingLine = input.includeCurrencyHedging
     ? "7. Erlaeutere klar, ob Waehrungsabsicherung eingesetzt werden soll, wo sie angewendet werden soll und warum."
-    : "7. Der Anleger wuenscht KEINE breite Waehrungsabsicherung auf Aktienpositionen.";
+    : input.hedgeForeignBonds !== false
+      ? "7. Der Anleger wuenscht KEINE breite Waehrungsabsicherung auf Aktienpositionen. Eine Absicherung ist nur zu beruecksichtigen, wo sie strukturell wichtig ist (z. B. Fremdwaehrungs-Anleihenexpositionen im CHF-Basisportfolio). Jede Absicherungsempfehlung ist zu begruenden."
+      : "7. Der Anleger wuenscht KEINE Waehrungsabsicherung auf irgendwelchen Positionen.";
 
   const lookThroughLine = input.lookThroughView
     ? "8. Fuehre, wo sinnvoll, eine Look-Through-Analyse der ausgewaehlten ETFs durch, um die zugrundeliegenden Exposures zu beurteilen, insbesondere wenn breite Marktindizes (z. B. globale Aktienindizes) fuer die Allokation genutzt werden. Falls relevant, ergaenze nach Tabelle 1 eine Look-Through-Allokationsuebersicht."

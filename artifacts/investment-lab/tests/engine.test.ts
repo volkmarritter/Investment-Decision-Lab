@@ -3122,15 +3122,27 @@ describe("AI Prompt builder (buildAiPrompt)", () => {
     const optedIn = buildAiPrompt(baseInput({ includeSyntheticETFs: true, includeCurrencyHedging: true }));
     expect(optedIn).toContain("Include synthetic ETFs");
     expect(optedIn).toContain("State clearly whether currency hedging");
-    // Lock the new numbering: hedging is constraint 7, synthetic is constraint 9.
+    // Lock the numbering: hedging is constraint 7, synthetic is constraint 9.
     expect(optedIn).toContain("7. State clearly whether currency hedging");
     expect(optedIn).toContain("9. Include synthetic ETFs");
 
-    const optedOut = buildAiPrompt(baseInput({ includeSyntheticETFs: false, includeCurrencyHedging: false }));
-    expect(optedOut).toContain("Use physical replication only");
-    expect(optedOut).toContain("does NOT want broad currency hedging");
-    expect(optedOut).toContain("7. The investor does NOT want broad currency hedging");
-    expect(optedOut).toContain("9. Use physical replication only");
+    // Full hedge OFF, bond-only hedge ON (the default) — bond-aware wording.
+    const bondOnly = buildAiPrompt(
+      baseInput({ includeSyntheticETFs: false, includeCurrencyHedging: false, hedgeForeignBonds: true }),
+    );
+    expect(bondOnly).toContain("Use physical replication only");
+    expect(bondOnly).toContain("Only consider hedging where it is structurally important");
+    expect(bondOnly).toContain("foreign-currency bond exposures in the CHF base portfolio");
+    expect(bondOnly).toContain("Justify any hedging recommendation");
+    expect(bondOnly).toContain("7. The investor does NOT want broad currency hedging on equity positions.");
+    expect(bondOnly).toContain("9. Use physical replication only");
+
+    // Full hedge OFF and bond-only hedge OFF — no hedging at all.
+    const optedOut = buildAiPrompt(
+      baseInput({ includeSyntheticETFs: false, includeCurrencyHedging: false, hedgeForeignBonds: false }),
+    );
+    expect(optedOut).toContain("does NOT want currency hedging on any positions");
+    expect(optedOut).toContain("7. The investor does NOT want currency hedging on any positions.");
   });
 
   it("encodes the requested ETF count range", () => {
