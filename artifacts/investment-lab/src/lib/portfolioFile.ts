@@ -118,6 +118,11 @@ function isPortfolioInput(v: unknown): v is PortfolioInput {
     typeof o.thematicPreference === "string" &&
     (VALID_THEMATICS as ReadonlyArray<string>).includes(o.thematicPreference) &&
     typeof o.includeCurrencyHedging === "boolean" &&
+    // Task #300 — `hedgeForeignBonds` is optional in stored files for
+    // backward compatibility with portfolios saved before the toggle
+    // existed; the loader normalizes a missing value to `true` (default
+    // ON) downstream.
+    (o.hedgeForeignBonds === undefined || typeof o.hedgeForeignBonds === "boolean") &&
     typeof o.includeSyntheticETFs === "boolean" &&
     typeof o.includeCrypto === "boolean" &&
     typeof o.includeListedRealEstate === "boolean" &&
@@ -313,7 +318,15 @@ export function parsePortfolioFile(raw: string): ImportResult {
     return { ok: false, error: { reason: "missing-fields" } };
   }
 
-  const input = s.input as PortfolioInput;
+  // Task #300 — normalize a missing `hedgeForeignBonds` field on legacy
+  // saved files to `true` (default ON) so downstream consumers don't have
+  // to repeat the `!== false` fallback at every read site, and so the UI
+  // toggle reflects the same default the engine assumes.
+  const rawInput = s.input as PortfolioInput;
+  const input: PortfolioInput = {
+    ...rawInput,
+    hedgeForeignBonds: rawInput.hedgeForeignBonds ?? true,
+  };
   // Reuse the same engine-side validation. If the engine would reject the
   // input on Generate, reject the file too with the first error message so
   // the user sees a meaningful explanation in the toast detail.

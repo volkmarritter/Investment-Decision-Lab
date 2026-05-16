@@ -13,6 +13,15 @@ export interface PortfolioInput {
   preferredExchange: PreferredExchange;
   thematicPreference: ThematicPreference;
   includeCurrencyHedging: boolean;
+  /** Task #300 — bond-only FX hedging toggle. When true and `includeCurrencyHedging`
+   *  is false (and base currency is non-USD), the engine routes Fixed Income
+   *  buckets to their currency-hedged share class, applies the +15 bps fee
+   *  surcharge only to FI, and applies the MC sigma cut only to FI buckets.
+   *  When `includeCurrencyHedging` is true, the full hedge subsumes this — it
+   *  hedges Equity + FI + Real Estate. USD base disables both. Defaults to true
+   *  for new portfolios; older saved inputs without this field are treated as
+   *  true by the file loader for backward compat. */
+  hedgeForeignBonds?: boolean;
   includeSyntheticETFs: boolean;
   lookThroughView: boolean;
   includeCrypto: boolean;

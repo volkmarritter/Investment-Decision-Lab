@@ -16,6 +16,10 @@ interface FeeEstimatorProps {
   horizonYears: number;
   baseCurrency: string;
   hedged?: boolean;
+  /** Task #300 — bond-only FX hedge toggle. When set (and `hedged` is false,
+   *  and baseCurrency ≠ USD), the Fee Estimator forwards it to `estimateFees`
+   *  so the +15 bps surcharge applies to Fixed Income only. */
+  hedgeForeignBonds?: boolean;
   /**
    * Per-bucket ETF implementations from the BuildPortfolio table. When
    * supplied, the Fee Estimator reads each bucket's actual TER from the
@@ -96,6 +100,7 @@ export function FeeEstimator({
   horizonYears,
   baseCurrency,
   hedged,
+  hedgeForeignBonds,
   etfImplementations,
   amountDraft: controlledDraft,
   onAmountDraftChange,
@@ -142,6 +147,10 @@ export function FeeEstimator({
 
   const results = estimateFees(allocation, horizonYears, investmentAmount, {
     hedged: hedged && baseCurrency !== "USD",
+    // Task #300 — bond-only FX hedge surcharge (+15 bps on Fixed Income
+    // only). Subsumed by full hedge upstream in fees.ts; we still gate on
+    // base ≠ USD to keep USD portfolios untouched.
+    hedgeForeignBonds: !!hedgeForeignBonds && baseCurrency !== "USD",
     etfImplementations,
   });
 

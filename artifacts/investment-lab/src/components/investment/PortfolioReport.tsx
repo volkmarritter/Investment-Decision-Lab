@@ -296,6 +296,16 @@ export function PortfolioReport({
               value={t("report.feature.hedging")}
             />
           )}
+          {/* Task #300 — surface bond-only FX hedge when it's active
+           *  (i.e. ON, full hedge OFF, and base ≠ USD). */}
+          {input.hedgeForeignBonds !== false &&
+            !input.includeCurrencyHedging &&
+            input.baseCurrency !== "USD" && (
+              <ProfileChip
+                label={t("report.chip.feature")}
+                value={t("report.feature.hedgeBonds")}
+              />
+            )}
           {input.includeSyntheticETFs && (
             <ProfileChip
               label={t("report.chip.feature")}
@@ -714,6 +724,7 @@ function DetailedSections({
     () =>
       runMonteCarlo(output.allocation, input.horizon, ILLUSTRATIVE_AMOUNT, {
         hedged: input.includeCurrencyHedging,
+        bondsHedged: input.hedgeForeignBonds !== false,
         baseCurrency: input.baseCurrency,
         syntheticUsEffective,
         riskRegime,
@@ -726,6 +737,7 @@ function DetailedSections({
       input.horizon,
       input.lookThroughView,
       input.includeCurrencyHedging,
+      input.hedgeForeignBonds,
       input.baseCurrency,
       syntheticUsEffective,
       riskRegime,
@@ -737,11 +749,13 @@ function DetailedSections({
     () =>
       estimateFees(output.allocation, input.horizon, ILLUSTRATIVE_AMOUNT, {
         hedged: input.includeCurrencyHedging && input.baseCurrency !== "USD",
+        hedgeForeignBonds: input.hedgeForeignBonds !== false && input.baseCurrency !== "USD",
       }),
     [
       output.allocation,
       input.horizon,
       input.includeCurrencyHedging,
+      input.hedgeForeignBonds,
       input.baseCurrency,
     ],
   );

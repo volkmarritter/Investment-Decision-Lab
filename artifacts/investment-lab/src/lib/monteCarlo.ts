@@ -108,6 +108,7 @@ function muSigmaForKey(
   baseCurrency: BaseCurrency,
   syntheticUsEffective: boolean,
   cashMuOverride?: number,
+  bondsHedged: boolean = false,
 ): BucketAssumption {
   const cma = CMA[key];
   // Net of irrecoverable WHT on dividends — same drag definition used by
@@ -142,6 +143,14 @@ function muSigmaForKey(
       sigma = Math.max(0.05, sigma - cut);
     }
   }
+  // Task #300 — bond-only (or full-hedge subsumes) FX-hedge sigma cut on
+  // the Fixed Income bucket. Removing USD/JPY FX vol from a CHF/EUR/GBP
+  // investor's global aggregate bond exposure typically strips ~1 pp of
+  // total sigma (FX vol dominates rate vol for short-dated foreign
+  // sovereigns). Floor at 1% so the bucket never collapses to ~0.
+  if (key === "bonds" && (hedged || bondsHedged) && baseCurrency !== "USD") {
+    sigma = Math.max(0.01, sigma - 0.01);
+  }
   return { mu, sigma };
 }
 
@@ -152,6 +161,7 @@ function bucketAssumption(
   baseCurrency: BaseCurrency = "USD",
   syntheticUsEffective: boolean = false,
   cashMuOverride?: number,
+  bondsHedged: boolean = false,
 ): BucketAssumption {
   return muSigmaForKey(
     bucketKey(assetClass, region, baseCurrency),
@@ -159,6 +169,7 @@ function bucketAssumption(
     baseCurrency,
     syntheticUsEffective,
     cashMuOverride,
+    bondsHedged,
   );
 }
 
@@ -229,6 +240,10 @@ export function runMonteCarlo(
     paths?: number;
     seed?: number;
     hedged?: boolean;
+    /** Task #300 — bond-only FX hedge. When true (and `hedged` is false,
+     *  and baseCurrency is non-USD), applies the FX-hedge σ cut to the
+     *  Fixed Income bucket only. Subsumed by `hedged` when both are set. */
+    bondsHedged?: boolean;
     baseCurrency?: BaseCurrency;
     syntheticUsEffective?: boolean;
     /** Correlation regime fed into portfolioSigma. Default "normal" (the
@@ -260,6 +275,7 @@ export function runMonteCarlo(
   const numPaths = options.paths ?? 2000;
   const seed = options.seed ?? 42;
   const hedged = options.hedged ?? false;
+  const bondsHedged = options.bondsHedged ?? false;
   const baseCurrency: BaseCurrency = options.baseCurrency ?? "USD";
   const syntheticUsEffective = options.syntheticUsEffective ?? false;
   const riskRegime: RiskRegime = options.riskRegime ?? "normal";
@@ -313,7 +329,7 @@ export function runMonteCarlo(
       baseCurrency,
     );
     for (const e of exposures) {
-      const { mu, sigma } = muSigmaForKey(e.key, hedged, baseCurrency, syntheticUsEffective, cashMu);
+      const { mu, sigma } = muSigmaForKey(e.key, hedged, baseCurrency, syntheticUsEffective, cashMu, bondsHedged);
       buckets.push({ weight: e.weight, mu, sigma, key: e.key });
       portfolioMu += e.weight * mu;
     }
@@ -337,7 +353,7 @@ export function runMonteCarlo(
     }
     for (const a of expanded) {
       const w = a.weight / 100;
-      const { mu, sigma } = bucketAssumption(a.assetClass, a.region, hedged, baseCurrency, syntheticUsEffective, cashMu);
+      const { mu, sigma } = bucketAssumption(a.assetClass, a.region, hedged, baseCurrency, syntheticUsEffective, cashMu, bondsHedged);
       const key = bucketKey(a.assetClass, a.region, baseCurrency);
       buckets.push({ weight: w, mu, sigma, key });
       portfolioMu += w * mu;

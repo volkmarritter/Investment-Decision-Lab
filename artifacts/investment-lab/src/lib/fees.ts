@@ -30,6 +30,13 @@ export function estimateFees(
   options: {
     hedgingCostBps?: number;
     hedged?: boolean;
+    /** Task #300 — when true (and `hedged` is false), the +15 bps FX
+     *  hedging surcharge is applied ONLY to Fixed Income buckets,
+     *  reflecting the "Hedge foreign-currency bonds" toggle. When
+     *  `hedged` is true the full-hedge surcharge already covers FI plus
+     *  Equity and Real Estate, so this flag is a no-op. Callers MUST
+     *  also zero this out for USD-base portfolios. */
+    hedgeForeignBonds?: boolean;
     /**
      * Optional. Per-bucket ETF implementations from the BuildPortfolio table.
      * When provided, the actual `terBps` of the ETF the operator picked is
@@ -50,7 +57,12 @@ export function estimateFees(
   let totalWeight = 0;
   let blendedTerBpsWeighted = 0;
 
-  const hedgingCostBps = options.hedged ? options.hedgingCostBps ?? 15 : 0;
+  const hedgingCostBps =
+    options.hedged || options.hedgeForeignBonds ? options.hedgingCostBps ?? 15 : 0;
+  // Task #300 — bond-only mode: scope the +15 bps surcharge to FI only.
+  // Full-hedge mode keeps the legacy all-canHedge behaviour (FI + Equity
+  // + Real Estate). When neither is set, hedgingCostBps is already 0.
+  const bondsOnlySurcharge = !options.hedged && !!options.hedgeForeignBonds;
   const terByBucket = new Map<string, number>();
   const terWeightedSumByBucket = new Map<string, number>();
   const terWeightTotalByBucket = new Map<string, number>();
@@ -110,10 +122,13 @@ export function estimateFees(
     // Cash buckets are excluded from the implementation table, so for them
     // we always fall back to the table.
     const baseTer = terByBucket.get(bucketKey) ?? getETFTer(a.assetClass, a.region);
-    // Hedging cost only applies to instruments that can be hedged (equity, FI, real estate)
+    // Hedging cost only applies to instruments that can be hedged (equity, FI, real estate).
+    // Task #300 — in bond-only mode, the surcharge is scoped to Fixed Income only.
     const canHedge =
       hedgingCostBps > 0 &&
-      (a.assetClass === "Equity" || a.assetClass === "Fixed Income" || a.assetClass === "Real Estate");
+      (bondsOnlySurcharge
+        ? a.assetClass === "Fixed Income"
+        : a.assetClass === "Equity" || a.assetClass === "Fixed Income" || a.assetClass === "Real Estate");
     const terBps = baseTer + (canHedge ? hedgingCostBps : 0);
     const contributionBps = terBps * (a.weight / 100);
     totalWeight += a.weight;

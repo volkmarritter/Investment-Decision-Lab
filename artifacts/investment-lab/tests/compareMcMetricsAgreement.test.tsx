@@ -160,6 +160,26 @@ async function simplifySlotB(): Promise<void> {
     .getByText(/Include Crypto/i)
     .closest("[class*='flex']")
     ?.querySelector('[role="switch"]') as HTMLElement | null;
+  // Task #300 — also turn off the new default-ON "Hedge foreign-currency
+  // bonds" toggle for Slot B. The MC engine applies a 1pp σ cut to the
+  // Fixed Income sleeve when this is on (CHF base), but the analytical
+  // PortfolioMetrics card has no equivalent adjustment, so leaving it on
+  // would push the MC ↔ Metrics σ gap beyond this test's 0.5pp tolerance
+  // on Slot B's bond-heavy (Low-risk) allocation. The test pins WIRING,
+  // not hedge cuts, so neutralising the hedge here is the right scope.
+  const bondHedgeSwitch = within(slotBCard)
+    .getByText(/Hedge foreign-currency bonds/i)
+    .closest("[class*='flex']")
+    ?.querySelector('[role="switch"]') as HTMLElement | null;
+  // Slot B's default has full currency hedging ON. The MC engine cuts σ
+  // by 3pp on equity (existing) AND 1pp on Fixed Income (Task #300 — new)
+  // when this is on; PortfolioMetrics has no equivalent analytical cut,
+  // so we turn the full hedge off as well to keep the MC ↔ Metrics gap
+  // within this test's 0.5pp wiring tolerance.
+  const fullHedgeSwitch = within(slotBCard)
+    .getByText(/^Currency Hedging$/i)
+    .closest("[class*='flex']")
+    ?.querySelector('[role="switch"]') as HTMLElement | null;
   await act(async () => {
     if (reSwitch?.getAttribute("data-state") === "checked") {
       fireEvent.click(reSwitch);
@@ -167,6 +187,21 @@ async function simplifySlotB(): Promise<void> {
     if (cryptoSwitch?.getAttribute("data-state") === "checked") {
       fireEvent.click(cryptoSwitch);
     }
+    if (fullHedgeSwitch?.getAttribute("data-state") === "checked") {
+      fireEvent.click(fullHedgeSwitch);
+    }
+    // Click bondHedge AFTER fullHedge — it's disabled while fullHedge is
+    // on (subsumed state), so clicks would no-op. Re-query after the
+    // fullHedge click so we catch the now-enabled switch.
+    await Promise.resolve();
+    const bondHedgeSwitchEnabled = within(slotBCard)
+      .getByText(/Hedge foreign-currency bonds/i)
+      .closest("[class*='flex']")
+      ?.querySelector('[role="switch"]') as HTMLElement | null;
+    if (bondHedgeSwitchEnabled?.getAttribute("data-state") === "checked") {
+      fireEvent.click(bondHedgeSwitchEnabled);
+    }
+    void bondHedgeSwitch; // referenced for symmetry; real click uses re-query
     await Promise.resolve();
   });
 }

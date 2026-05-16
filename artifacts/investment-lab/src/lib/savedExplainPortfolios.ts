@@ -19,6 +19,11 @@ export interface ExplainWorkspace {
   riskAppetite: RiskAppetite;
   horizon: number;
   hedged: boolean;
+  /** Task #300 — bond-only FX hedge toggle (analogous to PortfolioInput.hedgeForeignBonds).
+   *  Optional on the persisted shape so older Explain workspaces and saved
+   *  portfolios continue to load; missing values are treated as `true` by
+   *  the sanitizer to match the "default ON" semantics of the form. */
+  hedgeForeignBonds?: boolean;
   lookThroughView: boolean;
   positions: PersonalPosition[];
 }
@@ -120,6 +125,9 @@ function sanitizeWorkspace(raw: unknown): ExplainWorkspace | null {
     riskAppetite,
     horizon,
     hedged: !!w.hedged,
+    // Task #300 — missing `hedgeForeignBonds` on older saved workspaces
+    // is treated as ON. Only `=== false` opts out.
+    hedgeForeignBonds: w.hedgeForeignBonds !== false,
     lookThroughView: w.lookThroughView !== false,
     positions,
   };

@@ -90,6 +90,7 @@ const defaultValues: CompareFormValues = {
     preferredExchange: "SIX",
     thematicPreference: "None",
     includeCurrencyHedging: false,
+    hedgeForeignBonds: true,
     includeSyntheticETFs: false,
     lookThroughView: true,
     includeCrypto: false,
@@ -106,6 +107,7 @@ const defaultValues: CompareFormValues = {
     preferredExchange: "SIX",
     thematicPreference: "Technology",
     includeCurrencyHedging: true,
+    hedgeForeignBonds: true,
     includeSyntheticETFs: false,
     lookThroughView: true,
     includeCrypto: true,
@@ -1084,6 +1086,38 @@ export function ComparePortfolios() {
               </FormItem>
             )}
           />
+          {/* Task #300 — per-slot bond-only FX hedge toggle. Hidden for
+           *  USD-base slots (no foreign-currency bond exposure to hedge)
+           *  and force-on/disabled when the full-hedge toggle above is
+           *  on (full hedge subsumes bond-only). */}
+          <FormField
+            control={form.control}
+            name={`${prefix}.hedgeForeignBonds`}
+            render={({ field }) => {
+              const slotBase = form.watch(`${prefix}.baseCurrency`);
+              const fullHedgeOn = form.watch(`${prefix}.includeCurrencyHedging`);
+              if (slotBase === "USD") return <></>;
+              return (
+                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm">
+                  <div className="space-y-0.5">
+                    <FormLabel>{tr("Hedge foreign-currency bonds", "Fremdwährungs-Anleihen absichern")}</FormLabel>
+                    <FormDescription className="text-xs">
+                      {fullHedgeOn
+                        ? tr("Already covered by full currency hedging.", "Bereits durch die volle Währungsabsicherung abgedeckt.")
+                        : tr("Route Fixed Income to the hedged share class only.", "Anleihen-Sleeve in die abgesicherte Anteilsklasse leiten.")}
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={fullHedgeOn || field.value !== false}
+                      disabled={fullHedgeOn}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              );
+            }}
+          />
           {/* Per-slot Look-Through toggle. Mirrors Build's switch (same
            *  label / description keys so EN+DE stay aligned). When OFF for a
            *  side, all look-through-derived sections (Geographic Exposure,
@@ -1719,6 +1753,7 @@ export function ComparePortfolios() {
                               horizonYears={inputA.horizon}
                               baseCurrency={inputA.baseCurrency}
                               hedged={inputA.includeCurrencyHedging}
+                              bondsHedged={inputA.hedgeForeignBonds !== false}
                               includeSyntheticETFs={inputA.includeSyntheticETFs}
                               etfImplementation={inputA.lookThroughView ? outputA!.etfImplementation : undefined}
                               riskRegime={riskRegimeA}
@@ -1731,6 +1766,7 @@ export function ComparePortfolios() {
                               horizonYears={inputB.horizon}
                               baseCurrency={inputB.baseCurrency}
                               hedged={inputB.includeCurrencyHedging}
+                              bondsHedged={inputB.hedgeForeignBonds !== false}
                               includeSyntheticETFs={inputB.includeSyntheticETFs}
                               etfImplementation={inputB.lookThroughView ? outputB!.etfImplementation : undefined}
                               riskRegime={riskRegimeB}
@@ -1777,6 +1813,7 @@ export function ComparePortfolios() {
                             horizonYears={inputA.horizon}
                             baseCurrency={inputA.baseCurrency}
                             hedged={inputA.includeCurrencyHedging}
+                            bondsHedged={inputA.hedgeForeignBonds !== false}
                             includeSyntheticETFs={inputA.includeSyntheticETFs}
                             etfImplementation={inputA.lookThroughView ? outputA!.etfImplementation : undefined}
                             riskRegime={riskRegimeA}
@@ -1792,6 +1829,7 @@ export function ComparePortfolios() {
                             horizonYears={inputB.horizon}
                             baseCurrency={inputB.baseCurrency}
                             hedged={inputB.includeCurrencyHedging}
+                            bondsHedged={inputB.hedgeForeignBonds !== false}
                             includeSyntheticETFs={inputB.includeSyntheticETFs}
                             etfImplementation={inputB.lookThroughView ? outputB!.etfImplementation : undefined}
                             riskRegime={riskRegimeB}
@@ -1816,10 +1854,12 @@ export function ComparePortfolios() {
                 {inputA && inputB && outputA && outputB && (() => {
                   const feesA = estimateFees(outputA.allocation, inputA.horizon, portAFeeAmount, {
                     hedged: inputA.includeCurrencyHedging && inputA.baseCurrency !== "USD",
+                    hedgeForeignBonds: inputA.hedgeForeignBonds !== false && inputA.baseCurrency !== "USD",
                     etfImplementations: outputA.etfImplementation,
                   });
                   const feesB = estimateFees(outputB.allocation, inputB.horizon, portAFeeAmount, {
                     hedged: inputB.includeCurrencyHedging && inputB.baseCurrency !== "USD",
+                    hedgeForeignBonds: inputB.hedgeForeignBonds !== false && inputB.baseCurrency !== "USD",
                     etfImplementations: outputB.etfImplementation,
                   });
                   const terDiffBps = feesA.blendedTerBps - feesB.blendedTerBps;
@@ -1870,6 +1910,7 @@ export function ComparePortfolios() {
                                 horizonYears={inputA.horizon}
                                 baseCurrency={inputA.baseCurrency}
                                 hedged={inputA.includeCurrencyHedging}
+                                hedgeForeignBonds={inputA.hedgeForeignBonds !== false}
                                 etfImplementations={outputA.etfImplementation}
                                 amountDraft={portAFeeAmountDraft}
                                 onAmountDraftChange={setPortAFeeAmountDraft}
@@ -1882,6 +1923,7 @@ export function ComparePortfolios() {
                                 horizonYears={inputB.horizon}
                                 baseCurrency={inputB.baseCurrency}
                                 hedged={inputB.includeCurrencyHedging}
+                                hedgeForeignBonds={inputB.hedgeForeignBonds !== false}
                                 etfImplementations={outputB.etfImplementation}
                                 pendingPreviewBuckets={pendingPreviewBucketsB}
                               />
@@ -1897,6 +1939,7 @@ export function ComparePortfolios() {
                               horizonYears={inputA.horizon}
                               baseCurrency={inputA.baseCurrency}
                               hedged={inputA.includeCurrencyHedging}
+                              hedgeForeignBonds={inputA.hedgeForeignBonds !== false}
                               etfImplementations={outputA.etfImplementation}
                               amountDraft={portAFeeAmountDraft}
                               onAmountDraftChange={setPortAFeeAmountDraft}
@@ -1910,6 +1953,7 @@ export function ComparePortfolios() {
                               horizonYears={inputB.horizon}
                               baseCurrency={inputB.baseCurrency}
                               hedged={inputB.includeCurrencyHedging}
+                              hedgeForeignBonds={inputB.hedgeForeignBonds !== false}
                               etfImplementations={outputB.etfImplementation}
                               pendingPreviewBuckets={pendingPreviewBucketsB}
                             />

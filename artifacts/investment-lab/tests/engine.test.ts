@@ -745,6 +745,50 @@ describe("getETFDetails — share-class selection", () => {
     expect(d.isin).toBe(getCatalogEntry("FixedIncome-Global")!.isin);
   });
 
+  // Task #300 — bond-only FX hedge: when full hedging is OFF but
+  // hedgeForeignBonds is ON and base ≠ USD, the FI bucket should still
+  // resolve to the CHF-hedged variant, while equity stays unhedged.
+  it("Task #300 — bond-only hedge routes FI to hedged share class (CHF base, full-hedge OFF)", () => {
+    const fi = getETFDetails(
+      "Fixed Income",
+      "Global",
+      baseInput({
+        baseCurrency: "CHF",
+        includeCurrencyHedging: false,
+        hedgeForeignBonds: true,
+        preferredExchange: "SIX",
+      })
+    );
+    expect(fi.isin).toBe(getCatalogEntry("FixedIncome-Global-CHF")!.isin);
+    // Equity must stay unhedged — bond-only must not leak into equity.
+    const eq = getETFDetails(
+      "Equity",
+      "USA",
+      baseInput({
+        baseCurrency: "CHF",
+        includeCurrencyHedging: false,
+        hedgeForeignBonds: true,
+        preferredExchange: "SIX",
+      })
+    );
+    expect(eq.isin).toBe(getCatalogEntry("Equity-USA")!.isin);
+  });
+
+  // Bond-only is a no-op when base = USD: there's no foreign-currency
+  // bond exposure to hedge, so the FI bucket stays unhedged.
+  it("Task #300 — bond-only hedge is a no-op for USD base", () => {
+    const fi = getETFDetails(
+      "Fixed Income",
+      "Global",
+      baseInput({
+        baseCurrency: "USD",
+        includeCurrencyHedging: false,
+        hedgeForeignBonds: true,
+      })
+    );
+    expect(fi.isin).toBe(getCatalogEntry("FixedIncome-Global")!.isin);
+  });
+
   it("preferredExchange=XETRA returns the XETRA ticker for an S&P 500 ETF", () => {
     const d = getETFDetails(
       "Equity",
@@ -1143,6 +1187,31 @@ describe("estimateFees", () => {
     const hedged = estimateFees(alloc, 10, 100_000, { hedged: true, hedgingCostBps: 15 });
     // Equity (60%) + FI (30%) = 90% gets +15 bps -> +13.5 bps blended
     expect(hedged.blendedTerBps - noHedge.blendedTerBps).toBeCloseTo(13.5, 1);
+  });
+
+  // Task #300 — bond-only hedge: the +15 bps surcharge must apply ONLY
+  // to Fixed Income, not Equity / Real Estate. With this alloc the
+  // surcharge is 30% × 15 bps = +4.5 bps blended (vs +13.5 bps for the
+  // full hedge above).
+  it("Task #300 — hedgeForeignBonds adds +15 bps to Fixed Income only", () => {
+    const alloc = [
+      { assetClass: "Equity", region: "USA", weight: 60 },
+      { assetClass: "Fixed Income", region: "Global", weight: 30 },
+      { assetClass: "Cash", region: "USD", weight: 10 },
+    ];
+    const noHedge = estimateFees(alloc, 10, 100_000);
+    const bondsHedged = estimateFees(alloc, 10, 100_000, {
+      hedgeForeignBonds: true,
+      hedgingCostBps: 15,
+    });
+    expect(bondsHedged.blendedTerBps - noHedge.blendedTerBps).toBeCloseTo(4.5, 1);
+    // Full hedge subsumes — turning both on must not double-charge FI.
+    const both = estimateFees(alloc, 10, 100_000, {
+      hedged: true,
+      hedgeForeignBonds: true,
+      hedgingCostBps: 15,
+    });
+    expect(both.blendedTerBps - noHedge.blendedTerBps).toBeCloseTo(13.5, 1);
   });
 
   it("projection has horizon+1 entries and final-after-fees < final-zero-fee", () => {
@@ -3427,6 +3496,33 @@ describe("CMA layered overrides", () => {
     } finally {
       CMA.equity_us.expReturn = originalUs;
     }
+  });
+
+  // Task #300 — bond-only FX hedge applies the σ cut only to FI buckets,
+  // never to equity. Build two pure-sleeve allocations and verify:
+  //   (a) FI vol drops by the same 0.01 cut as full hedge.
+  //   (b) Equity vol is unchanged.
+  // Base is CHF so the foreign-currency hedge is meaningful.
+  it("Task #300 — bondsHedged cuts σ on FI only (equity untouched)", async () => {
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    const fi = [{ assetClass: "Fixed Income", region: "Global", weight: 100 }];
+    const eq = [{ assetClass: "Equity", region: "USA", weight: 100 }];
+    const fiBase = runMonteCarlo(fi, 5, 100_000, { paths: 200, seed: 1, hedged: false, bondsHedged: false, baseCurrency: "CHF" });
+    const fiBondHedged = runMonteCarlo(fi, 5, 100_000, { paths: 200, seed: 1, hedged: false, bondsHedged: true, baseCurrency: "CHF" });
+    const eqBase = runMonteCarlo(eq, 5, 100_000, { paths: 200, seed: 1, hedged: false, bondsHedged: false, baseCurrency: "CHF" });
+    const eqBondHedged = runMonteCarlo(eq, 5, 100_000, { paths: 200, seed: 1, hedged: false, bondsHedged: true, baseCurrency: "CHF" });
+    expect(fiBase.expectedVol - fiBondHedged.expectedVol).toBeCloseTo(0.01, 6);
+    expect(eqBondHedged.expectedVol).toBeCloseTo(eqBase.expectedVol, 6);
+  });
+
+  // USD base: bondsHedged must be a no-op (no foreign-currency bond
+  // exposure to hedge).
+  it("Task #300 — bondsHedged is a no-op when baseCurrency is USD", async () => {
+    const { runMonteCarlo } = await import("../src/lib/monteCarlo");
+    const fi = [{ assetClass: "Fixed Income", region: "Global", weight: 100 }];
+    const a = runMonteCarlo(fi, 5, 100_000, { paths: 200, seed: 1, hedged: false, bondsHedged: false, baseCurrency: "USD" });
+    const b = runMonteCarlo(fi, 5, 100_000, { paths: 200, seed: 1, hedged: false, bondsHedged: true, baseCurrency: "USD" });
+    expect(b.expectedVol).toBeCloseTo(a.expectedVol, 8);
   });
 
   it("FX-hedge sigma reduction stays composable on top of CMA σ for foreign equity", async () => {

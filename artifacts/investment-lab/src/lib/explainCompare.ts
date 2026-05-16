@@ -302,6 +302,9 @@ export function buildToExplainWorkspace(
     riskAppetite: input.riskAppetite,
     horizon: input.horizon,
     hedged: input.includeCurrencyHedging,
+    // Task #300 — preserve the bond-only FX hedge toggle on Build →
+    // Explain hand-off. Missing on older inputs defaults to true.
+    hedgeForeignBonds: input.hedgeForeignBonds !== false,
     lookThroughView: input.lookThroughView,
     positions,
   };
@@ -460,6 +463,9 @@ export function explainWorkspaceToSlotPortfolio(
     preferredExchange: defaultExchangeFor(workspace.baseCurrency),
     thematicPreference: "None",
     includeCurrencyHedging: workspace.hedged,
+    // Task #300 — propagate to derived PortfolioInput so downstream Compare cards
+    // (Fee Estimator, Monte Carlo) get the right FI-only hedging behaviour.
+    hedgeForeignBonds: workspace.hedgeForeignBonds !== false,
     includeSyntheticETFs: false,
     lookThroughView: workspace.lookThroughView,
     includeCrypto: false,
@@ -566,6 +572,9 @@ function cloneWorkspace(ws: ExplainWorkspace): ExplainWorkspace {
     riskAppetite: ws.riskAppetite,
     horizon: ws.horizon,
     hedged: ws.hedged,
+    // Task #300 — preserve through Compare-load round-trip; defaults to true
+    // when the source workspace predates the field.
+    hedgeForeignBonds: ws.hedgeForeignBonds !== false,
     lookThroughView: ws.lookThroughView,
     positions: ws.positions.map((p) => ({
       isin: p.isin,

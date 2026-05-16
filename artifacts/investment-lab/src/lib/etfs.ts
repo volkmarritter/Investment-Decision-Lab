@@ -3048,9 +3048,18 @@ function pickListing(
 function lookupKey(assetClass: string, region: string, input: PortfolioInput): string | null {
   const base = input.baseCurrency;
   const hedged = input.includeCurrencyHedging && base !== "USD";
+  // Task #300 — bond-only hedging: when either the full hedge OR the
+  // bond-only hedge is on (and base is non-USD), Fixed Income still
+  // routes to the hedged share class. Equity routing below remains
+  // gated on the full-hedge `hedged` flag — bond-only never touches
+  // equity. Older inputs without `hedgeForeignBonds` default to true
+  // (matches the file loader and form defaults).
+  const bondsHedged =
+    (input.includeCurrencyHedging || input.hedgeForeignBonds !== false) &&
+    base !== "USD";
 
   if (assetClass === "Fixed Income") {
-    if (hedged) {
+    if (bondsHedged) {
       const hedgedKey = `FixedIncome-Global-${base}`;
       if (CATALOG[hedgedKey]) return hedgedKey;
     }

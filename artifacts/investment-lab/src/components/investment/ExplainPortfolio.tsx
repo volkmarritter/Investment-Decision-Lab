@@ -149,6 +149,8 @@ const DEFAULT_STATE: PersistedState = {
   riskAppetite: "High",
   horizon: 10,
   hedged: false,
+  // Task #300 — bond-only FX hedge defaults to ON.
+  hedgeForeignBonds: true,
   lookThroughView: true,
   positions: [],
 };
@@ -172,6 +174,9 @@ function loadState(): PersistedState {
         : DEFAULT_STATE.riskAppetite,
       horizon: Number.isFinite(parsed.horizon) ? Math.max(1, Math.min(40, Math.floor(parsed.horizon))) : DEFAULT_STATE.horizon,
       hedged: !!parsed.hedged,
+      // Task #300 — `hedgeForeignBonds` defaults to true; only an explicit
+      // `false` opts out so older persisted workspaces keep "bonds hedged".
+      hedgeForeignBonds: parsed.hedgeForeignBonds !== false,
       lookThroughView: parsed.lookThroughView !== false,
       positions: Array.isArray(parsed.positions)
         ? parsed.positions
@@ -1813,7 +1818,7 @@ export function ExplainPortfolio() {
                 </div>
                 <div className="space-y-1.5 flex flex-col">
                   <Label className="text-xs">{t("explain.toggles.label")}</Label>
-                  <div className="flex items-center gap-3 h-9">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 min-h-9">
                     <label className="flex items-center gap-2 text-xs cursor-pointer">
                       <Switch
                         checked={state.hedged}
@@ -1822,6 +1827,22 @@ export function ExplainPortfolio() {
                       />
                       <span>{t("explain.hedged.label")}</span>
                     </label>
+                    {/* Task #300 — bond-only FX hedge toggle. Hidden for
+                     *  USD base portfolios and forced on/disabled when the
+                     *  full-hedge toggle above is on. */}
+                    {state.baseCurrency !== "USD" && (
+                      <label className="flex items-center gap-2 text-xs cursor-pointer">
+                        <Switch
+                          checked={state.hedged || state.hedgeForeignBonds !== false}
+                          disabled={state.hedged}
+                          onCheckedChange={(c) =>
+                            setState((s) => ({ ...s, hedgeForeignBonds: c }))
+                          }
+                          data-testid="explain-hedge-bonds"
+                        />
+                        <span>{t("explain.hedgeForeignBonds.label")}</span>
+                      </label>
+                    )}
                     <label className="flex items-center gap-2 text-xs cursor-pointer">
                       <Switch
                         checked={state.lookThroughView}
@@ -2530,6 +2551,7 @@ export function ExplainPortfolio() {
             horizonYears={state.horizon}
             baseCurrency={state.baseCurrency}
             hedged={state.hedged}
+            bondsHedged={state.hedgeForeignBonds !== false}
             etfImplementation={
               state.lookThroughView ? portfolio.etfImplementation : undefined
             }
@@ -2566,6 +2588,7 @@ export function ExplainPortfolio() {
             horizonYears={state.horizon}
             baseCurrency={state.baseCurrency}
             hedged={state.hedged}
+            hedgeForeignBonds={state.hedgeForeignBonds !== false}
             etfImplementations={portfolio.etfImplementation}
           />
 

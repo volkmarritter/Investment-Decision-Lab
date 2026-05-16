@@ -72,6 +72,10 @@ interface MonteCarloSimulationProps {
   horizonYears: number;
   baseCurrency: BaseCurrency;
   hedged?: boolean;
+  /** Task #300 — bond-only FX hedge toggle. Threaded through to
+   *  runMonteCarlo so the FI bucket's σ gets the FX cut even when the
+   *  full-hedge toggle is off. No-op for USD-base portfolios. */
+  bondsHedged?: boolean;
   includeSyntheticETFs?: boolean;
   /** ETF implementation list, gated upstream by the per-portfolio
    *  Look-Through toggle. When supplied, the engine routes each row through
@@ -95,6 +99,7 @@ export function MonteCarloSimulation({
   horizonYears,
   baseCurrency,
   hedged,
+  bondsHedged,
   includeSyntheticETFs,
   etfImplementation,
   riskRegime: riskRegimeProp,
@@ -155,6 +160,7 @@ export function MonteCarloSimulation({
     () =>
       runMonteCarlo(allocation, horizonYears, investmentAmount, {
         hedged: !!hedged,
+        bondsHedged: !!bondsHedged,
         baseCurrency,
         syntheticUsEffective,
         riskRegime,
@@ -162,7 +168,7 @@ export function MonteCarloSimulation({
         studentTDf,
         etfImplementation,
       }),
-    [allocation, horizonYears, investmentAmount, hedged, baseCurrency, syntheticUsEffective, riskRegime, tailModel, etfImplementation, cmaVersion]
+    [allocation, horizonYears, investmentAmount, hedged, bondsHedged, baseCurrency, syntheticUsEffective, riskRegime, tailModel, etfImplementation, cmaVersion]
   );
 
   const formatCurrency = (value: number) => {

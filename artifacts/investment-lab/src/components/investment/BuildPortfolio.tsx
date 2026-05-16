@@ -113,6 +113,11 @@ const defaultValues: PortfolioInput = {
   preferredExchange: "SIX",
   thematicPreference: "None",
   includeCurrencyHedging: false,
+  // Task #300 — bond-only FX hedge toggle defaults to true. When the
+  // full-hedge toggle above is off (and base ≠ USD), this still routes
+  // Fixed Income to its currency-hedged share class so a CHF/EUR/GBP
+  // investor doesn't carry hidden USD/JPY FX risk in their bond sleeve.
+  hedgeForeignBonds: true,
   includeSyntheticETFs: false,
   lookThroughView: true,
   includeCrypto: false,
@@ -963,6 +968,42 @@ export function BuildPortfolio() {
                       </FormItem>
                     )}
                   />
+                  {/* Task #300 — bond-only FX hedge toggle. Hidden for
+                   *  USD base portfolios (no foreign-currency bond
+                   *  exposure to hedge) and force-disabled when the
+                   *  full-hedge toggle above is on (it subsumes). */}
+                  {form.watch("baseCurrency") !== "USD" && (
+                    <FormField
+                      control={form.control}
+                      name="hedgeForeignBonds"
+                      render={({ field }) => {
+                        const fullHedgeOn = form.watch("includeCurrencyHedging");
+                        return (
+                          <FormItem
+                            data-testid="hedge-foreign-bonds-row"
+                            className="flex flex-row items-center justify-between rounded-lg border p-3 shadow-sm"
+                          >
+                            <div className="space-y-0.5">
+                              <FormLabel>{t("build.hedgeForeignBonds.label")}</FormLabel>
+                              <FormDescription className="text-xs">
+                                {fullHedgeOn
+                                  ? t("build.hedgeForeignBonds.subsumed")
+                                  : t("build.hedgeForeignBonds.desc")}
+                              </FormDescription>
+                            </div>
+                            <FormControl>
+                              <Switch
+                                data-testid="switch-hedge-foreign-bonds"
+                                checked={fullHedgeOn || field.value !== false}
+                                disabled={fullHedgeOn}
+                                onCheckedChange={field.onChange}
+                              />
+                            </FormControl>
+                          </FormItem>
+                        );
+                      }}
+                    />
+                  )}
                   <FormField
                     control={form.control}
                     name="includeSyntheticETFs"
@@ -1881,6 +1922,7 @@ export function BuildPortfolio() {
                   horizonYears={form.getValues().horizon}
                   baseCurrency={form.getValues().baseCurrency}
                   hedged={form.getValues().includeCurrencyHedging}
+                  bondsHedged={form.getValues().hedgeForeignBonds !== false}
                   includeSyntheticETFs={form.getValues().includeSyntheticETFs}
                   etfImplementation={watchedLookThroughView ? output.etfImplementation : undefined}
                   riskRegime={riskRegime}
@@ -1907,6 +1949,7 @@ export function BuildPortfolio() {
                   horizonYears={form.getValues().horizon} 
                   baseCurrency={form.getValues().baseCurrency}
                   hedged={form.getValues().includeCurrencyHedging}
+                  hedgeForeignBonds={form.getValues().hedgeForeignBonds !== false}
                   etfImplementations={output.etfImplementation}
                 />
 
