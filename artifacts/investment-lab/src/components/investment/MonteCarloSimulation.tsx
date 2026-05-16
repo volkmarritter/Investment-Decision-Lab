@@ -521,7 +521,9 @@ export function MonteCarloSimulation({
           </ResponsiveContainer>
         </div>
 
-        <p className="text-[11px] text-muted-foreground italic">{t("mc.disclaimer")}</p>
+        <p className="text-[11px] text-muted-foreground italic">
+          {t(tailModel === "studentT" ? "mc.disclaimer.studentT" : "mc.disclaimer")}
+        </p>
       </CardContent>
     </Card>
   );
