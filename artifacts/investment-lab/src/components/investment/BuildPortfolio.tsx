@@ -403,29 +403,34 @@ export function BuildPortfolio() {
     }
   };
 
-  // Hand over the current portfolio + MC to the Portfolio Report Deck
-  // artifact (same-origin) by stashing a typed snapshot in localStorage and
-  // opening the deck in a new tab. Gated by `output && validation.isValid`
-  // via the surrounding render guard.
+  // Build a typed snapshot of the current portfolio + MC and hand it to the
+  // client-side PPTX generator, which triggers a direct .pptx file download.
+  // Gated by `output && validation.isValid` via the surrounding render guard.
+  const [isExportingPptx, setIsExportingPptx] = useState(false);
   const handleOpenSlides = async () => {
     if (!output) return;
+    setIsExportingPptx(true);
+    const loadingToast = toast.loading(t("build.btn.downloadPptxLoading"));
     try {
-      const { buildReportSnapshot, openReportDeck } = await import(
-        "@/lib/reportSnapshot"
-      );
+      const [{ buildReportSnapshot }, { exportReportPptx }] = await Promise.all([
+        import("@/lib/reportSnapshot"),
+        import("@/lib/exportReportPptx"),
+      ]);
       const snapshot = buildReportSnapshot({
         output,
         input: form.getValues(),
         riskRegime,
         lang,
       });
-      const win = openReportDeck(snapshot);
-      if (!win) {
-        toast.error(t("build.btn.openSlidesError"));
-      }
+      await exportReportPptx(snapshot);
+      toast.dismiss(loadingToast);
+      toast.success(t("build.btn.downloadPptxSuccess"));
     } catch (error) {
       console.error(error);
-      toast.error(t("build.btn.openSlidesError"));
+      toast.dismiss(loadingToast);
+      toast.error(t("build.btn.downloadPptxError"));
+    } finally {
+      setIsExportingPptx(false);
     }
   };
 
@@ -1212,11 +1217,18 @@ export function BuildPortfolio() {
                     variant="outline"
                     size="sm"
                     onClick={handleOpenSlides}
-                    disabled={isExporting || isExportingDetailed}
-                    data-testid="button-open-report-deck"
+                    disabled={isExporting || isExportingDetailed || isExportingPptx}
+                    data-testid="button-download-pptx"
+                    aria-label={t("build.btn.downloadPptx")}
                   >
-                    <Presentation className="h-4 w-4 mr-2" />
-                    {t("build.btn.openSlides")}
+                    {isExportingPptx ? (
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    ) : (
+                      <Presentation className="h-4 w-4 mr-2" />
+                    )}
+                    {isExportingPptx
+                      ? t("build.btn.downloadPptxLoading")
+                      : t("build.btn.downloadPptx")}
                   </Button>
                 </div>
               )}

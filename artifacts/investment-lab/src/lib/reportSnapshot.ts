@@ -1,7 +1,9 @@
 /**
- * Builds a typed snapshot of the current Build-tab portfolio and hands it
- * over to the Portfolio Report Deck artifact (same-origin, different path
- * prefix) by stashing it in localStorage and opening the deck in a new tab.
+ * Builds a typed snapshot of the current Build-tab portfolio. The Build tab
+ * feeds this snapshot to `exportReportPptx` (see `./exportReportPptx.ts`) to
+ * produce a direct `.pptx` download. The Portfolio Report Deck artifact still
+ * consumes the same shape via `localStorage[SNAPSHOT_STORAGE_KEY]` when
+ * launched standalone.
  *
  * The shape mirrors the Zod contract on the deck side
  * (`artifacts/portfolio-report-deck/src/data/snapshotSchema.ts`). Keep the
@@ -377,18 +379,7 @@ export function buildReportSnapshot(args: BuildReportSnapshotArgs) {
   };
 }
 
-/** Stash the snapshot in localStorage (same origin as the deck) and open
- *  the deck in a new tab. Returns the opened Window or null on failure. */
-export function openReportDeck(snapshot: ReturnType<typeof buildReportSnapshot>): Window | null {
-  try {
-    window.localStorage.setItem(SNAPSHOT_STORAGE_KEY, JSON.stringify(snapshot));
-  } catch (e) {
-    console.error("Failed to persist report snapshot", e);
-    return null;
-  }
-  // CMA is imported so esbuild keeps the side-effects (CMA layer init)
-  // — referencing it here ensures the bundler can't tree-shake the import.
-  void CMA;
-  const deckUrl = `${window.location.origin}/portfolio-report-deck/`;
-  return window.open(deckUrl, "_blank", "noopener");
-}
+// `openReportDeck` was removed when the Build tab switched to direct
+// PPTX downloads (see `exportReportPptx.ts`). The deck artifact still
+// reads `SNAPSHOT_STORAGE_KEY` on its own; that path is unaffected.
+void CMA;
