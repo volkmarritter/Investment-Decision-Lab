@@ -12,3 +12,9 @@ id = "8QthQNP_TIScYBkiPaiMc"
 uri = "file://scripts/output/default-profile-snapshot.xlsx"
 type = "table"
 title = "Default Profile Snapshot — formulas + risk metrics"
+
+[[outputs]]
+id = "gGn9P-7nE_QpiZ4ZYlqUi"
+uri = "file://.local/outputs/Investment-Decision-Lab---Portfolio-Report.pptx"
+type = "slides"
+title = "Investment Decision Lab — Portfolio Report (PPTX)"

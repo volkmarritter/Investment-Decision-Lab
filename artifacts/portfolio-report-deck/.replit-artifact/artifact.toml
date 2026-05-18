@@ -1,0 +1,31 @@
+kind = "slides"
+previewPath = "/portfolio-report-deck/"
+title = "Portfolio Report Deck"
+version = "1.0.0"
+id = "artifacts/portfolio-report-deck"
+router = "path"
+
+[[integratedSkills]]
+name = "slides"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/portfolio-report-deck/" ]
+localPort = 22511
+
+[services.development]
+run = "pnpm --filter @workspace/portfolio-report-deck run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/portfolio-report-deck", "run", "build" ]
+publicDir = "artifacts/portfolio-report-deck/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22511"
+BASE_PATH = "/portfolio-report-deck/"

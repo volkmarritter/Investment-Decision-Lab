@@ -1,0 +1,106 @@
+[
+  {
+    "id": "0bf1677c-61c6-4b90-b00e-f9f4855c85f4",
+    "position": 1,
+    "filepath": "src/pages/slides/Cover.tsx",
+    "title": "Cover",
+    "description": "Title page for the Investment Decision Lab portfolio report.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "cbee801a-02cc-4313-8a58-17af84ec3b11",
+    "position": 2,
+    "filepath": "src/pages/slides/Contents.tsx",
+    "title": "Contents",
+    "description": "Clickable table of contents — 8 section entries.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "c9a1505a-4544-43fb-b478-0e1d24193a57",
+    "position": 3,
+    "filepath": "src/pages/slides/Profile.tsx",
+    "title": "Profile summary",
+    "description": "Profile chips and engine-toggle state.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "9024c2a3-f856-4ccd-9f70-291312dd1c54",
+    "position": 4,
+    "filepath": "src/pages/slides/KeyMetrics.tsx",
+    "title": "Key metrics",
+    "description": "Expected return, volatility, Sharpe, drawdown, alpha vs. ACWI.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "e50c9f06-2a71-4346-9199-0f2e7af355d6",
+    "position": 5,
+    "filepath": "src/pages/slides/Allocation.tsx",
+    "title": "Target allocation",
+    "description": "Horizontal bar chart of bucket weights with asset-class groupings.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "8fe127ba-25ae-4619-a666-65c8a8fb9232",
+    "position": 6,
+    "filepath": "src/pages/slides/Implementation.tsx",
+    "title": "ETF implementation",
+    "description": "10 UCITS ETFs with bucket, exchange, currency, distribution, ISIN, ticker, TER, weight.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "ba00e8c5-d9a1-4c6a-833b-272cc597ef3b",
+    "position": 7,
+    "filepath": "src/pages/slides/TopHoldings.tsx",
+    "title": "Top 10 equity holdings",
+    "description": "Holding, source ETF, % of portfolio, % of equity portion.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "81a2d82f-8ba0-4ef6-a525-24218c3ce5b8",
+    "position": 8,
+    "filepath": "src/pages/slides/MonteCarlo.tsx",
+    "title": "Monte Carlo projection",
+    "description": "P10 / P50 / P90 line chart over the horizon plus the metric grid.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "cf3c490d-7c92-4901-808d-3b40355ef611",
+    "position": 9,
+    "filepath": "src/pages/slides/Fees.tsx",
+    "title": "Fee estimate",
+    "description": "Headline costs and per-bucket breakdown (weight, TER bps, contribution bps).",
+    "speakerNotes": ""
+  },
+  {
+    "id": "2735a0b8-0c4e-44b5-9c36-f57a8e2b5406",
+    "position": 10,
+    "filepath": "src/pages/slides/Methodology.tsx",
+    "title": "Methodology",
+    "description": "Five-step description of how the engine builds the portfolio.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "dce6ca9a-8dad-4e55-991a-9b5639d25de2",
+    "position": 11,
+    "filepath": "src/pages/slides/Disclaimer1.tsx",
+    "title": "Disclaimer (I of II)",
+    "description": "Sections 1 to 4: no advice, past performance, Monte Carlo limits, FX.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "ff502d28-4dfc-4800-a267-6b4535b6264f",
+    "position": 12,
+    "filepath": "src/pages/slides/Disclaimer2.tsx",
+    "title": "Disclaimer (II of II)",
+    "description": "Sections 5 to 7: data sources, costs and taxes, suitability.",
+    "speakerNotes": ""
+  },
+  {
+    "id": "1c1b8d59-6a4c-4b1f-9d5d-2c1e0b3a55aa",
+    "position": 13,
+    "filepath": "src/pages/slides/Disclaimer3.tsx",
+    "title": "Risk warning",
+    "description": "Final Important Disclaimer & Risk Warning — full 7-paragraph notice; BICon showcase attribution.",
+    "speakerNotes": ""
+  }
+]
