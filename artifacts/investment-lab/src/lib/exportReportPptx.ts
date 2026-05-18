@@ -272,11 +272,65 @@ export async function exportReportPptx(snapshot: Snapshot): Promise<void> {
     slide.addTable(rows, {
       x: 0.4,
       y: 1.4,
-      w: 12.5,
-      colW: [7.5, 2.5, 2.5],
+      w: 7.6,
+      colW: [4.2, 1.7, 1.7],
       border: { type: "solid", pt: 0.5, color: "CBD5E0" },
       fontFace: FONT,
     });
+
+    // Pie chart of group totals (navy palette).
+    const groupOrder: Array<keyof typeof a.groupTotals> = [
+      "equity",
+      "realestate",
+      "bonds",
+      "commodities",
+      "crypto",
+      "cash",
+    ];
+    const groupLabels: Record<keyof typeof a.groupTotals, string> = {
+      equity: "Equity",
+      realestate: "Real Estate",
+      bonds: "Bonds",
+      commodities: "Commodities",
+      crypto: "Crypto",
+      cash: "Cash",
+    };
+    const palette = ["0F2A4A", "1F3D5A", "3A5A80", "6A89B3", "A0B8D8", "C9D6E6"];
+    const pieLabels: string[] = [];
+    const pieValues: number[] = [];
+    const pieColors: string[] = [];
+    groupOrder.forEach((key, i) => {
+      const v = a.groupTotals[key];
+      if (v && v > 0) {
+        pieLabels.push(groupLabels[key]);
+        pieValues.push(v);
+        pieColors.push(palette[i % palette.length]);
+      }
+    });
+    if (pieValues.length > 0) {
+      slide.addChart(
+        pptx.ChartType.doughnut,
+        [{ name: "Allocation", labels: pieLabels, values: pieValues }],
+        {
+          x: 8.2,
+          y: 1.4,
+          w: 4.8,
+          h: 5.4,
+          chartColors: pieColors,
+          showLegend: true,
+          legendPos: "b",
+          legendFontFace: FONT,
+          legendFontSize: 9,
+          legendColor: BODY,
+          showPercent: true,
+          dataLabelColor: WHITE,
+          dataLabelFontFace: FONT,
+          dataLabelFontSize: 9,
+          holeSize: 55,
+          showTitle: false,
+        },
+      );
+    }
   }
 
   // ---------------------------------------------------------- ETF list
@@ -364,10 +418,10 @@ export async function exportReportPptx(snapshot: Snapshot): Promise<void> {
       [bodyCell("P90 (upside)"), bodyCell(String(m.finalP90), { align: "right" }), bodyCell(m.finalP90CAGR, { align: "right" })],
     ];
     slide.addTable(rows, {
-      x: 0.5,
+      x: 0.4,
       y: 1.4,
-      w: 12.3,
-      colW: [4.3, 4.0, 4.0],
+      w: 6.0,
+      colW: [2.2, 1.9, 1.9],
       border: { type: "solid", pt: 0.5, color: "CBD5E0" },
       fontFace: FONT,
     });
@@ -381,13 +435,77 @@ export async function exportReportPptx(snapshot: Snapshot): Promise<void> {
       [bodyCell("CVaR (5%)"), bodyCell(m.cvar5)],
     ];
     slide.addTable(stats, {
-      x: 0.5,
-      y: 4.2,
-      w: 12.3,
-      colW: [4.3, 8.0],
+      x: 0.4,
+      y: 4.0,
+      w: 6.0,
+      colW: [3.5, 2.5],
       border: { type: "solid", pt: 0.5, color: "CBD5E0" },
       fontFace: FONT,
     });
+
+    // Fan chart: stacked-area trick — P10 band invisible, then (P50-P10)
+    // and (P90-P50) layered in navy tints, with a P50 line on top.
+    const series = m.pathSeries;
+    if (series && series.length > 1) {
+      const labels = series.map((p) => String(p.year));
+      const p10 = series.map((p) => p.p10);
+      const lower = series.map((p) => Math.max(0, p.p50 - p.p10));
+      const upper = series.map((p) => Math.max(0, p.p90 - p.p50));
+      const p50 = series.map((p) => p.p50);
+      slide.addChart(
+        [
+          {
+            type: pptx.ChartType.area,
+            data: [
+              { name: "P10 base", labels, values: p10 },
+              { name: "P10–P50", labels, values: lower },
+              { name: "P50–P90", labels, values: upper },
+            ],
+            options: {
+              barGrouping: "stacked",
+              // The first series ("P10 base") is rendered in white on a
+              // white slide background so it disappears, leaving the two
+              // tinted bands (P10–P50, P50–P90) visible as the fan.
+              chartColors: ["FFFFFF", "6A89B3", "A0B8D8"],
+            },
+          },
+          {
+            type: pptx.ChartType.line,
+            data: [{ name: "P50 (median)", labels, values: p50 }],
+            options: {
+              chartColors: [NAVY],
+              lineSize: 2,
+              lineDataSymbol: "none",
+            },
+          },
+        ],
+        [],
+        {
+          x: 6.6,
+          y: 1.4,
+          w: 6.6,
+          h: 5.4,
+          showLegend: true,
+          legendPos: "b",
+          legendFontFace: FONT,
+          legendFontSize: 9,
+          legendColor: BODY,
+          catAxisTitle: "Years",
+          catAxisTitleFontFace: FONT,
+          catAxisTitleFontSize: 9,
+          catAxisLabelFontFace: FONT,
+          catAxisLabelFontSize: 8,
+          showCatAxisTitle: true,
+          valAxisTitle: "Index (start = 100)",
+          valAxisTitleFontFace: FONT,
+          valAxisTitleFontSize: 9,
+          valAxisLabelFontFace: FONT,
+          valAxisLabelFontSize: 8,
+          showValAxisTitle: true,
+          showTitle: false,
+        },
+      );
+    }
   }
 
   // ---------------------------------------------------------- Fees

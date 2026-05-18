@@ -233,9 +233,18 @@ export function buildReportSnapshot(args: BuildReportSnapshotArgs) {
   const rebase = (v: number) =>
     mc.initial > 0 ? Math.round((v / mc.initial) * 100) : 100;
 
+  // `mc.paths` already includes year 0 (anchor) plus one entry per
+  // simulated horizon year, so just rebase to start=100 in-place.
+  const pathSeries = mc.paths.map((p) => ({
+    year: p.year,
+    p10: rebase(p.p10),
+    p50: rebase(p.p50),
+    p90: rebase(p.p90),
+  }));
   const monteCarlo = {
     paths: "2,000",
     horizonYears: input.horizon,
+    pathSeries,
     finalP10: rebase(mc.finalP10),
     finalP50: rebase(mc.finalP50),
     finalP90: rebase(mc.finalP90),
