@@ -5,7 +5,22 @@ const COLORS: Record<string, string> = {
   bonds: "var(--bucket-bonds)",
   realestate: "var(--bucket-realestate)",
   cash: "var(--bucket-cash)",
+  commodities: "var(--bucket-commodities, #a86f3d)",
+  crypto: "var(--bucket-crypto, #6b4f8a)",
 };
+
+const GROUP_ORDER: Array<{
+  key: "equity" | "realestate" | "bonds" | "commodities" | "crypto" | "cash";
+  label: string;
+  color: string;
+}> = [
+  { key: "equity", label: "Equity", color: "#1a3a5c" },
+  { key: "realestate", label: "Real estate", color: "#a86f3d" },
+  { key: "bonds", label: "Fixed income", color: "#3d7a5c" },
+  { key: "commodities", label: "Commodities", color: "#a86f3d" },
+  { key: "crypto", label: "Digital assets", color: "#6b4f8a" },
+  { key: "cash", label: "Cash", color: "#8a8a8a" },
+];
 
 function Row({
   label,
@@ -23,7 +38,7 @@ function Row({
       <div className="relative h-[2vh] bg-ink/8 rounded-[0.2vw] overflow-hidden">
         <div
           className="absolute left-0 top-0 bottom-0 rounded-[0.2vw]"
-          style={{ width: `${widthVw}vw`, background: COLORS[group] }}
+          style={{ width: `${widthVw}vw`, background: COLORS[group] ?? "#8a8a8a" }}
         />
       </div>
       <div className="font-mono text-[1vw] tabular-nums text-right text-ink">
@@ -46,7 +61,8 @@ function GroupHeader({ label, total, color }: { label: string; total: number; co
 }
 
 export default function Allocation() {
-  const r = allocation.rows;
+  const rows = allocation.rows;
+  const totals = allocation.groupTotals as Record<string, number | undefined>;
   return (
     <div className="w-screen h-screen overflow-hidden relative bg-paper text-ink">
       <div className="absolute left-[7vw] top-[8vh] right-[7vw] flex items-baseline justify-between">
@@ -62,29 +78,24 @@ export default function Allocation() {
         </h1>
         <div className="mt-[1.2vh] font-sans text-[1.05vw] text-ink/65 max-w-[55vw]">
           Policy weights at the catalog-bucket level after look-through.
-          Equity is geographically diversified with an EM tilt; the defensive sleeve is CHF-native.
+          Equity is geographically diversified; the defensive sleeve anchors risk.
         </div>
       </div>
 
       <div className="absolute left-[7vw] right-[7vw] top-[36vh] bottom-[8vh]">
-        <GroupHeader label="Equity" total={allocation.groupTotals.equity} color="#1a3a5c" />
-        <Row label={r[0].label} weight={r[0].weight} group={r[0].group} />
-        <Row label={r[1].label} weight={r[1].weight} group={r[1].group} />
-        <Row label={r[2].label} weight={r[2].weight} group={r[2].group} />
-        <Row label={r[3].label} weight={r[3].weight} group={r[3].group} />
-        <Row label={r[4].label} weight={r[4].weight} group={r[4].group} />
-        <Row label={r[5].label} weight={r[5].weight} group={r[5].group} />
-
-        <GroupHeader label="Real estate" total={allocation.groupTotals.realestate} color="#a86f3d" />
-        <Row label={r[6].label} weight={r[6].weight} group={r[6].group} />
-
-        <GroupHeader label="Fixed income" total={allocation.groupTotals.bonds} color="#3d7a5c" />
-        <Row label={r[7].label} weight={r[7].weight} group={r[7].group} />
-        <Row label={r[8].label} weight={r[8].weight} group={r[8].group} />
-        <Row label={r[9].label} weight={r[9].weight} group={r[9].group} />
-
-        <GroupHeader label="Cash" total={allocation.groupTotals.cash} color="#8a8a8a" />
-        <Row label={r[10].label} weight={r[10].weight} group={r[10].group} />
+        {GROUP_ORDER.map((g) => {
+          const groupRows = rows.filter((r) => r.group === g.key);
+          if (groupRows.length === 0) return null;
+          const total = totals[g.key] ?? groupRows.reduce((s, r) => s + r.weight, 0);
+          return (
+            <div key={g.key}>
+              <GroupHeader label={g.label} total={Math.round(total)} color={g.color} />
+              {groupRows.map((r, i) => (
+                <Row key={`${g.key}-${i}`} label={r.label} weight={r.weight} group={r.group} />
+              ))}
+            </div>
+          );
+        })}
       </div>
 
       <div className="absolute left-0 right-0 bottom-0 h-[0.6vh] bg-accent/70" />

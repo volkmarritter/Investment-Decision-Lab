@@ -29,46 +29,13 @@ export default function Contents() {
       </div>
 
       <div className="absolute left-[7vw] right-[7vw] top-[34vh] bottom-[8vh]">
-        <a href={`${base}slide${s[0].slide}`} className={linkCls}>
-          <span className={num}>01</span>
-          <span className={title}>{s[0].title}</span>
-          <span className={page}>{s[0].page}</span>
-        </a>
-        <a href={`${base}slide${s[1].slide}`} className={linkCls}>
-          <span className={num}>02</span>
-          <span className={title}>{s[1].title}</span>
-          <span className={page}>{s[1].page}</span>
-        </a>
-        <a href={`${base}slide${s[2].slide}`} className={linkCls}>
-          <span className={num}>03</span>
-          <span className={title}>{s[2].title}</span>
-          <span className={page}>{s[2].page}</span>
-        </a>
-        <a href={`${base}slide${s[3].slide}`} className={linkCls}>
-          <span className={num}>04</span>
-          <span className={title}>{s[3].title}</span>
-          <span className={page}>{s[3].page}</span>
-        </a>
-        <a href={`${base}slide${s[4].slide}`} className={linkCls}>
-          <span className={num}>05</span>
-          <span className={title}>{s[4].title}</span>
-          <span className={page}>{s[4].page}</span>
-        </a>
-        <a href={`${base}slide${s[5].slide}`} className={linkCls}>
-          <span className={num}>06</span>
-          <span className={title}>{s[5].title}</span>
-          <span className={page}>{s[5].page}</span>
-        </a>
-        <a href={`${base}slide${s[6].slide}`} className={linkCls}>
-          <span className={num}>07</span>
-          <span className={title}>{s[6].title}</span>
-          <span className={page}>{s[6].page}</span>
-        </a>
-        <a href={`${base}slide${s[7].slide}`} className={linkCls}>
-          <span className={num}>08</span>
-          <span className={title}>{s[7].title}</span>
-          <span className={page}>{s[7].page}</span>
-        </a>
+        {s.map((entry, i) => (
+          <a key={entry.n} href={`${base}slide${entry.slide}`} className={linkCls}>
+            <span className={num}>{String(i + 1).padStart(2, "0")}</span>
+            <span className={title}>{entry.title}</span>
+            <span className={page}>{entry.page}</span>
+          </a>
+        ))}
       </div>
     </div>
   );

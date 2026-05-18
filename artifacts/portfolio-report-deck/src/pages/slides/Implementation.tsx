@@ -66,16 +66,9 @@ export default function Implementation() {
           <Th className="text-right">Weight</Th>
           <Th>Comment</Th>
 
-          <Row e={etfs[0]} />
-          <Row e={etfs[1]} />
-          <Row e={etfs[2]} />
-          <Row e={etfs[3]} />
-          <Row e={etfs[4]} />
-          <Row e={etfs[5]} />
-          <Row e={etfs[6]} />
-          <Row e={etfs[7]} />
-          <Row e={etfs[8]} />
-          <Row e={etfs[9]} />
+          {etfs.map((e) => (
+            <Row key={`${e.n}-${e.isin}`} e={e} />
+          ))}
         </div>
       </div>
 

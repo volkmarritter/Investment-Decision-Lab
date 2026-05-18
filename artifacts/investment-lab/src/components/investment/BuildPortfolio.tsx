@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from "recharts";
-import { AlertCircle, CheckCircle2, ChevronDown, Info, Target, ShieldAlert, BookOpen, ArrowRight, Download, Loader2, RotateCcw, ClipboardCopy, X, Minus, Plus, Search, PieChart as PieChartIcon } from "lucide-react";
+import { AlertCircle, CheckCircle2, ChevronDown, Info, Target, ShieldAlert, BookOpen, ArrowRight, Download, Loader2, RotateCcw, ClipboardCopy, X, Minus, Plus, Search, PieChart as PieChartIcon, Presentation } from "lucide-react";
 import {
   loadManualWeights,
   setManualWeight,
@@ -400,6 +400,32 @@ export function BuildPortfolio() {
       toast.error(t("build.pdf.error"));
     } finally {
       setIsExportingDetailed(false);
+    }
+  };
+
+  // Hand over the current portfolio + MC to the Portfolio Report Deck
+  // artifact (same-origin) by stashing a typed snapshot in localStorage and
+  // opening the deck in a new tab. Gated by `output && validation.isValid`
+  // via the surrounding render guard.
+  const handleOpenSlides = async () => {
+    if (!output) return;
+    try {
+      const { buildReportSnapshot, openReportDeck } = await import(
+        "@/lib/reportSnapshot"
+      );
+      const snapshot = buildReportSnapshot({
+        output,
+        input: form.getValues(),
+        riskRegime,
+        lang,
+      });
+      const win = openReportDeck(snapshot);
+      if (!win) {
+        toast.error(t("build.btn.openSlidesError"));
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error(t("build.btn.openSlidesError"));
     }
   };
 
@@ -1181,6 +1207,16 @@ export function BuildPortfolio() {
                     {isExportingDetailed
                       ? t("build.btn.exportingPdf")
                       : t("build.btn.exportPdfDetailed")}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handleOpenSlides}
+                    disabled={isExporting || isExportingDetailed}
+                    data-testid="button-open-report-deck"
+                  >
+                    <Presentation className="h-4 w-4 mr-2" />
+                    {t("build.btn.openSlides")}
                   </Button>
                 </div>
               )}

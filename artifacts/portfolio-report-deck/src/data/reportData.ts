@@ -1,275 +1,61 @@
 /**
- * Single source of truth for the example portfolio rendered by this deck.
+ * Single source of truth for the deck's portfolio data.
  *
- * Profile: CHF base / Moderate risk / 15-year horizon / 60% target equity /
- *          look-through ON / normal correlation regime.
+ * Resolution order at module load:
+ *  1. Live snapshot from `localStorage[SNAPSHOT_STORAGE_KEY]` — written by the
+ *     Investment Decision Lab's Build tab when the user clicks "Open as
+ *     slides". Validated with the Zod schema; rejected silently on mismatch.
+ *  2. Curated `defaultReportData` fallback so the deck remains demoable
+ *     standalone (and so the visual editor / PPTX export keep working).
  *
- * Numbers are a curated representative snapshot consistent with what the
- * Investment Decision Lab engine would produce for this profile; the live
- * engine is not invoked at build time (see follow-up task).
+ * Slides import the same named exports (meta, profile, keyMetrics, …) so
+ * none of them need to know about snapshot loading.
  */
 
-export const meta = {
-  reportTitle: "Investment Decision Lab — Portfolio Report",
-  reportId: "ID-2026-0518-CHF-M60-15Y",
-  generatedOn: "18 May 2026",
-  preparedFor: "Example Investor",
-  jurisdiction: "Switzerland",
-  profileOneLiner:
-    "CHF · Moderate · 15-year horizon · 60% target equity · look-through on.",
-  correlationRegime: "Normal",
-} as const;
+import { defaultReportData } from "./defaultReportData";
+import {
+  ReportSnapshotSchema,
+  SNAPSHOT_STORAGE_KEY,
+  type ReportSnapshot,
+} from "./snapshotSchema";
 
-export const profile = {
-  baseCurrency: "CHF",
-  riskProfile: "Moderate",
-  horizonYears: 15,
-  targetEquityPct: 60,
-  numEtfs: 10,
-  toggles: {
-    hedging: "On",
-    bondHedging: "On (CHF)",
-    syntheticEtfs: "Allowed",
-    lookThrough: "On",
-    thematic: "Off",
-  },
-} as const;
+function tryLoadSnapshot(): ReportSnapshot | null {
+  if (typeof window === "undefined" || !window.localStorage) return null;
+  let raw: string | null;
+  try {
+    raw = window.localStorage.getItem(SNAPSHOT_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as unknown;
+    const result = ReportSnapshotSchema.safeParse(parsed);
+    if (!result.success) {
+      // Stale / cross-version payload — drop it so we don't keep failing.
+      try {
+        window.localStorage.removeItem(SNAPSHOT_STORAGE_KEY);
+      } catch {
+        /* ignore */
+      }
+      return null;
+    }
+    return result.data;
+  } catch {
+    return null;
+  }
+}
 
-export const keyMetrics = {
-  expectedReturnPa: "5.4%",
-  volatilityPa: "9.8%",
-  sharpe: "0.50",
-  sharpeInterpretation: "Solid risk-adjusted return for a moderate mandate.",
-  riskFreeRate: "0.5%",
-  maxDrawdownP5: "−27%",
-  alphaVsAcwi: "+0.3%",
-  equityDefensiveSplit: "60 / 40",
-  weightedTER: "0.17%",
-} as const;
+const data: ReportSnapshot = tryLoadSnapshot() ?? defaultReportData;
 
-export const allocation = {
-  rows: [
-    { label: "US Large Cap", weight: 26, group: "equity" },
-    { label: "Europe ex-CH", weight: 8, group: "equity" },
-    { label: "Switzerland", weight: 6, group: "equity" },
-    { label: "Japan", weight: 4, group: "equity" },
-    { label: "Emerging Markets", weight: 8, group: "equity" },
-    { label: "World Small Cap", weight: 4, group: "equity" },
-    { label: "Listed Real Estate", weight: 4, group: "realestate" },
-    { label: "CHF Government Bonds", weight: 14, group: "bonds" },
-    { label: "CHF Corporate Bonds", weight: 12, group: "bonds" },
-    { label: "Global Aggregate (CHF Hgd)", weight: 12, group: "bonds" },
-    { label: "CHF Cash", weight: 2, group: "cash" },
-  ],
-  groupTotals: {
-    equity: 60,
-    realestate: 4,
-    bonds: 38,
-    cash: 2,
-  },
-} as const;
+export const meta = data.meta;
+export const profile = data.profile;
+export const keyMetrics = data.keyMetrics;
+export const allocation = data.allocation;
+export const etfs = data.etfs;
+export const holdings = data.holdings;
+export const monteCarlo = data.monteCarlo;
+export const fees = data.fees;
+export const tocSections = data.tocSections;
 
-export const etfs = [
-  {
-    n: 1,
-    bucket: "US Large Cap",
-    name: "iShares Core S&P 500 UCITS ETF (Acc)",
-    isin: "IE00B5BMR087",
-    ticker: "CSPX",
-    exchange: "SIX",
-    currency: "USD",
-    distribution: "Acc",
-    weight: "26.0%",
-    terBps: 7,
-    ter: "0.07%",
-    comment: "Anchor of the equity sleeve; lowest TER in the book.",
-  },
-  {
-    n: 2,
-    bucket: "Europe ex-CH",
-    name: "iShares Core MSCI Europe UCITS ETF (Acc)",
-    isin: "IE00B4K48X80",
-    ticker: "IMEU",
-    exchange: "SIX",
-    currency: "EUR",
-    distribution: "Acc",
-    weight: "8.0%",
-    terBps: 12,
-    ter: "0.12%",
-    comment: "EUR / GBP exposure paired with the Swiss sleeve.",
-  },
-  {
-    n: 3,
-    bucket: "Switzerland",
-    name: "UBS ETF MSCI Switzerland 20/35 UCITS ETF",
-    isin: "LU0977261329",
-    ticker: "CHSPI",
-    exchange: "SIX",
-    currency: "CHF",
-    distribution: "Dist",
-    weight: "6.0%",
-    terBps: 20,
-    ter: "0.20%",
-    comment: "Capped index avoids Nestlé / Novartis / Roche concentration.",
-  },
-  {
-    n: 4,
-    bucket: "Japan",
-    name: "iShares Core MSCI Japan IMI UCITS ETF",
-    isin: "IE00B4L5YX21",
-    ticker: "IJPA",
-    exchange: "SIX",
-    currency: "JPY",
-    distribution: "Acc",
-    weight: "4.0%",
-    terBps: 20,
-    ter: "0.20%",
-    comment: "Broad-market IMI; JPY unhedged.",
-  },
-  {
-    n: 5,
-    bucket: "Emerging Mkts",
-    name: "iShares Core MSCI EM IMI UCITS ETF",
-    isin: "IE00BKM4GZ66",
-    ticker: "EIMI",
-    exchange: "SIX",
-    currency: "USD",
-    distribution: "Acc",
-    weight: "8.0%",
-    terBps: 18,
-    ter: "0.18%",
-    comment: "Boosted by the long-horizon EM tilt (×1.3 at ≥10 yrs).",
-  },
-  {
-    n: 6,
-    bucket: "World Small Cap",
-    name: "SPDR MSCI World Small Cap UCITS ETF",
-    isin: "IE00BCBJG560",
-    ticker: "WOSC",
-    exchange: "LSE",
-    currency: "USD",
-    distribution: "Acc",
-    weight: "4.0%",
-    terBps: 45,
-    ter: "0.45%",
-    comment: "Size factor diversifier with a long expected payoff.",
-  },
-  {
-    n: 7,
-    bucket: "Real Estate",
-    name: "iShares Developed Markets Property Yield UCITS",
-    isin: "IE00B1FZS350",
-    ticker: "IWDP",
-    exchange: "LSE",
-    currency: "USD",
-    distribution: "Dist",
-    weight: "4.0%",
-    terBps: 59,
-    ter: "0.59%",
-    comment: "Listed REITs; income-tilted, equity-correlated.",
-  },
-  {
-    n: 8,
-    bucket: "CHF Gov",
-    name: "iShares Swiss Domestic Government Bond 7–15",
-    isin: "CH0102530786",
-    ticker: "CSBGC0",
-    exchange: "SIX",
-    currency: "CHF",
-    distribution: "Dist",
-    weight: "14.0%",
-    terBps: 15,
-    ter: "0.15%",
-    comment: "Duration anchor in the home currency.",
-  },
-  {
-    n: 9,
-    bucket: "CHF Corp",
-    name: "iShares Core CHF Corporate Bond ETF",
-    isin: "CH0226976816",
-    ticker: "CHCORP",
-    exchange: "SIX",
-    currency: "CHF",
-    distribution: "Dist",
-    weight: "12.0%",
-    terBps: 15,
-    ter: "0.15%",
-    comment: "Investment-grade credit spread, CHF native.",
-  },
-  {
-    n: 10,
-    bucket: "Global Agg",
-    name: "Xtrackers Global Aggregate Bond UCITS (CHF Hgd)",
-    isin: "LU0942970442",
-    ticker: "XBAG",
-    exchange: "SIX",
-    currency: "CHF",
-    distribution: "Acc",
-    weight: "12.0%",
-    terBps: 25,
-    ter: "0.25%",
-    comment: "Diversifies issuers and yield curves; FX-hedged into CHF.",
-  },
-] as const;
-
-export const holdings = [
-  { n: 1, name: "Apple Inc.", source: "iShares Core S&P 500", pctPortfolio: "1.77%", pctEquity: "2.95%" },
-  { n: 2, name: "Microsoft Corp.", source: "iShares Core S&P 500", pctPortfolio: "1.69%", pctEquity: "2.82%" },
-  { n: 3, name: "NVIDIA Corp.", source: "iShares Core S&P 500", pctPortfolio: "1.56%", pctEquity: "2.60%" },
-  { n: 4, name: "Alphabet Inc. (A+C)", source: "iShares Core S&P 500", pctPortfolio: "1.04%", pctEquity: "1.73%" },
-  { n: 5, name: "Amazon.com Inc.", source: "iShares Core S&P 500", pctPortfolio: "0.91%", pctEquity: "1.52%" },
-  { n: 6, name: "Nestlé S.A.", source: "UBS MSCI Switzerland 20/35", pctPortfolio: "0.78%", pctEquity: "1.30%" },
-  { n: 7, name: "Meta Platforms Inc.", source: "iShares Core S&P 500", pctPortfolio: "0.65%", pctEquity: "1.08%" },
-  { n: 8, name: "Roche Holding AG", source: "UBS MSCI Switzerland 20/35", pctPortfolio: "0.54%", pctEquity: "0.90%" },
-  { n: 9, name: "Novartis AG", source: "UBS MSCI Switzerland 20/35", pctPortfolio: "0.49%", pctEquity: "0.82%" },
-  { n: 10, name: "Berkshire Hathaway Inc.", source: "iShares Core S&P 500", pctPortfolio: "0.44%", pctEquity: "0.73%" },
-] as const;
-
-export const monteCarlo = {
-  paths: "10,000",
-  horizonYears: 15,
-  finalP10: 138,
-  finalP50: 226,
-  finalP90: 412,
-  finalP10CAGR: "+2.2% p.a.",
-  finalP50CAGR: "+5.6% p.a.",
-  finalP90CAGR: "+9.9% p.a.",
-  expReturnGeom: "5.4%",
-  expVol: "9.8%",
-  pLoss15y: "5.1%",
-  pDouble15y: "62%",
-  cvar5: "−32%",
-} as const;
-
-export const fees = {
-  portfolioSize: "CHF 250,000",
-  blendedTERPct: "0.17%",
-  blendedTERBps: 17,
-  year1FeeCHF: "CHF 800",
-  totalDrag15yCHF: "CHF 18,400",
-  totalDragPctPa: "−0.32%",
-  rows: [
-    { bucket: "US Large Cap", weightPct: "26.0%", terBps: 7, contributionBps: 1.82 },
-    { bucket: "Europe ex-CH", weightPct: "8.0%", terBps: 12, contributionBps: 0.96 },
-    { bucket: "Switzerland", weightPct: "6.0%", terBps: 20, contributionBps: 1.20 },
-    { bucket: "Japan", weightPct: "4.0%", terBps: 20, contributionBps: 0.80 },
-    { bucket: "Emerging Markets", weightPct: "8.0%", terBps: 18, contributionBps: 1.44 },
-    { bucket: "World Small Cap", weightPct: "4.0%", terBps: 45, contributionBps: 1.80 },
-    { bucket: "Real Estate", weightPct: "4.0%", terBps: 59, contributionBps: 2.36 },
-    { bucket: "CHF Government Bonds", weightPct: "14.0%", terBps: 15, contributionBps: 2.10 },
-    { bucket: "CHF Corporate Bonds", weightPct: "12.0%", terBps: 15, contributionBps: 1.80 },
-    { bucket: "Global Aggregate (CHF Hgd)", weightPct: "12.0%", terBps: 25, contributionBps: 3.00 },
-    { bucket: "CHF Cash", weightPct: "2.0%", terBps: 0, contributionBps: 0.00 },
-  ],
-} as const;
-
-export const tocSections = [
-  { n: 1, title: "Profile summary", slide: 3, page: "p. 03" },
-  { n: 2, title: "Key metrics", slide: 4, page: "p. 04" },
-  { n: 3, title: "Target allocation", slide: 5, page: "p. 05" },
-  { n: 4, title: "ETF implementation", slide: 6, page: "p. 06" },
-  { n: 5, title: "Top 10 equity holdings", slide: 7, page: "p. 07" },
-  { n: 6, title: "Monte Carlo projection", slide: 8, page: "p. 08" },
-  { n: 7, title: "Fee estimate", slide: 9, page: "p. 09" },
-  { n: 8, title: "Methodology & disclaimer", slide: 10, page: "p. 10" },
-] as const;
+export { SNAPSHOT_STORAGE_KEY } from "./snapshotSchema";

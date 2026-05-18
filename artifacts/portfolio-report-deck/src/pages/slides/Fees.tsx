@@ -75,17 +75,9 @@ export default function Fees() {
           <Th className="text-right">TER (bps)</Th>
           <Th className="text-right">Contribution (bps)</Th>
 
-          <Row r={fees.rows[0]} />
-          <Row r={fees.rows[1]} />
-          <Row r={fees.rows[2]} />
-          <Row r={fees.rows[3]} />
-          <Row r={fees.rows[4]} />
-          <Row r={fees.rows[5]} />
-          <Row r={fees.rows[6]} />
-          <Row r={fees.rows[7]} />
-          <Row r={fees.rows[8]} />
-          <Row r={fees.rows[9]} />
-          <Row r={fees.rows[10]} />
+          {fees.rows.map((r, i) => (
+            <Row key={`${r.bucket}-${i}`} r={r} />
+          ))}
 
           <div className="font-sans text-[0.95vw] text-ink font-medium pt-[1vh]">Total (weighted TER)</div>
           <div className="font-mono tabular-nums text-right text-[0.95vw] text-ink font-medium pt-[1vh]">100.0%</div>

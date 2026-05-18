@@ -57,16 +57,9 @@ export default function TopHoldings() {
           <Th className="text-right">% of portfolio</Th>
           <Th className="text-right">% of equity</Th>
 
-          <Row h={holdings[0]} />
-          <Row h={holdings[1]} />
-          <Row h={holdings[2]} />
-          <Row h={holdings[3]} />
-          <Row h={holdings[4]} />
-          <Row h={holdings[5]} />
-          <Row h={holdings[6]} />
-          <Row h={holdings[7]} />
-          <Row h={holdings[8]} />
-          <Row h={holdings[9]} />
+          {holdings.map((h) => (
+            <Row key={`${h.n}-${h.name}`} h={h} />
+          ))}
         </div>
       </div>
 
