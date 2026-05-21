@@ -54,3 +54,4 @@ Newest entries are at the bottom. The file is never rewritten or trimmed.
 | 2026-05-18T06:21:31.714Z | refresh-justetf | listings | 166 | 163 | 3 | 323.7s | partial | schedule | [run](https://github.com/volkmarritter/Investment-Decision-Lab/actions/runs/26017042299) |
 | 2026-05-19T06:16:21.612Z | refresh-justetf | listings | 166 | 133 | 33 | 303.1s | partial | schedule | [run](https://github.com/volkmarritter/Investment-Decision-Lab/actions/runs/26079880588) |
 | 2026-05-20T06:15:53.478Z | refresh-justetf | listings | 166 | 156 | 10 | 315.8s | partial | schedule | [run](https://github.com/volkmarritter/Investment-Decision-Lab/actions/runs/26145024368) |
+| 2026-05-21T06:17:18.816Z | refresh-justetf | listings | 166 | 149 | 17 | 310.6s | partial | schedule | [run](https://github.com/volkmarritter/Investment-Decision-Lab/actions/runs/26209035821) |
