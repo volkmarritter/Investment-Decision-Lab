@@ -1,9 +1,9 @@
 {
   "_meta": {
     "source": "justetf.com",
-    "lastRefreshed": "2026-05-24T06:13:48.624Z",
-    "lastRefreshedMode": "listings",
-    "lastCoreRefresh": "2026-05-17T06:30:57.234Z",
+    "lastRefreshed": "2026-05-24T06:45:21.958Z",
+    "lastRefreshedMode": "core",
+    "lastCoreRefresh": "2026-05-24T06:45:21.958Z",
     "lastListingsRefresh": "2026-05-24T06:13:48.624Z",
     "refreshedBy": "scripts/refresh-justetf.mjs",
     "note": "ISIN -> partial ETFRecord overrides applied on top of the in-code CATALOG in src/lib/etfs.ts. Populated by two CI cadences: weekly (Sundays 03:00 UTC) for core fund metadata and nightly (02:00 UTC) for the per-exchange listings map. Only fields present in this file override the catalog defaults; everything else stays as defined in code."
@@ -25,7 +25,7 @@
           "ticker": "SPYI"
         }
       },
-      "aumMillionsEUR": 5187,
+      "aumMillionsEUR": 5248,
       "inceptionDate": "2011-05-13",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -46,7 +46,7 @@
           "ticker": "SXR8"
         }
       },
-      "aumMillionsEUR": 125494,
+      "aumMillionsEUR": 126399,
       "inceptionDate": "2010-05-19",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -67,7 +67,7 @@
           "ticker": "P500"
         }
       },
-      "aumMillionsEUR": 33470,
+      "aumMillionsEUR": 33823,
       "inceptionDate": "2010-05-20",
       "distribution": "Accumulating",
       "replication": "Synthetic"
@@ -88,7 +88,7 @@
           "ticker": "EUNK"
         }
       },
-      "aumMillionsEUR": 14963,
+      "aumMillionsEUR": 15079,
       "inceptionDate": "2009-09-25",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -100,7 +100,7 @@
           "ticker": "CHSPI"
         }
       },
-      "aumMillionsEUR": 5642,
+      "aumMillionsEUR": 5742,
       "inceptionDate": "2014-04-28",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -121,7 +121,7 @@
           "ticker": "EUNN"
         }
       },
-      "aumMillionsEUR": 6611,
+      "aumMillionsEUR": 6417,
       "inceptionDate": "2009-09-25",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -142,7 +142,7 @@
           "ticker": "IS3N"
         }
       },
-      "aumMillionsEUR": 35835,
+      "aumMillionsEUR": 34782,
       "inceptionDate": "2014-05-30",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -163,7 +163,7 @@
           "ticker": "IBCF"
         }
       },
-      "aumMillionsEUR": 8648,
+      "aumMillionsEUR": 8650,
       "inceptionDate": "2010-09-30",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -181,7 +181,7 @@
           "ticker": "EUNU"
         }
       },
-      "aumMillionsEUR": 2241,
+      "aumMillionsEUR": 2251,
       "inceptionDate": "2017-11-21",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -199,7 +199,7 @@
           "ticker": "EUNA"
         }
       },
-      "aumMillionsEUR": 2374,
+      "aumMillionsEUR": 2379,
       "inceptionDate": "2017-11-21",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -220,7 +220,7 @@
           "ticker": "8PSG"
         }
       },
-      "aumMillionsEUR": 25950,
+      "aumMillionsEUR": 24887,
       "inceptionDate": "2009-06-25",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -241,7 +241,7 @@
           "ticker": "IQQ6"
         }
       },
-      "aumMillionsEUR": 1050,
+      "aumMillionsEUR": 1055,
       "inceptionDate": "2006-10-20",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -262,7 +262,7 @@
           "ticker": "BITC"
         }
       },
-      "aumMillionsEUR": 1384,
+      "aumMillionsEUR": 1334,
       "inceptionDate": "2021-01-19",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -280,7 +280,7 @@
           "ticker": "QDVE"
         }
       },
-      "aumMillionsEUR": 15604,
+      "aumMillionsEUR": 15661,
       "inceptionDate": "2015-11-20",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -301,7 +301,7 @@
           "ticker": "2B78"
         }
       },
-      "aumMillionsEUR": 840,
+      "aumMillionsEUR": 852,
       "inceptionDate": "2016-09-08",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -319,7 +319,7 @@
           "ticker": "IQQH"
         }
       },
-      "aumMillionsEUR": 3250,
+      "aumMillionsEUR": 3256,
       "inceptionDate": "2007-07-06",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -340,7 +340,7 @@
           "ticker": "L0CK"
         }
       },
-      "aumMillionsEUR": 1369,
+      "aumMillionsEUR": 1411,
       "inceptionDate": "2018-09-07",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -361,7 +361,7 @@
         }
       },
       "terBps": 7,
-      "aumMillionsEUR": 3511,
+      "aumMillionsEUR": 3573,
       "inceptionDate": "2010-01-26",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -382,7 +382,7 @@
         }
       },
       "terBps": 19,
-      "aumMillionsEUR": 37627,
+      "aumMillionsEUR": 38398,
       "inceptionDate": "2019-07-23",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -403,7 +403,7 @@
         }
       },
       "terBps": 20,
-      "aumMillionsEUR": 26817,
+      "aumMillionsEUR": 27227,
       "inceptionDate": "2011-10-21",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -418,7 +418,7 @@
         }
       },
       "terBps": 7,
-      "aumMillionsEUR": 28816,
+      "aumMillionsEUR": 29304,
       "inceptionDate": "2019-05-14",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -439,7 +439,7 @@
         }
       },
       "terBps": 3,
-      "aumMillionsEUR": 17229,
+      "aumMillionsEUR": 17546,
       "inceptionDate": "2012-03-19",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -457,7 +457,7 @@
         }
       },
       "terBps": 15,
-      "aumMillionsEUR": 4254,
+      "aumMillionsEUR": 4299,
       "inceptionDate": "2010-03-26",
       "distribution": "Accumulating",
       "replication": "Synthetic"
@@ -478,7 +478,7 @@
         }
       },
       "terBps": 10,
-      "aumMillionsEUR": 4394,
+      "aumMillionsEUR": 4465,
       "inceptionDate": "2013-05-21",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -496,7 +496,7 @@
         }
       },
       "terBps": 20,
-      "aumMillionsEUR": 4125,
+      "aumMillionsEUR": 4166,
       "inceptionDate": "2001-02-19",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -508,7 +508,7 @@
         }
       },
       "terBps": 35,
-      "aumMillionsEUR": 747,
+      "aumMillionsEUR": 758,
       "inceptionDate": "2007-06-29",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -529,7 +529,7 @@
         }
       },
       "terBps": 25,
-      "aumMillionsEUR": 344,
+      "aumMillionsEUR": 347,
       "inceptionDate": "2010-06-17",
       "distribution": "Accumulating",
       "replication": "Synthetic"
@@ -547,7 +547,7 @@
         }
       },
       "terBps": 9,
-      "aumMillionsEUR": 5157,
+      "aumMillionsEUR": 5239,
       "inceptionDate": "2012-05-22",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -565,7 +565,7 @@
         }
       },
       "terBps": 9,
-      "aumMillionsEUR": 1921,
+      "aumMillionsEUR": 1827,
       "inceptionDate": "2013-01-25",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -583,7 +583,7 @@
         }
       },
       "terBps": 17,
-      "aumMillionsEUR": 1854,
+      "aumMillionsEUR": 1807,
       "inceptionDate": "2019-09-24",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -601,7 +601,7 @@
         }
       },
       "terBps": 18,
-      "aumMillionsEUR": 11145,
+      "aumMillionsEUR": 10951,
       "inceptionDate": "2017-06-21",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -613,7 +613,7 @@
         }
       },
       "terBps": 5,
-      "aumMillionsEUR": 426,
+      "aumMillionsEUR": 430,
       "inceptionDate": "2015-02-27",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -628,7 +628,7 @@
         }
       },
       "terBps": 5,
-      "aumMillionsEUR": 2699,
+      "aumMillionsEUR": 2637,
       "inceptionDate": "2014-12-08",
       "distribution": "Accumulating",
       "replication": "Synthetic"
@@ -640,7 +640,7 @@
         }
       },
       "terBps": 25,
-      "aumMillionsEUR": 685,
+      "aumMillionsEUR": 686,
       "inceptionDate": "2008-10-20",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -652,7 +652,7 @@
         }
       },
       "terBps": 8,
-      "aumMillionsEUR": 1997,
+      "aumMillionsEUR": 2013,
       "inceptionDate": "2019-06-18",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -664,7 +664,7 @@
         }
       },
       "terBps": 8,
-      "aumMillionsEUR": 123,
+      "aumMillionsEUR": 124,
       "inceptionDate": "2019-06-18",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -679,7 +679,7 @@
         }
       },
       "terBps": 7,
-      "aumMillionsEUR": 2236,
+      "aumMillionsEUR": 2262,
       "inceptionDate": "2007-05-22",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -691,7 +691,7 @@
         }
       },
       "terBps": 8,
-      "aumMillionsEUR": 553,
+      "aumMillionsEUR": 564,
       "inceptionDate": "2019-06-18",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -706,7 +706,7 @@
         }
       },
       "terBps": 12,
-      "aumMillionsEUR": 33426,
+      "aumMillionsEUR": 32395,
       "inceptionDate": "2011-04-08",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -724,7 +724,7 @@
         }
       },
       "terBps": 39,
-      "aumMillionsEUR": 6675,
+      "aumMillionsEUR": 6449,
       "inceptionDate": "2007-04-24",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -742,7 +742,7 @@
         }
       },
       "terBps": 24,
-      "aumMillionsEUR": 1888,
+      "aumMillionsEUR": 1947,
       "inceptionDate": "2011-06-20",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -784,7 +784,7 @@
         }
       },
       "terBps": 15,
-      "aumMillionsEUR": 1279,
+      "aumMillionsEUR": 1223,
       "inceptionDate": "2019-11-28",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -805,7 +805,7 @@
         }
       },
       "terBps": 10,
-      "aumMillionsEUR": 412,
+      "aumMillionsEUR": 403,
       "inceptionDate": "2022-06-29",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -826,7 +826,7 @@
         }
       },
       "terBps": 30,
-      "aumMillionsEUR": 22547,
+      "aumMillionsEUR": 22675,
       "inceptionDate": "2010-01-26",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -844,7 +844,7 @@
         }
       },
       "terBps": 25,
-      "aumMillionsEUR": 2718,
+      "aumMillionsEUR": 2863,
       "inceptionDate": "2016-03-04",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -862,7 +862,7 @@
         }
       },
       "terBps": 15,
-      "aumMillionsEUR": 2104,
+      "aumMillionsEUR": 2132,
       "inceptionDate": "2015-11-20",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -880,7 +880,7 @@
         }
       },
       "terBps": 20,
-      "aumMillionsEUR": 4896,
+      "aumMillionsEUR": 4902,
       "inceptionDate": "2018-10-19",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -901,7 +901,7 @@
         }
       },
       "terBps": 69,
-      "aumMillionsEUR": 2519,
+      "aumMillionsEUR": 2704,
       "inceptionDate": "2015-09-28",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -922,7 +922,7 @@
         }
       },
       "terBps": 45,
-      "aumMillionsEUR": 349,
+      "aumMillionsEUR": 383,
       "inceptionDate": "2021-01-25",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -934,7 +934,7 @@
         }
       },
       "terBps": 20,
-      "aumMillionsEUR": 1071,
+      "aumMillionsEUR": 1080,
       "inceptionDate": "2012-11-30",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -952,7 +952,7 @@
         }
       },
       "terBps": 25,
-      "aumMillionsEUR": 5324,
+      "aumMillionsEUR": 5413,
       "inceptionDate": "2016-03-09",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -970,7 +970,7 @@
         }
       },
       "terBps": 60,
-      "aumMillionsEUR": 153,
+      "aumMillionsEUR": 177,
       "inceptionDate": "2021-03-01",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -988,7 +988,7 @@
         }
       },
       "terBps": 50,
-      "aumMillionsEUR": 119,
+      "aumMillionsEUR": 115,
       "inceptionDate": "2021-11-16",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1024,7 +1024,7 @@
         }
       },
       "terBps": 14,
-      "aumMillionsEUR": 486,
+      "aumMillionsEUR": 489,
       "inceptionDate": "2001-10-29",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -1045,7 +1045,7 @@
         }
       },
       "terBps": 10,
-      "aumMillionsEUR": 5389,
+      "aumMillionsEUR": 5508,
       "inceptionDate": "2000-04-03",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -1066,7 +1066,7 @@
         }
       },
       "terBps": 19,
-      "aumMillionsEUR": 21374,
+      "aumMillionsEUR": 21525,
       "inceptionDate": "2012-05-22",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -1081,7 +1081,7 @@
         }
       },
       "terBps": 45,
-      "aumMillionsEUR": 363,
+      "aumMillionsEUR": 334,
       "inceptionDate": "2007-07-05",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1102,7 +1102,7 @@
         }
       },
       "terBps": 20,
-      "aumMillionsEUR": 119106,
+      "aumMillionsEUR": 120075,
       "inceptionDate": "2009-09-25",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1123,7 +1123,7 @@
         }
       },
       "terBps": 50,
-      "aumMillionsEUR": 7884,
+      "aumMillionsEUR": 7948,
       "inceptionDate": "2005-10-28",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -1144,7 +1144,7 @@
         }
       },
       "terBps": 12,
-      "aumMillionsEUR": 15929,
+      "aumMillionsEUR": 16057,
       "inceptionDate": "2019-02-28",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1162,7 +1162,7 @@
         }
       },
       "terBps": 45,
-      "aumMillionsEUR": 5054,
+      "aumMillionsEUR": 5092,
       "inceptionDate": "2006-12-19",
       "distribution": "Accumulating",
       "replication": "Synthetic"
@@ -1177,7 +1177,7 @@
         }
       },
       "terBps": 12,
-      "aumMillionsEUR": 5708,
+      "aumMillionsEUR": 5776,
       "inceptionDate": "2019-09-24",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1198,7 +1198,7 @@
         }
       },
       "terBps": 7,
-      "aumMillionsEUR": 18539,
+      "aumMillionsEUR": 18700,
       "inceptionDate": "2002-03-15",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -1219,7 +1219,7 @@
         }
       },
       "terBps": 30,
-      "aumMillionsEUR": 1032,
+      "aumMillionsEUR": 1046,
       "inceptionDate": "2016-04-29",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1240,7 +1240,7 @@
         }
       },
       "terBps": 30,
-      "aumMillionsEUR": 10820,
+      "aumMillionsEUR": 11206,
       "inceptionDate": "2002-12-02",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -1258,7 +1258,7 @@
         }
       },
       "terBps": 20,
-      "aumMillionsEUR": 1991,
+      "aumMillionsEUR": 2025,
       "inceptionDate": "2021-01-21",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1270,7 +1270,7 @@
         }
       },
       "terBps": 33,
-      "aumMillionsEUR": 2210,
+      "aumMillionsEUR": 2185,
       "inceptionDate": "2018-09-10",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1285,7 +1285,7 @@
         }
       },
       "terBps": 23,
-      "aumMillionsEUR": 1577,
+      "aumMillionsEUR": 1585,
       "inceptionDate": "2010-06-08",
       "distribution": "Accumulating",
       "replication": "Synthetic"
@@ -1306,7 +1306,7 @@
         }
       },
       "terBps": 40,
-      "aumMillionsEUR": 1463,
+      "aumMillionsEUR": 1486,
       "inceptionDate": "2005-10-28",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -1321,7 +1321,7 @@
         }
       },
       "terBps": 20,
-      "aumMillionsEUR": 9028,
+      "aumMillionsEUR": 9181,
       "inceptionDate": "2004-02-13",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -1339,7 +1339,7 @@
         }
       },
       "terBps": 7,
-      "aumMillionsEUR": 18193,
+      "aumMillionsEUR": 18517,
       "inceptionDate": "2013-04-03",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1357,7 +1357,7 @@
         }
       },
       "terBps": 35,
-      "aumMillionsEUR": 638,
+      "aumMillionsEUR": 675,
       "inceptionDate": "2014-06-06",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -1375,7 +1375,7 @@
         }
       },
       "terBps": 12,
-      "aumMillionsEUR": 7544,
+      "aumMillionsEUR": 7698,
       "inceptionDate": "2007-01-10",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1393,7 +1393,7 @@
         }
       },
       "terBps": 33,
-      "aumMillionsEUR": 1495,
+      "aumMillionsEUR": 1512,
       "inceptionDate": "2010-01-26",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1408,7 +1408,7 @@
         }
       },
       "terBps": 10,
-      "aumMillionsEUR": 20585,
+      "aumMillionsEUR": 20715,
       "inceptionDate": "2007-05-25",
       "distribution": "Accumulating",
       "replication": "Synthetic"
@@ -1426,7 +1426,7 @@
         }
       },
       "terBps": 30,
-      "aumMillionsEUR": 689,
+      "aumMillionsEUR": 710,
       "inceptionDate": "2005-11-18",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -1447,7 +1447,7 @@
         }
       },
       "terBps": 18,
-      "aumMillionsEUR": 8641,
+      "aumMillionsEUR": 8386,
       "inceptionDate": "2005-11-18",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -1465,7 +1465,7 @@
         }
       },
       "terBps": 49,
-      "aumMillionsEUR": 850,
+      "aumMillionsEUR": 824,
       "inceptionDate": "2007-06-22",
       "distribution": "Accumulating",
       "replication": "Synthetic"
@@ -1483,7 +1483,7 @@
         }
       },
       "terBps": 40,
-      "aumMillionsEUR": 347,
+      "aumMillionsEUR": 342,
       "inceptionDate": "2012-11-30",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1504,7 +1504,7 @@
         }
       },
       "terBps": 12,
-      "aumMillionsEUR": 1299,
+      "aumMillionsEUR": 1258,
       "inceptionDate": "2010-01-11",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1525,7 +1525,7 @@
         }
       },
       "terBps": 12,
-      "aumMillionsEUR": 2358,
+      "aumMillionsEUR": 2308,
       "inceptionDate": "2004-10-01",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -1543,7 +1543,7 @@
         }
       },
       "terBps": 12,
-      "aumMillionsEUR": 5403,
+      "aumMillionsEUR": 5298,
       "inceptionDate": "2007-01-09",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1564,7 +1564,7 @@
         }
       },
       "terBps": 20,
-      "aumMillionsEUR": 3233,
+      "aumMillionsEUR": 3184,
       "inceptionDate": "2010-01-12",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1585,7 +1585,7 @@
         }
       },
       "terBps": 74,
-      "aumMillionsEUR": 1599,
+      "aumMillionsEUR": 1536,
       "inceptionDate": "2005-10-28",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -1603,7 +1603,7 @@
         }
       },
       "terBps": 16,
-      "aumMillionsEUR": 8377,
+      "aumMillionsEUR": 8527,
       "inceptionDate": "2000-12-27",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1621,7 +1621,7 @@
         }
       },
       "terBps": 9,
-      "aumMillionsEUR": 6771,
+      "aumMillionsEUR": 6958,
       "inceptionDate": "2007-01-10",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1633,7 +1633,7 @@
         }
       },
       "terBps": 35,
-      "aumMillionsEUR": 2632,
+      "aumMillionsEUR": 2664,
       "inceptionDate": "1999-10-06",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -1651,7 +1651,7 @@
         }
       },
       "terBps": 65,
-      "aumMillionsEUR": 4238,
+      "aumMillionsEUR": 4276,
       "inceptionDate": "2018-05-24",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1669,7 +1669,7 @@
         }
       },
       "terBps": 10,
-      "aumMillionsEUR": 1203,
+      "aumMillionsEUR": 1180,
       "inceptionDate": "2019-09-24",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1690,7 +1690,7 @@
         }
       },
       "terBps": 74,
-      "aumMillionsEUR": 816,
+      "aumMillionsEUR": 799,
       "inceptionDate": "2004-10-21",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -1711,7 +1711,7 @@
         }
       },
       "terBps": 5,
-      "aumMillionsEUR": 1422,
+      "aumMillionsEUR": 1455,
       "inceptionDate": "2009-10-05",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -1729,7 +1729,7 @@
         }
       },
       "terBps": 15,
-      "aumMillionsEUR": 382,
+      "aumMillionsEUR": 403,
       "inceptionDate": "2017-03-20",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1744,7 +1744,7 @@
         }
       },
       "terBps": 18,
-      "aumMillionsEUR": 811,
+      "aumMillionsEUR": 820,
       "inceptionDate": "2020-11-17",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1765,7 +1765,7 @@
         }
       },
       "terBps": 40,
-      "aumMillionsEUR": 4072,
+      "aumMillionsEUR": 4090,
       "inceptionDate": "2016-09-08",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1783,7 +1783,7 @@
         }
       },
       "terBps": 35,
-      "aumMillionsEUR": 7005,
+      "aumMillionsEUR": 6991,
       "inceptionDate": "2019-01-29",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1804,7 +1804,7 @@
         }
       },
       "terBps": 55,
-      "aumMillionsEUR": 549,
+      "aumMillionsEUR": 540,
       "inceptionDate": "2019-06-24",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1825,7 +1825,7 @@
         }
       },
       "terBps": 40,
-      "aumMillionsEUR": 611,
+      "aumMillionsEUR": 633,
       "inceptionDate": "2016-09-08",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1858,7 +1858,7 @@
         }
       },
       "terBps": 4,
-      "aumMillionsEUR": 78,
+      "aumMillionsEUR": 79,
       "inceptionDate": "2019-05-06",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1879,7 +1879,7 @@
         }
       },
       "terBps": 50,
-      "aumMillionsEUR": 1437,
+      "aumMillionsEUR": 1453,
       "inceptionDate": "2020-12-09",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1897,7 +1897,7 @@
         }
       },
       "terBps": 18,
-      "aumMillionsEUR": 490,
+      "aumMillionsEUR": 496,
       "inceptionDate": "2019-10-17",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -1918,7 +1918,7 @@
         }
       },
       "terBps": 35,
-      "aumMillionsEUR": 1528,
+      "aumMillionsEUR": 1543,
       "inceptionDate": "2024-02-01",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1939,7 +1939,7 @@
         }
       },
       "terBps": 35,
-      "aumMillionsEUR": 6435,
+      "aumMillionsEUR": 6447,
       "inceptionDate": "2020-12-01",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1960,7 +1960,7 @@
         }
       },
       "terBps": 80,
-      "aumMillionsEUR": 1332,
+      "aumMillionsEUR": 1291,
       "inceptionDate": "2014-10-27",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1978,7 +1978,7 @@
         }
       },
       "terBps": 25,
-      "aumMillionsEUR": 4371,
+      "aumMillionsEUR": 4428,
       "inceptionDate": "2014-10-03",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -1996,7 +1996,7 @@
         }
       },
       "terBps": 25,
-      "aumMillionsEUR": 6136,
+      "aumMillionsEUR": 6062,
       "inceptionDate": "2014-10-03",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -2014,7 +2014,7 @@
         }
       },
       "terBps": 25,
-      "aumMillionsEUR": 4328,
+      "aumMillionsEUR": 4299,
       "inceptionDate": "2014-10-03",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -2032,7 +2032,7 @@
         }
       },
       "terBps": 20,
-      "aumMillionsEUR": 4310,
+      "aumMillionsEUR": 4202,
       "inceptionDate": "2016-10-13",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -2050,7 +2050,7 @@
         }
       },
       "terBps": 35,
-      "aumMillionsEUR": 3015,
+      "aumMillionsEUR": 3064,
       "inceptionDate": "2011-10-14",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -2068,7 +2068,7 @@
         }
       },
       "terBps": 45,
-      "aumMillionsEUR": 1338,
+      "aumMillionsEUR": 1356,
       "inceptionDate": "2013-05-14",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -2089,7 +2089,7 @@
         }
       },
       "terBps": 30,
-      "aumMillionsEUR": 1634,
+      "aumMillionsEUR": 1668,
       "inceptionDate": "2012-02-28",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -2104,7 +2104,7 @@
         }
       },
       "terBps": 19,
-      "aumMillionsEUR": 127,
+      "aumMillionsEUR": 128,
       "inceptionDate": "2018-03-26",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -2122,7 +2122,7 @@
         }
       },
       "terBps": 65,
-      "aumMillionsEUR": 1210,
+      "aumMillionsEUR": 1213,
       "inceptionDate": "2011-11-25",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -2140,7 +2140,7 @@
         }
       },
       "terBps": 58,
-      "aumMillionsEUR": 971,
+      "aumMillionsEUR": 960,
       "inceptionDate": "2009-07-01",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -2176,7 +2176,7 @@
         }
       },
       "terBps": 20,
-      "aumMillionsEUR": 3907,
+      "aumMillionsEUR": 3962,
       "inceptionDate": "2019-04-16",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -2191,7 +2191,7 @@
         }
       },
       "terBps": 40,
-      "aumMillionsEUR": 146,
+      "aumMillionsEUR": 151,
       "inceptionDate": "2018-10-29",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -2209,7 +2209,7 @@
         }
       },
       "terBps": 18,
-      "aumMillionsEUR": 5836,
+      "aumMillionsEUR": 5510,
       "inceptionDate": "2018-10-19",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -2236,7 +2236,7 @@
         }
       },
       "terBps": 46,
-      "aumMillionsEUR": 329,
+      "aumMillionsEUR": 322,
       "inceptionDate": "2007-08-07",
       "distribution": "Accumulating",
       "replication": "Synthetic"
@@ -2257,7 +2257,7 @@
         }
       },
       "terBps": 40,
-      "aumMillionsEUR": 888,
+      "aumMillionsEUR": 908,
       "inceptionDate": "2005-11-04",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -2278,7 +2278,7 @@
         }
       },
       "terBps": 7,
-      "aumMillionsEUR": 2893,
+      "aumMillionsEUR": 2932,
       "inceptionDate": "2006-12-08",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -2296,7 +2296,7 @@
         }
       },
       "terBps": 7,
-      "aumMillionsEUR": 4096,
+      "aumMillionsEUR": 4194,
       "inceptionDate": "2009-06-03",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -2317,7 +2317,7 @@
         }
       },
       "terBps": 7,
-      "aumMillionsEUR": 4953,
+      "aumMillionsEUR": 4993,
       "inceptionDate": "2009-04-17",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -2350,7 +2350,7 @@
         }
       },
       "terBps": 7,
-      "aumMillionsEUR": 836,
+      "aumMillionsEUR": 839,
       "inceptionDate": "2015-01-20",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -2371,7 +2371,7 @@
         }
       },
       "terBps": 59,
-      "aumMillionsEUR": 176,
+      "aumMillionsEUR": 171,
       "inceptionDate": "2006-10-20",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -2392,7 +2392,7 @@
         }
       },
       "terBps": 9,
-      "aumMillionsEUR": 1862,
+      "aumMillionsEUR": 1889,
       "inceptionDate": "2005-11-18",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -2413,7 +2413,7 @@
         }
       },
       "terBps": 10,
-      "aumMillionsEUR": 2424,
+      "aumMillionsEUR": 2434,
       "inceptionDate": "2006-12-08",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -2434,7 +2434,7 @@
         }
       },
       "terBps": 9,
-      "aumMillionsEUR": 9206,
+      "aumMillionsEUR": 9145,
       "inceptionDate": "2009-03-06",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -2452,7 +2452,7 @@
         }
       },
       "terBps": 74,
-      "aumMillionsEUR": 325,
+      "aumMillionsEUR": 301,
       "inceptionDate": "2009-03-06",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -2470,14 +2470,14 @@
         }
       },
       "terBps": 50,
-      "aumMillionsEUR": 5027,
+      "aumMillionsEUR": 5035,
       "inceptionDate": "2010-09-03",
       "distribution": "Distributing",
       "replication": "Physical"
     },
     "IE00BJK55C48": {
       "terBps": 25,
-      "aumMillionsEUR": 3319,
+      "aumMillionsEUR": 3359,
       "inceptionDate": "2019-11-12",
       "distribution": "Accumulating",
       "replication": "Physical",
@@ -2495,7 +2495,7 @@
     },
     "IE00B2NPKV68": {
       "terBps": 45,
-      "aumMillionsEUR": 3404,
+      "aumMillionsEUR": 3321,
       "inceptionDate": "2008-02-15",
       "distribution": "Distributing",
       "replication": "Physical",
@@ -2513,7 +2513,7 @@
     },
     "IE00B5L65R35": {
       "terBps": 20,
-      "aumMillionsEUR": 1846,
+      "aumMillionsEUR": 1844,
       "inceptionDate": "2011-03-30",
       "distribution": "Distributing",
       "replication": "Physical",
@@ -2539,7 +2539,7 @@
         }
       },
       "terBps": 50,
-      "aumMillionsEUR": 2133,
+      "aumMillionsEUR": 2099,
       "inceptionDate": "2013-07-08",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -2560,7 +2560,7 @@
         }
       },
       "terBps": 9,
-      "aumMillionsEUR": 3629,
+      "aumMillionsEUR": 3641,
       "inceptionDate": "2013-10-16",
       "distribution": "Distributing",
       "replication": "Physical"
@@ -2581,7 +2581,7 @@
         }
       },
       "terBps": 10,
-      "aumMillionsEUR": 7182,
+      "aumMillionsEUR": 7284,
       "inceptionDate": "2010-01-26",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -2596,7 +2596,7 @@
         }
       },
       "terBps": 10,
-      "aumMillionsEUR": 100,
+      "aumMillionsEUR": 99,
       "inceptionDate": "2023-07-26",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -2614,7 +2614,7 @@
         }
       },
       "terBps": 3,
-      "aumMillionsEUR": 1412,
+      "aumMillionsEUR": 1455,
       "inceptionDate": "2025-08-05",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -2632,7 +2632,7 @@
         }
       },
       "terBps": 60,
-      "aumMillionsEUR": 22,
+      "aumMillionsEUR": 26,
       "inceptionDate": "2017-03-14",
       "distribution": "Accumulating",
       "replication": "Physical"
@@ -2642,7 +2642,12 @@
         "SIX": {
           "ticker": "IJPC"
         }
-      }
+      },
+      "terBps": 64,
+      "aumMillionsEUR": 242,
+      "inceptionDate": "2012-11-30",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "LU2573967036": {
       "listings": {
@@ -2652,7 +2657,12 @@
         "XETRA": {
           "ticker": "LEMA"
         }
-      }
+      },
+      "terBps": 14,
+      "aumMillionsEUR": 4634,
+      "inceptionDate": "2020-12-03",
+      "distribution": "Accumulating",
+      "replication": "Synthetic"
     },
     "IE000GA3D489": {
       "listings": {
@@ -2665,14 +2675,24 @@
         "XETRA": {
           "ticker": "ARXK"
         }
-      }
+      },
+      "terBps": 75,
+      "aumMillionsEUR": 258,
+      "inceptionDate": "2024-04-12",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BD1JRY91": {
       "listings": {
         "SIX": {
           "ticker": "AGGS"
         }
-      }
+      },
+      "terBps": 10,
+      "aumMillionsEUR": 1008,
+      "inceptionDate": "2018-03-14",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B3VVMM84": {
       "listings": {
@@ -2688,14 +2708,23 @@
         "XETRA": {
           "ticker": "VFEM"
         }
-      }
+      },
+      "terBps": 17,
+      "aumMillionsEUR": 3020,
+      "inceptionDate": "2012-05-22",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "DE000A0S9GB0": {
       "listings": {
         "XETRA": {
           "ticker": "4GLD"
         }
-      }
+      },
+      "aumMillionsEUR": 21424,
+      "inceptionDate": "2007-11-27",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00B42WWV65": {
       "listings": {
@@ -2705,7 +2734,12 @@
         "XETRA": {
           "ticker": "VGOV"
         }
-      }
+      },
+      "terBps": 5,
+      "aumMillionsEUR": 404,
+      "inceptionDate": "2012-05-22",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00BKX55T58": {
       "listings": {
@@ -2721,7 +2755,12 @@
         "XETRA": {
           "ticker": "VGVE"
         }
-      }
+      },
+      "terBps": 12,
+      "aumMillionsEUR": 3852,
+      "inceptionDate": "2014-09-30",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE0005042456": {
       "listings": {
@@ -2737,7 +2776,12 @@
         "XETRA": {
           "ticker": "IUSZ"
         }
-      }
+      },
+      "terBps": 7,
+      "aumMillionsEUR": 17964,
+      "inceptionDate": "2000-04-27",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00BK5BQX27": {
       "listings": {
@@ -2753,7 +2797,12 @@
         "XETRA": {
           "ticker": "VWCG"
         }
-      }
+      },
+      "terBps": 10,
+      "aumMillionsEUR": 2805,
+      "inceptionDate": "2019-07-23",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BKX55S42": {
       "listings": {
@@ -2766,21 +2815,36 @@
         "XETRA": {
           "ticker": "VERX"
         }
-      }
+      },
+      "terBps": 10,
+      "aumMillionsEUR": 3228,
+      "inceptionDate": "2014-09-30",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "CH0032912732": {
       "listings": {
         "SIX": {
           "ticker": "SLICHA"
         }
-      }
+      },
+      "terBps": 20,
+      "aumMillionsEUR": 2304,
+      "inceptionDate": "2007-09-10",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "CH0047533523": {
       "listings": {
         "SIX": {
           "ticker": "ZGLDEU"
         }
-      }
+      },
+      "terBps": 40,
+      "aumMillionsEUR": 2125,
+      "inceptionDate": "2009-01-15",
+      "distribution": "Distributing",
+      "replication": "Physical"
     },
     "IE00BDFL4P12": {
       "listings": {
@@ -2790,7 +2854,12 @@
         "XETRA": {
           "ticker": "SXRS"
         }
-      }
+      },
+      "terBps": 19,
+      "aumMillionsEUR": 2058,
+      "inceptionDate": "2017-07-18",
+      "distribution": "Accumulating",
+      "replication": "Synthetic"
     },
     "IE00B3VTML14": {
       "listings": {
@@ -2806,7 +2875,12 @@
         "XETRA": {
           "ticker": "SXRP"
         }
-      }
+      },
+      "terBps": 15,
+      "aumMillionsEUR": 1279,
+      "inceptionDate": "2009-06-02",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BJ0KDQ92": {
       "listings": {
@@ -2819,7 +2893,12 @@
         "XETRA": {
           "ticker": "XDWD"
         }
-      }
+      },
+      "terBps": 12,
+      "aumMillionsEUR": 18793,
+      "inceptionDate": "2014-07-22",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "CH0454664001": {
       "listings": {
@@ -2835,7 +2914,12 @@
         "XETRA": {
           "ticker": "2BTD"
         }
-      }
+      },
+      "terBps": 149,
+      "aumMillionsEUR": 537,
+      "inceptionDate": "2019-02-26",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "IE00BZ0PKV06": {
       "listings": {
@@ -2848,7 +2932,12 @@
         "XETRA": {
           "ticker": "IBC0"
         }
-      }
+      },
+      "terBps": 25,
+      "aumMillionsEUR": 593,
+      "inceptionDate": "2015-09-04",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "DE000A27Z304": {
       "listings": {
@@ -2864,7 +2953,12 @@
         "XETRA": {
           "ticker": "BTCF"
         }
-      }
+      },
+      "terBps": 200,
+      "aumMillionsEUR": 743,
+      "inceptionDate": "2020-06-08",
+      "distribution": "Accumulating",
+      "replication": "Physical"
     },
     "LU1681048804": {
       "listings": {
@@ -2877,7 +2971,12 @@
         "XETRA": {
           "ticker": "AUM5"
         }
-      }
+      },
+      "terBps": 15,
+      "aumMillionsEUR": 2466,
+      "inceptionDate": "2010-06-08",
+      "distribution": "Accumulating",
+      "replication": "Synthetic"
     }
   }
 }
