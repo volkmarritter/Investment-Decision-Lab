@@ -1199,7 +1199,7 @@ export function BuildPortfolio() {
                     {isExporting ? t("build.btn.exportingPdf") : t("build.btn.exportPdf")}
                   </Button>
                   <Button
-                    variant="default"
+                    variant="outline"
                     size="sm"
                     onClick={handleExportDetailedPDF}
                     disabled={isExporting || isExportingDetailed}
@@ -1214,7 +1214,7 @@ export function BuildPortfolio() {
                       : t("build.btn.exportPdfDetailed")}
                   </Button>
                   <Button
-                    variant="outline"
+                    variant="default"
                     size="sm"
                     onClick={handleOpenSlides}
                     disabled={isExporting || isExportingDetailed || isExportingPptx}
