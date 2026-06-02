@@ -1270,45 +1270,24 @@ export function ExplainPortfolio() {
     setWeightDrafts([]);
   }
 
-  // Task #232 — replace the editor's positions with the imported rows
-  // in one shot. The dialog represents "this is my portfolio", so
-  // appending on top of whatever was already in the editor (left over
-  // from a previous session restored from localStorage, or from earlier
-  // editing) produced doubled weights and stale derived metrics
-  // (allocation, home-bias, look-through) that only "self-corrected"
-  // once the user re-picked an ETF. Replacing fixes the root cause.
-  // The dialog itself prompts for confirmation when the editor is
-  // non-empty so users aren't surprised.
-  function replaceWithImportedRows(
-    rows: PersonalPosition[],
-    summary: ImportSummary,
-  ) {
-    if (rows.length === 0) return;
-    // Task #292 — every imported row gets a stable uid so the editor's
-    // React keys stay correct after subsequent deletes.
-    const rowsWithUid = rows.map((p) => ensurePositionUid(p));
-    setState((s) => ({ ...s, positions: rowsWithUid }));
-    setWeightDrafts(rowsWithUid.map((p) => (p.weight > 0 ? String(p.weight) : "")));
-    // Task #259 — fire on-demand look-through scrapes for the off-catalog
-    // imported rows. Without this, the Geo / Sector / Top-Holdings charts
-    // stayed empty for `found-unassigned` and `off-universe` ISINs until
-    // the user re-pasted the same ISIN into the row editor (the only
-    // other code path that triggers `scrapeLookthroughForIsin`).
-    // `lookthroughProfileFor` skips ISINs already covered by the bundled
-    // overrides or the runtime registry, so duplicate imports don't
-    // re-fan-out. The error toast fires immediately (deferToast=false)
-    // because the import dialog has already operator-classified each
-    // manual row's `manualMeta`, so the 1500 ms Stammdaten-mute gate
-    // used by `setManualIsin` is not needed here. `allowMute=false`
-    // also bypasses the `autoClassifiedIsinsRef` suppression — the
-    // import path's classification did not come from the parallel
-    // Stammdaten auto-classifier, so the operator must always see the
-    // failure feedback, even for an ISIN that happened to be auto-
-    // classified earlier in the same session.
-    // Task #262 — seed the per-row pending-spinner set with the ISINs
-    // we just fanned out scrapes for, and clear each entry as its
-    // result lands (success OR failure) so the inline spinner on the
-    // matching off-catalog row disappears either way.
+  // Shared look-through scrape fan-out used by BOTH the paste-import path
+  // (`replaceWithImportedRows`) and the file/saved-portfolio load path
+  // (`loadWorkspace`). Both restore a set of rows where the off-catalog
+  // entries carry an operator-classified `manualMeta` but no runtime
+  // look-through profile yet — so the Geo / Sector / Top-Holdings charts
+  // would stay empty until the user re-touched each ISIN. This fans out
+  // justETF scrapes for exactly those rows, seeds the per-row pending
+  // spinner set, and clears each entry as its result lands.
+  //
+  // `triggerImportLookthroughScrapes` only fires for rows with `manualMeta`
+  // whose ISIN has no curated/runtime profile (`lookthroughProfileFor`
+  // guard), so catalog-only restores trigger nothing — no redundant
+  // fan-out. Toast semantics mirror the import path: `deferToast: false`
+  // (the classification is already baked into the saved/imported
+  // `manualMeta`, so the 1500 ms Stammdaten-mute gate isn't needed) and
+  // `allowMute: false` (the classification did not come from the parallel
+  // Stammdaten auto-classifier, so the operator must always see failures).
+  function fanOutLookthroughScrapes(rows: ReadonlyArray<PersonalPosition>) {
     const triggered = triggerImportLookthroughScrapes(rows, {
       profileFor: lookthroughProfileFor,
       onResult: (isin, result) => {
@@ -1331,6 +1310,35 @@ export function ExplainPortfolio() {
         return next;
       });
     }
+    return triggered;
+  }
+
+  // Task #232 — replace the editor's positions with the imported rows
+  // in one shot. The dialog represents "this is my portfolio", so
+  // appending on top of whatever was already in the editor (left over
+  // from a previous session restored from localStorage, or from earlier
+  // editing) produced doubled weights and stale derived metrics
+  // (allocation, home-bias, look-through) that only "self-corrected"
+  // once the user re-picked an ETF. Replacing fixes the root cause.
+  // The dialog itself prompts for confirmation when the editor is
+  // non-empty so users aren't surprised.
+  function replaceWithImportedRows(
+    rows: PersonalPosition[],
+    summary: ImportSummary,
+  ) {
+    if (rows.length === 0) return;
+    // Task #292 — every imported row gets a stable uid so the editor's
+    // React keys stay correct after subsequent deletes.
+    const rowsWithUid = rows.map((p) => ensurePositionUid(p));
+    setState((s) => ({ ...s, positions: rowsWithUid }));
+    setWeightDrafts(rowsWithUid.map((p) => (p.weight > 0 ? String(p.weight) : "")));
+    // Task #259 / #262 — fire on-demand look-through scrapes for the
+    // off-catalog imported rows so the Geo / Sector / Top-Holdings charts
+    // populate without the user re-pasting each ISIN, seeding the per-row
+    // pending spinner set. The shared `fanOutLookthroughScrapes` helper
+    // (also used by the file/saved-portfolio load path) owns the dedup
+    // guard and toast semantics.
+    fanOutLookthroughScrapes(rows);
     toast.success(
       t("explain.import.toast.summary", {
         total: rows.length,
@@ -1399,6 +1407,16 @@ export function ExplainPortfolio() {
     const positions = workspace.positions.map((p) => ensurePositionUid({ ...p }));
     setState({ ...workspace, positions });
     syncDraftsFromPositions(positions);
+    // Task #317 — a saved file/portfolio restored here carries the same
+    // off-catalog rows (operator-classified `manualMeta`, no runtime
+    // look-through profile) that the paste-import path scrapes on the
+    // fly. Without this, opening a file — especially one created on
+    // another device where the runtime registry is empty — left the
+    // Geo / Sector / Top-Holdings charts missing until the user re-
+    // touched each ISIN. Reusing the shared fan-out keeps the dedup
+    // guard (`lookthroughProfileFor`) and toast semantics in lock-step
+    // with the import path, so catalog-only restores trigger nothing.
+    fanOutLookthroughScrapes(positions);
   }
 
 
