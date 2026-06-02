@@ -3,28 +3,55 @@ import type { BrowserContext, Page } from "@playwright/test";
 /**
  * Dismiss the welcome dialog (Task #96) if it is visible.
  *
- * The Investment Decision Lab opens a welcome popup ~400ms after the app
- * shell mounts on every fresh page load. Radix's modal Dialog sets the
- * `inert` attribute on its siblings while open, which removes the rest of
- * the page from the accessibility tree — Playwright's `getByRole(...)`
- * locators then can't find buttons like "Generate Portfolio" or
- * "Compare Portfolios" until the dialog is closed.
+ * The Investment Decision Lab opens a welcome popup on a 400ms timer that
+ * React only schedules *after* the app shell mounts (see the `setTimeout`
+ * inside InvestmentLab.tsx). Radix's modal Dialog sets the `inert`
+ * attribute on its siblings while open, which removes the rest of the page
+ * from the accessibility tree — Playwright's `getByRole(...)` locators then
+ * can't find buttons like "Generate Portfolio" or "Compare Portfolios"
+ * until the dialog is closed, and a stray tap gets swallowed.
  *
- * Tests that drive the underlying app flow should call this helper right
- * after `page.goto(...)` so the welcome popup never gets in the way. The
- * helper is intentionally tolerant: if the dialog is not visible within a
- * short window (e.g. the timer hasn't fired yet on a slow CI run, or a
- * future change skips the popup), it just returns without failing.
+ * Why this is a *polling* loop and not a single `waitFor` (Task #302): the
+ * 400ms timer is scheduled relative to React mount, NOT to `page.goto()`.
+ * `goto` resolves on the `load` event, which fires before React's effect
+ * runs, so on a slow mount the dialog can pop open well after `goto`
+ * returns. The old single `waitFor({ state: "visible", timeout: 2_000 })`
+ * then raced that timer: it returned "not visible" just *before* the
+ * dialog appeared, the test moved on, and the modal then trapped the next
+ * interaction — the exact flake this helper now removes.
+ *
+ * The loop keeps re-checking until either the dialog has appeared (then it
+ * is dismissed and confirmed hidden) or a generous deadline elapses (the
+ * dialog was genuinely never shown — e.g. a slow build, or a future change
+ * that drops the popup). It exits the instant the dialog shows, so it adds
+ * no latency on the common path and only spends the full budget when there
+ * is truly no dialog. The welcome timer is one-shot per mount, so once a
+ * dismissed dialog is confirmed hidden it will not re-open for that page
+ * load — callers issue a fresh `dismissWelcomeIfPresent` after each
+ * `reload()`/navigation that triggers a new mount.
  */
 export async function dismissWelcomeIfPresent(page: Page): Promise<void> {
   const dismiss = page.getByTestId("welcome-dialog-dismiss");
-  try {
-    await dismiss.waitFor({ state: "visible", timeout: 2_000 });
-  } catch {
+  // 10s budget comfortably covers app mount (after `load`) + the 400ms
+  // timer even on a cold dev server, while still failing fast if the
+  // dialog is genuinely absent. Each iteration blocks up to 1s on
+  // `waitFor`, so this is at most ~10 polls — never a busy loop.
+  const deadline = Date.now() + 10_000;
+  while (Date.now() < deadline) {
+    try {
+      await dismiss.waitFor({ state: "visible", timeout: 1_000 });
+    } catch (err) {
+      // Only a per-iteration *timeout* means "not visible yet" — keep
+      // polling until the deadline. Any other error (e.g. the page/context
+      // was closed) is real: re-throw it so genuine failures surface
+      // instead of being silently swallowed by the poll loop.
+      if (err instanceof Error && err.name === "TimeoutError") continue;
+      throw err;
+    }
+    await dismiss.click();
+    await dismiss.waitFor({ state: "hidden", timeout: 2_000 });
     return;
   }
-  await dismiss.click();
-  await dismiss.waitFor({ state: "hidden", timeout: 2_000 });
 }
 
 /**

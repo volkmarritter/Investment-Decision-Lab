@@ -1,0 +1,2 @@
+- [investment-lab e2e](investment-lab-e2e.md) — Playwright shares one dev server (port 5174, reuseExistingServer); never run a manual e2e alongside the `e2e` workflow or you get spurious ERR_CONNECTION_REFUSED.
+- [welcome-dialog e2e race](investment-lab-e2e.md) — welcome popup is a mount-relative 400ms timer with no persistence; the shared dismiss helper must poll, not single-`waitFor`, or it races a slow mount.
