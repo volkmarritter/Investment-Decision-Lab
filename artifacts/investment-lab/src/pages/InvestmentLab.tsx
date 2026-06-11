@@ -468,9 +468,16 @@ export default function InvestmentLab() {
         <header className="sticky top-0 z-40 w-full border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="container mx-auto px-4 h-16 flex items-center justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0">
-              <div className="bg-primary/10 p-2 rounded-lg text-primary shrink-0">
+              <a
+                href="https://about.bicon.co"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="bg-primary/10 p-2 rounded-lg text-primary shrink-0 transition-colors hover:bg-primary/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label="BICon"
+                data-testid="bicon-logo-link"
+              >
                 <Layers className="h-5 w-5" />
-              </div>
+              </a>
               <div className="min-w-0">
                 <h1 className="text-lg font-bold leading-none tracking-tight truncate">{t("header.title")}</h1>
                 <p className="text-xs text-muted-foreground flex items-center gap-1.5 leading-snug">
